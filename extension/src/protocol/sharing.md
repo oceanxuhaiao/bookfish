@@ -1,0 +1,15 @@
+# Optional proactive sharing
+
+After saving an episode, you may choose one reaction worth sharing and call `bookfish_share(action="propose")` with `episodeId` and `text`. Keep it short and natural, using only confirmed source and saved interpretation; never put tool commands, unread spoilers or supposed unrecorded feelings in the text. A candidate does not send anything. Automatic sharing defaults on for new configurations; obey the existing saved setting and the user-controlled toggle. Defaults: 60-minute cooldown, quiet 22:00–08:00 deployment time. There is no daily attempt cap; attempts are audit information. Only the newest waiting candidate remains, expires after 2 hours; no catch-up bursts. User discussion replies remain normal replies and do not need sharing permits or nominations.
+
+`bookfish_share(action="status")` reports gates, budget, recent candidates and model-reported output receipts. It is paginated: use `limit` (1–10, default 5) and `cursor`; full text is bounded and receipts are truncated. Accepted is not proven display; `visibleAt` is explicit user confirmation.
+
+## Output protocol
+
+Only a delivered `bookfish.share_opportunity` can authorize an automatic share. First call `bookfish_claim_share` and WAIT for its successful receipt (never batch `pet_say` with the claim). Rejection means no output. Check the returned expiry and `outputPermit.allowed` immediately before output (general `reason`/`cooldown`/`no_candidate` concern the NEXT attempt, not an already reserved permit); respect quiet hours, cancellation and any user message that arrived. If still allowed, call existing `pet_say` exactly once with `script` equal to the returned text. Never use voice, console or another fallback if `pet_say` is missing or fails. Then call `bookfish_share(action="report")` with the `shareId`/`claimId` and the actual `pet_say` receipt: `accepted` only for tool success; `unavailable` for missing/failed tool; `unknown` if uncertain. Never fabricate a receipt, silently retry output, or call a second channel. A reserved attempt stays consumed even if output fails; on restart without a result it is `unknown`, not retried. Bookfish has no authority to invoke or intercept other Worlds' tools: you must obey the permit at the output step.
+
+An accepted receipt is model-reported transport acceptance, not proof of rendered bubbles or that a user saw/heard it. Do not call it confirmed display. Only the user's panel action sets `visibleAt`. Do not write new feelings or advance reading just to produce a share. Quiet hours apply to proactive shares; a direct user question can still receive an ordinary response. If you no longer want to share, call `bookfish_share(action="drop")`; preserve the original journal.
+
+## Configuration
+
+Inspect `bookfish_share(action="status").limits.maxSentenceChars` before nominating. Each sentence, including punctuation, must fit this Unicode code-point limit; total text remains at most 300. New configurations enable sharing by default; existing explicit user settings remain authoritative. Quiet time supports minute precision in the deployment timezone.

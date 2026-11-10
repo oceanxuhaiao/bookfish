@@ -1,0 +1,13 @@
+import { mkdirSync, statSync, writeFileSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { Library } from '../src/library.ts';
+const mode=process.argv[2]??'normal';if(!['normal','bounded','baseline','bounded-longline'].includes(mode))throw Error('Invalid benchmark mode');
+const source=resolve(mode==='bounded-longline'?'output/large-file-check/stream-longline.txt':'output/large-file-check/sample.txt'),bytes=statSync(source).size;
+if(bytes!==100*1024*1024)throw Error('Expected 100 MiB fixture');
+const Store=mode==='baseline'?(await import('file:///E:/zcdfy/Coopanion/data/local-extensions/bookfish-0.13.0/src/library.ts')).Library:Library;
+const dir=resolve('output/large-file-check/stream-'+mode+'-'+Date.now());mkdirSync(dir,{recursive:true});const lib=new Store({dataDir:dir});
+const snapshots:unknown[]=[];const snap=(label:string)=>snapshots.push({label,...process.memoryUsage(),maxRssKiB:process.resourceUsage().maxRSS,cache:lib.storageStats()});
+snap('start');lib.open();const started=Date.now();const metadata={filename:'sample.txt',title:'独立流式导入样本'};const imported=mode==='baseline'?lib.importBytes(metadata,readFileSync(source)):lib.importFile(metadata,source);const importMs=Date.now()-started;snap('imported');lib.select(imported.book.key);const t=lib.readNext();if(t.complete)throw Error('Empty import');lib.finish({...t,understanding:'独立存储合成确认，不代表模型阅读。'});snap('confirmed');
+const backup=dir+'/stream.bfbak';lib.writeArchive(backup);snap('backup');lib.close();snap('closed');
+const proof={mode,sourceBytes:bytes,totalChars:imported.book.totalChars,totalSegments:imported.book.totalSegments,importMs,maxRssKiB:process.resourceUsage().maxRSS,snapshots,oldSpaceLimitMiB:mode.startsWith('bounded')?96:null,semiSpaceLimitMiB:mode.startsWith('bounded')?4:null,modelUsed:false,libraryDir:dir};
+writeFileSync('output/stream-import-'+mode+'-0.14.0.json',JSON.stringify(proof,null,2));console.log(JSON.stringify(proof));

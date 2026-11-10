@@ -24,3 +24,6 @@
 再分发时必须保留 ZIP 内的版权、LICENSE、NOTICE、SOURCE 文件，并提供对应源码；不要移除或替换上游许可证。若修改上游代码，必须按 AGPL-3.0 提供修改后的完整源码，并遵守 AGPL 的网络交互条款。
 
 下载后由 Bookfish 扩展校验摘要、安全解压、自检并原子启用；不要手工解压覆盖正在使用的运行时。
+## Extension source
+
+The Coopanion extension source for Bookfish is in [\extension/\](extension/). It is published on npm as \cortico-world-bookfish\.

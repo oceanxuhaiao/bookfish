@@ -1,0 +1,72 @@
+{
+  "name": "cortico-world-bookfish",
+  "version": "0.44.0",
+  "type": "module",
+  "description": "看书吧！大肥鱼：书源、自主阅读、证据手账、已读讨论、有限分享与有版本的全书读后感。适用于 Coopanion。扩展反馈 QQ 群：1135570183。",
+  "license": "MIT",
+  "author": "oceanxuhaiao",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oceanxuhaiao/bookfish.git",
+    "directory": "extension"
+  },
+  "homepage": "https://github.com/oceanxuhaiao/bookfish#readme",
+  "bugs": {
+    "url": "https://github.com/oceanxuhaiao/bookfish/issues"
+  },
+  "keywords": [
+    "cortico-world",
+    "cortico"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "packageManager": "pnpm@11.28.6",
+  "main": "./src/index.ts",
+  "cortico": {
+    "kind": "world",
+    "api": 6,
+    "displayName": "看书吧！大肥鱼",
+    "tags": [
+      "experimental",
+      "injection-risk",
+      "high-cost",
+      "internal-state"
+    ],
+    "describe": "describe.json",
+    "webUiClient": "lib/webui.js"
+  },
+  "files": [
+    "src",
+    "lib",
+    "README.md",
+    "CHANGELOG.md",
+    "describe.json"
+  ],
+  "scripts": {
+    "test": "node scripts/build-worker.mjs && vitest run",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "build:webui": "node scripts/build-webui.mjs",
+    "build:bridge": "node scripts/build-novel-bridge.mjs",
+    "package:runtime": "node scripts/package-novel-runtime.mjs --write-builtin",
+    "verify:runtime": "node --import tsx scripts/verify-novel-runtime.mts",
+    "verify:world": "node --import tsx scripts/verify-novel-world.mts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/yauzl": "2.10.3",
+    "@types/yazl": "3.3.0",
+    "cortico": "^0.2.13",
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8",
+    "yauzl": "3.2.0",
+    "yazl": "3.3.1"
+  },
+  "dependencies": {
+    "cheerio": "1.2.0",
+    "ipaddr.js": "2.2.0"
+  }
+}
