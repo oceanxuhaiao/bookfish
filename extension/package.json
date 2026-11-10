@@ -1,8 +1,8 @@
 {
   "name": "cortico-world-bookfish",
-  "version": "0.45.0",
+  "version": "0.48.0",
   "type": "module",
-  "description": "看小说没人聊？大肥鱼陪你唠！AI 阅读搭子，陪你分享感动、吐槽剧情、畅聊每一个上头瞬间。书源、自主阅读、证据手账、已读讨论、分享与读后感。反馈 QQ 群：1135570183。",
+  "description": "你负责安利，大肥鱼负责上头！把喜欢的小说推荐给大肥鱼，让她认真读、尽情吐槽、和你讨论每一个精彩瞬间！反馈 QQ 群：1135570183。",
   "license": "MIT",
   "author": "oceanxuhaiao",
   "repository": {
