@@ -15,6 +15,7 @@ import { NovelEngine } from '../src/novel-engine.ts';
 import { NovelFetches, type NovelTaskView } from '../src/novel-fetch.ts';
 import { NOVEL_SOURCES } from '../src/novel-sources.ts';
 import { SourcePageProbe } from '../src/novel-probe.ts';
+import { isAnnouncementTitle } from '../src/novel-integrity.ts';
 import { Library } from '../src/library.ts';
 
 const title = process.argv[2] ?? '大奉打更人';
@@ -84,7 +85,9 @@ try {
 } catch { /* evidence only */ }
 
 const headings = validatedText.split(/\r?\n/).filter((line) => line.startsWith('# ')).map((line) => line.slice(2));
-const announcementHeadings = headings.filter((heading) => /请假|感谢|感言|上架|总结|晚点更新|单章|抽奖|中奖|月票|公告|说明/.test(heading));
+// A real chapter title may mention 请假 (e.g. "第二百六十章 出征（请假到十四号写大结局）");
+// only unnumbered announcement-shaped headings would prove the filter failed.
+const announcementHeadings = headings.filter((heading) => isAnnouncementTitle(heading));
 const books = library.list();
 const book = books[0];
 const result = {
@@ -95,11 +98,11 @@ const result = {
   text: { validatedBytes: validatedText.length, headings: headings.length, announcementHeadings: announcementHeadings.slice(0, 10),
     firstHeadings: headings.slice(0, 5), lastHeadings: headings.slice(-5) },
   library: books.map((entry) => ({ key: entry.key, title: entry.title, author: entry.author, totalChars: entry.totalChars,
-    identifiedChapters: entry.identifiedChapters, source: entry.source?.name ?? null })),
+    identifiedChapters: entry.identifiedChapters, sourceAdapter: entry.source?.adapter ?? null })),
   bookImported: !!book && book.title === preferred.title,
   taskDir: taskDir ?? null,
 };
-const outFile = join(process.cwd(), 'output', `full-download-${new Date().toISOString().slice(0, 10)}.json`);
+const outFile = join(process.cwd(), 'output', `full-download-${title.replace(/[\\/:*?"<>|\s]+/gu, '_')}-${new Date().toISOString().slice(0, 10)}.json`);
 writeFileSync(outFile, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
 console.log(JSON.stringify(result, null, 2));
 console.log(`evidence: ${outFile}`);
