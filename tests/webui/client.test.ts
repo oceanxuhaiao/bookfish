@@ -136,6 +136,25 @@ describe('library panel with real World data plane', () => {
     expect(inputs[0]!.value).toBe('重生之女将星');
     expect(inputs[1]!.value).toBe('千山茶客');
   });
+  it('reports a likely abridged edition instead of offering it for download', async () => {
+    const complete: NovelSearchJobView = { id: 'search-4', state: 'complete', title: '凡人修仙传', author: '忘语', completed: 2, total: 2, checked: 1, checkTotal: 1, hidden: 1, candidates: [], abridged: [{ title: '凡人修仙传', author: '忘语', source: { id: 8, name: '笔趣阁365' }, chapters: 4, largestChapters: 2466 }], createdAt: '', updatedAt: '' };
+    const fetches = (world as unknown as { novelFetches: NovelFetches }).novelFetches;
+    vi.spyOn(fetches, 'status').mockReturnValue({ available: true, engineDir: '', engineVersion: '1.12.0', pageProbe: false, activeId: null, sources: [8], tasks: [], resumable: [] });
+    vi.spyOn(fetches, 'startSearch').mockReturnValue({ id: 'search-4', state: 'searching', title: '凡人修仙传', author: '忘语', completed: 0, total: 2, checked: 0, checkTotal: 0, createdAt: '', updatedAt: '' });
+    vi.spyOn(fetches, 'searchStatus').mockReturnValue(complete);
+    const { root } = await mount('shelf');
+    action(root, '＋ 推荐一本书').click(); await settle();
+    const picker = root.querySelector<HTMLSelectElement>('#bf-recommend-panel select[aria-label="导入方式"]')!;
+    picker.value = 'title'; picker.dispatchEvent(new Event('change', { bubbles: true })); await settle();
+    const novel = root.querySelector<HTMLElement>('#bf-novel-fetch')!;
+    const inputs = novel.querySelectorAll<HTMLInputElement>('form input[type=text]');
+    inputs[0]!.value = '凡人修仙传'; inputs[1]!.value = '忘语';
+    novel.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await vi.waitFor(() => { expect(novel.textContent).toContain('疑似残缺版本'); }, { timeout: 5000 });
+    expect(novel.textContent).toContain('4 章');
+    expect(novel.textContent).toContain('2466 章');
+    expect(novel.querySelectorAll('.novel-candidate')).toHaveLength(0);
+  });
   it('displays a reported mood, evidence and stated reason without executing annotation text', async () => {
     const invoke = world.webUi!().invoke!;
     const imported = await invoke('status', 'import', [{ filename: 'journal.txt', title: '手账样本', base64: Buffer.from('小鱼把饼留给妹妹。').toString('base64') }]) as { book: { key: string } };

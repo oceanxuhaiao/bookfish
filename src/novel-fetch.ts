@@ -75,6 +75,24 @@ export interface NovelCandidateCheck {
   reason?: string;
 }
 
+/** A passing candidate whose catalog is far shorter than another edition. */
+export interface NovelAbridgedCandidate {
+  title: string;
+  author: string;
+  source: { id: number; name: string };
+  chapters: number;
+  largestChapters: number;
+}
+
+/**
+ * Whether a catalog is a stub/abridged edition of the same work. Only called
+ * when another edition of the same title+author has at least 50 chapters, so
+ * genuinely short works are never affected.
+ */
+export function isAbridgedEdition(chapters: number, largestChapters: number): boolean {
+  return largestChapters >= 50 && chapters > 0 && chapters <= Math.max(5, Math.floor(largestChapters * 0.1));
+}
+
 /**
  * A likely full title when the query found no exact match. This is a hint for
  * the user (and the model), never an acquirable candidate: "女将星" suggests
@@ -106,6 +124,8 @@ export interface NovelSearchJobView {
   candidates?: Array<NovelSearchCandidate & { match: CandidateMatch; check?: NovelCandidateCheck }>;
   /** Full titles close to a query that returned no exact match. */
   suggestions?: NovelSearchSuggestion[];
+  /** Passing candidates hidden because their catalog is a stub/abridged edition. */
+  abridged?: NovelAbridgedCandidate[];
   error?: string;
   createdAt: string;
   updatedAt: string;
@@ -417,11 +437,28 @@ export class NovelFetches {
       }
     };
     await Promise.all(Array.from({ length: Math.min(SEARCH_CHECK_CONCURRENCY, targets.length) }, () => worker()));
-    const visible = candidates
+    const rows = candidates
       .map((candidate) => ({ candidate, check: checks.get(`${candidate.source.id}|${candidate.url}`) }))
-      .filter((row): row is { candidate: NovelSearchCandidate & { match: CandidateMatch }; check: NovelCandidateCheck } => row.candidate.match === 'exact' && row.check?.ok === true)
-      .map((row) => ({ ...row.candidate, check: row.check }));
-    job.candidates = visible; job.hidden = candidates.length - visible.length; job.state = 'complete';
+      .filter((row): row is { candidate: NovelSearchCandidate & { match: CandidateMatch }; check: NovelCandidateCheck } => row.candidate.match === 'exact' && row.check !== undefined);
+    // Compare editions of the same title+author, never different works or
+    // genuinely short books: a 4-chapter page next to a 2,466-chapter edition
+    // is a stub, not an acquirable version.
+    const largestByAuthor = new Map<string, number>();
+    for (const row of rows) {
+      const author = normalizeIdentity(row.candidate.author);
+      largestByAuthor.set(author, Math.max(largestByAuthor.get(author) ?? 0, row.check.chapters));
+    }
+    const visible: Array<NovelSearchCandidate & { match: CandidateMatch; check?: NovelCandidateCheck }> = [];
+    const abridged: NovelAbridgedCandidate[] = [];
+    for (const row of rows) {
+      const largest = largestByAuthor.get(normalizeIdentity(row.candidate.author)) ?? row.check.chapters;
+      if (row.check.ok && isAbridgedEdition(row.check.chapters, largest)) {
+        abridged.push({ title: row.candidate.title, author: row.candidate.author, source: { ...row.candidate.source }, chapters: row.check.chapters, largestChapters: largest });
+        continue;
+      }
+      if (row.check.ok) visible.push({ ...row.candidate, check: row.check });
+    }
+    job.candidates = visible; job.abridged = abridged; job.hidden = candidates.length - visible.length; job.state = 'complete';
     job.updatedAt = new Date(this.now()).toISOString();
   }
 
@@ -448,7 +485,7 @@ export class NovelFetches {
   }
 
   private searchJobView(job: NovelSearchJobView): NovelSearchJobView {
-    return { ...job, ...(job.source ? { source: { ...job.source } } : {}), ...(job.suggestions ? { suggestions: job.suggestions.map((suggestion) => ({ ...suggestion, source: { ...suggestion.source } })) } : {}), ...(job.candidates ? { candidates: job.candidates.map((candidate) => ({ ...candidate, source: { ...candidate.source }, ...(candidate.check ? { check: { ...candidate.check } } : {}) })) } : {}) };
+    return { ...job, ...(job.source ? { source: { ...job.source } } : {}), ...(job.suggestions ? { suggestions: job.suggestions.map((suggestion) => ({ ...suggestion, source: { ...suggestion.source } })) } : {}), ...(job.abridged ? { abridged: job.abridged.map((item) => ({ ...item, source: { ...item.source } })) } : {}), ...(job.candidates ? { candidates: job.candidates.map((candidate) => ({ ...candidate, source: { ...candidate.source }, ...(candidate.check ? { check: { ...candidate.check } } : {}) })) } : {}) };
   }
 
   private async runSearchJob(job: NovelSearchJobView, wanted: { title?: string; author?: string }, validate: boolean): Promise<void> {

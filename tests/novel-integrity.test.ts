@@ -29,6 +29,12 @@ describe('chapter number parsing', () => {
     expect(chapterNumberOf('第十二节')).toBe(12);
     expect(chapterNumberOf('序章')).toBeNull();
   });
+
+  it('reads the chapter number after a volume prefix and ignores a bare volume heading', () => {
+    expect(chapterNumberOf('第十卷 魔界之战 第一千七百六十三章 魔影再现')).toBe(1763);
+    expect(chapterNumberOf('第三卷 第一百九十三章 敌友之分')).toBe(193);
+    expect(chapterNumberOf('第一卷')).toBeNull();
+  });
 });
 
 describe('announcement titles', () => {

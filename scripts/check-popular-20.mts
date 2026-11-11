@@ -8,12 +8,12 @@
  * written to the shelf. First passing candidate ends the work; every failed
  * attempt keeps its issue codes as evidence.
  *
- * Usage: node --import tsx scripts/check-popular-20.mts [--limit N] [--book 序号]
+ * Usage: node --import tsx scripts/check-popular-20.mts [--limit N] [--book 序号] [--books 列表.json] [--out 后缀]
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NovelEngine } from '../src/novel-engine.ts';
-import { NovelFetches } from '../src/novel-fetch.ts';
+import { NovelFetches, isAbridgedEdition } from '../src/novel-fetch.ts';
 import { NOVEL_SOURCES } from '../src/novel-sources.ts';
 import type { NovelSearchCandidate } from '../src/novel-match.ts';
 
@@ -22,7 +22,7 @@ const ENGINE_DIR = process.env.BOOKFISH_ENGINE_DIR
 
 interface BookSpec { title: string; author: string; category: string; note?: string }
 
-const BOOKS: BookSpec[] = [
+const DEFAULT_BOOKS: BookSpec[] = [
   { title: '夜无疆', author: '辰东', category: '东方玄幻', note: '2026 起点/番茄双榜头部' },
   { title: '诡秘之主', author: '爱潜水的乌贼', category: '克苏鲁奇幻' },
   { title: '宿命之环', author: '爱潜水的乌贼', category: '奇幻' },
@@ -48,6 +48,11 @@ const BOOKS: BookSpec[] = [
 const args = process.argv.slice(2);
 const limitArg = args.indexOf('--limit');
 const bookArg = args.indexOf('--book');
+const booksArg = args.indexOf('--books');
+const outArg = args.indexOf('--out');
+const BOOKS: BookSpec[] = booksArg >= 0
+  ? JSON.parse(readFileSync(args[booksArg + 1]!, 'utf8')) as BookSpec[]
+  : DEFAULT_BOOKS;
 const limit = limitArg >= 0 ? Number(args[limitArg + 1]) : BOOKS.length;
 const only = bookArg >= 0 ? Number(args[bookArg + 1]) : 0;
 const workDir = join(process.cwd(), 'output', `popular-20-work-${Date.now()}`);
@@ -71,6 +76,7 @@ interface Attempt {
   reason?: string;
   issues: Array<{ code: string; message: string }>;
   ms: number;
+  abridged?: boolean;
 }
 
 interface BookResult {
@@ -80,6 +86,7 @@ interface BookResult {
   category: string;
   search: { ok: boolean; exact: number; total: number; sources: string[]; error?: string; ms: number; suggestedExact?: number };
   suggestion?: { title: string; author: string; sources: number };
+  abridged?: { chapters: number; largestChapters: number };
   attempts: Attempt[];
   verdict: 'pass' | 'fail';
   reason?: string;
@@ -144,17 +151,24 @@ for (const [index, book] of BOOKS.entries()) {
       ms: Date.now() - at,
     });
     console.log(`  [${book.title}] ${candidate.source.name}: ${check.ok ? 'PASS' : 'FAIL'} (${check.chapters} 章${check.reason ? `, ${check.reason}` : ''})`);
-    if (check.ok) break;
   }
-  const passed = row.attempts.find((attempt) => attempt.ok);
+  // Mirror the panel: a passing edition that is a tiny fraction of the largest
+  // edition of the same work is a stub, not an acquirable version.
+  const largest = row.attempts.reduce((max, attempt) => Math.max(max, attempt.chapters), 0);
+  for (const attempt of row.attempts) if (attempt.ok && isAbridgedEdition(attempt.chapters, largest)) attempt.abridged = true;
+  const passed = row.attempts.find((attempt) => attempt.ok && !attempt.abridged);
+  const stub = row.attempts.find((attempt) => attempt.ok && attempt.abridged);
+  if (!passed && stub) row.abridged = { chapters: stub.chapters, largestChapters: largest };
   row.verdict = passed ? 'pass' : 'fail';
   if (!passed && !row.reason) {
-    row.reason = row.attempts.length
-      ? `全部 ${row.attempts.length} 个精确候选未通过目录校验：${[...new Set(row.attempts.flatMap((attempt) => attempt.issues.map((issue) => issue.code)))].join(', ') || row.attempts[0]!.reason}`
-      : '没有可校验的精确候选';
+    row.reason = stub
+      ? `只找到疑似残缺版本：${stub.source} ${stub.chapters} 章，其他候选最多 ${largest} 章`
+      : row.attempts.length
+        ? `全部 ${row.attempts.length} 个精确候选未通过目录校验：${[...new Set(row.attempts.flatMap((attempt) => attempt.issues.map((issue) => issue.code)))].join(', ') || row.attempts[0]!.reason}`
+        : '没有可校验的精确候选';
   }
   results.push(row);
-  console.log(`${String(row.index).padStart(2, '0')}. ${book.title} / ${book.author} [${book.category}] -> ${row.verdict.toUpperCase()} 候选 ${exact.length}/${candidates.length} 通过源 ${passed?.source ?? '-'} 用时 ${((Date.now() - searchStarted) / 1000).toFixed(1)}s`);
+  console.log(`${String(row.index).padStart(2, '0')}. ${book.title} / ${book.author} [${book.category}] -> ${row.verdict.toUpperCase()} 候选 ${exact.length}/${candidates.length} 通过源 ${passed?.source ?? (stub ? '仅残缺版' : '-')} 用时 ${((Date.now() - searchStarted) / 1000).toFixed(1)}s`);
   writeFileSync(join(workDir, 'progress.json'), `${JSON.stringify({ startedAt, updatedAt: new Date().toISOString(), results }, null, 2)}\n`, 'utf8');
 }
 
@@ -170,7 +184,7 @@ const summary = {
   searchError: results.filter((row) => !row.search.ok).length,
   results,
 };
-const outFile = join(process.cwd(), 'output', `popular-20-${new Date().toISOString().slice(0, 10)}.json`);
+const outFile = join(process.cwd(), 'output', `popular-20${outArg >= 0 ? `-${args[outArg + 1]}` : ''}-${new Date().toISOString().slice(0, 10)}.json`);
 writeFileSync(outFile, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
 console.log(`\n${summary.passed}/${summary.total} 通过；证据：${outFile}`);
 process.exitCode = summary.failed ? 1 : 0;

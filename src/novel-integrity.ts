@@ -113,12 +113,20 @@ const CN_UNITS: Record<string, number> = { '十': 10, '百': 100, '千': 1000 };
 
 /** Parse `第001回`, `第一百二十回`, `第12章`, `第十二节`; null when absent. */
 export function chapterNumberOf(title: string): number | null {
-  const arabic = title.match(/第\s*0*(\d{1,6})\s*[回章节卷篇]/u);
+  // A volume-prefixed title ("第十卷 魔界之战 第一千七百六十三章") carries two
+  // numbers; only the chapter marker counts. 卷 is a volume marker, not a
+  // chapter marker. Strip it only when it appears before the first chapter
+  // marker, so a chapter title that merely mentions a volume is untouched.
+  const chapter = /第\s*[0-9零〇一二两三四五六七八九十百千]+\s*[回章节篇]/u.exec(title);
+  const volume = /^.*?第\s*[0-9零〇一二两三四五六七八九十百千]+\s*卷\s*/u.exec(title);
+  const body = volume && (!chapter || volume.index < chapter.index) ? title.slice(volume[0].length) : title;
+  if (!body) return null;
+  const arabic = body.match(/第\s*0*(\d{1,6})\s*[回章节篇]/u);
   if (arabic) {
     const value = Number(arabic[1]);
     return Number.isSafeInteger(value) && value > 0 ? value : null;
   }
-  const chinese = title.match(/第\s*([零〇一二两三四五六七八九十百千]{1,12})\s*[回章节卷篇]/u);
+  const chinese = body.match(/第\s*([零〇一二两三四五六七八九十百千]{1,12})\s*[回章节篇]/u);
   if (!chinese) return null;
   return chineseToNumber(chinese[1]);
 }
@@ -295,7 +303,13 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
         for (let next = index + 1; next < body.length && following.length < 2; next += 1) {
           const entry = body[next];
           const value = entry && typeof entry.title === 'string' ? chapterNumberOf(entry.title) : null;
-          if (value !== null) following.push(value);
+          if (value === null) continue;
+          // Chapters split into (一)(二)(三) repeat the same number. Collapse
+          // them so the next *distinct* numbers decide whether this is a real
+          // renumbered run.
+          if (following.length === 0 && value === number) continue;
+          if (following.length > 0 && value === following[following.length - 1]) continue;
+          following.push(value);
         }
         if (following.length === 2 && following[0] === number + 1 && following[1] === number + 2) {
           resetIndexes.add(index);

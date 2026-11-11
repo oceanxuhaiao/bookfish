@@ -54,8 +54,26 @@ describe('multi-volume catalogs', () => {
     expect(result.issues).toEqual([]);
   });
 
-  it('accepts an unlabelled arc restart whose run starts at 2 because 第一章 is hidden', () => {
-    const arc = (offset: number, first: number) => Array.from({ length: 8 }, (_, index) => `第${first + index}章 第${offset + index}节 故事`);
+  it('recognises a renumbered catalog whose chapters are split into parts', () => {
+    // Every volume restarts at 第一章 and every chapter is split into
+    // （一）（二）（三）; the reset lookahead must collapse the repeated numbers.
+    const entries: Array<{ order: number; title: string; url: string }> = [];
+    let order = 0;
+    for (let volume = 0; volume < 3; volume += 1) {
+      for (let number = 1; number <= 6; number += 1) {
+        for (const part of ['一', '二', '三']) {
+          order += 1;
+          entries.push({ order, title: `第${number}章 第${volume + 1}卷故事${number}（${part}）`, url: `https://example.test/parts/${order}.html` });
+        }
+      }
+    }
+    const result = assess('parts', entries);
+    expect(result.complete, result.issues.map((item) => item.message).join('; ')).toBe(true);
+    expect(result.issues).toEqual([]);
+    expect(result.warnings.some((item) => item.code === 'catalog_volume_restart')).toBe(true);
+  });
+
+  it('accepts an unlabelled arc restart whose run starts at 2 because 第一章 is hidden', () => {    const arc = (offset: number, first: number) => Array.from({ length: 8 }, (_, index) => `第${first + index}章 第${offset + index}节 故事`);
     const entries = [
       ...arc(100, 1),
       ...arc(200, 2),

@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { NovelFetches, downloadTimeoutMsFor, type NovelEngineLike, type NovelImporter } from '../src/novel-fetch.ts';
+import { NovelFetches, downloadTimeoutMsFor, isAbridgedEdition, type NovelEngineLike, type NovelImporter } from '../src/novel-fetch.ts';
 import { assessNovelDownload, type CatalogChapter, type DownloadChapterFile } from '../src/novel-integrity.ts';
 import type { NovelSearchCandidate } from '../src/novel-match.ts';
 import type { NovelDownloadResult, NovelEngineAvailability } from '../src/novel-engine.ts';
@@ -37,7 +37,7 @@ class FakeEngine implements NovelEngineLike {
   onToc?: (call: number) => CatalogChapter[];
   availability(): NovelEngineAvailability { return { available: true, engineDir: '/engine', version: '1.12.0', bridge: 'package' }; }
   async search(_query: string, _options?: { onProgress?: (done: number, total: number, sourceId: number) => void }) { return [candidate]; }
-  async toc(): Promise<CatalogChapter[]> {
+  async toc(_url?: string): Promise<CatalogChapter[]> {
     this.calls.push('toc');
     const count = this.calls.filter((call) => call === 'toc').length;
     return this.onToc ? this.onToc(count) : catalog();
@@ -317,6 +317,45 @@ describe('novel fetch task manager', () => {
     expect(done.candidates).toEqual([]);
     expect(done.suggestions).toHaveLength(1);
     expect(done.suggestions?.[0]).toMatchObject({ title: '重生之女将星', author: '千山茶客', sources: 1 });
+  });
+
+  it('hides a stub edition when another edition of the same work has far more chapters', async () => {
+    const engine = new FakeEngine();
+    const stub = { ...candidate, url: 'https://www.biquge365.net/book/9/', revision: '1111111111111111' };
+    const full = { ...candidate, url: 'https://www.biquge365.net/book/21/', revision: '2222222222222222' };
+    engine.search = async () => [stub, full];
+    engine.toc = async (url: string) => (url.includes('/book/9/') ? catalog(4) : catalog(1200));
+    const { manager } = setup(engine);
+    const done = await waitForSearch(manager, manager.startSearch('海边的信', '小鱼', { validate: true }).id);
+    expect(done.candidates?.map((entry) => entry.url)).toEqual([full.url]);
+    expect(done.abridged).toHaveLength(1);
+    expect(done.abridged?.[0]).toMatchObject({ chapters: 4, largestChapters: 1200 });
+    expect(done.hidden).toBe(1);
+  });
+
+  it('reports only a stub when every other edition fails the catalog gate', async () => {
+    const engine = new FakeEngine();
+    const stub = { ...candidate, url: 'https://www.biquge365.net/book/9/', revision: '1111111111111111' };
+    const broken = { ...candidate, url: 'https://www.biquge365.net/book/21/', revision: '2222222222222222' };
+    engine.search = async () => [stub, broken];
+    engine.toc = async (url: string) => {
+      if (url.includes('/book/9/')) return catalog(4);
+      const list = catalog(1200);
+      list[1] = { ...list[1]!, title: '第1章 海边来信' };
+      return list;
+    };
+    const { manager } = setup(engine);
+    const done = await waitForSearch(manager, manager.startSearch('海边的信', '小鱼', { validate: true }).id);
+    expect(done.candidates).toEqual([]);
+    expect(done.abridged?.[0]).toMatchObject({ chapters: 4, largestChapters: 1200 });
+    expect(done.hidden).toBe(2);
+  });
+
+  it('does not call a short work abridged without a much larger edition', () => {
+    expect(isAbridgedEdition(4, 4)).toBe(false);
+    expect(isAbridgedEdition(4, 30)).toBe(false);
+    expect(isAbridgedEdition(4, 2466)).toBe(true);
+    expect(isAbridgedEdition(500, 2466)).toBe(false);
   });
 
   it('keeps autonomous searches unchecked so their own preflight still decides', async () => {

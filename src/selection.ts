@@ -300,10 +300,13 @@ export class SelectionCoordinator {
     const candidates = (job.candidates ?? []).filter((candidate) => candidate.match === 'exact' && this.sourceAllowed(candidate.source.id));
     if (!candidates.length) {
       // A short title is often an abbreviation; tell the model the full name it
-      // could retry with instead of failing blind.
+      // could retry with instead of failing blind. Stub editions are named so
+      // a 4-chapter page is not mistaken for a real edition.
       const hint = (job.suggestions ?? []).find((suggestion) => this.sourceAllowed(suggestion.source.id)) ?? job.suggestions?.[0];
+      const stub = (job.abridged ?? [])[0];
+      const stubNote = stub ? `只找到疑似残缺版本（${stub.chapters} 章，其他版本最多 ${stub.largestChapters} 章）。` : '';
       this.recordFailure(intent.id, { code: 'no_result', global: false,
-        message: `没有找到书名、作者和允许书源都精确匹配的版本。${hint ? `可能是书名简称，可改用《${hint.title}》${hint.author ? `（${hint.author}）` : ''}重试。` : ''}` }, 'search');
+        message: `没有找到书名、作者和允许书源都精确匹配的版本。${stubNote}${hint ? `可能是书名简称，可改用《${hint.title}》${hint.author ? `（${hint.author}）` : ''}重试。` : ''}` }, 'search');
       return;
     }
     const expiresAt = this.now() + CANDIDATE_TTL_MS;

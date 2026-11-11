@@ -316,11 +316,17 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
             return;
           }
           if(!candidates.length){
+            const abridged=status.abridged??[];
+            if(abridged.length){
+              const first=abridged[0]!;
+              novelResult.textContent=say('只找到疑似残缺版本：《'+first.title+'》只有 '+first.chapters+' 章，同一本书的其他版本最多 '+first.largestChapters+' 章但未通过校验。','Only likely abridged editions were found: “'+first.title+'” has '+first.chapters+' chapters while other editions of the same book have up to '+first.largestChapters+' but failed validation.');
+              return;
+            }
             novelResult.textContent=status.hidden?say('无成功搜索结果。搜到的 '+status.hidden+' 个版本都没有通过目录校验，可以换个书名写法或稍后重试。','No successful search results. None of the '+status.hidden+' versions passed the catalog checks; try another title spelling or retry later.'):say('没有找到候选，请检查书名/作者或换一个书源后重试。','No candidates found. Check the title/author and try again.');
             return;
           }
           novelProgress.value=100;
-          novelResult.textContent=say('找到 ','Found ')+candidates.length+say(' 个通过校验的候选；同书名同作者的其他书源已折叠在“其他书源”里。',' validated candidates; other sources for the same title/author are folded under “Other sources”.')+(status.hidden?say('另有 '+status.hidden+' 个版本未通过校验或不匹配，已隐藏。',' '+status.hidden+' other versions failed validation or did not match and were hidden.'):'');
+          novelResult.textContent=say('找到 ','Found ')+candidates.length+say(' 个通过校验的候选；同书名同作者的其他书源已折叠在“其他书源”里。',' validated candidates; other sources for the same title/author are folded under “Other sources”.')+(status.abridged?.length?say('另有 '+status.abridged.length+' 个疑似残缺版本已隐藏。',' '+status.abridged.length+' likely abridged edition(s) were hidden.'):'')+(status.hidden?say('另有 '+status.hidden+' 个版本未通过校验或不匹配，已隐藏。',' '+status.hidden+' other versions failed validation or did not match and were hidden.'):'');
           renderCandidateGroups(candidates);return;
         }
         await new Promise(resolveDelay=>setTimeout(resolveDelay,350));
