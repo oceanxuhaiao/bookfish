@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { BookTransfers } from './transfers.ts';
-import { Discussions, DISCUSSION_SEGMENT_COUNT, DISCUSSION_SEGMENT_LIMIT, discussionPauseMs, discussionSpokenText } from './discussions.ts';
+import { Discussions, DISCUSSION_SEGMENT_COUNT, DISCUSSION_SEGMENT_LIMIT, DISCUSSION_TOTAL_LIMIT, discussionPauseMs, discussionSpokenText } from './discussions.ts';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import type { Language } from 'cortico/core/language.ts';
@@ -190,9 +190,10 @@ export class BookfishWorld implements World {
       },
       bookfish_discussion: (args) => {
         switch (String(args.action)) {
+          case 'append': return this.discussions.append(args);
           case 'reply': return handlers.bookfish_reply_discussion(args);
           case 'pace': return handlers.bookfish_pace_discussion(args);
-          default: throw new Error('bookfish_discussion action must be reply or pace');
+          default: throw new Error('bookfish_discussion action must be append, reply or pace');
         }
       },
       bookfish_help: (args) => this.help(args.topic),
@@ -325,7 +326,7 @@ export class BookfishWorld implements World {
           const { episode, book } = this.library.episode(o.episodeId); const question = requiredText(o.text, 'text', 2000);
           // Like the official console: this invoke is an explicit local WebUI operator message, not imported novel text.
           const discussion=this.discussions.create(book.key,episode.id,question);
-          let event;try { event = await this.host.pushEvent({ source: this.id, ts: nowIso(this.opts.timezone), type: 'bookfish.discussion', origin: 'internal', senderKey: 'bookfish-user', text: JSON.stringify({ discussionId: discussion.id, userQuestion: question, bookKey: book.key, episodeId: episode.id, guidance: `User asks to discuss this saved episode. Retrieve its confirmed source/context. Answer on the desktop pet as a friend, not only in the reading panel. Split the answer into 1-${DISCUSSION_SEGMENT_COUNT} short chat bubbles, each at most ${DISCUSSION_SEGMENT_LIMIT} code points; every bubble must be a complete, natural short sentence, never a name or clause cut off with an ellipsis; if unsure of a name, describe the person instead of writing "库...". Call pet_say once per bubble in order and wait for each call to succeed. After each bubble except the last, call bookfish_discussion(action="pace") with that exact previous segment and wait for it to return before the next pet_say; this only adds a gap between bubbles, never changes the typing speed. Then call bookfish_discussion(action="reply") with this discussionId, delivery "spoken", and those exact segments in the same order; the panel only mirrors what you actually said. If pet_say is missing or any call fails, do not invent spoken lines: call bookfish_discussion(action="reply") with delivery "unavailable" and a short reason. Unread plot can only be an explicitly labelled guess; do not read ahead or invent past feelings.` }) }, { trigger: 'flush' }); } catch(error) {this.discussions.cancel(discussion.id);throw error;}
+          let event;try { event = await this.host.pushEvent({ source: this.id, ts: nowIso(this.opts.timezone), type: 'bookfish.discussion', origin: 'internal', senderKey: 'bookfish-user', text: JSON.stringify({ discussionId: discussion.id, userQuestion: question, bookKey: book.key, episodeId: episode.id, guidance: `User asks to discuss this saved episode. Retrieve its confirmed source/context. Answer on the desktop pet as a friend, not only in the reading panel. Split the answer into 1-${DISCUSSION_SEGMENT_COUNT} chat bubbles by meaning and breath, not by character count. Keep one complete sentence together even when it has several comma-linked clauses; never split a sentence merely to make it shorter. Start a new bubble only at a real sentence boundary or a clear change of thought. Each bubble may be up to ${DISCUSSION_SEGMENT_LIMIT} code points and the whole reply up to ${DISCUSSION_TOTAL_LIMIT}; if a sentence is too long, shorten it instead of cutting it. Never cut a name or clause with an ellipsis; if unsure of a name, describe the person instead of writing "库...". Call pet_say once per bubble in order and wait for each call to succeed. Immediately after each successful pet_say, call bookfish_discussion(action="append") with discussionId and segment set to the exact spoken line, so the panel can show it before the next bubble. After each bubble except the last, call bookfish_discussion(action="pace") with that exact previous segment and wait for it to return before the next pet_say; this only adds a gap between bubbles, never changes the typing speed. Then call bookfish_discussion(action="reply") with this discussionId, delivery "spoken", and all exact segments in the same order; the panel only mirrors what you actually said. If pet_say is missing or any call fails, do not invent spoken lines: call bookfish_discussion(action="reply") with delivery "unavailable" and a short reason. Unread plot can only be an explicitly labelled guess; do not read ahead or invent past feelings.` }) }, { trigger: 'flush' }); } catch(error) {this.discussions.cancel(discussion.id);throw error;}
           return { accepted: true, cursor: event.cursor, discussionId: discussion.id };
         }
         if(method==='read_now'&&args.length===1)return this.scheduler.requestNow(args[0]);

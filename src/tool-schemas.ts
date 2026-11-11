@@ -49,10 +49,10 @@ export const BOOKFISH_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
     title: str(160), text: str(12000), episodeIds: { type: 'array', maxItems: 12, items: { type: 'string' } },
     evidence: EPISODE_SCHEMA.properties.evidence, reason: str(500), reviewId: { type: 'string' },
   }, required: ['action'] } },
-  { name: 'bookfish_discussion', tags: ['write'], description: 'Desktop discussion actions. reply=record the exact short lines already spoken for a live discussion; pace=wait between two bubbles using the previous segment. Never invent spoken lines.', parameters: { type: 'object', additionalProperties: false, properties: {
-    action: { type: 'string', enum: ['reply', 'pace'] }, discussionId: str(80), delivery: { type: 'string', enum: ['spoken', 'unavailable'] },
-    segments: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'string', minLength: 1, maxLength: 200 } }, reason: str(300),
-    previousSegment: { type: 'string', minLength: 1, maxLength: 200 },
+  { name: 'bookfish_discussion', tags: ['write'], description: 'Desktop discussion actions. append=record one exact line immediately after it was spoken; reply=finalize the exact short lines already spoken; pace=wait between two bubbles using the previous segment. Never invent spoken lines.', parameters: { type: 'object', additionalProperties: false, properties: {
+    action: { type: 'string', enum: ['append', 'reply', 'pace'] }, discussionId: str(80), delivery: { type: 'string', enum: ['spoken', 'unavailable'] },
+    segments: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'string', minLength: 1, maxLength: 480 } }, segment: str(480), reason: str(300),
+    previousSegment: { type: 'string', minLength: 1, maxLength: 480 },
   }, required: ['action'] } },
   { name: 'bookfish_help', tags: ['read'], description: 'Read the detailed protocol for one topic when a rare edge case is not covered by the core rules. Topics: reading, journal, retrieval, sharing, review, selection, discussion.', parameters: { type: 'object', additionalProperties: false, properties: { topic: { type: 'string', enum: ['reading', 'journal', 'retrieval', 'sharing', 'review', 'selection', 'discussion'] } }, required: ['topic'] } },
 ];

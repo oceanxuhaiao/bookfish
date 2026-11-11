@@ -310,7 +310,7 @@ export default {
         }
         section.append(searchForm);
         await refresh();await refreshImport();
-        ctx.interval(() => { if (!working){void refresh();void refreshImport();} }, 5000);
+        ctx.interval(() => { if (!working){void refresh();void refreshImport();} }, 2000);
         return { dispose() { disposed = true; request++; } };
       },
     },

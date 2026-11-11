@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { requiredText } from './books.ts';
 
 /** One spoken chat bubble. Keep desktop replies short rather than a panel essay. */
-export const DISCUSSION_SEGMENT_LIMIT = 60;
+export const DISCUSSION_SEGMENT_LIMIT = 120;
 export const DISCUSSION_SEGMENT_COUNT = 8;
+export const DISCUSSION_TOTAL_LIMIT = 480;
 
 export type DiscussionDelivery = 'spoken' | 'unavailable';
 
@@ -62,6 +63,19 @@ export class Discussions {
     this.items = this.items.filter((item) => item.id !== id);
   }
 
+  append(args: Record<string, unknown>) {
+    const id = requiredText(args.discussionId, 'discussionId', 80);
+    const item = this.items.find((entry) => entry.id === id);
+    if (!item || item.createdAt + 1800000 <= Date.now()) throw new Error('Discussion expired or not found');
+    if (item.delivery !== null) throw new Error('Discussion reply is already finalized');
+    if (item.segments.length >= DISCUSSION_SEGMENT_COUNT) throw new Error(`Spoken reply already has ${DISCUSSION_SEGMENT_COUNT} segments`);
+    const segment = this.normalizeSegment(args.segment, item.segments.length);
+    const total = item.segments.reduce((sum, value) => sum + Array.from(value).length, 0) + Array.from(segment).length;
+    if (total > DISCUSSION_TOTAL_LIMIT) throw new Error('Discussion reply is too long');
+    item.segments.push(segment);
+    return { saved: true, discussionId: item.id, delivery: null, segments: [...item.segments] };
+  }
+
   reply(args: Record<string, unknown>) {
     const id = requiredText(args.discussionId, 'discussionId', 80);
     const item = this.items.find((entry) => entry.id === id);
@@ -70,20 +84,12 @@ export class Discussions {
     if (delivery !== 'spoken' && delivery !== 'unavailable') throw new Error('delivery must be spoken or unavailable');
 
     if (delivery === 'spoken') {
-      if (!Array.isArray(args.segments) || args.segments.length < 1 || args.segments.length > DISCUSSION_SEGMENT_COUNT) {
-        throw new Error(`Spoken reply needs 1-${DISCUSSION_SEGMENT_COUNT} segments`);
-      }
-      const segments = args.segments.map((value, index) => {
-        if (typeof value !== 'string') throw new Error(`Discussion segment ${index + 1} is invalid`);
-        const segment = discussionSpokenText(value);
-        if (!segment) throw new Error(`Discussion segment ${index + 1} is empty`);
-        if (Array.from(segment).length > DISCUSSION_SEGMENT_LIMIT) {
-          throw new Error(`Discussion segment ${index + 1} exceeds ${DISCUSSION_SEGMENT_LIMIT} code points`);
-        }
-        return segment;
-      });
-      if (segments.reduce((total, segment) => total + Array.from(segment).length, 0) > 300) {
-        throw new Error('Discussion reply is too long');
+      const segments = this.normalizeSegments(args.segments);
+      // Appends are progressive transcripts. The final list may add lines that
+      // were spoken before an append call failed, but it may never rewrite an
+      // already displayed line.
+      if (item.segments.some((segment, index) => segment !== segments[index])) {
+        throw new Error('Final spoken reply does not match lines already appended');
       }
       return this.save(item, { delivery, segments, reason: null });
     }
@@ -92,7 +98,29 @@ export class Discussions {
       throw new Error('Unavailable reply must not contain spoken segments');
     }
     const reason = args.reason === undefined ? null : requiredText(args.reason, 'reason', 300);
-    return this.save(item, { delivery, segments: [], reason });
+    // Preserve lines already spoken before a later pet_say failed; never erase
+    // them just because the final delivery is unavailable.
+    return this.save(item, { delivery, segments: [...item.segments], reason });
+  }
+
+  private normalizeSegments(raw: unknown): string[] {
+    if (!Array.isArray(raw) || raw.length < 1 || raw.length > DISCUSSION_SEGMENT_COUNT) {
+      throw new Error(`Spoken reply needs 1-${DISCUSSION_SEGMENT_COUNT} segments`);
+    }
+    const segments = raw.map((value, index) => this.normalizeSegment(value, index));
+    if (segments.reduce((total, segment) => total + Array.from(segment).length, 0) > DISCUSSION_TOTAL_LIMIT) {
+      throw new Error('Discussion reply is too long');
+    }
+    return segments;
+  }
+  private normalizeSegment(value: unknown, index: number): string {
+    if (typeof value !== 'string') throw new Error(`Discussion segment ${index + 1} is invalid`);
+    const segment = discussionSpokenText(value);
+    if (!segment) throw new Error(`Discussion segment ${index + 1} is empty`);
+    if (Array.from(segment).length > DISCUSSION_SEGMENT_LIMIT) {
+      throw new Error(`Discussion segment ${index + 1} exceeds ${DISCUSSION_SEGMENT_LIMIT} code points`);
+    }
+    return segment;
   }
 
   list() {

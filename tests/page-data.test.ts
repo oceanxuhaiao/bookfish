@@ -37,12 +37,20 @@ it('bounds and expires panel replies without overwriting answers',()=>{
  now.mockReturnValue(1801000);expect(()=>discussions.reply({discussionId:request.id,delivery:'spoken',segments:['answer']})).toThrow(/expired/);expect(discussions.list()[0].expired).toBe(true);discussions.removeBook('book');expect(discussions.list()).toHaveLength(0);
  }finally{now.mockRestore();}
 });
-it('requires short spoken discussion segments and keeps an unavailable delivery distinct',()=>{
+it('requires bounded spoken discussion segments and keeps an unavailable delivery distinct',()=>{
  const discussions=new Discussions();
  const first=discussions.create('book','episode','question');
- expect(()=>discussions.reply({discussionId:first.id,delivery:'spoken',segments:['长'.repeat(61)]})).toThrow(/60/);
+ expect(()=>discussions.reply({discussionId:first.id,delivery:'spoken',segments:['长'.repeat(121)]})).toThrow(/120/);
  expect(()=>discussions.reply({discussionId:first.id,delivery:'spoken',segments:[]})).toThrow(/segments/);
  expect(()=>discussions.reply({discussionId:first.id,delivery:'unavailable',segments:['我说了']})).toThrow(/must not/);
+ const progressive=discussions.create('book','episode','question');
+ expect(discussions.append({discussionId:progressive.id,segment:'他请亲爹来，还教他说是我叔叔。'})).toMatchObject({delivery:null,segments:['他请亲爹来，还教他说是我叔叔。']});
+ expect(discussions.list().find(item=>item.id===progressive.id)).toMatchObject({delivery:null,segments:['他请亲爹来，还教他说是我叔叔。']});
+ expect(discussions.append({discussionId:progressive.id,segment:'那天全场只有他背后站着的位置是空的。'}).segments).toHaveLength(2);
+ expect(discussions.reply({discussionId:progressive.id,delivery:'spoken',segments:['他请亲爹来，还教他说是我叔叔。','那天全场只有他背后站着的位置是空的。']})).toMatchObject({delivery:'spoken'});
+ const changed=discussions.create('book','episode','question');
+ discussions.append({discussionId:changed.id,segment:'先出现的一句。'});
+ expect(()=>discussions.reply({discussionId:changed.id,delivery:'spoken',segments:['被改写的一句。']})).toThrow(/already appended/);
  const second=discussions.create('book','episode','question');
  expect(discussions.reply({discussionId:second.id,delivery:'unavailable',reason:'桌宠没有输出'})).toMatchObject({delivery:'unavailable',segments:[]});
  expect(discussions.list().find(item=>item.id===second.id)).toMatchObject({delivery:'unavailable',reason:'桌宠没有输出',segments:[]});
