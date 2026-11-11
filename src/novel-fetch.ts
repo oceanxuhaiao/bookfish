@@ -440,18 +440,19 @@ export class NovelFetches {
     const rows = candidates
       .map((candidate) => ({ candidate, check: checks.get(`${candidate.source.id}|${candidate.url}`) }))
       .filter((row): row is { candidate: NovelSearchCandidate & { match: CandidateMatch }; check: NovelCandidateCheck } => row.candidate.match === 'exact' && row.check !== undefined);
-    // Compare editions of the same title+author, never different works or
-    // genuinely short books: a 4-chapter page next to a 2,466-chapter edition
-    // is a stub, not an acquirable version.
-    const largestByAuthor = new Map<string, number>();
+    // Compare editions of the same *title*, never different works: a 4-chapter
+    // page of 凡人修仙传 is a stub next to a 2,466-chapter edition even when the
+    // stub carries a different author name. Author-only searches have one title
+    // per work, so their editions are not compared against each other.
+    const largestByTitle = new Map<string, number>();
     for (const row of rows) {
-      const author = normalizeIdentity(row.candidate.author);
-      largestByAuthor.set(author, Math.max(largestByAuthor.get(author) ?? 0, row.check.chapters));
+      const key = normalizeIdentity(row.candidate.title);
+      largestByTitle.set(key, Math.max(largestByTitle.get(key) ?? 0, row.check.chapters));
     }
     const visible: Array<NovelSearchCandidate & { match: CandidateMatch; check?: NovelCandidateCheck }> = [];
     const abridged: NovelAbridgedCandidate[] = [];
     for (const row of rows) {
-      const largest = largestByAuthor.get(normalizeIdentity(row.candidate.author)) ?? row.check.chapters;
+      const largest = largestByTitle.get(normalizeIdentity(row.candidate.title)) ?? row.check.chapters;
       if (row.check.ok && isAbridgedEdition(row.check.chapters, largest)) {
         abridged.push({ title: row.candidate.title, author: row.candidate.author, source: { ...row.candidate.source }, chapters: row.check.chapters, largestChapters: largest });
         continue;

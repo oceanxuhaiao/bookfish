@@ -73,9 +73,22 @@ evidence.detail.lunhui = {
 };
 evidence.checks.volumeRestartsAccepted = lunhuiOk.some((candidate) => candidate.check.chapters > 4000);
 
+const fanren = await search('凡人修仙传');
+const fanrenOk = (fanren.candidates ?? []).filter((candidate) => candidate.check?.ok);
+evidence.detail.fanren = {
+  state: fanren.state, exact: (fanren.candidates ?? []).length, passed: fanrenOk.length,
+  passedSources: fanrenOk.map((candidate) => `${candidate.source.name}:${candidate.check.chapters}`),
+  abridged: (fanren.abridged ?? []).map((item) => `${item.source.name}:${item.chapters}/${item.largestChapters}`),
+  hidden: fanren.hidden ?? null,
+};
+evidence.checks.abridgedEditionHidden = (fanren.abridged ?? []).length > 0
+  && !fanrenOk.some((candidate) => candidate.check.chapters < 50)
+  && fanrenOk.some((candidate) => candidate.check.chapters > 1000);
+
 const failed = Object.entries(evidence.checks).filter(([, ok]) => !ok).map(([name]) => name);
 evidence.failed = failed;
 evidence.ok = failed.length === 0;
-writeFileSync('output/live-host-0.56.0.json', `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
+const version = process.argv[2] ?? '0.56.0';
+writeFileSync(`output/live-host-${version}.json`, `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
 console.log(JSON.stringify(evidence, null, 2));
 process.exitCode = evidence.ok ? 0 : 1;

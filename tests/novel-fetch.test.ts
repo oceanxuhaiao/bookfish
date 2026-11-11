@@ -333,6 +333,18 @@ describe('novel fetch task manager', () => {
     expect(done.hidden).toBe(1);
   });
 
+  it('hides a stub published under a different author name for the same title', async () => {
+    const engine = new FakeEngine();
+    const stub = { ...candidate, author: '别的作者', url: 'https://www.biquge365.net/book/9/', revision: '1111111111111111' };
+    const full = { ...candidate, url: 'https://www.biquge365.net/book/21/', revision: '2222222222222222' };
+    engine.search = async () => [stub, full];
+    engine.toc = async (url: string) => (url.includes('/book/9/') ? catalog(4) : catalog(1200));
+    const { manager } = setup(engine);
+    const done = await waitForSearch(manager, manager.startSearch('海边的信', '', { validate: true }).id);
+    expect(done.candidates?.map((entry) => entry.author)).toEqual(['小鱼']);
+    expect(done.abridged?.[0]).toMatchObject({ chapters: 4, largestChapters: 1200 });
+  });
+
   it('reports only a stub when every other edition fails the catalog gate', async () => {
     const engine = new FakeEngine();
     const stub = { ...candidate, url: 'https://www.biquge365.net/book/9/', revision: '1111111111111111' };
