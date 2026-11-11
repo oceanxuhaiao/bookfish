@@ -26,4 +26,4 @@
 下载后由 Bookfish 扩展校验摘要、安全解压、自检并原子启用；不要手工解压覆盖正在使用的运行时。
 ## Extension source
 
-The Coopanion extension source for Bookfish is in [\extension/\](extension/). It is published on npm as \cortico-world-bookfish\.
+The Coopanion extension source for Bookfish is at the repository root. It is published on npm as `cortico-world-bookfish`.
