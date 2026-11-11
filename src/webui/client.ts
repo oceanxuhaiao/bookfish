@@ -8,7 +8,7 @@ import { moodPrefix } from './mood.ts';
 import {readerPanel} from './reader.ts';
 import {mountRuntimeCard} from './runtime.ts';
 import {coverDesign} from './cover.ts';
-import type { NovelFetchStatus, NovelResumeView, NovelSearchJobView, NovelTaskView } from '../novel-fetch.ts';
+import type { NovelCandidateCheck, NovelFetchStatus, NovelResumeView, NovelSearchJobView, NovelTaskView } from '../novel-fetch.ts';
 import { groupCandidatesByBook, type CandidateMatch, type NovelSearchCandidate } from '../novel-match.ts';
 import { QQ_GROUP_QR } from './qq-group.ts';
 
@@ -106,7 +106,7 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   pages.shelf.append(shelf);shelf.hidden=true;
   const novel=el('section','',methodPanel);novel.className='card';novel.id='bf-novel-fetch';novel.hidden=true;
   el('h3',say('按书名或作者获取','Fetch by title or author'),novel);
-  el('p',say('书名或作者至少填一个，也可同时填写。先核对作者、书源和最新章节，再获取全本。只有通过目录连续性、缺章、页数探针与版本一致性校验的结果才会加入书架。','Enter a title, an author, or both. Confirm author, source and latest chapter before fetching. Only downloads that pass catalog, chapter, page-probe and edition checks enter the shelf.'),novel);
+  el('p',say('书名或作者至少填一个，也可同时填写。搜索完成后会先校验每个候选版本的目录，只列出通过校验的版本；都不通过时显示无成功搜索结果。获取全本时仍会再次校验目录连续性、缺章、页数探针与版本一致性，全部通过才加入书架。','Enter a title, an author, or both. After searching, every candidate edition is checked first and only versions that pass are listed; if none pass, the panel reports no successful search results. Fetching still re-checks catalog continuity, missing chapters, page probes and edition consistency before a book enters the shelf.'),novel);
   const novelGate=el('p',say('按书名或作者获取前，需要先安装小说获取引擎。点下方“一键安装小说引擎”，或导入离线运行时包；安装完成后搜索会自动启用。文件导入和链接获取不受影响。','Before fetching by title or author, install the novel fetch engine. Use “Install novel engine” below, or import an offline runtime ZIP; search enables automatically when ready. File import and link fetching are unaffected.'),novel);novelGate.className='novel-engine-gate';novelGate.hidden=true;novelGate.setAttribute('role','status');
   const novelForm=document.createElement('form');novelForm.className='novel-form';novel.append(novelForm);
   const runtimeHost=document.createElement('div');runtimeHost.className='runtime-guide';runtimeHost.hidden=true;novelForm.before(runtimeHost);
@@ -134,6 +134,7 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   selectImportMethod('file');
   methodSelect.addEventListener('change',()=>selectImportMethod(methodSelect.value,true),{signal:ctx.signal});
   const novelNote=el('p','',novel);novelNote.setAttribute('role','status');novelNote.setAttribute('aria-live','polite');
+  const novelResult=el('p','',novel);novelResult.className='novel-search-result';novelResult.setAttribute('role','status');novelResult.setAttribute('aria-live','polite');
   const novelResume=el('div','',novel);novelResume.className='novel-resume';
   const novelList=el('div','',novel);novelList.className='novel-candidates';
   const novelTasks=el('div','',novel);novelTasks.className='novel-task-list';
@@ -172,6 +173,10 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
     catalog_duplicate_title:say('书源目录存在重复章节标题','Duplicate chapter titles in the source catalog'),
     catalog_order_gap:say('书源目录序号不连续','Catalog order is not contiguous'),
     catalog_changed:say('下载前后目录发生变化','Catalog changed during download'),
+    catalog_announcement:say('已把公告、感言等识别为附录并跳过正文校验','Author notes and announcements were recognized as appendices'),
+    catalog_volume_restart:say('识别到分卷，章节号按卷处理','Recognized volumes; chapter numbers are scoped per volume'),
+    catalog_title_alias:say('页面标题与目录标题是同一章的别名写法','Page heading is an equivalent title alias'),
+    source_fallback:say('当前书源校验失败，正在尝试其他书源','This source failed validation; trying another source'),
     missing_chapter:say('缺少章节','A chapter is missing'),
     unexpected_chapter_file:say('出现了目录外的章节文件','A file has no catalog entry'),
     empty_chapter:say('章节正文为空','A chapter is empty'),
@@ -185,6 +190,7 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
     page_probe_short:say('页数探针发现正文明显偏短','Page probe found a materially shorter body'),
     page_probe_unavailable:say('页数探针无法读取源站','Page probe could not read the source'),
   };
+  type CheckedCandidate=NovelSearchCandidate&{match:CandidateMatch;check?:NovelCandidateCheck};
   function candidateLabel(candidate:NovelSearchCandidate&{match:CandidateMatch}){
     const onlyTitle=!novelAuthorInput.value.trim(),onlyAuthor=!novelTitleInput.value.trim();
     return candidate.match==='exact'?(onlyTitle?say('书名匹配','Title matches'):onlyAuthor?say('作者匹配','Author matches'):say('书名、作者匹配','Title and author match')):candidate.match==='title'?say('书名相同，作者不匹配，已停用','Same title, different author; disabled'):candidate.match==='author'?say('作者匹配但书名不同，已停用','Author matches but title differs; disabled'):say('不匹配，已停用','No match; disabled');
@@ -195,10 +201,11 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
     novelNote.textContent=say('已加入获取队列，只有全部校验通过才会入架；失败时可换用其他书源。','Queued. Nothing enters the shelf unless every check passes; if it fails, try another source.');
     startNovelPoll();
   }
-  function candidateCard(candidate:NovelSearchCandidate&{match:CandidateMatch},alternatives:Array<NovelSearchCandidate&{match:CandidateMatch}>=[]){
+  function candidateCard(candidate:CheckedCandidate,alternatives:CheckedCandidate[]=[]){
     const card=document.createElement('article');card.className='novel-candidate';novelList.append(card);
     el('strong',candidate.title,card);el('small',(candidate.author||say('作者未知','Unknown author'))+' · '+candidate.source.name+(candidate.latestChapter?' · '+candidate.latestChapter:''),card);
     el('small',candidateLabel(candidate),card);
+    if(candidate.check?.ok)el('small',say('目录校验通过 · ','Catalog checks passed · ')+candidate.check.chapters+say(' 章',' chapters'),card);
     const fetch=button(card,say('获取全本','Fetch full book'),()=>fetchCandidate(candidate));
     if(candidate.match!=='exact')fetch.disabled=true;
     if(alternatives.length){
@@ -275,7 +282,39 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   // started in another tab becomes visible; its onReady callback refreshes the
   // novel status exactly once when the engine becomes usable.
   ctx.interval(()=>{if(!disposed&&state?.novel&&!state.novel.available)void runtimeCard?.refresh();},4000);
-  novelForm.addEventListener('submit',(event)=>{event.preventDefault();void perform(async()=>{const title=novelTitleInput.value.trim(),author=novelAuthorInput.value.trim();if(!title&&!author)throw Error(say('请至少填写书名或作者。','Enter a title or an author.'));novelList.replaceChildren();novelSubmit.disabled=true;novelProgress.hidden=false;novelProgress.max=100;novelProgress.value=0;novelProgressText.hidden=false;novelProgressText.textContent=say('正在准备搜索…','Preparing search…');novelNote.textContent=say('正在搜索候选版本…','Searching versions…');try{const job=await ctx.invoke<NovelSearchJobView>('novel_search_start',[{title,author}]);for(;;){if(disposed||ctx.signal.aborted)return;const status=await ctx.invoke<NovelSearchJobView>('novel_search_status',[job.id]);if(disposed||ctx.signal.aborted)return;novelProgress.value=status.total?Math.round(status.completed/status.total*100):0;novelProgressText.textContent=say('已检查 ','Checked ')+status.completed+'/'+status.total+say(' 个书源',' sources')+(status.source?' · '+status.source.name:'')+(status.total>6?'（同名同作者无精确结果，正在追加作者搜索）':'');if(status.state==='failed')throw Error(status.error??say('搜索失败','Search failed'));if(status.state==='complete'){const candidates=status.candidates??[];if(!candidates.length){novelNote.textContent=say('没有找到候选，请检查书名/作者或换一个书源后重试。','No candidates found. Check the title/author and try again.');return;}novelProgress.value=100;novelNote.textContent=say('找到 ','Found ')+candidates.length+say(' 个候选；同书名同作者的其他书源已折叠在“其他书源”里。',' candidates; other sources for the same title/author are folded under “Other sources”.');renderCandidateGroups(candidates);return;}await new Promise(resolveDelay=>setTimeout(resolveDelay,350));}}finally{novelSubmit.disabled=false;novelProgress.hidden=true;novelProgressText.hidden=true;}});},{signal:ctx.signal});
+  novelForm.addEventListener('submit',(event)=>{event.preventDefault();void perform(async()=>{
+    const title=novelTitleInput.value.trim(),author=novelAuthorInput.value.trim();
+    if(!title&&!author)throw Error(say('请至少填写书名或作者。','Enter a title or an author.'));
+    novelList.replaceChildren();novelSubmit.disabled=true;novelProgress.hidden=false;novelProgress.max=100;novelProgress.value=0;novelProgressText.hidden=false;novelProgressText.textContent=say('正在准备搜索…','Preparing search…');novelResult.textContent=say('正在搜索候选版本…','Searching versions…');
+    try{
+      const job=await ctx.invoke<NovelSearchJobView>('novel_search_start',[{title,author}]);
+      for(;;){
+        if(disposed||ctx.signal.aborted)return;
+        const status=await ctx.invoke<NovelSearchJobView>('novel_search_status',[job.id]);
+        if(disposed||ctx.signal.aborted)return;
+        if(status.state==='validating'){
+          const total=status.checkTotal??0,checked=status.checked??0;
+          novelProgress.value=total?Math.round(checked/total*100):0;
+          novelProgressText.textContent=say('正在校验候选版本 ','Checking versions ')+checked+'/'+total+say('，只显示通过校验的版本',' (only versions that pass are shown)');
+        }else{
+          novelProgress.value=status.total?Math.round(status.completed/status.total*100):0;
+          novelProgressText.textContent=say('已检查 ','Checked ')+status.completed+'/'+status.total+say(' 个书源',' sources')+(status.source?' · '+status.source.name:'')+(status.total>6?'（同名同作者无精确结果，正在追加作者搜索）':'');
+        }
+        if(status.state==='failed')throw Error(status.error??say('搜索失败','Search failed'));
+        if(status.state==='complete'){
+          const candidates=status.candidates??[];
+          if(!candidates.length){
+            novelResult.textContent=status.hidden?say('无成功搜索结果。搜到的 '+status.hidden+' 个版本都没有通过目录校验，可以换个书名写法或稍后重试。','No successful search results. None of the '+status.hidden+' versions passed the catalog checks; try another title spelling or retry later.'):say('没有找到候选，请检查书名/作者或换一个书源后重试。','No candidates found. Check the title/author and try again.');
+            return;
+          }
+          novelProgress.value=100;
+          novelResult.textContent=say('找到 ','Found ')+candidates.length+say(' 个通过校验的候选；同书名同作者的其他书源已折叠在“其他书源”里。',' validated candidates; other sources for the same title/author are folded under “Other sources”.')+(status.hidden?say('另有 '+status.hidden+' 个版本未通过校验或不匹配，已隐藏。',' '+status.hidden+' other versions failed validation or did not match and were hidden.'):'');
+          renderCandidateGroups(candidates);return;
+        }
+        await new Promise(resolveDelay=>setTimeout(resolveDelay,350));
+      }
+    }finally{novelSubmit.disabled=false;novelProgress.hidden=true;novelProgressText.hidden=true;}
+  });},{signal:ctx.signal});
 
   notebook.className='notebook';pages.trail.append(notebook,episodeDetail,searchForm);
   const reviews=details(pages.home,say('这本书的读后感','Reviews of this book'));reviews.append(articles,articleDetail);

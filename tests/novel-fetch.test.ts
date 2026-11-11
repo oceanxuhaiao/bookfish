@@ -79,6 +79,15 @@ async function waitFor(manager: NovelFetches, id: string, states: string[]) {
   throw new Error(`Timed out waiting for ${states.join('/')}: ${manager.get(id).state}`);
 }
 
+async function waitForSearch(manager: NovelFetches, id: string) {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const status = manager.searchStatus(id);
+    if (status.state === 'complete' || status.state === 'failed') return status;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('search job did not finish');
+}
+
 describe('novel fetch task manager', () => {
   it('imports exactly once after every check passes', async () => {
     const { manager, imported } = setup();
@@ -97,6 +106,28 @@ describe('novel fetch task manager', () => {
     expect(done.state).toBe('failed');
     expect(done.issues.map((issue) => issue.code)).toContain('missing_chapter');
     expect(imported).toHaveLength(0);
+  });
+
+  it('falls back to another exact source after validation failure', async () => {
+    const alternative: NovelSearchCandidate = {
+      ...candidate,
+      url: 'https://www.yeudusk.com/book/2/',
+      source: { id: 7, name: '阅读库' },
+      revision: 'fedcba0987654321',
+    };
+    class FallbackEngine extends FakeEngine {
+      override async search(): Promise<NovelSearchCandidate[]> { return [candidate, alternative]; }
+      override async download(input: NovelSearchCandidate, options?: { onDownloadDir?: (downloadDir: string) => void }): Promise<NovelDownloadResult> {
+        this.downloadFiles = input.url === alternative.url ? files() : files(2);
+        return super.download(input, options);
+      }
+    }
+    const { manager, imported } = setup(new FallbackEngine());
+    const done = await waitFor(manager, manager.start(candidate).id, ['complete', 'failed']);
+    expect(done.state).toBe('complete');
+    expect(done.source.id).toBe(7);
+    expect(done.warnings.some((warning) => warning.code === 'source_fallback')).toBe(true);
+    expect(imported).toHaveLength(1);
   });
 
   it('rejects a mixed catalog before downloading', async () => {
@@ -244,6 +275,46 @@ describe('novel fetch task manager', () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
     throw new Error('search job did not finish');
+  });
+
+  it('validates every exact candidate before listing search results and hides the rest', async () => {
+    const engine = new FakeEngine();
+    const bad = { ...candidate, url: 'https://www.biquge365.net/book/2/', revision: '2222222222222222' };
+    const mismatched = { ...candidate, title: '海边的信号', url: 'https://www.biquge365.net/book/3/', revision: '3333333333333333' };
+    engine.search = async () => [candidate, bad, mismatched];
+    engine.onToc = (call) => call === 2 ? [...catalog(3), { order: 4, title: '第一章 另一个版本', url: 'https://www.biquge365.net/chapter/1/x.html' }] : catalog();
+    const { manager, imported } = setup(engine);
+    const started = manager.startSearch('海边的信', '小鱼', { validate: true });
+    expect(started.state).toBe('searching');
+    expect(started.checkTotal).toBe(0);
+    const done = await waitForSearch(manager, started.id);
+    expect(done.state).toBe('complete');
+    expect(done.candidates?.map((entry) => entry.url)).toEqual([candidate.url]);
+    expect(done.candidates?.[0]?.check).toMatchObject({ ok: true, chapters: 3 });
+    expect(done.checked).toBe(2);
+    expect(done.checkTotal).toBe(2);
+    expect(done.hidden).toBe(2);
+    expect(engine.calls).not.toContain('download');
+    expect(imported).toHaveLength(0);
+  });
+
+  it('reports no successful search results when every candidate fails validation', async () => {
+    const engine = new FakeEngine();
+    engine.onToc = () => [...catalog(3), { order: 4, title: '第一章 另一个版本', url: 'https://www.biquge365.net/chapter/1/x.html' }];
+    const { manager } = setup(engine);
+    const done = await waitForSearch(manager, manager.startSearch('海边的信', '小鱼', { validate: true }).id);
+    expect(done.state).toBe('complete');
+    expect(done.candidates).toEqual([]);
+    expect(done.hidden).toBe(1);
+  });
+
+  it('keeps autonomous searches unchecked so their own preflight still decides', async () => {
+    const engine = new FakeEngine();
+    const { manager } = setup(engine);
+    const done = await waitForSearch(manager, manager.startSearch('海边的信', '小鱼').id);
+    expect(done.state).toBe('complete');
+    expect(done.candidates).toHaveLength(1);
+    expect(engine.calls).not.toContain('toc');
   });
 
   it('refuses unsupported sources and non-book URLs from the UI', () => {

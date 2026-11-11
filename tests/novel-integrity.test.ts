@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assessNovelDownload, chapterNumberOf, composeValidatedText, type CatalogChapter, type DownloadChapterFile } from '../src/novel-integrity.ts';
+import { assessNovelDownload, chapterNumberOf, composeValidatedText, isAnnouncementTitle, type CatalogChapter, type DownloadChapterFile } from '../src/novel-integrity.ts';
 
 const book = { title: '海边的信', author: '小鱼', sourceId: 1, sourceName: '测试书源', bookUrl: 'http://127.0.0.1:18870/plain/ok/' };
 
@@ -28,6 +28,17 @@ describe('chapter number parsing', () => {
     expect(chapterNumberOf('第九十九回 九九数完魔灭尽')).toBe(99);
     expect(chapterNumberOf('第十二节')).toBe(12);
     expect(chapterNumberOf('序章')).toBeNull();
+  });
+});
+
+describe('announcement titles', () => {
+  it('recognizes non-story entries and keeps structural ones', () => {
+    for (const title of ['请假一天。', '感谢', '结卷感言。', '中奖名单', '新年快乐+番外抽奖！', '上架感言+废蚊', '早点休息', '番外说明', '꒦ິ^꒦ິ', '！注意！', 'ps 时间微调']) {
+      expect(isAnnouncementTitle(title)).toBe(true);
+    }
+    for (const title of ['楔子 繁华过眼', '序章', '番外 雪夜', '大结局', '第12章 感谢', '第100章 请假', '第一一〇章 围城', '第一二〇章 感谢']) {
+      expect(isAnnouncementTitle(title)).toBe(false);
+    }
   });
 });
 
@@ -170,14 +181,53 @@ describe('novel download integrity', () => {
     expect(result.issues.map((item) => item.code)).toEqual(expect.arrayContaining(['catalog_duplicate_number', 'catalog_number_regression']));
   });
 
-  it('rejects an inserted entry that shifts later chapter numbers', () => {
-    const drifted: CatalogChapter[] = [
+  it('skips announcement entries instead of rejecting the edition', () => {
+    const withNotes: CatalogChapter[] = [
       { order: 1, title: '第1章 海边来信', url: 'http://127.0.0.1:18870/plain/ok/c1.html' },
-      { order: 2, title: '作者的话', url: 'http://127.0.0.1:18870/plain/ok/note.html' },
+      { order: 2, title: '请假一天。', url: 'http://127.0.0.1:18870/plain/ok/note1.html' },
       { order: 3, title: '第2章 海边来信', url: 'http://127.0.0.1:18870/plain/ok/c2.html' },
-      { order: 4, title: '第3章 海边来信', url: 'http://127.0.0.1:18870/plain/ok/c3.html' },
+      { order: 4, title: '感谢', url: 'http://127.0.0.1:18870/plain/ok/note2.html' },
+      { order: 5, title: '请假一天。', url: 'http://127.0.0.1:18870/plain/ok/note3.html' },
+      { order: 6, title: '第3章 海边来信', url: 'http://127.0.0.1:18870/plain/ok/c3.html' },
     ];
-    const result = assessNovelDownload({ book, catalog: drifted, files: drifted.map((item) => chapter(item.order, item.title, longBody)), catalogOnly: true });
+    const result = assessNovelDownload({ book, catalog: withNotes, files: withNotes.map((item) => chapter(item.order, item.title, longBody)) });
+    expect(result.complete).toBe(true);
+    expect(result.issues).toEqual([]);
+    expect(result.chapters.map((item) => item.order)).toEqual([1, 3, 6]);
+    expect(composeValidatedText(book, result.chapters)).not.toContain('请假一天');
+    expect(result.warnings.map((item) => item.code)).toContain('catalog_announcement');
+  });
+
+  it('does not require announcement pages to exist', () => {
+    const withNotes: CatalogChapter[] = [
+      { order: 1, title: '第1章 海边来信', url: 'http://127.0.0.1:18870/plain/ok/c1.html' },
+      { order: 2, title: '上架感言', url: 'http://127.0.0.1:18870/plain/ok/note.html' },
+      { order: 3, title: '第2章 海边来信', url: 'http://127.0.0.1:18870/plain/ok/c2.html' },
+    ];
+    const result = assessNovelDownload({ book, catalog: withNotes, files: [chapter(1, '第1章 海边来信', longBody), chapter(3, '第2章 海边来信', longBody)] });
+    expect(result.complete).toBe(true);
+    expect(result.issues).toEqual([]);
+  });
+
+  it('keeps real front and back matter as chapters', () => {
+    const matter: CatalogChapter[] = [
+      { order: 1, title: '楔子 繁华过眼', url: 'http://127.0.0.1:18870/plain/ok/p.html' },
+      { order: 2, title: '第1章 海边来信', url: 'http://127.0.0.1:18870/plain/ok/c1.html' },
+      { order: 3, title: '番外 雪夜', url: 'http://127.0.0.1:18870/plain/ok/e.html' },
+      { order: 4, title: '第2章 海边来信', url: 'http://127.0.0.1:18870/plain/ok/c2.html' },
+    ];
+    const result = assessNovelDownload({ book, catalog: matter, files: matter.map((item) => chapter(item.order, item.title, longBody)) });
+    expect(result.complete).toBe(true);
+    expect(result.chapters.map((item) => item.title)).toEqual(['楔子 繁华过眼', '第1章 海边来信', '番外 雪夜', '第2章 海边来信']);
+  });
+
+  it('still rejects chapters whose numbers jump between adjacent entries', () => {
+    const jumped: CatalogChapter[] = [
+      { order: 1, title: '第1章 海边来信', url: 'http://127.0.0.1:18870/plain/ok/c1.html' },
+      { order: 2, title: '第4章 海边来信', url: 'http://127.0.0.1:18870/plain/ok/c2.html' },
+      { order: 3, title: '第5章 海边来信', url: 'http://127.0.0.1:18870/plain/ok/c3.html' },
+    ];
+    const result = assessNovelDownload({ book, catalog: jumped, files: [], catalogOnly: true });
     expect(result.complete).toBe(false);
     expect(result.issues.map((item) => item.code)).toContain('catalog_number_order_mismatch');
   });
@@ -250,6 +300,31 @@ describe('novel download integrity', () => {
     const result = assessNovelDownload({ book, catalog: bad, files: [], catalogOnly: true });
     expect(result.complete).toBe(false);
     expect(result.issues.length).toBeGreaterThan(0);
+  });
+
+  it('recognizes author notes and anniversary posts as appendices', () => {
+    expect(isAnnouncementTitle('新书大主宰已发。')).toBe(true);
+    expect(isAnnouncementTitle('4.14，斗破两周年了。')).toBe(true);
+    const list: CatalogChapter[] = [
+      ...catalog(2),
+      { order: 3, title: '新书大主宰已发。', url: 'https://www.biquge365.net/chapter/1/a3.html' },
+      { order: 4, title: '4.14，斗破两周年了。', url: 'https://www.biquge365.net/chapter/1/a4.html' },
+    ];
+    const downloaded = files(2);
+    const result = assessNovelDownload({ book, catalog: list, files: downloaded });
+    expect(result.complete).toBe(true);
+    expect(result.issues).toEqual([]);
+    expect(result.warnings.some((warning) => warning.code === 'catalog_announcement')).toBe(true);
+    expect(result.chapters).toHaveLength(2);
+  });
+
+  it('normalizes a page heading that omits the catalog chapter marker', () => {
+    const alias = files();
+    alias[0] = { ...alias[0]!, title: '海边来信' };
+    const result = assessNovelDownload({ book, catalog: catalog(), files: alias });
+    expect(result.complete).toBe(true);
+    expect(result.issues).toEqual([]);
+    expect(result.warnings.some((warning) => warning.code === 'catalog_title_alias')).toBe(true);
   });
 
   it('composes a canonical TXT only from validated chapters', () => {

@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, wri
 import { join } from 'node:path';
 import { labelCandidate, normalizeIdentity, type CandidateMatch, type NovelSearchCandidate } from './novel-match.ts';
 import { NOVEL_SOURCES, type NovelSourceSpec } from './novel-sources.ts';
-import { assessNovelDownload, composeValidatedText, type CatalogChapter, type DownloadChapterFile, type NovelIntegrityIssue } from './novel-integrity.ts';
+import { assessNovelDownload, composeValidatedText, isAnnouncementTitle, type CatalogChapter, type DownloadChapterFile, type NovelIntegrityIssue } from './novel-integrity.ts';
 import type { NovelDownloadResult, NovelEngineAvailability } from './novel-engine.ts';
 import type { NovelPageProbe } from './novel-probe.ts';
 import type { RuntimeAccess } from './novel-runtime/types.ts';
@@ -68,15 +68,29 @@ export interface NovelFetchStatus {
   resumable: NovelResumeView[];
 }
 
+/** Catalog preflight result for one search candidate. */
+export interface NovelCandidateCheck {
+  ok: boolean;
+  chapters: number;
+  reason?: string;
+}
+
 export interface NovelSearchJobView {
   id: string;
-  state: 'searching' | 'complete' | 'failed';
+  /** `validating` means the search finished and candidate catalogs are being checked. */
+  state: 'searching' | 'validating' | 'complete' | 'failed';
   title: string;
   author: string;
+  /** Source-search progress. */
   completed: number;
   total: number;
+  /** Candidate-validation progress; both stay 0 when the job does not validate. */
+  checked: number;
+  checkTotal: number;
+  /** Candidates omitted from the final list because they failed or did not match. */
+  hidden?: number;
   source?: { id: number; name: string };
-  candidates?: Array<NovelSearchCandidate & { match: CandidateMatch }>;
+  candidates?: Array<NovelSearchCandidate & { match: CandidateMatch; check?: NovelCandidateCheck }>;
   error?: string;
   createdAt: string;
   updatedAt: string;
@@ -86,6 +100,10 @@ export interface NovelSearchJobView {
 export function downloadTimeoutMsFor(chapters: number): number {
   return Math.min(2 * 60 * 60_000, Math.max(30 * 60_000, Math.round(chapters * 900)));
 }
+
+/** Search-result validation: bounded pool and per-candidate catalog timeout. */
+const SEARCH_CHECK_CONCURRENCY = 3;
+const SEARCH_CHECK_TIMEOUT_MS = 60_000;
 
 export interface NovelBookView {  key: string;
   title: string;
@@ -315,19 +333,54 @@ export class NovelFetches {
     let lease: { engine: NovelEngineLike; release: () => void } | undefined;
     try {
       lease = this.options.runtime ? await this.options.runtime.acquire() : undefined;
-      const engine = lease?.engine ?? this.engine;
-      const catalog = await engine.toc(candidate.url, { ...(signal ? { signal } : {}), timeoutMs: 120_000 });
+      return await this.probeCandidate(lease?.engine ?? this.engine, candidate, signal, 120_000);
+    } finally { lease?.release(); }
+  }
+
+  /** Fetch a candidate's catalog and run the downloader's own preflight on it. */
+  private async probeCandidate(engine: NovelEngineLike, candidate: NovelSearchCandidate, signal: AbortSignal | undefined, timeoutMs: number): Promise<{ ok: boolean; chapters: number; issues: NovelIntegrityIssue[]; reason?: string }> {
+    try {
+      const catalog = await engine.toc(candidate.url, { ...(signal ? { signal } : {}), timeoutMs });
       if (!catalog.length) return { ok: false, chapters: 0, issues: [], reason: 'Catalog is empty' };
       const preflight = engine.preflight({ title: candidate.title, author: candidate.author, sourceId: candidate.source.id, sourceName: candidate.source.name, bookUrl: candidate.url }, catalog);
       return { ok: preflight.complete, chapters: catalog.length, issues: preflight.issues,
         ...(preflight.complete ? {} : { reason: `Catalog gate rejected the edition (${catalog.length} chapters)` }) };
     } catch (error) {
+      if (signal?.aborted) throw error;
       return { ok: false, chapters: 0, issues: [], reason: (error as Error).message.slice(0, 500) };
-    } finally { lease?.release(); }
+    }
+  }
+
+  /**
+   * Check every acquirable candidate before the panel lists it. Mismatched
+   * (title-only/author-only) results are never offered for download, so they
+   * are dropped without spending a catalog request on them.
+   */
+  private async validateSearchCandidates(job: NovelSearchJobView, candidates: Array<NovelSearchCandidate & { match: CandidateMatch }>, engine: NovelEngineLike): Promise<void> {
+    const targets = candidates.filter((candidate) => candidate.match === 'exact');
+    job.state = 'validating'; job.checked = 0; job.checkTotal = targets.length;
+    job.updatedAt = new Date(this.now()).toISOString();
+    const checks = new Map<string, NovelCandidateCheck>();
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      while (next < targets.length) {
+        const candidate = targets[next++]!;
+        checks.set(`${candidate.source.id}|${candidate.url}`, await this.probeCandidate(engine, candidate, this.lifetime.signal, SEARCH_CHECK_TIMEOUT_MS));
+        job.checked += 1;
+        job.updatedAt = new Date(this.now()).toISOString();
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(SEARCH_CHECK_CONCURRENCY, targets.length) }, () => worker()));
+    const visible = candidates
+      .map((candidate) => ({ candidate, check: checks.get(`${candidate.source.id}|${candidate.url}`) }))
+      .filter((row): row is { candidate: NovelSearchCandidate & { match: CandidateMatch }; check: NovelCandidateCheck } => row.candidate.match === 'exact' && row.check?.ok === true)
+      .map((row) => ({ ...row.candidate, check: row.check }));
+    job.candidates = visible; job.hidden = candidates.length - visible.length; job.state = 'complete';
+    job.updatedAt = new Date(this.now()).toISOString();
   }
 
   /** Start a pollable search job so the panel can show real per-source progress. */
-  startSearch(title: string, author: string): NovelSearchJobView {
+  startSearch(title: string, author: string, options: { validate?: boolean } = {}): NovelSearchJobView {
     const availability = this.engineAvailable();
     if (!availability.available) throw new Error(`Novel engine unavailable: ${availability.reason}`);
     const wanted = { title: title.trim() || undefined, author: author.trim() || undefined };
@@ -335,9 +388,9 @@ export class NovelFetches {
     this.pruneSearchJobs();
     const id = randomUUID();
     const now = new Date(this.now()).toISOString();
-    const job: NovelSearchJobView = { id, state: 'searching', title: wanted.title ?? '', author: wanted.author ?? '', completed: 0, total: this.searchSourceIds.length, createdAt: now, updatedAt: now };
+    const job: NovelSearchJobView = { id, state: 'searching', title: wanted.title ?? '', author: wanted.author ?? '', completed: 0, total: this.searchSourceIds.length, checked: 0, checkTotal: 0, createdAt: now, updatedAt: now };
     this.searchJobs.set(id, job);
-    void this.runSearchJob(job, wanted);
+    void this.runSearchJob(job, wanted, options.validate === true);
     return this.searchJobView(job);
   }
 
@@ -349,20 +402,26 @@ export class NovelFetches {
   }
 
   private searchJobView(job: NovelSearchJobView): NovelSearchJobView {
-    return { ...job, ...(job.source ? { source: { ...job.source } } : {}), ...(job.candidates ? { candidates: job.candidates.map((candidate) => ({ ...candidate, source: { ...candidate.source } })) } : {}) };
+    return { ...job, ...(job.source ? { source: { ...job.source } } : {}), ...(job.candidates ? { candidates: job.candidates.map((candidate) => ({ ...candidate, source: { ...candidate.source }, ...(candidate.check ? { check: { ...candidate.check } } : {}) })) } : {}) };
   }
 
-  private async runSearchJob(job: NovelSearchJobView, wanted: { title?: string; author?: string }): Promise<void> {
+  private async runSearchJob(job: NovelSearchJobView, wanted: { title?: string; author?: string }, validate: boolean): Promise<void> {
     const lease = this.options.runtime ? await this.options.runtime.acquire() : undefined;
     try {
+      const engine = lease?.engine ?? this.engine;
       const candidates = await this.collectCandidates(wanted, this.lifetime.signal, (done, total, sourceId) => {
         job.completed = done; job.total = total;
         if (sourceId !== undefined) job.source = { id: sourceId, name: this.sources.find((source) => source.id === sourceId)?.name ?? `source-${sourceId}` };
         job.updatedAt = new Date(this.now()).toISOString();
-      }, lease?.engine);
-      job.candidates = candidates; job.state = 'complete'; job.completed = job.total;
+      }, engine);
+      if (validate) {
+        await this.validateSearchCandidates(job, candidates, engine);
+      } else {
+        job.candidates = candidates; job.state = 'complete';
+      }
+      job.completed = job.total;
       job.updatedAt = new Date(this.now()).toISOString();
-      this.lastSearch = { at: job.createdAt, title: job.title, author: job.author, count: candidates.length };
+      this.lastSearch = { at: job.createdAt, title: job.title, author: job.author, count: job.candidates?.length ?? 0 };
     } catch (error) {
       job.state = 'failed'; job.error = (error as Error).message.slice(0, 500);
       job.updatedAt = new Date(this.now()).toISOString();
@@ -505,98 +564,65 @@ export class NovelFetches {
   }
 
   private async run(task: InternalTask): Promise<void> {
-    const { candidate, record, controller } = task;
+    const { controller } = task;
     const signal = controller.signal;
     let lease: { engine: NovelEngineLike; release: () => void } | undefined;
     try {
       lease = this.options.runtime ? await this.options.runtime.acquire() : undefined;
       const engine = lease?.engine ?? this.engine;
-      record.stage = 'catalog';
-      record.percent = 3;
-      this.persist(task);
-      const catalog = await engine.toc(candidate.url, { signal, timeoutMs: 120_000 });
-      record.catalogChapters = catalog.length;
-      if (task.downloadDir) this.rememberResume(task);
-      if (!catalog.length) throw new Error('Catalog is empty; download aborted');
-      const identity = { title: candidate.title, author: candidate.author, sourceId: candidate.source.id, sourceName: candidate.source.name, bookUrl: candidate.url };
-      const preflight = engine.preflight(identity, catalog);
-      if (!preflight.complete) return this.fail(task, 'Catalog gate rejected the edition; nothing was downloaded', preflight.issues);
-
-      record.state = 'fetching';
-      record.stage = 'fetching';
-      record.percent = 5;
-      if (task.resumeDir) { task.downloadDir = task.resumeDir; this.rememberResume(task); }
-      this.persist(task);
-      const downloadTimeoutMs = this.options.downloadTimeoutMs ?? downloadTimeoutMsFor(catalog.length);
-      const onProgress = (downloaded: number, total: number) => {
-        record.downloadedChapters = downloaded;
-        record.catalogChapters = total || catalog.length;
-        record.percent = Math.max(record.percent, Math.min(80, 5 + Math.floor(75 * downloaded / Math.max(1, record.catalogChapters))));
-        record.updatedAt = new Date(this.now()).toISOString();
-        this.persist(task);
-      };
-      const download = task.resumeDir && engine.resume
-        ? await engine.resume(candidate, { downloadDir: task.resumeDir, catalog, signal, timeoutMs: downloadTimeoutMs, onProgress })
-        : await engine.download(candidate, {
-          signal, catalogChapters: catalog.length, timeoutMs: downloadTimeoutMs, onProgress,
-          onDownloadDir: (downloadDir) => { task.downloadDir = downloadDir; this.rememberResume(task); },
-        });
-      task.downloadDir = download.downloadDir;
-      record.downloadedChapters = download.files.length;
-      if (signal.aborted) throw new Error('cancelled');
-      if (download.exitCode !== 0) throw new Error(`so-novel exited with code ${download.exitCode}${download.stderrTail ? `: ${download.stderrTail}` : ''}`);
-
-      record.state = 'validating';
-      record.stage = 'validating';
-      record.percent = 82;
-      record.downloadedChapters = download.files.length;
-      this.persist(task);
-      const catalogAfter = await engine.toc(candidate.url, { signal, timeoutMs: 120_000 });
-      const verdict = assessNovelDownload({
-        book: identity, catalog, files: download.files, catalogAfter,
-        ...(download.files.length ? {} : {}),
-      });
-      let issues = verdict.issues;
-      let warnings = verdict.warnings;
-      const source = this.sourceForUrl(candidate.url);
-      if (this.options.pageProbe && source?.probe) {
-        // An unavailable probe is a warning: the source page could not be read
-        // (timeout, selector drift), but it did not prove a missing page. A
-        // probe that actually finds a missing/short page remains blocking.
-        const probeTimeout = this.options.probeTimeoutMs ?? Math.min(120_000, Math.max(20_000, catalog.length * 900));
-        const probeSignal = AbortSignal.any([signal, AbortSignal.timeout(probeTimeout)]);
-        try {
-          const probeIssues = await this.options.pageProbe.probe(source, catalog, download.files, probeSignal);
-          for (const issue of probeIssues) {
-            if (issue.code === 'page_probe_unavailable') warnings = [...warnings, issue];
-            else issues = [...issues, issue];
-          }
-        } catch (error) {
-          if (signal.aborted) throw error;
-          warnings = [...warnings, { code: 'page_probe_unavailable', message: `Page probe stopped: ${(error as Error).message}` }];
+      const attempts: NovelSearchCandidate[] = [task.candidate];
+      const tried = new Set<string>();
+      const failures: Array<{ source: string; reason: string; issues: NovelIntegrityIssue[] }> = [];
+      let loadedFallbacks = false;
+      let firstAttempt = true;
+      for (;;) {
+        const candidate = task.candidate;
+        tried.add(this.resumeKey(candidate));
+        task.record.source = { ...candidate.source };
+        task.record.revision = candidate.revision;
+        task.record.catalogChapters = 0;
+        task.record.downloadedChapters = 0;
+        task.record.percent = 3;
+        task.record.issues = [];
+        task.record.issueCount = 0;
+        task.record.state = 'queued';
+        task.record.stage = 'catalog';
+        task.record.updatedAt = new Date(this.now()).toISOString();
+        if (!firstAttempt) {
+          task.downloadDir = undefined;
+          task.resumeDir = undefined;
         }
-      }
-      if (issues.length) return this.fail(task, `Integrity gate rejected the download (${issues.length} issue${issues.length === 1 ? '' : 's'})`, issues);
-      if (!verdict.complete) return this.fail(task, 'Integrity gate did not return a complete text', issues);
+        firstAttempt = false;
+        this.persist(task);
+        try {
+          const result = await this.runCandidate(task, candidate, engine, signal);
+          if (result.complete) return;
+          failures.push({ source: candidate.source.name, reason: result.reason ?? 'Validation failed', issues: result.issues ?? [] });
+        } catch (error) {
+          if (signal.aborted) return this.cancelRecord(task, 'Cancelled');
+          failures.push({ source: candidate.source.name, reason: (error as Error).message.slice(0, 500), issues: [] });
+        }
+        if (signal.aborted) return this.cancelRecord(task, 'Cancelled');
 
-      record.stage = 'importing';
-      record.percent = 96;
-      this.persist(task);
-      const validatedFile = join(download.taskDir, 'validated.txt');
-      writeFileSync(validatedFile, composeValidatedText(identity, verdict.chapters), 'utf8');
-      const filename = `so-novel-${candidate.source.id}-${candidate.revision}.txt`;
-      const imported = this.importer(validatedFile, { filename, title: candidate.title, author: candidate.author });
-      record.bookKey = imported.book.key;
-      record.state = 'complete';
-      record.stage = 'done';
-      this.forgetResume(candidate);
-      record.percent = 100;
-      record.issues = [];
-      record.warnings = warnings;
-      record.warningCount = warnings.length;
-      record.updatedAt = new Date(this.now()).toISOString();
-      this.persist(task);
-      this.notifyTerminal(task);
+        if (!loadedFallbacks) {
+          loadedFallbacks = true;
+          const alternatives = await this.findFallbackCandidates(task, engine, signal, tried);
+          attempts.push(...alternatives);
+        }
+        const next = attempts.find((entry) => !tried.has(this.resumeKey(entry)));
+        if (!next) {
+          const last = failures.at(-1);
+          return this.fail(task, `All ${failures.length} candidate source(s) failed; last: ${last?.reason ?? 'unknown error'}`, last?.issues ?? []);
+        }
+        task.record.warnings = [...task.record.warnings, {
+          code: 'source_fallback',
+          message: `${candidate.source.name} did not pass validation; trying ${next.source.name}`,
+        }];
+        task.record.warningCount = task.record.warnings.length;
+        task.candidate = next;
+        task.record.updatedAt = new Date(this.now()).toISOString();
+        this.persist(task);
+      }
     } catch (error) {
       if (signal.aborted) return this.cancelRecord(task, 'Cancelled');
       const raw = (error as Error).message;
@@ -605,9 +631,128 @@ export class NovelFetches {
         ? `Download timed out after ${Math.round(Number(timeout[1]) / 60_000)} minutes; nothing entered the shelf. Retry or use another source.`
         : raw;
       return this.fail(task, message);
-    } finally { lease?.release(); }
+    } finally {
+      lease?.release();
+    }
   }
 
+  private async findFallbackCandidates(
+    task: InternalTask,
+    engine: NovelEngineLike,
+    signal: AbortSignal,
+    tried: Set<string>,
+  ): Promise<NovelSearchCandidate[]> {
+    try {
+      const wanted = { title: task.record.title.trim(), author: task.record.author.trim() };
+      const all = await this.collectCandidates(wanted, signal, undefined, engine);
+      const currentSource = task.candidate.source.id;
+      return all
+        .filter((candidate) => candidate.match === 'exact' && !tried.has(this.resumeKey(candidate)))
+        // Prefer a different source over another edition on the same site.
+        .sort((a, b) => Number(a.source.id === currentSource) - Number(b.source.id === currentSource))
+        .slice(0, 2);
+    } catch {
+      return [];
+    }
+  }
+
+  private async runCandidate(
+    task: InternalTask,
+    candidate: NovelSearchCandidate,
+    engine: NovelEngineLike,
+    signal: AbortSignal,
+  ): Promise<{ complete: boolean; reason?: string; issues?: NovelIntegrityIssue[] }> {
+    const { record } = task;
+    record.stage = 'catalog';
+    record.percent = 3;
+    this.persist(task);
+    const catalog = await engine.toc(candidate.url, { signal, timeoutMs: 120_000 });
+    record.catalogChapters = catalog.length;
+    if (task.downloadDir) this.rememberResume(task);
+    if (!catalog.length) throw new Error('Catalog is empty; download aborted');
+    const identity = { title: candidate.title, author: candidate.author, sourceId: candidate.source.id, sourceName: candidate.source.name, bookUrl: candidate.url };
+    const preflight = engine.preflight(identity, catalog);
+    if (!preflight.complete) return { complete: false, reason: 'Catalog gate rejected the edition; nothing was downloaded', issues: preflight.issues };
+
+    record.state = 'fetching';
+    record.stage = 'fetching';
+    record.percent = 5;
+    if (task.resumeDir) { task.downloadDir = task.resumeDir; this.rememberResume(task); }
+    this.persist(task);
+    const downloadTimeoutMs = this.options.downloadTimeoutMs ?? downloadTimeoutMsFor(catalog.length);
+    const onProgress = (downloaded: number, total: number) => {
+      record.downloadedChapters = downloaded;
+      record.catalogChapters = total || catalog.length;
+      record.percent = Math.max(record.percent, Math.min(80, 5 + Math.floor(75 * downloaded / Math.max(1, record.catalogChapters))));
+      record.updatedAt = new Date(this.now()).toISOString();
+      this.persist(task);
+    };
+    const download = task.resumeDir && engine.resume
+      ? await engine.resume(candidate, { downloadDir: task.resumeDir, catalog, signal, timeoutMs: downloadTimeoutMs, onProgress })
+      : await engine.download(candidate, {
+        signal, catalogChapters: catalog.length, timeoutMs: downloadTimeoutMs, onProgress,
+        onDownloadDir: (downloadDir) => { task.downloadDir = downloadDir; this.rememberResume(task); },
+      });
+    task.downloadDir = download.downloadDir;
+    record.downloadedChapters = download.files.length;
+    if (signal.aborted) throw new Error('cancelled');
+    if (download.exitCode !== 0) throw new Error(`so-novel exited with code ${download.exitCode}${download.stderrTail ? `: ${download.stderrTail}` : ''}`);
+
+    record.state = 'validating';
+    record.stage = 'validating';
+    record.percent = 82;
+    record.downloadedChapters = download.files.length;
+    this.persist(task);
+    const catalogAfter = await engine.toc(candidate.url, { signal, timeoutMs: 120_000 });
+    const verdict = assessNovelDownload({
+      book: identity, catalog, files: download.files, catalogAfter,
+    });
+    let issues = verdict.issues;
+    let warnings = verdict.warnings;
+    const source = this.sourceForUrl(candidate.url);
+    if (this.options.pageProbe && source?.probe) {
+      // An unavailable probe is a warning: the source page could not be read
+      // (timeout, selector drift), but it did not prove a missing page. A
+      // probe that actually finds a missing/short page remains blocking.
+      const probeTimeout = this.options.probeTimeoutMs ?? Math.min(120_000, Math.max(20_000, catalog.length * 900));
+      const probeSignal = AbortSignal.any([signal, AbortSignal.timeout(probeTimeout)]);
+      try {
+        // Announcement pages are never part of the book; probing them would
+        // compare an author note against story text.
+        const probeCatalog = catalog.filter((chapter) => !isAnnouncementTitle(chapter.title));
+        const probeIssues = await this.options.pageProbe.probe(source, probeCatalog, download.files, probeSignal);
+        for (const issue of probeIssues) {
+          if (issue.code === 'page_probe_unavailable') warnings = [...warnings, issue];
+          else issues = [...issues, issue];
+        }
+      } catch (error) {
+        if (signal.aborted) throw error;
+        warnings = [...warnings, { code: 'page_probe_unavailable', message: `Page probe stopped: ${(error as Error).message}` }];
+      }
+    }
+    if (issues.length) return { complete: false, reason: `Integrity gate rejected the download (${issues.length} issue${issues.length === 1 ? '' : 's'})`, issues };
+    if (!verdict.complete) return { complete: false, reason: 'Integrity gate did not return a complete text', issues };
+
+    record.stage = 'importing';
+    record.percent = 96;
+    this.persist(task);
+    const validatedFile = join(download.taskDir, 'validated.txt');
+    writeFileSync(validatedFile, composeValidatedText(identity, verdict.chapters), 'utf8');
+    const filename = `so-novel-${candidate.source.id}-${candidate.revision}.txt`;
+    const imported = this.importer(validatedFile, { filename, title: candidate.title, author: candidate.author });
+    record.bookKey = imported.book.key;
+    record.state = 'complete';
+    record.stage = 'done';
+    this.forgetResume(candidate);
+    record.percent = 100;
+    record.issues = [];
+    record.warnings = [...record.warnings, ...warnings];
+    record.warningCount = record.warnings.length;
+    record.updatedAt = new Date(this.now()).toISOString();
+    this.persist(task);
+    this.notifyTerminal(task);
+    return { complete: true };
+  }
   private fail(task: InternalTask, error: string, issues: NovelIntegrityIssue[] = []): void {
     if (task.downloadDir) this.rememberResume(task);
     task.record.state = 'failed';

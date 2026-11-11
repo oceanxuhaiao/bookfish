@@ -272,7 +272,7 @@ export class BookfishWorld implements World {
           const title = optional(value.title, 'title', 200);
           const author = optional(value.author, 'author', 100);
           if (!title && !author) throw new Error('Enter a title or an author');
-          return this.novelFetches.startSearch(title, author);
+          return this.novelFetches.startSearch(title, author, { validate: true });
         }
         if (method === 'novel_search_status' && args.length === 1) return this.novelFetches.searchStatus(args[0]);
         if (method === 'novel_search' && args.length === 1) {

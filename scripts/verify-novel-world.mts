@@ -83,7 +83,7 @@ try {
   if (!runtime.usable) throw new Error('runtime not usable');
 
   const job = await invoke('shelf', 'novel_search_start', [{ title }]) as { id: string; state: string };
-  let search: { state: string; completed: number; total: number; candidates?: Array<Record<string, unknown>>; error?: string } | undefined;
+  let search: { state: string; completed: number; total: number; checked: number; checkTotal: number; hidden?: number; candidates?: Array<Record<string, unknown>>; error?: string } | undefined;
   const searchStart = Date.now();
   for (;;) {
     search = await invoke('shelf', 'novel_search_status', [job.id]) as typeof search;
@@ -92,7 +92,7 @@ try {
     await sleep(800);
   }
   if (!search || search.state !== 'complete') throw new Error(`search failed: ${search?.error}`);
-  console.log(JSON.stringify({ step: 'search', completed: search.completed, total: search.total, count: search.candidates?.length ?? 0, candidates: (search.candidates ?? []).slice(0, 5).map((candidate) => ({ title: candidate.title, author: candidate.author, source: (candidate.source as { name: string }).name, match: candidate.match })) }));
+  console.log(JSON.stringify({ step: 'search', ms: Date.now() - searchStart, completed: search.completed, total: search.total, checked: search.checked, checkTotal: search.checkTotal, hidden: search.hidden ?? 0, count: search.candidates?.length ?? 0, candidates: (search.candidates ?? []).slice(0, 5).map((candidate) => ({ title: candidate.title, author: candidate.author, source: (candidate.source as { name: string }).name, match: candidate.match, check: candidate.check })) }));
   if (!fetchBook) { await world.stop(); world = undefined; process.exit(0); }
   const candidate = (search.candidates ?? []).find((item) => item.match === 'exact');
   if (!candidate) throw new Error('no exact candidate to fetch');

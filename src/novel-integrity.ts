@@ -61,10 +61,13 @@ export type NovelIntegrityIssueCode =
   | 'catalog_number_regression'
   | 'catalog_number_order_mismatch'
   | 'catalog_volume_restart'
+  | 'catalog_title_alias'
+  | 'source_fallback'
   | 'catalog_changed'
   | 'missing_chapter'
   | 'unexpected_chapter_file'
   | 'catalog_title_encoding'
+  | 'catalog_announcement'
   | 'duplicate_chapter_file'
   | 'empty_chapter'
   | 'source_empty_chapter'
@@ -171,6 +174,47 @@ function normalizedTitle(title: string): string {
   return title.replace(/\s+/g, '').replace(/[_—·,，。.、:：;；!！?？'"“”‘’()（）\[\]【】]/g, '').toLowerCase();
 }
 
+/** Remove a leading 第N章/回/节 marker so a catalog title and a page heading can be compared. */
+function titleWithoutChapterMarker(title: string): string {
+  return normalizedTitle(title).replace(/^第[0-9零〇一二两三四五六七八九十百千]{1,12}[章节回篇]/u, '');
+}
+
+function isTitleAlias(catalogTitle: string, fileTitle: string): boolean {
+  const catalog = titleWithoutChapterMarker(catalogTitle);
+  const file = titleWithoutChapterMarker(fileTitle);
+  return catalog.length > 0 && catalog === file;
+}
+
+/**
+ * Author notes, leave notices, thanks, lottery/merch announcements and
+ * volume-end markers. A social title without a chapter number is common in
+ * these sources and must not be counted as a chapter: it breaks numbering and
+ * would otherwise be imported as body text.
+ */
+const ANNOUNCEMENT_ENTRY = /(?:请假|请[^。！？]{0,6}假|请个假|请病假|病假|停更|断更|无更|今天不更|今晚不更|休息|调整作息|调整状态|恢复更新|推迟|延期|延时|更新时间|更新说明|更新调整|单章|公告|通知|感言|上架|新书|已发|周年|两周年|三周年|后记|作者的话|求票|求月票|求推荐票|求订阅|求收藏|求打赏|拉票|月票|推荐票|打赏|加更|补更|感谢|谢谢|鸣谢|致谢|中奖|抽奖|名单|活动|福利|周边|实体|卷终|卷尾|结卷|新年|春节|中秋|国庆|端午|元旦|元宵|七夕|圣诞|除夕|冬至|安康|快乐|抱歉|感冒|病倒|发烧|停电|感想|总结|说明|注意|修改|台历|卡牌|发布|微调|稍晚|回应|后续安排|(?:晚点|明天|今晚|稍后|马上|今天|这两天).{0,4}更新|(?:^|\s)ps(?:\s|$))/u;
+
+/**
+ * Whether a catalog entry is a non-story announcement rather than a chapter.
+ *
+ * Conservative by construction: a numbered title is never an announcement, and
+ * real extra chapters (楔子/序章/番外/大结局…) carry no announcement keyword and
+ * are kept. Only short, unnumbered titles that are pure symbols or carry an
+ * explicit announcement keyword qualify. "番外说明" is a note and is skipped;
+ * "番外 雪夜" is content and is kept.
+ */
+export function isAnnouncementTitle(title: string): boolean {
+  const trimmed = title.trim();
+  if (!trimmed || chapterNumberOf(trimmed) !== null) return false;
+  // Some sources spell numbers the parser cannot value (第一一〇章 ends in 〇).
+  // A title that still carries a chapter marker is a chapter, never a note.
+  if (/第\s*[0-9零〇一二两三四五六七八九十百千]+\s*[回章节卷篇]/u.test(trimmed)) return false;
+  const compact = trimmed.replace(/\s+/gu, '');
+  if (compact.length > 30) return false;
+  // Emoji-only / punctuation-only titles are notes, never chapter headings.
+  if (/^[\p{P}\p{S}\p{M}\s]+$/u.test(trimmed)) return true;
+  return ANNOUNCEMENT_ENTRY.test(compact);
+}
+
 function issue(code: NovelIntegrityIssueCode, message: string, chapter?: number): NovelIntegrityIssue {
   return { code, message, ...(chapter === undefined ? {} : { chapter }) };
 }
@@ -204,6 +248,19 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
   if (!catalog.length) issues.push(issue('catalog_empty', 'Catalog is empty'));
   if (catalog.length > MAX_CATALOG_CHAPTERS) issues.push(issue('catalog_too_large', `Catalog exceeds ${MAX_CATALOG_CHAPTERS} chapters`));
 
+  // Announcement entries are not chapters: they carry no story text, repeat
+  // titles ("请假一天。" several times) and shift the order/number alignment.
+  // Drop them from every chapter check and from the imported text, but keep
+  // their presence visible as a warning.
+  const announcements = catalog.filter((chapter) => chapter && typeof chapter.title === 'string' && isAnnouncementTitle(chapter.title));
+  const announcedOrders = new Set(announcements.map((chapter) => chapter.order));
+  const body = announcedOrders.size ? catalog.filter((chapter) => !announcedOrders.has(chapter.order)) : catalog;
+  if (announcements.length) {
+    warnings.push(issue('catalog_announcement',
+      `Skipped ${announcements.length} non-story catalog entr${announcements.length === 1 ? 'y' : 'ies'} (author note/appendix/announcement), e.g. "${announcements[0]!.title}"`));
+  }
+  if (catalog.length && !body.length) issues.push(issue('catalog_empty', 'Catalog has no chapter entries'));
+
   const orders = new Set<number>();
   const urls = new Set<string>();
   const titles = new Map<string, number>();
@@ -219,7 +276,7 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
   let previousNumber: number | undefined;
   let previousOrder: number | undefined;
   let orderGaps = 0;
-  for (const [index, chapter] of catalog.entries()) {
+  for (const [index, chapter] of body.entries()) {
     if (!chapter || !Number.isSafeInteger(chapter.order) || chapter.order < 1 || typeof chapter.title !== 'string' || !chapter.title.trim() ||
         typeof chapter.url !== 'string' || !/^https?:\/\//u.test(chapter.url)) {
       issues.push(issue('missing_identity', `Catalog entry ${index + 1} is malformed`));
@@ -227,7 +284,12 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
     }
     if (previousOrder !== undefined) {
       if (chapter.order <= previousOrder) issues.push(issue('catalog_order_gap', `Catalog order ${chapter.order} does not follow ${previousOrder}`, chapter.order));
-      else if (chapter.order > previousOrder + 1) orderGaps++;
+      else if (chapter.order > previousOrder + 1) {
+        // A hole is explained by announcement entries that sat in it; only the
+        // unexplained remainder is a hidden-TOC-entry gap.
+        const skipped = announcements.filter((entry) => entry.order > previousOrder! && entry.order < chapter.order).length;
+        if (chapter.order - previousOrder - 1 > skipped) orderGaps++;
+      }
     }
     previousOrder = chapter.order;
     if (orders.has(chapter.order)) issues.push(issue('catalog_duplicate_order', `Duplicate catalog order ${chapter.order}`, chapter.order));
@@ -305,7 +367,7 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
       } else globalNumbers.set(key, entry.order);
     }
     const globalTitles = new Map<string, number>();
-    for (const chapter of catalog) {
+    for (const chapter of body) {
       if (!chapter || typeof chapter.title !== 'string') continue;
       const key = normalizedTitle(chapter.title);
       if (globalTitles.has(key)) {
@@ -317,28 +379,39 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
   // for long catalogs; a decreasing/duplicate sequence is still a blocking error.
   if (orderGaps > 0) {
     const gapIssue = issue('catalog_order_gap', `Catalog order skips ${orderGaps} number(s), likely hidden TOC entries`);
-    if (catalog.length >= 50) warnings.push(gapIssue); else issues.push(gapIssue);
+    if (body.length >= 50) warnings.push(gapIssue); else issues.push(gapIssue);
   }
   if (volumeAware && volumeStarts.length) {
     warnings.push(issue('catalog_volume_restart', `Recognized ${volumeStarts.length} volume restart(s); chapter numbers are scoped per volume`, volumeStarts[0]));
   }
   // An inserted extra entry shifts all later 第X回 numbers by one. A constant
-  // offset (e.g. a preface before chapter one) is allowed; a changing offset is
-  // evidence that two listings or editions were concatenated. Per-volume
-  // numbering legitimately changes the global offset, so skip this check once
-  // multiple volumes were recognized.
-  if ((!volumeAware || volumeSerial <= 1) && numberedEntries.length >= Math.max(1, Math.floor(catalog.length * 0.6))) {
-    const offsets = new Map<number, { order: number; number: number }>();
-    for (const entry of numberedEntries) {
-      const offset = entry.order - entry.number;
-      if (!offsets.has(offset)) offsets.set(offset, entry);
-    }
-    if (offsets.size > 1) {
-      orderNumberMismatch = true;
-      const first = [...offsets.values()][0]!;
-      const conflicting = [...offsets.values()].find((entry) => entry !== first)!;
-      numberIssues.push(issue('catalog_number_order_mismatch',
-        `Chapter order and number drift apart (order ${first.order} has 第${first.number}回, order ${conflicting.order} has 第${conflicting.number}回)`, conflicting.order));
+  // offset (e.g. a preface before chapter one) is allowed. A jump between two
+  // adjacent numbered chapters is evidence that two listings or editions were
+  // concatenated; the same jump across an unnumbered entry (a 番外/卷末 marker
+  // the source keeps in the TOC) is expected and is not held against the book.
+  // Per-volume numbering legitimately changes the global offset, so skip this
+  // check once multiple volumes were recognized.
+  if ((!volumeAware || volumeSerial <= 1) && numberedEntries.length >= Math.max(1, Math.floor(body.length * 0.6))) {
+    let previousOffset: number | undefined;
+    let previousNumbered: { order: number; number: number } | undefined;
+    let sawUnnumbered = false;
+    for (const [index, chapter] of body.entries()) {
+      if (!chapter || typeof chapter.title !== 'string') { sawUnnumbered = true; continue; }
+      const number = chapterNumberOf(chapter.title);
+      if (number === null) { sawUnnumbered = true; continue; }
+      // Compare the position among chapter entries, not the raw TOC order:
+      // announcement entries were already removed, so raw order would drift
+      // by one for every announcement.
+      const offset = index + 1 - number;
+      if (previousOffset !== undefined && offset !== previousOffset && !sawUnnumbered && previousNumbered) {
+        orderNumberMismatch = true;
+        numberIssues.push(issue('catalog_number_order_mismatch',
+          `Chapter order and number drift apart (order ${previousNumbered.order} has 第${previousNumbered.number}回, order ${chapter.order} has 第${number}回)`, chapter.order));
+        break;
+      }
+      previousOffset = offset;
+      previousNumbered = { order: chapter.order, number };
+      sawUnnumbered = false;
     }
   }
 
@@ -354,7 +427,7 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
   // strict 5% budget for ordinary books, and a 20% budget for 1,000+ chapter
   // catalogs; 192-entry mixed editions (about 47% duplicates) still fail.
   const anomalyRatio = numberedEntries.length >= 1000 ? 0.20 : 0.05;
-  const relaxed = catalog.length >= 50 && numberedEntries.length >= 50 && anomalyCount > 0 &&
+  const relaxed = body.length >= 50 && numberedEntries.length >= 50 && anomalyCount > 0 &&
     anomalyCount <= Math.max(3, Math.floor(numberedEntries.length * anomalyRatio)) && identityClean;
   if (relaxed) warnings.push(...numberIssues);
   else issues.push(...numberIssues);
@@ -369,6 +442,9 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
   const files = Array.isArray(input.files) ? input.files : [];
   const byOrder = new Map<number, DownloadChapterFile>();
   for (const file of files) {
+    // The downloader also fetches announcement pages; their text is never part
+    // of the book, so they are neither missing nor unexpected chapters.
+    if (file && announcedOrders.has(file.order)) continue;
     if (!file || !Number.isSafeInteger(file.order) || file.order < 1 || typeof file.text !== 'string') {
       issues.push(issue('unexpected_chapter_file', 'Malformed chapter file'));
       continue;
@@ -382,14 +458,14 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
   const chapters: Array<{ order: number; title: string; text: string }> = [];
   const tailTruncations: NovelIntegrityIssue[] = [];
   const emptyChapters: NovelIntegrityIssue[] = [];
-  for (const chapter of [...catalog].sort((a, b) => a.order - b.order)) {
+  for (const chapter of [...body].sort((a, b) => a.order - b.order)) {
     const file = byOrder.get(chapter.order);
     if (!file) {
       issues.push(issue('missing_chapter', `Chapter ${chapter.order} "${chapter.title}" was not downloaded`, chapter.order));
       continue;
     }
-    const body = stripTrailingPunctuationArtifact(stripLeadingTitle(file.text, chapter.title));
-    const chars = Array.from(body).length;
+    const chapterBody = stripTrailingPunctuationArtifact(stripLeadingTitle(file.text, chapter.title));
+    const chars = Array.from(chapterBody).length;
     if (chars === 0) {
       emptyChapters.push(issue('empty_chapter', `Chapter ${chapter.order} is empty`, chapter.order));
       // Keep the catalog heading with no invented body; a single such chapter
@@ -398,12 +474,12 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
       continue;
     }
     if (chars < minChapterChars) issues.push(issue('short_chapter', `Chapter ${chapter.order} has only ${chars} characters`, chapter.order));
-    const normalizedBody = body.replace(/\s+/g, '');
+    const normalizedBody = chapterBody.replace(/\s+/g, '');
     if (PLACEHOLDER.test(normalizedBody)) issues.push(issue('placeholder_chapter', `Chapter ${chapter.order} contains a placeholder page`, chapter.order));
-    if (STRONG_PAGINATION.test(normalizedBody) || PAGE_COUNTER.test(normalizedBody) || NEXT_PAGE_WORD.test(body.slice(-200))) {
+    if (STRONG_PAGINATION.test(normalizedBody) || PAGE_COUNTER.test(normalizedBody) || NEXT_PAGE_WORD.test(chapterBody.slice(-200))) {
       issues.push(issue('missing_page_marker', `Chapter ${chapter.order} ends with a next-page marker; later pages are missing`, chapter.order));
     }
-    if (TRUNCATING_TAIL.test(body.trimEnd())) {
+    if (TRUNCATING_TAIL.test(chapterBody.trimEnd())) {
       tailTruncations.push(issue('truncated_chapter_tail', `Chapter ${chapter.order} ends with a punctuation that suggests a cut sentence`, chapter.order));
     }
     if (chars >= 200) {
@@ -412,23 +488,25 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
       if (previous !== undefined) issues.push(issue('duplicate_chapter_body', `Chapter ${chapter.order} repeats chapter ${previous}`, chapter.order));
       else bodies.set(digest, chapter.order);
     }
-    chapters.push({ order: chapter.order, title: chapter.title, text: body });
+    chapters.push({ order: chapter.order, title: chapter.title, text: chapterBody });
   }
 
   // Check for title/number mismatches even when every file exists: a file whose
   // name disagrees with the catalog is evidence of a mixed or stale snapshot.
   for (const file of files) {
-    const catalogChapter = catalog.find((chapter) => chapter.order === file.order);
+    if (announcedOrders.has(file.order)) continue;
+    const catalogChapter = body.find((chapter) => chapter.order === file.order);
     if (catalogChapter && file.title && normalizedTitle(file.title) !== normalizedTitle(catalogChapter.title)) {
       // Some sources return a replacement character in the TOC title while the
       // chapter page itself is intact. That is a source encoding defect, not a
       // mixed edition; keep it visible as a warning instead of rejecting.
       if (catalogChapter.title.includes('\uFFFD')) warnings.push(issue('catalog_title_encoding', `Catalog title for order ${file.order} contained a replacement character; the downloaded title was kept`, file.order));
+      else if (isTitleAlias(catalogChapter.title, file.title)) warnings.push(issue('catalog_title_alias', `Chapter file ${file.order} uses an equivalent title spelling; kept the catalog title`, file.order));
       else issues.push(issue('unexpected_chapter_file', `Chapter file ${file.order} title does not match the catalog`, file.order));
     }
   }
 
-  if (emptyChapters.length === 1 && issues.length === 0 && catalog.length >= 20) {
+  if (emptyChapters.length === 1 && issues.length === 0 && body.length >= 20) {
     const only = emptyChapters[0]!;
     warnings.push({ ...only, code: 'source_empty_chapter', message: `${only.message}; the source page has no body, so only its heading is kept` });
   } else issues.push(...emptyChapters);
