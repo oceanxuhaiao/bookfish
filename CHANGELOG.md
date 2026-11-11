@@ -1,3 +1,11 @@
+## 0.53.0
+
+- README 新增“非原创内容与第三方组件”说明：运行时、书源/正文、品牌图、二维码和 npm 依赖的归属与许可证。
+- 新增 `THIRD_PARTY_NOTICES.md`，列出 so-novel v1.12.0（AGPL-3.0）、Temurin JRE 21.0.8（GPLv2+CE）、书源正文、品牌素材和 cheerio/ipaddr.js 的边界。
+- 新增 MIT `LICENSE`，明确 MIT 只覆盖 Bookfish 原创代码，不覆盖运行时、正文、书源、图片、二维码或依赖。
+- 新增 `assets/branding/SOURCE.md`，说明 logo、海报和 QQ 群二维码的来源与使用范围。
+- npm 包的 `files` 纳入 LICENSE、第三方声明和品牌来源说明，确保 npm 页面可读。
+
 ## 0.52.0
 
 - 新增目录分卷感知：识别“卷名 + 第X章”的显式分卷前缀，也识别无卷名但完整的 1..N 章节序列重置；章节号和标题按卷去重，不再把多卷本误判为混版。

@@ -2,11 +2,22 @@
 
 你负责安利，大肥鱼负责上头！把喜欢的小说推荐给大肥鱼，让她认真读、尽情吐槽、和你讨论每一个精彩瞬间！
 
-Coopanion / Cortico World 扩展，0.52.0 整体测试版。给大肥鱼一本小说，让她按自己的节奏逐段阅读，保存有原文依据的感想和自报心情，讨论已读内容，偶尔分享，完读后写自己的读后感；也可以让她自己提出想读的书，经受控搜索、获取和校验后入架排队。
+Coopanion / Cortico World 扩展，0.53.0 整体测试版。给大肥鱼一本小说，让她按自己的节奏逐段阅读，保存有原文依据的感想和自报心情，讨论已读内容，偶尔分享，完读后写自己的读后感；也可以让她自己提出想读的书，经受控搜索、获取和校验后入架排队。
 
 ## 小说引擎运行时
 
-扩展包不包含 85 MB 运行时。Windows x64 运行时、上游源码、SBOM、SHA256SUMS 和许可证说明在 [`runtime/README.md`](runtime/README.md) 与 [runtime-1.12.0-bf1 Release](https://github.com/oceanxuhaiao/bookfish/releases/tag/runtime-1.12.0-bf1)。
+扩展包不包含 85 MB 运行时。Windows x64 运行时、上游源码、SBOM、SHA256SUMS 和许可证说明在 [runtime/README.md](https://github.com/oceanxuhaiao/bookfish/blob/main/runtime/README.md) 与 [runtime-1.12.0-bf1 Release](https://github.com/oceanxuhaiao/bookfish/releases/tag/runtime-1.12.0-bf1)。
+
+## 非原创内容与第三方组件
+
+**本扩展的原创代码采用 MIT；以下内容不是原创代码，也不自动适用 MIT：**
+
+- **小说引擎运行时**：so-novel v1.12.0（AGPL-3.0）和 Eclipse Temurin JRE 21.0.8（GPLv2+CE），不在 npm 包内，按各自许可证分发。
+- **书源网站与小说正文**：来自第三方书源，正文版权归原作者/出版方；扩展只在本机缓存用户主动获取的正文，不声称拥有版权，也不打包进 npm。
+- **品牌图与二维码**：Logo、宣传海报和 QQ 群二维码由项目维护者/群主提供，不自动适用 MIT，也不代表第三方图库授权。
+- **第三方依赖**：`cheerio`（MIT）、`ipaddr.js`（MIT）。
+
+完整说明、版本、源码地址和再分发要求见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；原创代码许可见 [LICENSE](LICENSE)。Bookfish 不代表 Pal AI Lab、Cortico、Coopanion、so-novel 或 Temurin 官方背书。
 
 **反馈 QQ 群：1135570183** · [GitHub Issues](https://github.com/oceanxuhaiao/bookfish/issues)
 
