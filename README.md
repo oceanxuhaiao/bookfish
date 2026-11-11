@@ -2,11 +2,11 @@
 
 你负责安利，大肥鱼负责上头！把喜欢的小说推荐给大肥鱼，让她认真读、尽情吐槽、和你讨论每一个精彩瞬间！
 
-Coopanion / Cortico World 扩展，0.55.0 整体测试版。给大肥鱼一本小说，让她按自己的节奏逐段阅读，保存有原文依据的感想和自报心情，讨论已读内容，偶尔分享，完读后写自己的读后感；也可以让她自己提出想读的书，经受控搜索、获取和校验后入架排队。
+Coopanion / Cortico World 扩展，0.56.0 整体测试版。给大肥鱼一本小说，让她按自己的节奏逐段阅读，保存有原文依据的感想和自报心情，讨论已读内容，偶尔分享，完读后写自己的读后感；也可以让她自己提出想读的书，经受控搜索、获取和校验后入架排队。
 
 ## 小说引擎运行时
 
-扩展包不包含 85 MB 运行时。Windows x64 运行时、上游源码、SBOM、SHA256SUMS 和许可证说明在 [runtime/README.md](https://github.com/oceanxuhaiao/bookfish/blob/main/runtime/README.md) 与 [runtime-1.12.0-bf1 Release](https://github.com/oceanxuhaiao/bookfish/releases/tag/runtime-1.12.0-bf1)。
+扩展包不包含 85 MB 运行时。一键安装优先使用[国内阿里云 OSS 镜像](https://bookfish-runtime.oss-cn-hangzhou.aliyuncs.com/bookfish-novel-runtime-1.12.0-bf1-win32-x64.zip)，失败时回退 GitHub；Windows x64 运行时、上游源码、SBOM、SHA256SUMS 和许可证说明在 [runtime/README.md](https://github.com/oceanxuhaiao/bookfish/blob/main/runtime/README.md) 与 [runtime-1.12.0-bf1 Release](https://github.com/oceanxuhaiao/bookfish/releases/tag/runtime-1.12.0-bf1)。
 
 ## 非原创内容与第三方组件
 

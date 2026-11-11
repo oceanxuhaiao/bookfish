@@ -115,6 +115,27 @@ describe('library panel with real World data plane', () => {
     expect(novel.textContent).toContain('无成功搜索结果');
     expect(novel.querySelectorAll('.novel-candidate')).toHaveLength(0);
   });
+  it('offers a full-title hint when a short title has no exact match', async () => {
+    const complete: NovelSearchJobView = { id: 'search-3', state: 'complete', title: '女将星', author: '千山茶客', completed: 2, total: 2, checked: 0, checkTotal: 0, candidates: [], suggestions: [{ title: '重生之女将星', author: '千山茶客', source: { id: 5, name: '笔尖中文' }, sources: 4 }], createdAt: '', updatedAt: '' };
+    const fetches = (world as unknown as { novelFetches: NovelFetches }).novelFetches;
+    vi.spyOn(fetches, 'status').mockReturnValue({ available: true, engineDir: '', engineVersion: '1.12.0', pageProbe: false, activeId: null, sources: [8], tasks: [], resumable: [] });
+    vi.spyOn(fetches, 'startSearch').mockReturnValue({ id: 'search-3', state: 'searching', title: '女将星', author: '千山茶客', completed: 0, total: 2, checked: 0, checkTotal: 0, createdAt: '', updatedAt: '' });
+    vi.spyOn(fetches, 'searchStatus').mockReturnValue(complete);
+    const { root } = await mount('shelf');
+    action(root, '＋ 推荐一本书').click(); await settle();
+    const picker = root.querySelector<HTMLSelectElement>('#bf-recommend-panel select[aria-label="导入方式"]')!;
+    picker.value = 'title'; picker.dispatchEvent(new Event('change', { bubbles: true })); await settle();
+    const novel = root.querySelector<HTMLElement>('#bf-novel-fetch')!;
+    const inputs = novel.querySelectorAll<HTMLInputElement>('form input[type=text]');
+    inputs[0]!.value = '女将星'; inputs[1]!.value = '千山茶客';
+    novel.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await vi.waitFor(() => { expect(novel.textContent).toContain('你是不是想找'); }, { timeout: 5000 });
+    expect(novel.textContent).toContain('重生之女将星');
+    expect(novel.textContent).toContain('4 个书源');
+    [...novel.querySelectorAll('button')].find(button => button.textContent === '按这个书名搜索')!.click();
+    expect(inputs[0]!.value).toBe('重生之女将星');
+    expect(inputs[1]!.value).toBe('千山茶客');
+  });
   it('displays a reported mood, evidence and stated reason without executing annotation text', async () => {
     const invoke = world.webUi!().invoke!;
     const imported = await invoke('status', 'import', [{ filename: 'journal.txt', title: '手账样本', base64: Buffer.from('小鱼把饼留给妹妹。').toString('base64') }]) as { book: { key: string } };

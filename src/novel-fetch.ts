@@ -75,6 +75,19 @@ export interface NovelCandidateCheck {
   reason?: string;
 }
 
+/**
+ * A likely full title when the query found no exact match. This is a hint for
+ * the user (and the model), never an acquirable candidate: "女将星" suggests
+ * "重生之女将星", but the user still has to search and confirm it.
+ */
+export interface NovelSearchSuggestion {
+  title: string;
+  author: string;
+  source: { id: number; name: string };
+  /** How many of the searched sources returned this title. */
+  sources: number;
+}
+
 export interface NovelSearchJobView {
   id: string;
   /** `validating` means the search finished and candidate catalogs are being checked. */
@@ -91,6 +104,8 @@ export interface NovelSearchJobView {
   hidden?: number;
   source?: { id: number; name: string };
   candidates?: Array<NovelSearchCandidate & { match: CandidateMatch; check?: NovelCandidateCheck }>;
+  /** Full titles close to a query that returned no exact match. */
+  suggestions?: NovelSearchSuggestion[];
   error?: string;
   createdAt: string;
   updatedAt: string;
@@ -263,7 +278,7 @@ export class NovelFetches {
   }
 
   /** Search with title only, author only, or both; never requires both fields. */
-  private async collectCandidates(wanted: { title?: string; author?: string }, signal?: AbortSignal, onProgress?: (done: number, total: number, sourceId?: number) => void, engine: NovelEngineLike = this.engine): Promise<Array<NovelSearchCandidate & { match: CandidateMatch }>> {
+  private async collectCandidates(wanted: { title?: string; author?: string }, signal?: AbortSignal, onProgress?: (done: number, total: number, sourceId?: number) => void, engine: NovelEngineLike = this.engine): Promise<{ candidates: Array<NovelSearchCandidate & { match: CandidateMatch }>; suggestions: NovelSearchSuggestion[] }> {
     const availability = this.engineAvailable();
     if (!availability.available) throw new Error(`Novel engine unavailable: ${availability.reason}`);
     const found = new Map<string, NovelSearchCandidate>();
@@ -298,23 +313,54 @@ export class NovelFetches {
       }
     }
     const sourceRank = new Map(this.sources.map((source, index) => [source.id, index] as const));
-    return [...found.values()]
-      .map((candidate) => ({ ...candidate, match: labelCandidate(candidate, wanted) }))
+    const labeled = [...found.values()].map((candidate) => ({ ...candidate, match: labelCandidate(candidate, wanted) }));
+    const candidates = labeled
       .filter((candidate) => candidate.match !== 'other')
       .sort((a, b) => matchRank(a.match) - matchRank(b.match) || (sourceRank.get(a.source.id) ?? 99) - (sourceRank.get(b.source.id) ?? 99))
       .slice(0, 30);
+    const suggestions = candidates.some((candidate) => candidate.match === 'exact') ? [] : this.buildSuggestions(labeled, wanted);
+    return { candidates, suggestions };
+  }
+
+  /**
+   * Derive full-title hints from results that only partially matched. A short
+   * query ("女将星") is often an abbreviation of the catalog title
+   * ("重生之女将星"); these hints are shown but never offered for download.
+   */
+  private buildSuggestions(candidates: Array<NovelSearchCandidate & { match: CandidateMatch }>, wanted: { title?: string; author?: string }): NovelSearchSuggestion[] {
+    const query = normalizeIdentity(wanted.title ?? '');
+    if (query.length < 2) return [];
+    const groups = new Map<string, NovelSearchSuggestion>();
+    for (const candidate of candidates) {
+      if (candidate.match === 'exact') continue;
+      const title = normalizeIdentity(candidate.title);
+      if (title.length <= query.length || !title.includes(query)) continue;
+      if (wanted.author && labelCandidate(candidate, { author: wanted.author }) !== 'exact') continue;
+      const key = `${candidate.title}\n${candidate.author}`;
+      const known = groups.get(key);
+      if (known) { known.sources += 1; continue; }
+      groups.set(key, { title: candidate.title, author: candidate.author, source: { ...candidate.source }, sources: 1 });
+    }
+    return [...groups.values()]
+      .sort((a, b) => normalizeIdentity(a.title).length - normalizeIdentity(b.title).length || b.sources - a.sources)
+      .slice(0, 5);
   }
 
   async search(title: string, author: string, signal?: AbortSignal): Promise<Array<NovelSearchCandidate & { match: CandidateMatch }>> {
+    return (await this.searchDetailed(title, author, signal)).candidates;
+  }
+
+  /** Same as `search`, plus full-title hints when nothing matched exactly. */
+  async searchDetailed(title: string, author: string, signal?: AbortSignal): Promise<{ candidates: Array<NovelSearchCandidate & { match: CandidateMatch }>; suggestions: NovelSearchSuggestion[] }> {
     const wanted = { title: title.trim() || undefined, author: author.trim() || undefined };
     if (!wanted.title && !wanted.author) throw new Error('Enter a title or an author');
     const at = new Date(this.now()).toISOString();
     const combined = signal ? AbortSignal.any([signal, this.lifetime.signal]) : this.lifetime.signal;
     const lease = this.options.runtime ? await this.options.runtime.acquire() : undefined;
     try {
-      const candidates = await this.collectCandidates(wanted, combined, undefined, lease?.engine);
-      this.lastSearch = { at, title: wanted.title ?? '', author: wanted.author ?? '', count: candidates.length };
-      return candidates;
+      const found = await this.collectCandidates(wanted, combined, undefined, lease?.engine);
+      this.lastSearch = { at, title: wanted.title ?? '', author: wanted.author ?? '', count: found.candidates.length };
+      return found;
     } catch (error) {
       this.lastSearch = { at, title: wanted.title ?? '', author: wanted.author ?? '', count: 0, error: (error as Error).message.slice(0, 500) };
       throw error;
@@ -402,18 +448,19 @@ export class NovelFetches {
   }
 
   private searchJobView(job: NovelSearchJobView): NovelSearchJobView {
-    return { ...job, ...(job.source ? { source: { ...job.source } } : {}), ...(job.candidates ? { candidates: job.candidates.map((candidate) => ({ ...candidate, source: { ...candidate.source }, ...(candidate.check ? { check: { ...candidate.check } } : {}) })) } : {}) };
+    return { ...job, ...(job.source ? { source: { ...job.source } } : {}), ...(job.suggestions ? { suggestions: job.suggestions.map((suggestion) => ({ ...suggestion, source: { ...suggestion.source } })) } : {}), ...(job.candidates ? { candidates: job.candidates.map((candidate) => ({ ...candidate, source: { ...candidate.source }, ...(candidate.check ? { check: { ...candidate.check } } : {}) })) } : {}) };
   }
 
   private async runSearchJob(job: NovelSearchJobView, wanted: { title?: string; author?: string }, validate: boolean): Promise<void> {
     const lease = this.options.runtime ? await this.options.runtime.acquire() : undefined;
     try {
       const engine = lease?.engine ?? this.engine;
-      const candidates = await this.collectCandidates(wanted, this.lifetime.signal, (done, total, sourceId) => {
+      const { candidates, suggestions } = await this.collectCandidates(wanted, this.lifetime.signal, (done, total, sourceId) => {
         job.completed = done; job.total = total;
         if (sourceId !== undefined) job.source = { id: sourceId, name: this.sources.find((source) => source.id === sourceId)?.name ?? `source-${sourceId}` };
         job.updatedAt = new Date(this.now()).toISOString();
       }, engine);
+      job.suggestions = suggestions;
       if (validate) {
         await this.validateSearchCandidates(job, candidates, engine);
       } else {
@@ -644,7 +691,7 @@ export class NovelFetches {
   ): Promise<NovelSearchCandidate[]> {
     try {
       const wanted = { title: task.record.title.trim(), author: task.record.author.trim() };
-      const all = await this.collectCandidates(wanted, signal, undefined, engine);
+      const { candidates: all } = await this.collectCandidates(wanted, signal, undefined, engine);
       const currentSource = task.candidate.source.id;
       return all
         .filter((candidate) => candidate.match === 'exact' && !tried.has(this.resumeKey(candidate)))

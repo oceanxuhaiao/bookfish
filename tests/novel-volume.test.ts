@@ -31,16 +31,52 @@ describe('multi-volume catalogs', () => {
     }
   });
 
-  it('keeps repeated chapter titles when the repeats belong to separate volumes', () => {
+  it('rejects identical chapter titles repeated across unlabelled volumes', () => {
+    // Three copies of the same two chapters: the signature of a concatenated
+    // duplicate edition, not a multi-volume book.
     const entries = [
       '第一章 血尸', '第二章 五十年后',
       '第一章 血尸', '第二章 五十年后',
       '第一章 血尸', '第二章 五十年后',
     ].map((title, index) => ({ order: index + 1, title, url: `https://example.test/repeated/${index + 1}.html` }));
     const result = assess('repeated', entries);
+    expect(result.complete).toBe(false);
+    expect(result.issues.some((item) => item.code === 'catalog_duplicate_title')).toBe(true);
+  });
+
+  it('keeps repeated chapter titles when explicit volume prefixes differ', () => {
+    const entries = [
+      '七星鲁王 第一章 血尸', '七星鲁王 第二章 五十年后',
+      '怒海潜沙 第一章 血尸', '怒海潜沙 第二章 五十年后',
+    ].map((title, index) => ({ order: index + 1, title, url: `https://example.test/prefixed/${index + 1}.html` }));
+    const result = assess('prefixed', entries);
     expect(result.complete).toBe(true);
     expect(result.issues).toEqual([]);
+  });
+
+  it('accepts an unlabelled arc restart whose run starts at 2 because 第一章 is hidden', () => {
+    const arc = (offset: number, first: number) => Array.from({ length: 8 }, (_, index) => `第${first + index}章 第${offset + index}节 故事`);
+    const entries = [
+      ...arc(100, 1),
+      ...arc(200, 2),
+      ...arc(300, 2),
+    ].map((title, index) => ({ order: index + 1, title, url: `https://example.test/arc/${index + 1}.html` }));
+    const result = assess('arc', entries);
+    expect(result.complete, result.issues.map((item) => item.message).join('; ')).toBe(true);
+    expect(result.issues).toEqual([]);
     expect(result.warnings.some((item) => item.code === 'catalog_volume_restart')).toBe(true);
+  });
+
+  it('does not mistake a one-off numbering drop for an arc restart', () => {
+    const titles = [
+      ...Array.from({ length: 20 }, (_, index) => `第${index + 1}章 连续章节${index + 1}`),
+      '第2章 排版错误',
+      ...Array.from({ length: 20 }, (_, index) => `第${index + 21}章 后续章节${index + 21}`),
+    ];
+    const entries = titles.map((title, index) => ({ order: index + 1, title, url: `https://example.test/typo/${index + 1}.html` }));
+    const result = assess('typo', entries);
+    expect(result.complete).toBe(false);
+    expect(result.issues.some((item) => item.code === 'catalog_number_regression' || item.code === 'catalog_duplicate_number')).toBe(true);
   });
 
   it('accepts an explicit volume reset without requiring a title prefix on every chapter', () => {

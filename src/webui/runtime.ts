@@ -68,7 +68,7 @@ export function mountRuntimeCard(container: HTMLElement, ctx: WebUiPanelContext,
   root.className = 'card bf-runtime';
   const css = document.createElement('style');
   css.textContent = `
-.bf-runtime{display:grid;gap:10px}.bf-runtime .runtime-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.bf-runtime h3{margin:0}.bf-runtime .runtime-badge{font-size:12px;border-radius:99px;padding:2px 10px;background:#e7ece2;color:#58705f;font-weight:600}.bf-runtime .runtime-badge[data-state=ok]{background:#dcefdc;color:#28643c}.bf-runtime .runtime-badge[data-state=busy]{background:#f4ecd7;color:#7c5c1c}.bf-runtime .runtime-badge[data-state=bad]{background:#f6e2dc;color:#8b3b2e}.bf-runtime .runtime-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:4px 18px;margin:0}.bf-runtime .runtime-meta div{font-size:13px;color:#5f7064}.bf-runtime .runtime-meta strong{color:#283d3a}.bf-runtime .runtime-actions{display:flex;gap:8px;flex-wrap:wrap}.bf-runtime progress{height:8px;margin:2px 0}.bf-runtime .runtime-error{border-left:3px solid #b2644c;background:#fbf0ec;padding:8px 12px;border-radius:6px;color:#7d3324;font-size:14px}.bf-runtime .runtime-note{font-size:13px;color:#6e7b70}.bf-runtime .runtime-phase-detail{color:#5f7064;font-size:13px;line-height:1.55}.bf-runtime .runtime-availability{margin:0;padding:9px 12px;border:1px solid #e2c98f;border-radius:7px;background:#fbf5df;color:#6d551c;font-size:13px;line-height:1.55}.bf-runtime .runtime-offline-link{color:#386c58;font-size:13px;text-decoration:underline;text-underline-offset:3px}.bf-runtime a.runtime-link{color:#386c58}
+.bf-runtime{display:grid;gap:10px}.bf-runtime .runtime-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.bf-runtime h3{margin:0}.bf-runtime .runtime-badge{font-size:12px;border-radius:99px;padding:2px 10px;background:#e7ece2;color:#58705f;font-weight:600}.bf-runtime .runtime-badge[data-state=ok]{background:#dcefdc;color:#28643c}.bf-runtime .runtime-badge[data-state=busy]{background:#f4ecd7;color:#7c5c1c}.bf-runtime .runtime-badge[data-state=bad]{background:#f6e2dc;color:#8b3b2e}.bf-runtime .runtime-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:4px 18px;margin:0}.bf-runtime .runtime-meta div{font-size:13px;color:#5f7064}.bf-runtime .runtime-meta strong{color:#283d3a}.bf-runtime .runtime-actions{display:flex;gap:8px;flex-wrap:wrap}.bf-runtime progress{height:8px;margin:2px 0}.bf-runtime .runtime-error{border-left:3px solid #b2644c;background:#fbf0ec;padding:8px 12px;border-radius:6px;color:#7d3324;font-size:14px}.bf-runtime .runtime-note{font-size:13px;color:#6e7b70}.bf-runtime .runtime-phase-detail{color:#5f7064;font-size:13px;line-height:1.55}.bf-runtime .runtime-availability{margin:0;padding:9px 12px;border:1px solid #e2c98f;border-radius:7px;background:#fbf5df;color:#6d551c;font-size:13px;line-height:1.55}.bf-runtime .runtime-offline-links{display:flex;gap:6px 14px;flex-wrap:wrap}.bf-runtime .runtime-offline-link{color:#386c58;font-size:13px;text-decoration:underline;text-underline-offset:3px}.bf-runtime a.runtime-link{color:#386c58}
 `;
   root.append(css);
   const head = document.createElement('div'); head.className = 'runtime-head'; root.append(head);
@@ -78,7 +78,7 @@ export function mountRuntimeCard(container: HTMLElement, ctx: WebUiPanelContext,
   const meta = document.createElement('div'); meta.className = 'runtime-meta'; root.append(meta);
   const progress = document.createElement('progress'); progress.hidden = true; progress.setAttribute('aria-label', say('安装进度', 'Install progress')); root.append(progress);
   const availability = document.createElement('p'); availability.className = 'runtime-availability'; availability.hidden = true; root.insertBefore(availability, progress);
-  const offlineLink = document.createElement('a'); offlineLink.className = 'runtime-offline-link'; offlineLink.target = '_blank'; offlineLink.rel = 'noreferrer'; offlineLink.hidden = true; root.insertBefore(offlineLink, progress);
+  const offlineLinks = document.createElement('div'); offlineLinks.className = 'runtime-offline-links'; root.insertBefore(offlineLinks, progress);
   const progressText = document.createElement('small'); progressText.hidden = true; root.append(progressText);
   const phaseDetail = document.createElement('small'); phaseDetail.className = 'runtime-phase-detail'; phaseDetail.hidden = true; phaseDetail.setAttribute('role', 'status'); phaseDetail.setAttribute('aria-live', 'polite'); root.append(phaseDetail);
   const errorBox = document.createElement('div'); errorBox.className = 'runtime-error'; errorBox.hidden = true; root.append(errorBox);
@@ -236,12 +236,15 @@ export function mountRuntimeCard(container: HTMLElement, ctx: WebUiPanelContext,
     if (unavailable) availability.textContent = unsupported
       ? say(`一键安装不可用：当前平台 ${next.platform.platform}-${next.platform.arch} 不在首发支持范围。请用“导入离线运行时包”。`, `One-click install is unavailable on ${next.platform.platform}-${next.platform.arch}. Use “Import offline runtime ZIP”.`)
       : say(`一键安装不可用：${next.online.reason ?? '正式下载来源尚未配置'}。请用“导入离线运行时包”。`, `One-click install is unavailable: ${next.online.reason ?? 'no trusted download source is configured'}. Use “Import offline runtime ZIP”.`);
-    const offlineUrl = next.online.offlineUrl ?? null;
-    offlineLink.hidden = !offlineUrl;
-    if (offlineUrl) {
-      offlineLink.href = offlineUrl;
-      offlineLink.title = offlineUrl;
-      offlineLink.textContent = say(`下载离线运行时包（Windows x64，${formatBytes(next.online.offlineSizeBytes)}）`, `Download offline runtime ZIP (Windows x64, ${formatBytes(next.online.offlineSizeBytes)})`);
+    const offlineUrls = next.online.offlineUrls ?? (next.online.offlineUrl ? [{ name: say('下载', 'Download'), url: next.online.offlineUrl }] : []);
+    offlineLinks.replaceChildren();
+    offlineLinks.hidden = offlineUrls.length === 0;
+    for (const entry of offlineUrls) {
+      const link = document.createElement('a');
+      link.className = 'runtime-offline-link';
+      link.target = '_blank'; link.rel = 'noreferrer'; link.href = entry.url; link.title = entry.url;
+      link.textContent = say(`下载离线运行时包 · ${entry.name}（Windows x64，${formatBytes(next.online.offlineSizeBytes)}）`, `Download offline runtime ZIP · ${entry.name} (Windows x64, ${formatBytes(next.online.offlineSizeBytes)})`);
+      offlineLinks.append(link);
     }
     if (install && phase !== 'ready') {
       const labels = PHASE_LABEL[phase] ?? [phase, phase];

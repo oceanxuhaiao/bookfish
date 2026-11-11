@@ -1,5 +1,7 @@
 /** Validate one title/author through the same search + catalog preflight path.
- * Usage: node --import tsx scripts/check-one.mts "书名" "作者" */
+ * When the query has no exact match it prints the full-title hints and then
+ * retries with the closest hint, mirroring what the panel offers the user.
+ * Usage: node --import tsx scripts/check-one.mts "书名" [作者] */
 import { join } from 'node:path';
 import { NovelEngine } from '../src/novel-engine.ts';
 import { NovelFetches } from '../src/novel-fetch.ts';
@@ -16,9 +18,24 @@ const engine = new NovelEngine({
 const fetches = new NovelFetches(engine, () => { throw new Error('no importer'); }, {
   workDir, sources: NOVEL_SOURCES, searchSourceIds: NOVEL_SOURCES.map((source) => source.id), maxTasks: 2,
 });
-const candidates = await fetches.search(title, author);
-console.log(`候选 ${candidates.length}：${candidates.map((candidate) => `${candidate.source.name}《${candidate.title}》${candidate.author}`).join(' | ')}`);
-for (const candidate of candidates.filter((entry) => entry.match === 'exact').slice(0, 4)) {
+
+async function run(queryTitle: string, queryAuthor: string, quiet = false) {
+  const { candidates, suggestions } = await fetches.searchDetailed(queryTitle, queryAuthor);
+  if (!quiet) {
+    console.log(`候选 ${candidates.length}：${candidates.map((candidate) => `${candidate.source.name}《${candidate.title}》${candidate.author}`).join(' | ')}`);
+    if (suggestions.length) console.log(`提示：${suggestions.map((item) => `《${item.title}》${item.author}（${item.sources} 源）`).join(' | ')}`);
+  }
+  return { candidates, suggestions };
+}
+
+const first = await run(title, author);
+const exact = first.candidates.filter((candidate) => candidate.match === 'exact');
+const wantedAuthor = author.replace(/\s+/gu, '');
+const hint = exact.length
+  ? undefined
+  : (first.suggestions.find((item) => item.author.replace(/\s+/gu, '') === wantedAuthor) ?? first.suggestions[0]);
+const final = hint ? await run(hint.title, hint.author) : first;
+for (const candidate of final.candidates.filter((entry) => entry.match === 'exact').slice(0, 4)) {
   const check = await fetches.checkCandidate(candidate);
-  console.log(`${candidate.source.name} ${candidate.url} -> ${check.ok ? 'PASS' : 'FAIL'} ${check.chapters} 章 ${check.reason ?? ''} ${check.issues.map((issue) => issue.code).join(',')}`);
+  console.log(`${hint ? '[按提示] ' : ''}${candidate.source.name} ${candidate.url} -> ${check.ok ? 'PASS' : 'FAIL'} ${check.chapters} 章 ${check.reason ?? ''} ${check.issues.map((issue) => issue.code).join(',')}`);
 }

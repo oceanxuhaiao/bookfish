@@ -62,17 +62,43 @@ function terminal(manager: NovelRuntimeManager): boolean {
 }
 
 describe('novel runtime manager', () => {
-  it('uses the built-in GitHub release when no deployment source is configured', async () => {
+  it('uses the domestic mirror first and GitHub as the built-in fallback', async () => {
     const dir = temp(); const fixture = await createRuntimeFixture(join(dir, 'fixture'));
     const manager = new NovelRuntimeManager({
       dataDir: dir, workDir: join(dir, 'bookfish', 'novel-fetch'), bridgeClasses: join(dir, 'bridge'), manifest: fixture.manifest,
     });
     const status = manager.status();
     expect(status.online.available).toBe(true);
-    expect(status.online.urlHost).toBe('github.com');
+    expect(status.online.urlHost).toBe('bookfish-runtime.oss-cn-hangzhou.aliyuncs.com');
+    expect(status.online.offlineUrls?.map((entry) => entry.name)).toEqual(['国内镜像', 'GitHub Release']);
     const info = await manager.downloadInfo();
-    expect(info.url).toContain('github.com/oceanxuhaiao/bookfish/releases/download/runtime-1.12.0-bf1/');
+    expect(info.url).toBeTruthy();
+    expect(info.url!).toContain('bookfish-runtime.oss-cn-hangzhou.aliyuncs.com/');
+    expect(info.url!.endsWith('.zip')).toBe(true);
+    expect(info.sources.map((entry) => entry.name)).toEqual(['国内镜像', 'GitHub Release']);
   });
+  it('falls back to GitHub when the domestic mirror download fails', async () => {
+    const dir = temp(); const fixture = await createRuntimeFixture(join(dir, 'fixture'));
+    const calls: string[] = [];
+    const manager = makeManager(dir, fixture, {
+      baseUrl: undefined, allowedHosts: undefined,
+      download: async (options: DownloadOptions) => {
+        calls.push(options.url);
+        if (calls.length === 1) throw new Error('mirror unavailable');
+        copyFileSync(fixture.zipPath, options.dest);
+        const size = fixture.manifest.archive.size;
+        options.onProgress?.(size, size);
+        return { bytes: size };
+      },
+    });
+    await manager.start();
+    manager.installOnline();
+    await waitFor(() => terminal(manager), 'mirror fallback install');
+    expect(manager.status().install?.phase).toBe('ready');
+    expect(calls[0]).toContain('bookfish-runtime.oss-cn-hangzhou.aliyuncs.com');
+    expect(calls[1]).toContain('github.com/oceanxuhaiao/bookfish/releases/download/runtime-1.12.0-bf1/');
+  });
+
   it('installs an offline ZIP through staging, self-check and atomic activation', async () => {
     const dir = temp(); const fixture = await createRuntimeFixture(join(dir, 'fixture'));
     const manager = makeManager(dir, fixture);

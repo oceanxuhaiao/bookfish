@@ -269,13 +269,45 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
   const duplicateNumberOrders = new Set<number>();
   const volumeStarts: number[] = [];
   const explicitVolumes = new Set<string>();
-  let inferredRestarts = 0;
   let currentVolume = '';
-  let currentVolumeNumbered = 0;
   let volumeSerial = 0;
   let previousNumber: number | undefined;
   let previousOrder: number | undefined;
   let orderGaps = 0;
+  const volumeByOrder = new Map<number, string>();
+  // A volume/arc restart is a drop to a small chapter number followed by a
+  // contiguous run (第2章, 第3章, 第4章…). These sources often hide the real
+  // 第一章, so a run may start at 2 or 3. The lookahead keeps a one-off typo
+  // from being mistaken for a new volume. Explicit volume labels are handled
+  // separately because they are direct evidence on their own.
+  const resetIndexes = new Set<number>();
+  {
+    let run = 0;
+    let lastNumber: number | undefined;
+    for (let index = 0; index < body.length; index += 1) {
+      const chapter = body[index];
+      if (!chapter || typeof chapter.title !== 'string' || !chapter.title.trim()) continue;
+      if (volumeLabel(chapter.title)) { run = 0; lastNumber = undefined; continue; }
+      const number = chapterNumberOf(chapter.title);
+      if (number === null) continue;
+      if (lastNumber !== undefined && run >= 2 && number <= 3 && number < lastNumber) {
+        const following: number[] = [];
+        for (let next = index + 1; next < body.length && following.length < 2; next += 1) {
+          const entry = body[next];
+          const value = entry && typeof entry.title === 'string' ? chapterNumberOf(entry.title) : null;
+          if (value !== null) following.push(value);
+        }
+        if (following.length === 2 && following[0] === number + 1 && following[1] === number + 2) {
+          resetIndexes.add(index);
+          lastNumber = number;
+          run = 1;
+          continue;
+        }
+      }
+      lastNumber = number;
+      run += 1;
+    }
+  }
   for (const [index, chapter] of body.entries()) {
     if (!chapter || !Number.isSafeInteger(chapter.order) || chapter.order < 1 || typeof chapter.title !== 'string' || !chapter.title.trim() ||
         typeof chapter.url !== 'string' || !/^https?:\/\//u.test(chapter.url)) {
@@ -309,18 +341,15 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
       currentVolume = label;
       volumeSerial++;
       explicitVolumes.add(label);
-      currentVolumeNumbered = 0;
       previousNumber = undefined;
       volumeStarts.push(chapter.order);
-    } else if (!label && number !== null && previousNumber !== undefined && number === 1 &&
-      previousNumber >= 2 && currentVolumeNumbered >= 2) {
-      // Some sources drop the volume heading but retain the complete 1..N
-      // sequence for every volume. Treat a clean reset to 1 as a volume
-      // boundary; one unlabelled reset alone is still rejected below.
+    } else if (!label && resetIndexes.has(index)) {
+      // A clean renumbered run without a volume heading: treat it as a volume
+      // boundary. A single such reset is still rejected below for lack of
+      // evidence; two or more are accepted and cross-volume title repeats are
+      // checked separately.
       currentVolume = `__inferred_${volumeSerial + 1}`;
       volumeSerial++;
-      inferredRestarts++;
-      currentVolumeNumbered = 0;
       previousNumber = undefined;
       volumeStarts.push(chapter.order);
     }
@@ -328,6 +357,7 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
       currentVolume = '__volume_1';
       volumeSerial = 1;
     }
+    volumeByOrder.set(chapter.order, currentVolume);
 
     const normalized = normalizedTitle(chapter.title);
     const titleKey = `${currentVolume}|${normalized}`;
@@ -344,10 +374,9 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
         numberIssues.push(issue('catalog_number_regression', `Chapter number ${number} follows ${previousNumber}`, chapter.order));
       }
       previousNumber = number;
-      currentVolumeNumbered++;
     }
   }
-  const volumeAware = explicitVolumes.size >= 1 || inferredRestarts >= 2;
+  const volumeAware = explicitVolumes.size >= 1 || resetIndexes.size >= 2;
   if (!volumeAware && volumeStarts.length) {
     for (const order of volumeStarts) numberIssues.push(issue('catalog_number_regression', 'Chapter numbering restarts without enough volume evidence', order));
     regressionCount += volumeStarts.length;
@@ -366,13 +395,34 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
         }
       } else globalNumbers.set(key, entry.order);
     }
-    const globalTitles = new Map<string, number>();
+  }
+  // Identical full titles in *different* volumes are the fingerprint of a
+  // concatenated duplicate edition: the same chapters listed twice. Real
+  // multi-volume books repeat chapter numbers, not identically titled chapters,
+  // so cross-volume repeats are tolerated only in small numbers (coincidental
+  // "序章" style titles) and block when they form a meaningful share.
+  const crossVolumeRepeats: Array<{ order: number; title: string; firstOrder: number }> = [];
+  {
+    const firstTitle = new Map<string, { order: number; volume: string }>();
     for (const chapter of body) {
-      if (!chapter || typeof chapter.title !== 'string') continue;
+      if (!chapter || typeof chapter.title !== 'string' || !chapter.title.trim()) continue;
+      const volume = volumeByOrder.get(chapter.order);
+      if (!volume) continue;
       const key = normalizedTitle(chapter.title);
-      if (globalTitles.has(key)) {
-        issues.push(issue('catalog_duplicate_title', `Duplicate chapter title "${chapter.title}" (orders ${globalTitles.get(key)} and ${chapter.order})`, chapter.order));
-      } else globalTitles.set(key, chapter.order);
+      const first = firstTitle.get(key);
+      if (!first) { firstTitle.set(key, { order: chapter.order, volume }); continue; }
+      if (first.volume !== volume) crossVolumeRepeats.push({ order: chapter.order, title: chapter.title, firstOrder: first.order });
+    }
+    const repeatBudget = Math.max(2, Math.floor(numberedEntries.length * 0.02));
+    for (const repeat of crossVolumeRepeats.slice(0, 12)) {
+      const message = `Chapter title "${repeat.title}" appears in another volume (orders ${repeat.firstOrder} and ${repeat.order}); likely a duplicated edition`;
+      if (crossVolumeRepeats.length > repeatBudget) issues.push(issue('catalog_duplicate_title', message, repeat.order));
+      else warnings.push(issue('catalog_duplicate_title', message, repeat.order));
+    }
+    if (crossVolumeRepeats.length > repeatBudget) {
+      for (let index = 12; index < Math.min(crossVolumeRepeats.length, 60); index += 1) {
+        issues.push(issue('catalog_duplicate_title', `Chapter title repeats across volumes: "${crossVolumeRepeats[index]!.title}"`, crossVolumeRepeats[index]!.order));
+      }
     }
   }
   // so-novel's `order` may skip hidden TOC entries. A gap is a metadata warning

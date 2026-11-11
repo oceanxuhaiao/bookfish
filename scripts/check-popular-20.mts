@@ -78,7 +78,8 @@ interface BookResult {
   title: string;
   author: string;
   category: string;
-  search: { ok: boolean; exact: number; total: number; sources: string[]; error?: string; ms: number };
+  search: { ok: boolean; exact: number; total: number; sources: string[]; error?: string; ms: number; suggestedExact?: number };
+  suggestion?: { title: string; author: string; sources: number };
   attempts: Attempt[];
   verdict: 'pass' | 'fail';
   reason?: string;
@@ -100,20 +101,36 @@ for (const [index, book] of BOOKS.entries()) {
   };
   const searchStarted = Date.now();
   let candidates: Array<NovelSearchCandidate & { match: string }> = [];
+  let suggestions: Array<{ title: string; author: string; sources: number }> = [];
   try {
-    candidates = await fetches.search(book.title, '');
+    const found = await fetches.searchDetailed(book.title, '');
+    candidates = found.candidates;
+    suggestions = found.suggestions;
     row.search.ok = true;
   } catch (error) {
     row.search.error = (error as Error).message.slice(0, 500);
   }
   row.search.ms = Date.now() - searchStarted;
-  const exact = candidates.filter((candidate) => candidate.match === 'exact');
+  let exact = candidates.filter((candidate) => candidate.match === 'exact');
   row.search.exact = exact.length;
   row.search.total = candidates.length;
+  // A short/abbreviated title gets a full-title hint; retry with that title the
+  // same way the panel's "search this title" button does.
+  if (row.search.ok && !exact.length && suggestions.length) {
+    // Prefer the hint by the author the user asked for; the panel lists every
+    // hint, but the test knows which book it means.
+    const wanted = book.author.replace(/\s+/gu, '');
+    const hint = suggestions.find((item) => item.author.replace(/\s+/gu, '') === wanted) ?? suggestions[0]!;
+    row.suggestion = { title: hint.title, author: hint.author, sources: hint.sources };
+    const retried = await fetches.searchDetailed(hint.title, hint.author);
+    exact = retried.candidates.filter((candidate) => candidate.match === 'exact');
+    row.search.suggestedExact = exact.length;
+    console.log(`  [${book.title}] 没有精确匹配，按提示《${hint.title}》重试：${exact.length} 个候选`);
+  }
   row.search.sources = [...new Set(exact.map((candidate) => `${candidate.source.id}:${candidate.source.name}`))];
 
   if (row.search.ok && !exact.length) {
-    row.reason = `搜索返回 ${candidates.length} 个候选，但没有书名精确匹配的版本（书名匹配但作者/书源不同或只有近似结果）`;
+    row.reason = `搜索返回 ${candidates.length} 个候选，但没有书名精确匹配的版本${suggestions.length ? `（提示过《${suggestions[0]!.title}》，重试仍无精确候选）` : '（书名匹配但作者/书源不同或只有近似结果）'}`;
   }
   for (const candidate of exact.slice(0, 6)) {
     const at = Date.now();

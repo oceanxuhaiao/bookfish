@@ -303,6 +303,18 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
         if(status.state==='failed')throw Error(status.error??say('搜索失败','Search failed'));
         if(status.state==='complete'){
           const candidates=status.candidates??[];
+          const suggestions=status.suggestions??[];
+          const hasExact=candidates.some(candidate=>candidate.match==='exact');
+          if(!hasExact&&suggestions.length){
+            novelResult.textContent=say('没有精确匹配，你是不是想找：','No exact match. Did you mean:');
+            for(const suggestion of suggestions){
+              const card=document.createElement('article');card.className='novel-candidate';novelList.append(card);
+              el('strong','《'+suggestion.title+'》',card);
+              el('small',(suggestion.author||say('作者未知','Unknown author'))+(suggestion.sources>1?say(' · '+suggestion.sources+' 个书源',' · '+suggestion.sources+' sources'):''),card);
+              button(card,say('按这个书名搜索','Search this title'),async()=>{novelTitleInput.value=suggestion.title;novelAuthorInput.value=suggestion.author;novelForm.dispatchEvent(new Event('submit',{cancelable:true}));});
+            }
+            return;
+          }
           if(!candidates.length){
             novelResult.textContent=status.hidden?say('无成功搜索结果。搜到的 '+status.hidden+' 个版本都没有通过目录校验，可以换个书名写法或稍后重试。','No successful search results. None of the '+status.hidden+' versions passed the catalog checks; try another title spelling or retry later.'):say('没有找到候选，请检查书名/作者或换一个书源后重试。','No candidates found. Check the title/author and try again.');
             return;

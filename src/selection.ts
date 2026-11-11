@@ -299,7 +299,11 @@ export class SelectionCoordinator {
     }
     const candidates = (job.candidates ?? []).filter((candidate) => candidate.match === 'exact' && this.sourceAllowed(candidate.source.id));
     if (!candidates.length) {
-      this.recordFailure(intent.id, { code: 'no_result', global: false, message: '没有找到书名、作者和允许书源都精确匹配的版本。' }, 'search');
+      // A short title is often an abbreviation; tell the model the full name it
+      // could retry with instead of failing blind.
+      const hint = (job.suggestions ?? []).find((suggestion) => this.sourceAllowed(suggestion.source.id)) ?? job.suggestions?.[0];
+      this.recordFailure(intent.id, { code: 'no_result', global: false,
+        message: `没有找到书名、作者和允许书源都精确匹配的版本。${hint ? `可能是书名简称，可改用《${hint.title}》${hint.author ? `（${hint.author}）` : ''}重试。` : ''}` }, 'search');
       return;
     }
     const expiresAt = this.now() + CANDIDATE_TTL_MS;

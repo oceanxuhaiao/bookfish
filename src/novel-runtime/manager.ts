@@ -31,9 +31,12 @@ import type { NovelEngineLike } from '../novel-fetch.ts';
 
 const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024;
 const MIN_FREE_RESERVE = 256 * 1024 * 1024;
-/** Public runtime release, used when the deployment does not override the source. */
-const BUILTIN_RUNTIME_BASE_URL = 'https://github.com/oceanxuhaiao/bookfish/releases/download/runtime-1.12.0-bf1/';
-const BUILTIN_RUNTIME_HOSTS = ['github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'];
+/** Ordered mirrors. The domestic mirror is tried first; GitHub remains the canonical fallback. */
+const BUILTIN_RUNTIME_SOURCES = [
+  { name: '国内镜像', baseUrl: 'https://bookfish-runtime.oss-cn-hangzhou.aliyuncs.com/', hosts: ['bookfish-runtime.oss-cn-hangzhou.aliyuncs.com'] },
+  { name: 'GitHub Release', baseUrl: 'https://github.com/oceanxuhaiao/bookfish/releases/download/runtime-1.12.0-bf1/', hosts: ['github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'] },
+] as const;
+interface RuntimeSource { name: string; baseUrl: URL; hosts: string[] }
 async function moveDirectoryWithRetry(from: string, to: string): Promise<void> {
   for (let attempt = 0; ; attempt++) {
     try { renameSync(from, to); return; }
@@ -112,6 +115,7 @@ export class NovelRuntimeManager implements RuntimeAccess {
   private note: string | null = null;
   private readonly platformSupported: boolean;
   private readonly baseUrl: URL | null;
+  private readonly onlineSources: RuntimeSource[];
   private readonly offlineUrl: string | null;
   private readonly allowedHosts: string[];
 
@@ -127,12 +131,6 @@ export class NovelRuntimeManager implements RuntimeAccess {
     // process.env does not contain it. Read only this feature's own names.
     const deploymentEnv = readDeploymentEnv(options.dataDir);
     const readEnv = (name: string): string | null => process.env[name]?.trim() || deploymentEnv[name]?.trim() || null;
-    const configuredBase = options.baseUrl === null ? null : (options.baseUrl ?? readEnv('BOOKFISH_NOVEL_RUNTIME_BASE_URL') ?? BUILTIN_RUNTIME_BASE_URL);
-    const fromBuiltin = options.baseUrl === undefined && !readEnv('BOOKFISH_NOVEL_RUNTIME_BASE_URL');
-    let parsedBase: URL | null = null;
-    if (configuredBase) { try { parsedBase = new URL(configuredBase); } catch { parsedBase = null; } }
-    const insecureLoopback = !!options.allowInsecureLoopback && parsedBase?.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(parsedBase.hostname);
-    this.baseUrl = parsedBase && (parsedBase.protocol === 'https:' || insecureLoopback) ? parsedBase : null;
     const configuredOffline = options.offlineUrl ?? readEnv('BOOKFISH_NOVEL_RUNTIME_OFFLINE_URL');
     let parsedOffline: string | null = null;
     if (configuredOffline) {
@@ -143,7 +141,27 @@ export class NovelRuntimeManager implements RuntimeAccess {
     }
     this.offlineUrl = parsedOffline;
     const configuredHosts = options.allowedHosts ?? (readEnv('BOOKFISH_NOVEL_RUNTIME_HOSTS') ?? '').split(',').map((item) => item.trim()).filter(Boolean);
-    this.allowedHosts = configuredHosts.length ? [...configuredHosts] : fromBuiltin ? [...BUILTIN_RUNTIME_HOSTS] : this.baseUrl ? [this.baseUrl.hostname] : [];
+    const sources: RuntimeSource[] = [];
+    const envBase = readEnv('BOOKFISH_NOVEL_RUNTIME_BASE_URL');
+    const addSource = (name: string, raw: string, hosts: string[]) => {
+      try {
+        const parsed = new URL(raw);
+        const insecureLoopback = !!options.allowInsecureLoopback && parsed.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(parsed.hostname);
+        if (parsed.protocol !== 'https:' && !insecureLoopback) return;
+        sources.push({ name, baseUrl: parsed, hosts: hosts.length ? [...hosts] : [parsed.hostname] });
+      } catch { /* skip malformed source */ }
+    };
+    if (options.baseUrl !== null) {
+      if (options.baseUrl !== undefined || envBase) {
+        const raw = options.baseUrl ?? envBase!;
+        addSource('自定义下载源', raw, [...configuredHosts]);
+      } else {
+        for (const source of BUILTIN_RUNTIME_SOURCES) addSource(source.name, source.baseUrl, configuredHosts.length ? [...configuredHosts] : [...source.hosts]);
+      }
+    }
+    this.onlineSources = sources;
+    this.baseUrl = sources[0]?.baseUrl ?? null;
+    this.allowedHosts = [...new Set(sources.flatMap((source) => source.hosts))];
     this.options.updateUrl = options.updateUrl ?? readEnv('BOOKFISH_NOVEL_RUNTIME_UPDATE_URL');
     this.options.updatePublicKey = options.updatePublicKey ?? readEnv('BOOKFISH_NOVEL_RUNTIME_PUBKEY');
   }
@@ -271,10 +289,12 @@ export class NovelRuntimeManager implements RuntimeAccess {
   }
 
   private onlineState(): RuntimeStatusView['online'] {
-    const offline = { offlineUrl: this.offlineUrl, offlineFileName: this.options.manifest.archive.path, offlineSizeBytes: this.options.manifest.archive.size };
+    const offlineUrls = this.onlineSources.map((source) => ({ name: source.name, url: new URL(this.options.manifest.archive.path, source.baseUrl).toString() }));
+    if (this.offlineUrl && !offlineUrls.some((entry) => entry.url === this.offlineUrl)) offlineUrls.push({ name: '自定义离线地址', url: this.offlineUrl });
+    const offline = { offlineUrl: this.offlineUrl ?? offlineUrls[0]?.url ?? null, offlineUrls, offlineFileName: this.options.manifest.archive.path, offlineSizeBytes: this.options.manifest.archive.size };
     if (!this.platformSupported) return { available: false, reason: '当前平台暂不支持自动安装，请继续使用文件导入', sizeBytes: null, fileName: null, urlHost: null, ...offline };
-    if (!this.baseUrl || !this.allowedHosts.length) return { available: false, reason: '正式下载来源尚未配置；可导入离线运行时包', sizeBytes: null, fileName: null, urlHost: null, ...offline };
-    return { available: true, reason: null, sizeBytes: this.options.manifest.archive.size, fileName: this.options.manifest.archive.path, urlHost: this.baseUrl.hostname, ...offline };
+    if (!this.onlineSources.length) return { available: false, reason: '正式下载来源尚未配置；可导入离线运行时包', sizeBytes: null, fileName: null, urlHost: null, ...offline };
+    return { available: true, reason: null, sizeBytes: this.options.manifest.archive.size, fileName: this.options.manifest.archive.path, urlHost: this.onlineSources[0]!.baseUrl.hostname, ...offline };
   }
 
   private installView(): RuntimeInstallView | null {
@@ -349,7 +369,7 @@ export class NovelRuntimeManager implements RuntimeAccess {
   installOnline(runtimeId?: unknown): RuntimeInstallView {
     if (this.install && !['ready', 'failed', 'cancelled', 'interrupted'].includes(parsePhase(this.install.record.phase))) return this.installView()!;
     if (!this.platformSupported) throw new Error('当前平台暂不支持自动安装，请继续使用文件导入');
-    if (!this.baseUrl || !this.allowedHosts.length) throw new Error('正式下载来源尚未配置，请使用离线运行时包导入');
+    if (!this.onlineSources.length) throw new Error('正式下载来源尚未配置，请使用离线运行时包导入');
     const target = this.resolveRelease(runtimeId);
     const installId = randomUUID();
     const record: InstallRecord = {
@@ -433,28 +453,49 @@ export class NovelRuntimeManager implements RuntimeAccess {
       removeIfExists(staging);
       mkdirSync(staging, { recursive: true });
 
+      let archiveVerified = false;
       if (!archivePath) {
-        this.transition(install, 'downloading');
         archivePath = join(this.layout.downloads, `${manifest.archive.sha256}.part`);
-        const url = new URL(manifest.archive.path, this.baseUrl!).toString();
-        install.lastSample = { at: this.now(), bytes: 0 };
-        await this.options.download!({
-          url, dest: archivePath, maxBytes: MAX_ARCHIVE_BYTES, allowedHosts: this.allowedHosts, signal,
-          allowInsecureLoopback: this.options.allowInsecureLoopback,
-          onProgress: (received, total) => {
-            record.bytesReceived = received; record.bytesTotal = total || manifest.archive.size;
-            const now = this.now();
-            if (install.lastSample) {
-              const elapsed = (now - install.lastSample.at) / 1000;
-              if (elapsed >= 0.4) { install.speed = Math.round((received - install.lastSample.bytes) / elapsed); install.lastSample = { at: now, bytes: received }; }
-            }
-            this.persist(install);
-          },
-        });
+        let lastError: Error | undefined;
+        for (const source of this.onlineSources) {
+          signal.throwIfAborted();
+          removeIfExists(archivePath);
+          this.transition(install, 'downloading');
+          record.bytesReceived = 0;
+          record.bytesTotal = manifest.archive.size;
+          install.lastSample = { at: this.now(), bytes: 0 };
+          install.speed = null;
+          this.persist(install);
+          try {
+            const url = new URL(manifest.archive.path, source.baseUrl).toString();
+            await this.options.download!({
+              url, dest: archivePath, maxBytes: MAX_ARCHIVE_BYTES, allowedHosts: source.hosts, signal,
+              allowInsecureLoopback: this.options.allowInsecureLoopback,
+              onProgress: (received, total) => {
+                record.bytesReceived = received; record.bytesTotal = total || manifest.archive.size;
+                const now = this.now();
+                if (install.lastSample) {
+                  const elapsed = (now - install.lastSample.at) / 1000;
+                  if (elapsed >= 0.4) { install.speed = Math.round((received - install.lastSample.bytes) / elapsed); install.lastSample = { at: now, bytes: received }; }
+                }
+                this.persist(install);
+              },
+            });
+            await verifyArchive(archivePath, manifest);
+            archiveVerified = true;
+            lastError = undefined;
+            break;
+          } catch (error) {
+            if (signal.aborted) throw error;
+            lastError = error as Error;
+            removeIfExists(archivePath);
+          }
+        }
+        if (!archivePath || !archiveVerified) throw new Error(`所有下载源均失败：${lastError?.message ?? '未知错误'}`);
       }
 
       this.transition(install, 'verifying');
-      await verifyArchive(archivePath, manifest);
+      if (!archiveVerified) await verifyArchive(archivePath, manifest);
       signal.throwIfAborted();
 
       this.transition(install, 'extracting');
@@ -664,9 +705,11 @@ export class NovelRuntimeManager implements RuntimeAccess {
 
   async downloadInfo(): Promise<RuntimeDownloadInfo> {
     const online = this.onlineState();
-    const url = online.available && this.baseUrl ? new URL(this.options.manifest.archive.path, this.baseUrl).toString() : this.offlineUrl;
-    if (!url) return { available: false, url: null, fileName: null, sizeBytes: null, reason: online.reason };
-    return { available: true, url, fileName: this.options.manifest.archive.path, sizeBytes: this.options.manifest.archive.size, reason: null };
+    const sources = this.onlineSources.map((source) => ({ name: source.name, url: new URL(this.options.manifest.archive.path, source.baseUrl).toString() }));
+    if (this.offlineUrl && !sources.some((entry) => entry.url === this.offlineUrl)) sources.push({ name: '自定义离线地址', url: this.offlineUrl });
+    const url = sources[0]?.url ?? null;
+    if (!url) return { available: false, url: null, sources: [], fileName: null, sizeBytes: null, reason: online.reason };
+    return { available: true, url, sources, fileName: this.options.manifest.archive.path, sizeBytes: this.options.manifest.archive.size, reason: null };
   }
 
   async checkUpdate(): Promise<RuntimeUpdateInfo> {

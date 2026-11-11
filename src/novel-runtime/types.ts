@@ -115,7 +115,7 @@ export interface RuntimeStatusView {
   health: RuntimeHealth;
   install: RuntimeInstallView | null;
   error: RuntimeErrorView | null;
-  online: { available: boolean; reason: string | null; sizeBytes: number | null; fileName: string | null; urlHost: string | null; offlineUrl?: string | null; offlineFileName?: string | null; offlineSizeBytes?: number | null };
+  online: { available: boolean; reason: string | null; sizeBytes: number | null; fileName: string | null; urlHost: string | null; offlineUrl?: string | null; offlineUrls?: Array<{ name: string; url: string }>; offlineFileName?: string | null; offlineSizeBytes?: number | null };
   /** Sizes are real numbers produced by packaging, not estimates. */
   archiveBytes: number | null;
   payloadBytes: number | null;
@@ -136,6 +136,8 @@ export interface RuntimeProbeResult {
 export interface RuntimeDownloadInfo {
   available: boolean;
   url: string | null;
+  /** Ordered mirrors; the first entry is the primary download URL. */
+  sources: Array<{ name: string; url: string }>;
   fileName: string | null;
   sizeBytes: number | null;
   reason: string | null;

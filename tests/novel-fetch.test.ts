@@ -308,6 +308,17 @@ describe('novel fetch task manager', () => {
     expect(done.hidden).toBe(1);
   });
 
+  it('suggests the full title when a short query has no exact match', async () => {
+    const engine = new FakeEngine();
+    const full = { ...candidate, title: '重生之女将星', author: '千山茶客', url: 'https://www.biquge365.net/book/9/', revision: '9999999999999999' };
+    engine.search = async () => [full];
+    const { manager } = setup(engine);
+    const done = await waitForSearch(manager, manager.startSearch('女将星', '').id);
+    expect(done.candidates).toEqual([]);
+    expect(done.suggestions).toHaveLength(1);
+    expect(done.suggestions?.[0]).toMatchObject({ title: '重生之女将星', author: '千山茶客', sources: 1 });
+  });
+
   it('keeps autonomous searches unchecked so their own preflight still decides', async () => {
     const engine = new FakeEngine();
     const { manager } = setup(engine);

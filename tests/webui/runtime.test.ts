@@ -48,17 +48,20 @@ describe('runtime settings card', () => {
     expect(button(host, '导入离线运行时包')).toBeTruthy();
   });
 
-  it('shows the configured offline ZIP address when one-click install is unavailable', async () => {
+  it('shows domestic mirror and GitHub offline ZIP links', async () => {
     const url = 'https://downloads.example.test/bookfish-novel-runtime.zip';
-    const { ctx } = context([baseStatus({ online: { ...baseStatus().online, offlineUrl: url, offlineFileName: 'bookfish-novel-runtime.zip', offlineSizeBytes: 85_784_286 } })]);
+    const github = 'https://github.com/oceanxuhaiao/bookfish/releases/download/runtime-1.12.0-bf1/bookfish-novel-runtime.zip';
+    const { ctx } = context([baseStatus({ online: { ...baseStatus().online, offlineUrl: url, offlineUrls: [{ name: '国内镜像', url }, { name: 'GitHub Release', url: github }], offlineFileName: 'bookfish-novel-runtime.zip', offlineSizeBytes: 85_784_286 } })]);
     const host = document.createElement('div');
     mountRuntimeCard(host, ctx);
     await flush();
-    const link = host.querySelector<HTMLAnchorElement>('a.runtime-offline-link')!;
-    expect(link.hidden).toBe(false);
-    expect(link.href).toBe(url);
-    expect(link.textContent).toContain('下载离线运行时包');
-    expect(link.textContent).toContain('81.8 MiB');
+    const links = [...host.querySelectorAll<HTMLAnchorElement>('a.runtime-offline-link')];
+    expect(links).toHaveLength(2);
+    expect(links[0]!.href).toBe(url);
+    expect(links[1]!.href).toBe(github);
+    expect(links[0]!.textContent).toContain('国内镜像');
+    expect(links[1]!.textContent).toContain('GitHub Release');
+    expect(links[0]!.textContent).toContain('81.8 MiB');
   });
 
   it('enables one-click install when an operator configured a trusted origin', async () => {
