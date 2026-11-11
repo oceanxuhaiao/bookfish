@@ -60,6 +60,7 @@ export type NovelIntegrityIssueCode =
   | 'catalog_duplicate_number'
   | 'catalog_number_regression'
   | 'catalog_number_order_mismatch'
+  | 'catalog_volume_restart'
   | 'catalog_changed'
   | 'missing_chapter'
   | 'unexpected_chapter_file'
@@ -152,6 +153,20 @@ function chapterPart(title: string): string {
   return match ? match[1]! : '';
 }
 
+/**
+ * A catalog title may carry an explicit volume prefix:
+ *   "七星鲁王 第一章 血尸" -> 七星鲁王
+ *   "云顶天宫（上） 第一章 ..." -> 云顶天宫(上)
+ * Titles that start directly with a chapter marker have no explicit volume.
+ */
+function volumeLabel(title: string): string {
+  const match = title.match(/^(.*?)\s*第\s*[0-9零〇一二两三四五六七八九十百千]{1,12}\s*[章节回]/u);
+  if (!match) return '';
+  const raw = match[1].trim();
+  if (!raw || raw.length > 40 || /^[0-9零〇一二两三四五六七八九十百千]+$/u.test(raw)) return '';
+  return raw.normalize('NFKC').replace(/\s+/gu, '').replace(/[·:：,，、]/gu, '').replace(/(?:篇|卷|部)$/u, '');
+}
+
 function normalizedTitle(title: string): string {
   return title.replace(/\s+/g, '').replace(/[_—·,，。.、:：;；!！?？'"“”‘’()（）\[\]【】]/g, '').toLowerCase();
 }
@@ -193,7 +208,14 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
   const urls = new Set<string>();
   const titles = new Map<string, number>();
   const numbers = new Map<string, number>();
-  const numberedEntries: Array<{ order: number; number: number }> = [];
+  const numberedEntries: Array<{ order: number; number: number; part: string; volume: string }> = [];
+  const duplicateNumberOrders = new Set<number>();
+  const volumeStarts: number[] = [];
+  const explicitVolumes = new Set<string>();
+  let inferredRestarts = 0;
+  let currentVolume = '';
+  let currentVolumeNumbered = 0;
+  let volumeSerial = 0;
   let previousNumber: number | undefined;
   let previousOrder: number | undefined;
   let orderGaps = 0;
@@ -212,21 +234,83 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
     orders.add(chapter.order);
     if (urls.has(chapter.url)) issues.push(issue('catalog_duplicate_url', `Duplicate catalog URL at order ${chapter.order}`, chapter.order));
     urls.add(chapter.url);
-    const normalized = normalizedTitle(chapter.title);
-    if (titles.has(normalized)) issues.push(issue('catalog_duplicate_title', `Duplicate chapter title "${chapter.title}" (orders ${titles.get(normalized)} and ${chapter.order})`, chapter.order));
-    else titles.set(normalized, chapter.order);
+
     const number = chapterNumberOf(chapter.title);
+    const label = volumeLabel(chapter.title);
+    if (/第\s*0+\s*[回章节卷篇]/u.test(chapter.title)) {
+      regressionCount++;
+      numberIssues.push(issue('catalog_number_regression', 'Chapter number 0 is not a valid positive chapter number', chapter.order));
+    }
+    if (label && label !== currentVolume) {
+      // An explicit "volume + chapter" prefix is direct evidence that a
+      // chapter-number reset belongs to a new volume, not a mixed catalog.
+      currentVolume = label;
+      volumeSerial++;
+      explicitVolumes.add(label);
+      currentVolumeNumbered = 0;
+      previousNumber = undefined;
+      volumeStarts.push(chapter.order);
+    } else if (!label && number !== null && previousNumber !== undefined && number === 1 &&
+      previousNumber >= 2 && currentVolumeNumbered >= 2) {
+      // Some sources drop the volume heading but retain the complete 1..N
+      // sequence for every volume. Treat a clean reset to 1 as a volume
+      // boundary; one unlabelled reset alone is still rejected below.
+      currentVolume = `__inferred_${volumeSerial + 1}`;
+      volumeSerial++;
+      inferredRestarts++;
+      currentVolumeNumbered = 0;
+      previousNumber = undefined;
+      volumeStarts.push(chapter.order);
+    }
+    if (!currentVolume) {
+      currentVolume = '__volume_1';
+      volumeSerial = 1;
+    }
+
+    const normalized = normalizedTitle(chapter.title);
+    const titleKey = `${currentVolume}|${normalized}`;
+    if (titles.has(titleKey)) issues.push(issue('catalog_duplicate_title', `Duplicate chapter title "${chapter.title}" (orders ${titles.get(titleKey)} and ${chapter.order})`, chapter.order));
+    else titles.set(titleKey, chapter.order);
     if (number !== null) {
-      numberedEntries.push({ order: chapter.order, number });
       const part = chapterPart(chapter.title);
-      const numberKey = `${number}|${part}`;
-      if (numbers.has(numberKey)) { duplicateNumberCount++; numberIssues.push(issue('catalog_duplicate_number', `Duplicate chapter number ${number}${part ? `（${part}）` : ''} at orders ${numbers.get(numberKey)} and ${chapter.order}`, chapter.order)); }
+      numberedEntries.push({ order: chapter.order, number, part, volume: currentVolume });
+      const numberKey = `${currentVolume}|${number}|${part}`;
+      if (numbers.has(numberKey)) { duplicateNumberCount++; duplicateNumberOrders.add(chapter.order); numberIssues.push(issue('catalog_duplicate_number', `Duplicate chapter number ${number}${part ? `（${part}）` : ''} at orders ${numbers.get(numberKey)} and ${chapter.order}`, chapter.order)); }
       else numbers.set(numberKey, chapter.order);
       if (!input.options?.allowNonMonotonicNumbers && previousNumber !== undefined && number < previousNumber) {
         regressionCount++;
         numberIssues.push(issue('catalog_number_regression', `Chapter number ${number} follows ${previousNumber}`, chapter.order));
       }
       previousNumber = number;
+      currentVolumeNumbered++;
+    }
+  }
+  const volumeAware = explicitVolumes.size >= 1 || inferredRestarts >= 2;
+  if (!volumeAware && volumeStarts.length) {
+    for (const order of volumeStarts) numberIssues.push(issue('catalog_number_regression', 'Chapter numbering restarts without enough volume evidence', order));
+    regressionCount += volumeStarts.length;
+  }
+  if (!volumeAware) {
+    // Without enough volume evidence, fall back to whole-catalog uniqueness so
+    // a concatenated duplicate edition cannot hide behind an inferred restart.
+    const globalNumbers = new Map<string, number>();
+    for (const entry of numberedEntries) {
+      const key = `${entry.number}|${entry.part}`;
+      if (globalNumbers.has(key)) {
+        if (!duplicateNumberOrders.has(entry.order)) {
+          duplicateNumberCount++;
+          duplicateNumberOrders.add(entry.order);
+          numberIssues.push(issue('catalog_duplicate_number', `Duplicate chapter number ${entry.number}${entry.part ? `（${entry.part}）` : ''} at orders ${globalNumbers.get(key)} and ${entry.order}`, entry.order));
+        }
+      } else globalNumbers.set(key, entry.order);
+    }
+    const globalTitles = new Map<string, number>();
+    for (const chapter of catalog) {
+      if (!chapter || typeof chapter.title !== 'string') continue;
+      const key = normalizedTitle(chapter.title);
+      if (globalTitles.has(key)) {
+        issues.push(issue('catalog_duplicate_title', `Duplicate chapter title "${chapter.title}" (orders ${globalTitles.get(key)} and ${chapter.order})`, chapter.order));
+      } else globalTitles.set(key, chapter.order);
     }
   }
   // so-novel's `order` may skip hidden TOC entries. A gap is a metadata warning
@@ -235,10 +319,15 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
     const gapIssue = issue('catalog_order_gap', `Catalog order skips ${orderGaps} number(s), likely hidden TOC entries`);
     if (catalog.length >= 50) warnings.push(gapIssue); else issues.push(gapIssue);
   }
+  if (volumeAware && volumeStarts.length) {
+    warnings.push(issue('catalog_volume_restart', `Recognized ${volumeStarts.length} volume restart(s); chapter numbers are scoped per volume`, volumeStarts[0]));
+  }
   // An inserted extra entry shifts all later 第X回 numbers by one. A constant
   // offset (e.g. a preface before chapter one) is allowed; a changing offset is
-  // evidence that two listings or editions were concatenated.
-  if (numberedEntries.length >= Math.max(1, Math.floor(catalog.length * 0.6))) {
+  // evidence that two listings or editions were concatenated. Per-volume
+  // numbering legitimately changes the global offset, so skip this check once
+  // multiple volumes were recognized.
+  if ((!volumeAware || volumeSerial <= 1) && numberedEntries.length >= Math.max(1, Math.floor(catalog.length * 0.6))) {
     const offsets = new Map<number, { order: number; number: number }>();
     for (const entry of numberedEntries) {
       const offset = entry.order - entry.number;
