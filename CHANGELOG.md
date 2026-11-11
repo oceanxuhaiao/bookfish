@@ -1,3 +1,10 @@
+## 0.50.0
+
+- GitHub 仓库改为扩展源码在根目录：打开 `oceanxuhaiao/bookfish` 即可看到 `package.json`、`src/`、`assets/` 和测试，不再是藏在 `extension/` 子目录里。
+- 运行时说明和第三方许可说明移到 `runtime/`，运行时 ZIP 仍从独立 Release 下载。
+- npm 的 `repository` 去掉 `directory: extension`，指向仓库根目录。
+- 功能、宣传语、陪伴标签和认证申请状态不变。
+
 ## 0.49.0
 
 - 市场标签新增 `companion`（陪伴）：与阅读作息、情绪记录、主动分享和桌面陪伴行为对应。
