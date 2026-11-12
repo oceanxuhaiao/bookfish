@@ -122,6 +122,29 @@ describe('scheduler batch, cap and self-correcting retries', () => {
     expect(lib.episode(result.receipts[2].episodeId!).episode.content.trigger).toBe('转折');
   });
 
+  it('rejects a guessed segmentId and names the supplied ids for self-recovery', async () => {
+    await advance(); const id = active();
+    const read = scheduler.read(id, 1);
+    if (read.complete) throw new Error('expected text');
+    let single = '';
+    try { scheduler.finish({ opportunityId: id, taskId: read.taskId, bookKey: read.bookKey, segmentId: read.segmentId + 900, understanding: '' }); } catch (error) { single = String(error); }
+    expect(single).toMatch(/was not supplied by this opportunity/);
+    expect(single).toContain(String(read.segmentId));
+  });
+
+  it('rejects a guessed segmentId inside a batch and names the supplied ids', async () => {
+    await advance(); const id = active();
+    const batchRead = scheduler.read(id);
+    if (batchRead.complete) throw new Error('expected text');
+    expect(batchRead.segments.length).toBeGreaterThan(1);
+    const items = batchRead.segments.map(s => ({ taskId: s.taskId, segmentId: s.segmentId, understanding: '' }));
+    items[1] = { ...items[1], segmentId: items[1].segmentId + 900 };
+    let batch = '';
+    try { scheduler.finishBatch(id, items); } catch (error) { batch = String(error); }
+    expect(batch).toMatch(/was not supplied by this opportunity/);
+    expect(batch).toContain(String(batchRead.segments[0].segmentId));
+  });
+
   it('rejects a batch item that belongs to another opportunity', async () => {
     await advance(); const id = active();
     const batch = scheduler.read(id);

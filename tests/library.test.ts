@@ -32,7 +32,9 @@ describe('book import and stable segmentation', () => {
     for (const bytes of [Buffer.from([0xff, 0xfe]), Buffer.from('a\0b'), Buffer.from('  \n '), Buffer.alloc(MAX_BOOK_BYTES + 1, 65)]) {
       expect(() => buildBook('x.txt', '书', '', bytes)).toThrow();
     }
-    for (const name of ['../a.txt', 'C:\\a.md', 'a.epub']) expect(() => buildBook(name, '书', '', Buffer.from('书'))).toThrow();
+    for (const name of ['../a.txt', 'C:\\a.md', 'a.pdf']) expect(() => buildBook(name, '书', '', Buffer.from('书'))).toThrow();
+    // EPUB is converted to text before import, so the original file name is kept.
+    expect(buildBook('a.epub', '书', '', Buffer.from('书')).filename).toBe('a.epub');
   });
   it('recognizes chapter names without spaces and fills segments instead of offering headings alone', () => {
     const book = buildBook('chapter.txt', '章', '', Buffer.from('第一章海风\n' + '海'.repeat(2000)));

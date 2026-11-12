@@ -8,7 +8,7 @@ import {readingRoutine} from './routine.ts';
 
 const LEASE = 10 * 60 * 1000;
 interface Ledger { schema: 1; day: string; tasks: number; chars: number; reservations: Record<string, number>; restUntil: number }
-interface Opportunity { id: string; generation: number; expires: number; delivered: boolean; taskId?: string; taskIds?: string[]; batchChars?: number; mode: 'background' | 'main'; manual?:boolean; readRate?:number;finished?:boolean }
+interface Opportunity { id: string; generation: number; expires: number; delivered: boolean; taskId?: string; taskIds?: string[]; segmentIds?: number[]; batchChars?: number; mode: 'background' | 'main'; manual?:boolean; readRate?:number;finished?:boolean }
 
 /** Only mechanical scheduling state; never a second Persona or a model endpoint. */
 export class ReadingScheduler {
@@ -252,7 +252,7 @@ export class ReadingScheduler {
         if (!this.ledger.reservations[item.taskId]) this.save({ ...this.ledger, tasks: this.ledger.tasks + 1, chars: this.ledger.chars + size,
           reservations: { ...this.ledger.reservations, [item.taskId]: size } });
       }
-      if (a){a.taskIds=result.segments.map(item=>item.taskId);a.taskId=result.taskId;a.batchChars=result.batch.chars;a.readRate??=limits.charsPerMinute;}
+      if (a){a.taskIds=result.segments.map(item=>item.taskId);a.segmentIds=result.segments.map(item=>item.segmentId);a.taskId=result.taskId;a.batchChars=result.batch.chars;a.readRate??=limits.charsPerMinute;}
       if(a?.manual&&this.manual?.id===a.id)this.manual.state='reading';
     }
     return result;
@@ -269,9 +269,14 @@ export class ReadingScheduler {
     if (this.signature() !== this.observed) this.changed();
     const done=this.completedOpportunity;if(args.opportunityId!==undefined&&done&&args.opportunityId===done.id){if(done.generation!==this.lib.generation()||this.now()>=done.expires||done.taskId!==args.taskId)throw Error('Completed reading opportunity is stale');return this.lib.finish(args);}
     this.requireAwake();
+    let opportunity: Opportunity | undefined;
     if (args.opportunityId !== undefined || this.cfg.automaticReading || this.active?.taskId === args.taskId || this.active?.taskIds?.includes(String(args.taskId))) {
       const a = this.requireOpportunity(args.opportunityId);
+      opportunity = a;
       if (a.taskIds ? !a.taskIds.includes(String(args.taskId)) : a.taskId !== args.taskId) throw new Error(`Task does not belong to this opportunity; use the taskId from this opportunity's read_next (${(a.taskIds ?? [a.taskId]).join(', ')})`);
+    }
+    if (opportunity?.segmentIds && !opportunity.segmentIds.includes(Number(args.segmentId))) {
+      throw new Error(`segmentId ${String(args.segmentId)} was not supplied by this opportunity; read_next returned segmentIds ${opportunity.segmentIds.join(', ')}. Use the exact segmentId from that result, not a guessed one.`);
     }
     const ms=this.lib.segmentSize(args.bookKey,args.segmentId)/(this.active?.readRate??readingLimits(this.cfg).charsPerMinute)*60000;
     const accrued=this.sessionReadMs+ms;const rest=accrued>=readingLimits(this.cfg).sessionMinutes*60000?this.lib.planRest(this.restDuration(accrued),accrued,'session'):undefined;
@@ -313,6 +318,10 @@ export class ReadingScheduler {
     this.requireAwake();
     const a = this.requireOpportunity(opportunityId);
     if (a.taskIds ? ids.some(id => !a.taskIds!.includes(id)) : ids.some(id => id !== a.taskId)) throw new Error(`Task does not belong to this opportunity; use the taskId from this opportunity's read_next (${(a.taskIds ?? [a.taskId]).join(', ')})`);
+    if (a.segmentIds) {
+      const invalid = items.find(item => !a.segmentIds!.includes(Number(item.segmentId)));
+      if (invalid) throw new Error(`segmentId ${String(invalid.segmentId)} was not supplied by this opportunity; read_next returned segmentIds ${a.segmentIds.join(', ')}. Use the exact segmentIds from that result, not guessed ones.`);
+    }
     const key = this.lib.status().current?.key;
     let chars = 0;
     for (const item of items) chars += this.lib.segmentSize(item.bookKey ?? key, item.segmentId);

@@ -42,7 +42,7 @@ export class BookTransfers {
     if(v.author!==undefined&&(typeof v.author!=='string'||v.author.length>100))throw Error('Invalid author');
     const filename=requiredText(v.filename,'filename');if(v.autoMetadata!==undefined&&typeof v.autoMetadata!=='boolean')throw Error('Invalid metadata mode');const title=kind==='book'?(v.autoMetadata===true?detectImportMetadata(filename).title:requiredText(v.title,'title')):undefined;
     if(kind==='backup'&&/\.json$/i.test(filename)&&(size as number)>25*1024*1024)throw Error('Use .bfbak for backups larger than 25 MiB');
-    if(kind==='book'&&filename&&(/[\\/\x00-\x1f]/.test(filename)||! /\.(txt|md)$/i.test(filename)))throw Error('Only .txt or .md novels are supported');
+    if(kind==='book'&&filename&&(/[\\/\x00-\x1f]/.test(filename)||! /\.(txt|md|epub)$/i.test(filename)))throw Error('Only .txt, .md or .epub novels are supported');
     this.close();this.job=undefined;this.cleanStale();const id=randomUUID(),file=join(this.dir,id+'.part');closeSync(openSync(file,'wx'));
     this.active={id,file,size:size as number,offset:0,expires:this.now()+TTL,kind,filename,title,author:v.author,autoMetadata:v.autoMetadata===true};this.arm();return {id,chunkBytes:CHUNK};
   }

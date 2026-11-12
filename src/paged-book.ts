@@ -122,7 +122,7 @@ export function loadPagedBook(file:string,id:string,cache:PageCache, validatedLo
   const b=manifest.book;
   const serial=b.remote?.serial as SerialRecord|undefined;
   if(!trusted&&(bytes>100*1024*1024||chars!==b.totalChars||(!serial&&source.digest('hex')!==b.sourceHash)||b.parserVersion!==1||typeof b.title!=='string'||!b.title.trim()||b.title.length>200||typeof b.author!=='string'||b.author.length>100||b.key!==b.id+':'+b.revision||JSON.stringify(spans)!==JSON.stringify(manifest.spans)))throw Error('Paged book content is inconsistent');
-  if(!trusted&&!b.remote&&(sha(b.title.normalize('NFC')+'\n'+b.author.normalize('NFC'))!==b.id||revision.digest('hex')!==b.revision||typeof b.filename!=='string'||!/^([^\\/\x00-\x1f]+)\.(txt|md)$/i.test(b.filename)))throw Error('Paged book identity mismatch');
+  if(!trusted&&!b.remote&&(sha(b.title.normalize('NFC')+'\n'+b.author.normalize('NFC'))!==b.id||revision.digest('hex')!==b.revision||typeof b.filename!=='string'||!/^([^\\/\x00-\x1f]+)\.(txt|md|epub)$/i.test(b.filename)))throw Error('Paged book identity mismatch');
   function virtual<T>(count:number,pages:Page[],width:number):T[]{return new Proxy(new Array<T>(count),{get(target,key,receiver){if(typeof key==='string'&&/^(0|[1-9]\d*)$/.test(key)){const n=Number(key);if(n>=count)return undefined;const p=pages[Math.floor(n/width)];return cache.get(id+':'+p.offset,()=>load(p))[n%width];}return Reflect.get(target,key,receiver);},has(target,key){return typeof key==='string'&&/^(0|[1-9]\d*)$/.test(key)?Number(key)<count:Reflect.has(target,key);},set(){throw Error('Book pages are immutable');}});}
   const segments=virtual<Segment>(manifest.count,manifest.segments,PAGE_SIZE);
   const book={...b,segments} as Book;
