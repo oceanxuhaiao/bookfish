@@ -21,7 +21,7 @@ function finish(id: string, task: ReturnType<ReadingScheduler['read']>) {
 }
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'bookfish-scheduler-')); time = Date.parse('2026-11-07T02:00:00Z');
-  cfg = { ...BOOKFISH_DEFAULTS,realRoutineEnabled:false, automaticReading: true };
+  cfg = { ...BOOKFISH_DEFAULTS,realRoutineEnabled:false, automaticReading: true, readingBatchSegments: 1 };
   lib = new Library({ dataDir: dir, now: () => time }); lib.open();
   const imported = lib.import({ filename: 'sample.txt', title: '合成样本', base64: Buffer.from('海边有鱼。'.repeat(1000)).toString('base64') });
   lib.select(imported.book.key); host = new FakeHost(); queued = [];

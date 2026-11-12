@@ -99,6 +99,33 @@ export class BookfishWorld implements World {
     };
   }
   envPromptVars(): Record<string, string> { return {}; }
+  /**
+   * Model-facing status. The panel keeps the full shape; this view omits serial
+   * capability dumps, storage probes and ownership details that never change a
+   * reading decision, because every field here is resent on each model request.
+   */
+  private modelStatus() {
+    const full = this.status();
+    const current = full.library.current;
+    const s = full.scheduler;
+    return {
+      lifecycle: full.lifecycle, readingAvailable: full.readingAvailable, automaticReadingAvailable: full.automaticReadingAvailable,
+      selectedMode: full.selectedMode, cognition: full.cognition, networkEnabled: full.networkEnabled, reviewError: full.reviewError,
+      output: full.output,
+      scheduler: { routine: s.routine, enabled: s.enabled, reason: s.reason, error: s.error, charsPerMinute: s.charsPerMinute,
+        pacedChars: s.pacedChars, nextAt: s.nextAt, restUntil: s.restUntil, active: s.active, manual: s.manual,
+        goal: s.goal, budget: s.budget, rest: s.habits.rest ? { plannedUntil: s.habits.rest.plannedUntil, source: s.habits.rest.source, state: s.habits.rest.state } : null,
+        sessionReadMs: s.habits.readMs, hostPhase: s.hostPhase },
+      library: { mounted: full.library.mounted, paused: full.library.paused, providedChars: full.library.providedChars,
+        pending: full.library.pending, textStoreError: full.library.textStore?.error ?? null,
+        current: current ? { key: current.key, title: current.title, author: current.author, revision: current.revision,
+          chapter: current.chapter, totalChars: current.totalChars, totalSegments: current.totalSegments,
+          confirmedChars: current.confirmedChars, confirmedSegments: current.confirmedSegments, progress: current.progress,
+          progressUnit: current.progressUnit, complete: current.complete, readiness: current.readiness,
+          chapterGoalSupported: current.chapterGoalSupported } : null },
+      sharing: this.sharing.summary(),
+    };
+  }
   tools(): ToolDef[] {
     const handlers: Record<string, (args: Record<string, unknown>, signal?: AbortSignal) => unknown> = {
       bookfish_begin_review: args => this.library.beginReview(args), bookfish_review_materials: args => this.library.reviewMaterials(args),
@@ -107,7 +134,7 @@ export class BookfishWorld implements World {
       bookfish_propose_share: args => this.sharing.propose(args), bookfish_get_sharing: () => this.sharing.status(),
       bookfish_claim_share: args => this.sharing.claim(args), bookfish_report_share: args => this.sharing.report(args),
       bookfish_drop_share: args => this.sharing.drop(args.shareId),
-      bookfish_get_status: () => ({ ...this.status(), sharing: this.sharing.summary() }), bookfish_list_books: () => this.library.list(),
+      bookfish_get_status: () => this.modelStatus(), bookfish_list_books: () => this.library.list(),
       bookfish_select_book: (args) => { const result = this.library.select(args.bookKey); this.scheduler.changed(); this.selection.onSelectionChanged(String(args.bookKey)); return result; },
       bookfish_read_next: async (args, signal) => {
         this.scheduler.authorize(args.opportunityId);
@@ -118,13 +145,13 @@ export class BookfishWorld implements World {
         if (this.library.sourceDemand()?.needsNext) {
           this.requireNetwork(); await this.sources.ensureNext(combined);
         }
-        combined.throwIfAborted(); return this.scheduler.read(args.opportunityId);
+        combined.throwIfAborted(); return this.scheduler.read(args.opportunityId, args.segments);
       }, bookfish_finish_reading: (args) => {
         // The model often drops opportunityId; the active task is enough to authorize its own confirmation.
         const active = this.scheduler.status().active;
-        const withOpportunity = args.opportunityId === undefined && active?.opportunityId
-          ? { ...args, opportunityId: active.opportunityId } : args;
-        return this.scheduler.finish(withOpportunity);
+        const opportunityId = args.opportunityId === undefined && active?.opportunityId ? active.opportunityId : args.opportunityId;
+        if (Array.isArray(args.confirmations)) return this.scheduler.finishBatch(opportunityId, args.confirmations, args.episode);
+        return this.scheduler.finish(opportunityId === undefined ? args : { ...args, opportunityId });
       },
       bookfish_search_reading: (args) => this.library.search(args),
       bookfish_get_reading_context: (args) => this.library.context(args),

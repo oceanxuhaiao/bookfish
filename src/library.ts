@@ -7,7 +7,7 @@ import { isPagedBook, chapterSpan, chapterEndIds, remoteLayout, readerChapters }
 import { buildBook, decodeFile, digest, requiredText, type Book } from './books.ts';
 import { searchReading, readingContext } from './retrieval.ts';
 import { beginReview, reviewMaterials, finishReview, failReview, validateReviews, type BookReview, type ReviewJob } from './reviews.ts';
-import { normalizeEpisode, validateEpisodes, evidenceView, MAX_EPISODES, type ReadingEpisode } from './journal.ts';
+import { normalizeEpisode, validateEpisodes, evidenceView, record, MAX_EPISODES, type ReadingEpisode } from './journal.ts';
 import { buildRemoteBook, buildSerialBook } from './remote-books.ts';
 import { SourceError, type CachedChapter, type SourceCatalog } from './source-types.ts';
 import { SERIAL_INTERVALS, SERIAL_PAGE_LIMIT, chapterId, nextCheckIso, receiptFor, stableSerialIdentity, validateSerialCatalog, validateSerialRecord, type SerialCatalogCommit, type SerialPublicationEvidence, type SerialReceipt, type SerialRecord, type SerialSyncCommit } from './serial-types.ts';
@@ -76,7 +76,7 @@ export function validateState(raw: unknown): LibraryState {
   if (state.selected !== null && (typeof state.selected !== 'string' || !books.has(state.selected))) throw new Error('Selected book is missing');
   const ids = new Set<string>();
   const committed = new Map<string, Set<number>>();
-  let pending = 0;
+  let pending = 0; const pendingBySlot: number[] = [];
   for (const task of state.tasks) {
     const entry = books.get(task?.bookKey);
     if (!task || typeof task.id !== 'string' || !/^[a-f0-9-]{36}$/.test(task.id) || ids.has(task.id) || !entry ||
@@ -85,19 +85,28 @@ export function validateState(raw: unknown): LibraryState {
     ids.add(task.id);
     if (task.status === 'pending') {
       pending++;
-      if (task.bookKey !== state.selected || task.generation !== state.generation || state.paused || task.segmentId !== entry.frontier) throw new Error('Inconsistent pending task');
+      if (task.bookKey !== state.selected || task.generation !== state.generation || state.paused) throw new Error('Inconsistent pending task');
+      pendingBySlot.push(task.segmentId);
     }
     if (task.status === 'committed') {
       const r = task.receipt;
       if (!r || (r.confirmedAt !== undefined && (!integer(r.confirmedAt) || r.confirmedAt > 8640000000000000)) || r.taskId !== task.id || r.bookKey !== task.bookKey || r.segmentId !== task.segmentId ||
         r.frontier !== task.segmentId + 1 || r.confirmedChars !== entry.book.segments[task.segmentId].end ||
-        typeof r.understanding !== 'string' || !r.understanding.trim() || r.understanding.length > 2000) throw new Error('Invalid confirmation receipt');
+        typeof r.understanding !== 'string' || r.understanding.length > 2000) throw new Error('Invalid confirmation receipt');
       const ranges = committed.get(task.bookKey) ?? new Set<number>();
       if (ranges.has(task.segmentId)) throw new Error('Duplicate confirmed range');
       ranges.add(task.segmentId); committed.set(task.bookKey, ranges);
     } else if (task.receipt !== undefined) throw new Error('Uncommitted task has a receipt');
   }
-  if (pending > 1) throw new Error('Multiple pending tasks');
+  // A batch may hold 1–4 pending slots, but they must be one contiguous run that
+  // starts at the frontier of the selected revision: no holes, no skipped text.
+  if (pending > 4) throw new Error('Multiple pending tasks');
+  pendingBySlot.sort((a, b) => a - b);
+  if (pendingBySlot.some((slot, i) => slot !== pendingBySlot[0] + i)) throw new Error('Pending reading slots are not contiguous');
+  if (pendingBySlot.length) {
+    const selectedEntry = books.get(state.selected!)!;
+    if (pendingBySlot[0] !== selectedEntry.frontier) throw new Error('Inconsistent pending task');
+  }
   for (const entry of state.books) {
     const ranges = committed.get(entry.book.key) ?? new Set<number>();
     if (ranges.size !== entry.frontier || [...ranges].some((i) => i >= entry.frontier)) throw new Error('Progress is not a continuous confirmed range');
@@ -526,7 +535,8 @@ export class Library {
       return { paused: draft.paused };
     });
   }
-  readNext() {
+  readNext(count = 1) {
+    if (!Number.isSafeInteger(count) || count < 1 || count > 4) throw new Error('Batch size must be 1–4 atomic segments');
     return this.change((draft) => {
       if (draft.paused) throw new Error('Reading is paused');
       const entry = this.current(draft);
@@ -544,50 +554,136 @@ export class Library {
       }
       const pending = historyFind(draft.tasks,{status:'pending'});
       if (pending && pending.expiresAt <= this.now()) pending.status = 'expired';
-      let task = historyFind(draft.tasks,{status:'pending'});
-      if (!task) {
-        if (draft.tasks.length >= 250000) throw new Error('Reading task history limit reached');
-        task = { id: randomUUID(), bookKey: entry.book.key, segmentId: entry.frontier,
-          generation: draft.generation, expiresAt: this.now() + LEASE_MS, status: 'pending' };
-        draft.tasks.push(task);
+      // Reuse the contiguous pending run that starts at the frontier and extend it
+      // only when the caller asks for a larger batch. Slots are atomic segments.
+      let tasks = historySelect(draft.tasks,{status:'pending'}).filter(t => t.bookKey === entry.book.key)
+        .sort((a, b) => a.segmentId - b.segmentId);
+      if (tasks.some((t, i) => t.segmentId !== entry.frontier + i)) {
+        for (const t of tasks) t.status = 'cancelled';
+        tasks = [];
       }
-      return { complete: false as const, taskId: task.id, bookKey: task.bookKey, segmentId: task.segmentId,
-        expiresAt: task.expiresAt, segment: entry.book.segments[task.segmentId], progressAdvanced: false,
+      const wanted = Math.min(count, entry.book.segments.length - entry.frontier);
+      for (let i = tasks.length; i < wanted; i++) {
+        if (draft.tasks.length >= 250000) throw new Error('Reading task history limit reached');
+        const task: ReadingTask = { id: randomUUID(), bookKey: entry.book.key, segmentId: entry.frontier + i,
+          generation: draft.generation, expiresAt: this.now() + LEASE_MS, status: 'pending' };
+        draft.tasks.push(task); tasks.push(task);
+      }
+      const batch = tasks.slice(0, wanted).map(task => ({ taskId: task.id, segmentId: task.segmentId,
+        expiresAt: task.expiresAt, segment: entry.book.segments[task.segmentId] }));
+      const first = batch[0];
+      return { complete: false as const, taskId: first.taskId, bookKey: entry.book.key, segmentId: first.segmentId,
+        expiresAt: first.expiresAt, segment: first.segment, progressAdvanced: false,
+        segments: batch, batch: { count: batch.length, chars: batch.reduce((n, b) => n + (b.segment.end - b.segment.start), 0) },
         source: 'external-book-text' as const };
     });
   }
+  /** Confirmed character offset of the next unread run, for pacing and budget display. */
+  nextBatchChars(count = 1) {
+    this.ensureOpen(); const entry = this.current();
+    let total = 0;
+    for (let i = 0; i < count; i++) { const segment = entry.book.segments[entry.frontier + i]; if (!segment) break; total += segment.end - segment.start; }
+    return total;
+  }
+  /** Read-only idempotency probe: a confirmation replay is only safe for already committed ranges. */
+  isCommitted(taskId: unknown): boolean {
+    this.ensureOpen();
+    if (typeof taskId !== 'string') return false;
+    return historyFind(this.state.tasks,{id:taskId})?.status === 'committed';
+  }
   finish(input: Record<string, unknown>,rest?:RestRecord) {
+    return this.change((draft) => this.commitConfirmation(draft, input, rest, false));
+  }
+  /**
+   * Confirm an ordered run of atomic segments. Each item is committed in its own
+   * snapshot so a mid-batch failure still advances only the reliably processed
+   * prefix; the rest stays unread and can be fetched again.
+   */
+  finishMany(rawItems: unknown, rest?:RestRecord, options?:{ episode?: unknown }) {
+    this.ensureOpen();
+    if (!Array.isArray(rawItems) || rawItems.length < 1 || rawItems.length > 4) throw new Error('Batch confirmation must contain 1–4 segments in reading order');
+    const before = this.current();
+    // One optional episode for the whole batch. It must cite at least one segment
+    // supplied by this batch and is attached to the latest cited one, so all of
+    // its quotations stay inside the confirmed prefix at commit time.
+    let prepared: unknown[] = rawItems;
+    if (options?.episode !== undefined) {
+      const episode = record(options.episode, 'episode');
+      const evidence = Array.isArray(episode.evidence) ? episode.evidence : [];
+      const cited = new Set<number>();
+      for (const entry of evidence) {
+        if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+          const id = (entry as Record<string, unknown>).segmentId;
+          if (Number.isSafeInteger(id) && (id as number) >= 0) cited.add(id as number);
+        }
+      }
+      let target = -1;
+      for (let i = 0; i < rawItems.length; i++) {
+        const item = rawItems[i];
+        if (item && typeof item === 'object' && !Array.isArray(item) && cited.has(Number((item as Record<string, unknown>).segmentId))) target = i;
+      }
+      if (target < 0) throw new Error('A batch episode must quote at least one segment supplied in this batch');
+      const targetItem = rawItems[target] as Record<string, unknown>;
+      if (targetItem.episode !== undefined) throw new Error('Attach an episode either to the batch or to one confirmation, not both');
+      prepared = rawItems.map((item, index) => index === target
+        ? { ...(item as Record<string, unknown>), episode: options.episode }
+        : item);
+    }
+    const receipts: Receipt[] = [];
+    let stoppedAt: { index: number; taskId: string; segmentId: number | null; error: string } | undefined;
+    for (let index = 0; index < prepared.length; index++) {
+      const item = prepared[index];
+      if (!item || typeof item !== 'object' || Array.isArray(item)) { stoppedAt = { index, taskId: '', segmentId: null, error: 'Each batch item must be an object' }; break; }
+      const value = item as Record<string, unknown>;
+      try {
+        const result = this.change((draft) => this.commitConfirmation(draft, { ...value, bookKey: value.bookKey ?? before.book.key },
+          index === prepared.length - 1 ? rest : undefined, true));
+        receipts.push(result.receipt);
+      } catch (error) {
+        stoppedAt = { index, taskId: String(value.taskId ?? ''), segmentId: Number.isSafeInteger(value.segmentId) ? value.segmentId as number : null,
+          error: String((error as Error)?.message ?? error).slice(0, 500) };
+        break;
+      }
+    }
+    const entry = this.current();
+    return { duplicate: receipts.length === 0 && stoppedAt === undefined, receipts, confirmed: receipts.length,
+      frontier: entry.frontier, confirmedChars: entry.frontier ? entry.book.segments[entry.frontier - 1].end : 0,
+      ...(stoppedAt ? { stoppedAt } : {}) };
+  }
+  private commitConfirmation(draft: LibraryState, input: Record<string, unknown>, rest: RestRecord | undefined, lenientDuplicate: boolean) {
     const taskId = requiredText(input.taskId, 'taskId', 80);
     const bookKey = requiredText(input.bookKey, 'bookKey', 150);
-    const understanding = requiredText(input.understanding, 'understanding', 2000);
+    const understanding = input.understanding === undefined || input.understanding === null ? ''
+      : typeof input.understanding === 'string' && Array.from(input.understanding).length <= 600 ? input.understanding
+      : (() => { throw new Error('understanding must be a string of at most 600 characters; an empty string means you have nothing to add'); })();
     if (!integer(input.segmentId)) throw new Error('segmentId must be a non-negative integer');
-    return this.change((draft) => {
-      const task = historyFind(draft.tasks,{id:taskId});
-      if (!task || task.bookKey !== bookKey || task.segmentId !== input.segmentId) throw new Error('Task does not match the provided range');
-      if (task.status === 'committed') {
-        const saved = historyFind(draft.episodes,{id:task.receipt!.episodeId});
-        const entry = draft.books.find(e => e.book.key === bookKey)!;
+    const task = historyFind(draft.tasks,{id:taskId});
+    if (!task || task.bookKey !== bookKey || task.segmentId !== input.segmentId) throw new Error('Task does not match the provided range');
+    if (task.status === 'committed') {
+      const saved = historyFind(draft.episodes,{id:task.receipt!.episodeId});
+      const entry = draft.books.find(e => e.book.key === bookKey)!;
+      if (!lenientDuplicate) {
         const retryContent = input.episode === undefined ? undefined : normalizeEpisode(input.episode, entry, (saved?historySelect(draft.episodes,{before:saved.sequence}):draft.episodes), task.segmentId + 1);
         if (JSON.stringify(retryContent) !== JSON.stringify(saved?.content)) throw new Error('Confirmation retry must match the original episode; add a later reflection instead');
         if (task.receipt!.understanding !== understanding) throw new Error('Confirmation retry must match the original content');
-        return { duplicate: true, receipt: task.receipt! };
       }
-      if (task.status !== 'pending' || task.generation !== draft.generation || draft.selected !== bookKey || draft.paused || task.expiresAt <= this.now()) throw new Error('Reading task is cancelled or expired; fetch the next range again');
-      const entry = this.current(draft);
-      if (entry.frontier !== task.segmentId) throw new Error('Range is not the next unread segment');
-      let episode: ReadingEpisode | undefined;
-      if (input.episode !== undefined) {
-        const content = normalizeEpisode(input.episode, entry, draft.episodes, entry.frontier + 1);
-        if (!content.evidence.some(e => e.segmentId === task.segmentId)) throw new Error('Reading episode must cite the current task segment');
-        episode = this.appendEpisode(draft, { kind: 'reading', bookKey, taskId, content });
-      }
-      entry.frontier++;
-      task.status = 'committed';
-      task.receipt = { taskId, bookKey, segmentId: task.segmentId, frontier: entry.frontier,
-        confirmedChars: entry.book.segments[task.segmentId].end, understanding, confirmedAt: this.now(), ...(episode ? { episodeId: episode.id } : {}) };
-      if(rest){if(rest.bookKey!==bookKey)throw Error('Rest book mismatch');const duration=rest.plannedUntil-rest.startedAt;const actual={...rest,startedAt:task.receipt.confirmedAt!,plannedUntil:task.receipt.confirmedAt!+duration};draft.rests=[...(draft.rests??[]),actual].slice(-1000);}
-      return { duplicate: false, receipt: task.receipt };
-    });
+      return { duplicate: true, receipt: task.receipt! };
+    }
+    if (task.status !== 'pending' || task.generation !== draft.generation || draft.selected !== bookKey || draft.paused || task.expiresAt <= this.now()) throw new Error('Reading task is cancelled or expired; fetch the next range again');
+    const entry = this.current(draft);
+    if (entry.frontier !== task.segmentId) throw new Error('Range is not the next unread segment');
+    let episode: ReadingEpisode | undefined;
+    if (input.episode !== undefined) {
+      const content = normalizeEpisode(input.episode, entry, draft.episodes, entry.frontier + 1);
+      if (!content.evidence.some(e => e.segmentId === task.segmentId)) throw new Error('Reading episode must cite the current task segment');
+      episode = this.appendEpisode(draft, { kind: 'reading', bookKey, taskId, content });
+    }
+    entry.frontier++;
+    task.status = 'committed';
+    task.receipt = { taskId, bookKey, segmentId: task.segmentId, frontier: entry.frontier,
+      confirmedChars: entry.book.segments[task.segmentId].end, understanding, confirmedAt: this.now(), ...(episode ? { episodeId: episode.id } : {}) };
+    if(rest){if(rest.bookKey!==bookKey)throw Error('Rest book mismatch');const duration=rest.plannedUntil-rest.startedAt;const actual={...rest,startedAt:task.receipt.confirmedAt!,plannedUntil:task.receipt.confirmedAt!+duration};draft.rests=[...(draft.rests??[]),actual].slice(-1000);}
+    return { duplicate: false, receipt: task.receipt };
   }
   private goalCache?:{key:string;count:number};
   dailyChapters(day:string,timezone:string){

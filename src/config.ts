@@ -18,6 +18,10 @@ export interface BookfishConfigSection {
   readingCharsPerMinute?: number;
   dailyChapterGoal?: number;
   readingSessionMinutes?: number;
+  /** Atomic segments handed over in one opportunity: 1 keeps the original protocol, 2–4 is the batch experiment. */
+  readingBatchSegments?: number;
+  /** Mechanical daily cap on reading tasks (0 = unlimited). Stops new work, never retracts an in-flight request. */
+  dailyReadingCap?: number;
   realRoutineEnabled?:boolean;
   /** Retired clock preferences, ignored by scheduling and rejected by settings writes. */
   sleepEnabled?:boolean; mealsEnabled?:boolean;
@@ -41,6 +45,7 @@ export interface BookfishConfigSection {
 export const BOOKFISH_DEFAULTS: BookfishConfigSection = { enabled: false, readingMode: 'auto', allowNetwork: true,
   automaticReading: true, autonomousAcquisition: false, autonomousAcquisitionMode: 'auto', autonomousSourceIds: '', autonomousDiskBudgetMb: 1024, textStoreDir: '',
   dailyChapterGoal:0, readingSessionMinutes:10,realRoutineEnabled:true, speed: 'normal', readingCharsPerMinute: 0, dailyTasks: 40, dailyChars: 48000,
+  readingBatchSegments:2, dailyReadingCap:0,
   automaticSharing: true, automaticReview: true, shareCooldownMinutes: 60, shareQuietEnabled: true, shareQuietStart: 22, shareQuietEnd: 8, shareMaxSentenceChars: 80, shareQuietStartMinute: -1, shareQuietEndMinute: -1 };
 export function sharingLimits(cfg: BookfishConfigSection) {
   const integer = (v: unknown, fallback: number, min: number, max: number) => Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max ? v as number : fallback;
@@ -54,8 +59,10 @@ export function readingLimits(cfg: BookfishConfigSection) {
   const integer = (v: number, fallback: number, max: number) => Number.isSafeInteger(v) && v >= 1 && v <= max ? v : fallback;
   const preset = ({ slow: 200, normal: 400, fast: 600 } as Record<string, number>)[cfg.speed] ?? 400;
   const rate = Number.isSafeInteger(cfg.readingCharsPerMinute) && cfg.readingCharsPerMinute! >= 100 && cfg.readingCharsPerMinute! <= 1200 ? cfg.readingCharsPerMinute! : preset;
+  const batch = Number.isSafeInteger(cfg.readingBatchSegments) && cfg.readingBatchSegments! >= 1 && cfg.readingBatchSegments! <= 4 ? cfg.readingBatchSegments! : 2;
+  const taskCap = Number.isSafeInteger(cfg.dailyReadingCap) && cfg.dailyReadingCap! >= 1 && cfg.dailyReadingCap! <= 1000 ? cfg.dailyReadingCap! : 0;
   return { charsPerMinute: rate, intervalMs: Math.ceil(1200 / rate * 60000),
-    tasks: null, chars: null, chapterGoal:Number.isSafeInteger(cfg.dailyChapterGoal)&&cfg.dailyChapterGoal!>=1&&cfg.dailyChapterGoal!<=10000?cfg.dailyChapterGoal!:0, sessionMinutes:integer(cfg.readingSessionMinutes??10,10,120) };
+    tasks: null, chars: null, batch, taskCap, chapterGoal:Number.isSafeInteger(cfg.dailyChapterGoal)&&cfg.dailyChapterGoal!>=1&&cfg.dailyChapterGoal!<=10000?cfg.dailyChapterGoal!:0, sessionMinutes:integer(cfg.readingSessionMinutes??10,10,120) };
 }
 export function bookfishConfigGroup(english: boolean): ConfigGroup {
   return {
@@ -83,6 +90,8 @@ export function bookfishConfigGroup(english: boolean): ConfigGroup {
         'worlds.bookfish.readingCharsPerMinute': { type: 'integer', minimum: 0, maximum: 1200, title: english ? 'Reading characters per minute (0 = preset)' : '每分钟阅读字数（100—1200，0沿用预设）', description: english ? 'Target idle reading rate, not guaranteed wall-clock throughput. Changes affect remaining pacing only.' : '空闲阅读的目标字速；普通参考值400。聊天、休息、模型处理不计时，实际可能更慢；动态修改仅影响剩余节奏。', 'x-hot': true },
         'worlds.bookfish.dailyChapterGoal': {type:'integer',minimum:0,maximum:10000,title:english?'Daily chapter goal (0 = unlimited)':'每日章节目标（0不限制）','x-hot':true},
         'worlds.bookfish.readingSessionMinutes': {type:'integer',minimum:1,maximum:120,title:english?'Reading session (minutes)':'每轮阅读时长（分钟）','x-hot':true},
+        'worlds.bookfish.readingBatchSegments': {type:'integer',minimum:1,maximum:4,title:english?'Segments per opportunity (default 2; 1 = original)':'每次提供的正文段数（默认2；1为原协议）',description:english?'Each segment stays an atomic, separately confirmed 1200-code-point range. The default is 2 to halve repeated requests without skipping text; 1 restores the original one-at-a-time protocol.':'每个原子段仍单独可追溯、单独确认。默认 2 段一次以约一半的请求完成同样字数，不跳过、不合并正文；设为 1 恢复原来的逐段协议。','x-hot':true},
+        'worlds.bookfish.dailyReadingCap': {type:'integer',minimum:0,maximum:1000,title:english?'Daily reading task cap (0 = unlimited)' : '每日阅读任务兜底上限（0不限制）',description:english?'A mechanical stop for new reading work, not a precise token or cost quota. In-flight requests may still be billed after the cap is reached.':'这是对新阅读任务的机械兜底，不是精确 Token/费用配额；到达上限后已发出的模型请求仍可能继续计费。显式“现在读一段”可再加一段。','x-hot':true},
         'worlds.bookfish.dailyTasks': { type: 'integer', minimum: 1, maximum: 1000, title: english ? 'Daily segment task limit' : '每日正文任务上限', 'x-hot': true },
         'worlds.bookfish.dailyChars': { type: 'integer', minimum: 1, maximum: 1200000, title: english ? 'Daily supplied character limit' : '每日提供正文字符上限', description: english ? 'Includes manual reads and unsuccessful attempts; retries of the same task are free.' : '包含手动取段和未确认的尝试；同一任务重复获取不重复扣减。', 'x-hot': true },
         'worlds.bookfish.allowNetwork': {
@@ -102,7 +111,7 @@ export function bookfishConfigGroup(english: boolean): ConfigGroup {
 
 export function bookfishConfigGroups(english: boolean): ConfigGroup[] {
   const all=bookfishConfigGroup(english);const fields=all.schema.properties;
-  const main=['realRoutineEnabled','automaticReading','autonomousAcquisition','autonomousAcquisitionMode','autonomousSourceIds','autonomousDiskBudgetMb','speed','readingCharsPerMinute','dailyChapterGoal','readingSessionMinutes','automaticSharing','shareCooldownMinutes','shareMaxSentenceChars','shareQuietEnabled','shareQuietStartMinute','shareQuietEndMinute'];
+  const main=['realRoutineEnabled','automaticReading','autonomousAcquisition','autonomousAcquisitionMode','autonomousSourceIds','autonomousDiskBudgetMb','speed','readingCharsPerMinute','dailyChapterGoal','readingSessionMinutes','readingBatchSegments','dailyReadingCap','automaticSharing','shareCooldownMinutes','shareMaxSentenceChars','shareQuietEnabled','shareQuietStartMinute','shareQuietEndMinute'];
   const advanced=['automaticReview','allowNetwork','readingMode','textStoreDir'];
   const pick=(names:string[])=>Object.fromEntries(names.map(k=>['worlds.bookfish.'+k,fields['worlds.bookfish.'+k]]));
   return [{...all,schema:{...all.schema,title:english?'Reading and sharing':'阅读与分享',properties:pick(main)}},{...all,id:'world:bookfish:advanced',schema:{...all.schema,title:english?'Advanced reading limits':'高级阅读限制',properties:pick(advanced)}}];

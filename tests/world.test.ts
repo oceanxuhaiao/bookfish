@@ -9,7 +9,7 @@ import { FakeHost } from './helpers/fake-host.ts';
 let scratchDir: string;
 beforeEach(() => { scratchDir = mkdtempSync(join(tmpdir(), 'bookfish-world-')); });
 afterEach(() => rmSync(scratchDir, { recursive: true, force: true }));
-function create() { const ctx = fakeWorldContext(BOOKFISH, { scratchDir }); ctx.persist({automaticReading:false,realRoutineEnabled:false}); return { ctx, world: BOOKFISH.create(ctx) }; }
+function create() { const ctx = fakeWorldContext(BOOKFISH, { scratchDir }); ctx.persist({automaticReading:false,realRoutineEnabled:false,readingBatchSegments:1}); return { ctx, world: BOOKFISH.create(ctx) }; }
 async function status(world: ReturnType<typeof create>['world']) {
   const result = await world.tools()[0].handler({}, {} as ToolCallContext);
   return JSON.parse(typeof result === 'string' ? result : result.text);
@@ -73,19 +73,31 @@ describe('Bookfish library World', () => {
     expect(calls).toBe(0);
     await world.stop();
   });
-  it('exposes the same core status through the panel, with compact sharing in the model tool', async () => {
+  it('keeps the model-facing status compact while the panel keeps the full shape', async () => {
     const { world } = create();
     await world.start(new FakeHost());
     const panel = world.webUi!('zh');
-    const panelStatus = (await panel.invoke!('status', 'get', []) as { status: Record<string, unknown> }).status;
+    const invoke = panel.invoke!;
+    const imported = await invoke('status', 'import', [{ filename: 's.txt', title: '状态样本', base64: Buffer.from('海边有鱼。'.repeat(20)).toString('base64') }]) as { book: { key: string } };
+    await invoke('status', 'select', [imported.book.key]);
+    const panelStatus = (await invoke('status', 'get', []) as { status: Record<string, unknown> }).status;
     const toolStatus = await status(world);
     const { sharing: panelSharing, ...panelCore } = panelStatus;
     const { sharing: toolSharing, ...toolCore } = toolStatus;
-    expect(toolCore).toEqual(panelCore);
+    // Decision-relevant fields still match; capability dumps stay panel-only.
+    for (const key of ['lifecycle', 'readingAvailable', 'automaticReadingAvailable', 'selectedMode', 'cognition', 'output', 'networkEnabled']) {
+      expect(toolCore[key]).toEqual(panelCore[key]);
+    }
+    expect((toolCore.library as Record<string, unknown>).current).toEqual(expect.objectContaining({ key: (panelCore.library as Record<string, any>).current.key }));
+    expect((toolCore.library as Record<string, unknown>).current).not.toHaveProperty('serial');
+    expect((panelCore.library as Record<string, unknown>).current).toHaveProperty('serial');
+    expect(toolCore).not.toHaveProperty('selection');
+    expect(panelCore).toHaveProperty('selection');
     expect(panelSharing).toHaveProperty('items');
     expect(toolSharing).not.toHaveProperty('items');
-    await expect(panel.invoke!('status', 'unknown', [])).rejects.toThrow();
-    await expect(panel.invoke!('other', 'get', [])).rejects.toThrow();
+    expect(JSON.stringify(toolCore).length).toBeLessThan(JSON.stringify(panelCore).length);
+    await expect(invoke('status', 'unknown', [])).rejects.toThrow();
+    await expect(invoke('other', 'get', [])).rejects.toThrow();
     await world.stop();
   });
   it('rolls back state when event persistence fails, allowing a clean subsequent mount', async () => {

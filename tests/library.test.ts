@@ -67,11 +67,19 @@ describe('confirmed reading protocol', () => {
     expect(store.status().current!.confirmedSegments).toBe(1);
     expect(() => store.finish({ ...result.receipt, understanding: '不同的提交' })).toThrow();
   });
-  it('rejects invented task ids, revision or segment mismatches and missing understanding', () => {
+  it('rejects invented task ids, revision or segment mismatches', () => {
     const store = open(); const b = prepare(store); const t = task(store);
     const valid = { taskId: t.taskId, bookKey: b.key, segmentId: t.segmentId, understanding: '理解' };
-    for (const patch of [{ taskId: 'invented' }, { bookKey: 'other' }, { segmentId: 1 }, { understanding: '' }]) expect(() => store.finish({ ...valid, ...patch })).toThrow();
+    for (const patch of [{ taskId: 'invented' }, { bookKey: 'other' }, { segmentId: 1 }, { understanding: 'x'.repeat(601) }]) expect(() => store.finish({ ...valid, ...patch })).toThrow();
     expect(store.status().current!.confirmedSegments).toBe(0);
+  });
+  it('accepts an empty understanding as the legal "nothing to note" result', () => {
+    const store = open(); prepare(store); const t = task(store);
+    const receipt = store.finish({ taskId: t.taskId, bookKey: t.bookKey, segmentId: t.segmentId, understanding: '' });
+    expect(receipt.duplicate).toBe(false);
+    expect(receipt.receipt.understanding).toBe('');
+    expect(store.timeline().items[0].summary).toBe('');
+    expect(store.status().current!.confirmedSegments).toBe(1);
   });
   it('rejects expired tasks and offers the same range under a fresh task', () => {
     const store = open(); prepare(store); const t = task(store);
