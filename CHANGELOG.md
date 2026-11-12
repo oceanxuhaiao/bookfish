@@ -1,3 +1,12 @@
+## 0.60.0
+
+- 本地导入原生支持 PDF（文字层）：按页提取文本，合并 PDF 换行造成的断行、去掉纯页码行，显式章节标题转成 Markdown 标题后复用现有导入/索引/阅读；文件选择器和上传接口接受 `.pdf`。
+- 元数据取 PDF 文档信息（Title/Author），文件名式标题（如 `sample.html`）会被忽略并回退到文件名识别。
+- 扫描件/纯图片 PDF 没有文字层，直接报“PDF has no extractable text layer (scanned PDFs need OCR)”，不会导入空书。
+- 新增生产依赖 `unpdf@2.1.0`（MIT，内含 PDF.js，约 3MB；可选 peer `@napi-rs/canvas` 不安装也能提取文字）。PDF 解析在导入 worker 内完成，不阻塞主线程。
+- 实测中文三章 PDF（81KB，Edge 生成）：3 章、252 字，worker 导入 618ms；TXT/Markdown/EPUB 路径不变。
+- 新增 4 项 PDF 测试（正文/断行/章节、走导入索引、空文字层拒绝、非 PDF 拒绝）；全量 44 个测试文件、462 项通过。
+
 ## 0.59.0
 
 - 本地导入原生支持 EPUB 2/3：解析 ZIP → `META-INF/container.xml` → OPF → spine，章节标题取 NCX/nav，正文转成 Markdown 后复用现有导入、索引与阅读；文件选择器和上传接口接受 `.epub`。

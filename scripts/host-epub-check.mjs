@@ -17,7 +17,7 @@ const data = readFileSync(file);
 const before = await call('status', 'get');
 const beforeBooks = before.books.length;
 const startedAt = Date.now();
-const begin = await call('shelf', 'upload_begin', [{ kind: 'book', filename: '三体（全集）.epub', autoMetadata: true, size: data.length }]);
+const begin = await call('shelf', 'upload_begin', [{ kind: 'book', filename: file.split(/[\\/]/u).pop(), autoMetadata: true, size: data.length }]);
 for (let offset = 0; offset < data.length; offset += begin.chunkBytes) {
   const slice = data.subarray(offset, offset + begin.chunkBytes);
   await call('shelf', 'upload_chunk', [begin.id, offset, slice.toString('base64')]);
@@ -43,6 +43,6 @@ if (book) {
   evidence.afterBooks = after.books.length;
   evidence.removed = after.books.length === beforeBooks;
 }
-writeFileSync('output/live-epub-0.59.0.json', `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
+writeFileSync(process.env.BOOKFISH_EVIDENCE ?? 'output/live-epub-0.59.0.json', `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
 console.log(JSON.stringify(evidence, null, 2));
 process.exitCode = status.state === 'done' && evidence.removed !== false ? 0 : 1;

@@ -1,7 +1,7 @@
 /** Bounded, explicit labels only; never infer authors from story prose. */
 export function detectImportMetadata(filename:string,prefix=''){
  const clean=(s:string,n:number)=>Array.from(s.replace(/[\x00-\x1f\x7f]/g,' ').trim()).slice(0,n).join('');
- const stem=filename.replace(/\.(txt|md|epub)$/i,'').trim();
+ const stem=filename.replace(/\.(txt|md|epub|pdf)$/i,'').trim();
  const named=stem.match(/^《([^》]+)》(?:[ _-]*(?:作者[：:]?\s*)?(.+))?$/u);
  let title=clean(named?.[1]??stem,200)||'未命名小说',author=clean(named?.[2]??'',100);
  const lines=prefix.replace(/^\uFEFF/,'').split(/\r?\n/).slice(0,60);

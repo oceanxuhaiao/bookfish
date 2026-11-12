@@ -17,7 +17,7 @@ export function requiredText(value: unknown, name: string, max = 200): string {
 }
 export function buildBook(filenameValue: unknown, titleValue: unknown, authorValue: unknown, bytes: Uint8Array | string): Book {
   const filename = requiredText(filenameValue, 'filename');
-  if (/[\\/\x00-\x1f]/.test(filename) || !/\.(txt|md|epub)$/i.test(filename)) throw new Error('Only local .txt, .md or .epub files are supported');
+  if (/[\\/\x00-\x1f]/.test(filename) || !/\.(txt|md|epub|pdf)$/i.test(filename)) throw new Error('Only local .txt, .md, .epub or .pdf files are supported');
   if (!bytes.length || (typeof bytes==='string'?Buffer.byteLength(bytes):bytes.length) > MAX_BOOK_BYTES) throw new Error('Book must be between 1 byte and 100 MiB');
   let text: string;
   try { text = typeof bytes==='string'?bytes:new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
