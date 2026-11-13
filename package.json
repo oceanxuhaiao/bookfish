@@ -1,6 +1,6 @@
 {
   "name": "cortico-world-bookfish",
-  "version": "0.60.0",
+  "version": "0.61.0",
   "type": "module",
   "description": "你负责安利，大肥鱼负责上头！把喜欢的小说推荐给大肥鱼，让她认真读、尽情吐槽、和你讨论每一个精彩瞬间！反馈 QQ 群：1135570183。",
   "license": "MIT",
@@ -32,10 +32,8 @@
     ],
     "tags": [
       "companion",
-      "experimental",
-      "injection-risk",
-      "high-cost",
-      "internal-state"
+      "creative",
+      "memory"
     ],
     "describe": "describe.json",
     "webUiClient": "lib/webui.js"
