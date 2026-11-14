@@ -340,4 +340,38 @@ describe('novel download integrity', () => {
     expect(text).toContain('# 第1章 海边来信');
     expect(text.endsWith('\n')).toBe(true);
   });
+
+  it('skips placeholder-only copyright/volume shells instead of rejecting the edition', () => {
+    const list: CatalogChapter[] = [
+      { order: 1, title: '版权信息', url: 'https://example.test/c1' },
+      { order: 2, title: '第一卷', url: 'https://example.test/c2' },
+      { order: 3, title: '第一章 我与荒石园', url: 'https://example.test/c3' },
+      { order: 4, title: '第二章 我的学校', url: 'https://example.test/c4' },
+      { order: 5, title: '第二卷', url: 'https://example.test/c5' },
+      { order: 6, title: '第三章 童年的回忆', url: 'https://example.test/c6' },
+    ];
+    const placeholder = '《昆虫记》第一卷正在手打中，请稍等片刻，内容更新后，请重新刷新页面，即可获取最新更新！';
+    const downloaded: DownloadChapterFile[] = [
+      chapter(1, '版权信息', `书名：昆虫记\n作者：法布尔\n${placeholder}`),
+      chapter(2, '第一卷', placeholder),
+      chapter(3, '第一章 我与荒石园', longBody),
+      chapter(4, '第二章 我的学校', longBody),
+      chapter(5, '第二卷', placeholder),
+      chapter(6, '第三章 童年的回忆', longBody),
+    ];
+    const result = assessNovelDownload({ book, catalog: list, files: downloaded });
+    expect(result.issues).toEqual([]);
+    expect(result.complete).toBe(true);
+    expect(result.warnings.filter((warning) => warning.code === 'source_placeholder_shell')).toHaveLength(3);
+    expect(result.chapters.map((item) => item.title)).toEqual(['第一章 我与荒石园', '第二章 我的学校', '第三章 童年的回忆']);
+  });
+
+  it('still rejects a placeholder page whose title is a numbered content chapter', () => {
+    const downloaded = files();
+    downloaded[1] = chapter(2, '第2章 海边来信', '本章正在手打中，请稍等片刻。');
+    const result = assessNovelDownload({ book, catalog: catalog(), files: downloaded });
+    expect(result.complete).toBe(false);
+    expect(result.issues.length).toBeGreaterThan(0);
+    expect(result.issues.map((item) => item.code)).not.toContain('source_placeholder_shell');
+  });
 });

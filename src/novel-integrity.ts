@@ -73,6 +73,7 @@ export type NovelIntegrityIssueCode =
   | 'source_empty_chapter'
   | 'short_chapter'
   | 'placeholder_chapter'
+  | 'source_placeholder_shell'
   | 'duplicate_chapter_body'
   | 'missing_page_marker'
   | 'truncated_chapter_tail'
@@ -91,8 +92,7 @@ export interface NovelIntegrityResult {
   /** Blocking issues. A non-empty list always means complete=false. */
   issues: NovelIntegrityIssue[];
   /** Non-blocking catalog-number problems accepted under the small-typo policy. */
-  warnings: NovelIntegrityIssue[];
-  /** Sorted, de-duplicated chapter bodies in catalog order (only when complete). */
+  warnings: NovelIntegrityIssue[];  /** Sorted, de-duplicated chapter bodies in catalog order (only when complete). */
   chapters: Array<{ order: number; title: string; text: string }>;
   totalChars: number;
 }
@@ -225,6 +225,22 @@ export function isAnnouncementTitle(title: string): boolean {
 
 function issue(code: NovelIntegrityIssueCode, message: string, chapter?: number): NovelIntegrityIssue {
   return { code, message, ...(chapter === undefined ? {} : { chapter }) };
+}
+
+/**
+ * Whether a page is a source-side volume/copyright shell rather than a chapter.
+ *
+ * Some sources keep 版权信息 and 第X卷/第X部 dividers in the catalog while their
+ * body is only "本书第X卷正在手打中，请稍等片刻" boilerplate. Those pages carry no
+ * story text, so rejecting the whole edition for them loses an otherwise
+ * complete book. A numbered content chapter ("第一章 …") never qualifies.
+ */
+export function isPlaceholderShell(title: string, body: string): boolean {
+  const trimmed = title.trim();
+  if (!/^(?:版权(?:信息|页)?|目录|第\s*[0-9零〇一二三四五六七八九十百千]+\s*[卷部篇]|卷\s*[0-9零〇一二三四五六七八九十百千]+)$/u.test(trimmed)) return false;
+  const compact = body.replace(/\s+/gu, '');
+  if (!compact) return true;
+  return compact.length <= 600 && PLACEHOLDER.test(compact);
 }
 
 function sameCatalog(left: CatalogChapter[], right: CatalogChapter[]): boolean {
@@ -529,6 +545,12 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
       continue;
     }
     const chapterBody = stripTrailingPunctuationArtifact(stripLeadingTitle(file.text, chapter.title));
+    // Check the raw page: the trailing-artifact stripper may remove the very
+    // "正在手打中…" line that identifies a source-side shell page.
+    if (isPlaceholderShell(chapter.title, file.text)) {
+      warnings.push(issue('source_placeholder_shell', `Skipped placeholder-only page "${chapter.title}" (source has no text for it yet)`, chapter.order));
+      continue;
+    }
     const chars = Array.from(chapterBody).length;
     if (chars === 0) {
       emptyChapters.push(issue('empty_chapter', `Chapter ${chapter.order} is empty`, chapter.order));
