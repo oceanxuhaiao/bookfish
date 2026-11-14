@@ -53,7 +53,7 @@ export class BookfishWorld implements World {
   private selection!: SelectionCoordinator;
   private lifetime = new AbortController();
   constructor(private readonly opts: BookfishWorldOptions) {
-    this.library = new Library({ dataDir: opts.dataDir, textStoreDir: opts.cfg.textStoreDir }); this.transfers = new BookTransfers(this.library); this.sources = new Sources(this.library, undefined, () => opts.cfg.allowNetwork);
+    this.library = new Library({ dataDir: opts.dataDir, textStoreDir: opts.cfg.textStoreDir, storyMemoryEnabled: opts.cfg.storyMemoryEnabled === true }); this.transfers = new BookTransfers(this.library); this.sources = new Sources(this.library, undefined, () => opts.cfg.allowNetwork);
     this.scheduler = new ReadingScheduler(this.library, opts.cfg, opts.timezone, undefined, undefined,
       { autoAdvance: () => this.selection?.autoAdvance() ?? false });
     this.sharing = new ReadingSharing(this.library, opts.cfg, opts.timezone);
@@ -182,7 +182,21 @@ export class BookfishWorld implements World {
           case 'episode': return handlers.bookfish_get_episode(args);
           case 'journal': return handlers.bookfish_list_journal(args);
           case 'recall': return handlers.bookfish_recall_segment(args);
-          default: throw new Error('bookfish_lookup action must be search, context, episode, journal or recall');
+          case 'story': {
+            const bookKey = requiredText(args.bookKey, 'bookKey', 150);
+            const atFrontier = args.atFrontier === undefined ? undefined : Number(args.atFrontier);
+            if (atFrontier !== undefined && (!Number.isSafeInteger(atFrontier) || atFrontier < 0)) throw new Error('atFrontier must be a non-negative integer');
+            switch (String(args.storyAction ?? 'overview')) {
+              case 'overview': return this.library.storyOverview(bookKey, atFrontier, args.limit === undefined ? 20 : Number(args.limit), args.cursor === undefined ? undefined : String(args.cursor));
+              case 'evidence': {
+                if (!Array.isArray(args.eventIds) || args.eventIds.length > 8) throw new Error('eventIds must contain at most 8 ids');
+                return this.library.storyEvidence(bookKey, args.eventIds.map(String), atFrontier);
+              }
+              case 'entity': return this.library.storyEntityCandidates(bookKey, requiredText(args.query, 'query', 160), atFrontier);
+              default: throw new Error('storyAction must be overview, evidence or entity');
+            }
+          }
+          default: throw new Error('bookfish_lookup action must be search, context, episode, journal, recall or story');
         }
       },
       bookfish_acquire: (args, signal) => {
@@ -212,7 +226,11 @@ export class BookfishWorld implements World {
           case 'fail': return handlers.bookfish_fail_review(args);
           case 'list': return handlers.bookfish_list_reviews(args);
           case 'get': return handlers.bookfish_get_review(args);
-          default: throw new Error('bookfish_review action must be begin, materials, finish, fail, list or get');
+          case 'story': {
+            if (!Array.isArray(args.storyChanges)) throw new Error('story action needs storyChanges[]');
+            return this.library.captureStory({ bookKey: args.bookKey, requestId: args.requestId, changes: args.storyChanges });
+          }
+          default: throw new Error('bookfish_review action must be begin, materials, finish, fail, list, get or story');
         }
       },
       bookfish_discussion: (args) => {
@@ -234,7 +252,7 @@ export class BookfishWorld implements World {
   }
   private help(topic: unknown): string {
     const name = requiredText(topic, 'topic', 40);
-    const allowed = ['reading', 'journal', 'retrieval', 'sharing', 'review', 'selection', 'discussion'];
+    const allowed = ['reading', 'journal', 'retrieval', 'sharing', 'review', 'selection', 'discussion', 'story'];
     if (!allowed.includes(name)) throw new Error(`Unknown protocol topic; use one of ${allowed.join(', ')}`);
     return readFileSync(join(PROTOCOL_DIR, `${name}.md`), 'utf8');
   }
@@ -275,7 +293,11 @@ export class BookfishWorld implements World {
           throw Error('Unsupported settings method');
         }
         if (!['status','shelf','trail'].includes(panel) || !Array.isArray(args)) throw new Error('Unsupported Bookfish panel');
-        if(this.host){if(method==='upload_begin'&&args.length===1)return this.transfers.begin(args[0]);if(method==='upload_chunk'&&args.length===3)return this.transfers.chunk(args[0],args[1],args[2]);if(method==='upload_finish'&&args.length===1)return this.transfers.start(args[0]);if(method==='transfer_status'&&args.length<=1)return this.transfers.status(args[0]);if(method==='transfer_cancel'&&args.length===1)return this.transfers.cancel(args[0]);if(method==='backup_begin'&&args.length===0)return this.transfers.download();if(method==='backup_read'&&args.length===2)return this.transfers.read(args[0],args[1]);}
+        // The WebUI keeps polling transfer_status while the extension panel is
+        // open. After the World is disabled the host is gone, so report "no
+        // import job" instead of throwing on every poll.
+        if (method === 'transfer_status' && args.length <= 1) return this.host ? this.transfers.status(args[0]) : null;
+        if(this.host){if(method==='upload_begin'&&args.length===1)return this.transfers.begin(args[0]);if(method==='upload_chunk'&&args.length===3)return this.transfers.chunk(args[0],args[1],args[2]);if(method==='upload_finish'&&args.length===1)return this.transfers.start(args[0]);if(method==='transfer_cancel'&&args.length===1)return this.transfers.cancel(args[0]);if(method==='backup_begin'&&args.length===0)return this.transfers.download();if(method==='backup_read'&&args.length===2)return this.transfers.read(args[0],args[1]);}
         if (method === 'get' && args.length === 0) return { discussions: this.discussions.list(), config: { ...this.opts.cfg }, status: this.status(), books: this.host ? this.library.list() : [], journal: this.host && this.library.status().current ? this.library.journal() : null, reviews: this.host && this.library.status().current ? this.library.reviews() : null, novel: this.novelFetches.status(), serial: this.serialSync.status(), selection: this.host ? this.selection.view() : this.selection.detachedView() };
         if (!this.host) throw new Error('Bookfish is not mounted');
         if (method === 'book' && args.length === 1) { const key = requiredText(args[0], 'bookKey', 150); const book = this.library.list().find(b=>b.key===key); if (!book) throw new Error('Book not found'); return { book, journal: this.library.journal(key), reviews: this.library.reviews(key) }; }
