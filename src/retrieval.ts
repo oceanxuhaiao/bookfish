@@ -99,6 +99,10 @@ export function searchReading(entry: BookEntry, allEpisodes: readonly ReadingEpi
       ...(row.task ? { episodeId: row.task.receipt!.episodeId ?? null, reasonRecorded: false, note: 'Confirmation understanding is not a recorded feeling or explanation.' } : {}),
     })),
     nextCursor: offset + page.length < totalHits ? Buffer.from(JSON.stringify({ snapshot, query: fingerprint, offset: offset + page.length })).toString('base64url') : null,
+    ...(page.length ? { nextStep: 'Pass these ids to bookfish_lookup(action="context", episodeIds=[...] or taskIds=[...]) to read the full record, its evidence and its revision links. Each item already states kind and recordedAt: kind "reading" is what you recorded while reading, "reflection" is a later view, "revision" corrects an earlier one.' } : {}),
+    ...(totalHits === 0
+      ? { boundaryHint: 'This keyword did not match any saved record. That does not mean nothing was recorded about it.' }
+      : {}),
     characterClaims: claims, characterClaimsTruncated: claimCount > 20,
     ambiguousCharacterClaims: canonicalNames.size > 1,
     method: 'literal-keywords-with-CJK-bigram-fallback', semanticMatchVerified: false, progressAdvanced: false,
@@ -117,7 +121,7 @@ export function readingContext(entry: BookEntry, allEpisodes: readonly ReadingEp
   const wanted = ids(args.episodeIds, 'episodeIds'); const taskIds = ids(args.taskIds, 'taskIds');
   if (args.segmentIds !== undefined && (!Array.isArray(args.segmentIds) || args.segmentIds.length > 4)) throw new Error('segmentIds needs at most four indexes');
   const segmentIds = [...new Set((args.segmentIds as unknown[] | undefined ?? []).map(v => integer(v, -1, 0, Number.MAX_SAFE_INTEGER, 'segmentId')))];
-  if (!wanted.length && !taskIds.length && !segmentIds.length) throw new Error('Locate records with search first, then request exact ids or confirmed segments');
+  if (!wanted.length && !taskIds.length && !segmentIds.length) throw new Error('context needs ids: pass episodeIds, taskIds or segmentIds (up to four each). Get them from bookfish_lookup(action="search", query=...) — every returned item has an id — or from a discussion event, and then call context with those ids. Example: {"action":"context","episodeIds":["<id from search>"]}');
   const episodes = historySelect(allEpisodes,{bookKey:entry.book.key}); const byId={get:(id:string)=>historyFind(episodes,{id}),has:(id:string)=>!!historyFind(episodes,{id})};
   for (const id of wanted) if (!byId.has(id)) throw new Error('Episode is missing or belongs to a different revision');
   for (const index of segmentIds) if (index >= entry.frontier) throw new Error('Requested source range is unread; context retrieval never reads ahead');
@@ -148,11 +152,15 @@ export function readingContext(entry: BookEntry, allEpisodes: readonly ReadingEp
     return true;
   }
   for (const e of included) {
+    const laterVersions = historySelect(episodes,{revises:e.id});
     append(result.accounts, { id: e.id, kind: e.kind, recordedAt: e.recordedAt, reasonRecorded: e.content.reason !== null,
       reasonMeaning: e.kind === 'reading' ? 'stated-in-reading-record' : 'stated-in-later-reflection',
       ...e.content, evidence: e.content.evidence.map(q => evidenceView(entry, q)), revises: e.revises ?? null,
-      revisions: historySelect(episodes,{revises:e.id}).slice(0, 8).map(other => other.id),
-      revisionLinksTruncated: historySelect(episodes,{revises:e.id}).length > 8,
+      revisions: laterVersions.slice(0, 8).map(other => other.id),
+      revisionLinksTruncated: laterVersions.length > 8,
+      ...(laterVersions.length
+        ? { superseded: true, supersededNote: `This record was later revised by ${laterVersions.slice(0, 3).map(other => other.id).join(', ')}. When answering, say that the view changed and give both: what was recorded here (${e.recordedAt}) and what the later record says.` }
+        : {}),
     }, 'episode', e.id);
   }
   for (const task of receipts) append(result.receipts, { ...task.receipt, reasonRecorded: false, statedReason: null,

@@ -1,4 +1,8 @@
+<!-- protocol topic=reading v=2 since=0.62.0 tools=bookfish_read_next,bookfish_finish_reading,bookfish_defer_reading,bookfish_get_status,bookfish_acquire,bookfish_set_paused -->
 # Reading protocol
+
+适用：取正文、按批阅读、确认进度、自动与手动阅读机会、作息与休息、阅读失败恢复。
+完成判定：正文已返回并被 `bookfish_finish_reading` 成功确认，且已读前沿据此推进。
 
 Bookfish provides a local TXT/Markdown library and a verified adapter for public novel URLs on www.02345.cc (a Biquge-named site). Other domains, login sessions, paywalls, browser verification and script execution are not supported. Only use an explicitly supplied URL with `bookfish_acquire(action="resolve")`. It imports a complete catalog snapshot and probes all pages of the first chapter; inspect the returned source status before claiming the book is readable. Select the exact book revision separately. Cached does not mean read.
 

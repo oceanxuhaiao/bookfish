@@ -21,7 +21,7 @@ export const BOOKFISH: WorldDefinition<BookfishConfigSection> = {
       bookfish_claim_share: { zh: '校验机会后预留一次分享尝试，过期或拒绝不得输出。', en: 'Reserves one output attempt after checking the opportunity.' },
       bookfish_review: { zh: '开始、分页回查、保存或结束全书读后感任务，并查看历史版本。', en: 'Starts, pages, saves or ends a full-book review job and lists versions.' },
       bookfish_discussion: { zh: '逐句记录已经通过桌宠说出的讨论短句，或完成/等待。', en: 'Records each line after it was spoken, finalizes the transcript, or waits between bubbles.' },
-      bookfish_help: { zh: '按主题读取详细协议；核心规则始终优先。', en: 'Reads the detailed protocol for one topic; the core rules always win.' },
+      bookfish_help: { zh: '按主题读取详细协议（阅读、手账、检索、分享、书评、选书、讨论、故事记忆）；核心规则始终优先。', en: 'Reads the on-demand protocol for one topic (reading, journal, retrieval, sharing, review, selection, discussion, story); the core rules always win.' },
     }),
     events: [
       { type: 'bookfish.discussion', description: { zh: '用户从已读感想发起讨论，要求桌宠用多条短句回答并把说出的内容同步到扩展页；不授权读后文。', en: 'A user discussion linked to a confirmed episode, answered on the desktop in short bubbles and mirrored in the panel; it does not authorize reading ahead.' } },

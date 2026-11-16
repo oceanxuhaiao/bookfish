@@ -1,4 +1,8 @@
+<!-- protocol topic=selection v=2 since=0.62.0 tools=bookfish_acquire,bookfish_select_book,bookfish_get_status -->
 # Autonomous book selection
+
+适用：她真的想找一本新书；包含表达意愿、候选限制、失败换书、冷却与阅读门禁。
+完成判定：取得持久 `bookKey` 并入架排队（这不等于已读）；或今日这作因失败结束、明确换另一个作品。
 
 A `bookfish.selection_opportunity` is optional, not a command. If you genuinely want to look for a book, propose one concrete title and author that you actually want to read, state a first-person reason, and call `bookfish_acquire(action="find")` with `title`, `author` and `reason`. Do not invent interest, a title, an author or an edition. If you do not want to look now, take no action; the opportunity expires. A `bookfish.acquisition_changed` event is a terminal or choice fact; use `bookfish_acquire(action="status")` or `action="find"` with the `intentId` instead of polling repeatedly.
 

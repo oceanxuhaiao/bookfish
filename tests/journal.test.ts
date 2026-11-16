@@ -43,7 +43,7 @@ describe('exact reading evidence, atomic progress and authored reports', () => {
   });
   it('requires an unambiguous quotation or explicit matching offset', () => {
     const lib = open(); prepare(lib, '🐟海风。海风。'); const t = task(lib);
-    expect(() => finish(lib, { ...episode(), evidence: [{ segmentId: 0, quote: '海风。' }] }, t)).toThrow(/ambiguous/);
+    expect(() => finish(lib, { ...episode(), evidence: [{ segmentId: 0, quote: '海风。' }] }, t)).toThrow(/occurs \d+ times/);
     const result = finish(lib, { ...episode(), evidence: [{ segmentId: 0, quote: '海风。', start: 4 }] }, t);
     expect(lib.episode(result.receipt.episodeId!).evidence[0]).toMatchObject({ start: 4, end: 7 });
   });

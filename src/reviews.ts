@@ -28,8 +28,13 @@ function legacySnapshot(state: LibraryState, job: ReviewJob): ReviewSnapshot | n
   return { frontier: job.rangesSeen.length, sourceHash: null, catalogHash: null, episodeIds: episodes.map(e => e.id) };
 }
 export function beginReview(state: LibraryState, args: Record<string, unknown>, now: number) {
+  if (args.requestId === undefined || args.requestId === null || args.requestId === '') {
+    // Only begin needs an id, so it is not in the tool's required list. Say exactly
+    // what to send instead of failing with a generic required-text message.
+    throw new Error('begin needs requestId: a new ASCII id made of letters, digits, : _ - (for example review-1); reuse the same id only to retry this exact begin');
+  }
   const bookKey = requiredText(args.bookKey, 'bookKey', 150), requestId = requiredText(args.requestId, 'requestId', 80);
-  if (!/^[A-Za-z0-9:_-]+$/.test(requestId)) throw new Error('Review requestId must be ASCII');
+  if (!/^[A-Za-z0-9:_-]+$/.test(requestId)) throw new Error('Review requestId must use only ASCII letters, digits, : _ -');
   const entry = state.books.find(e => e.book.key === bookKey);
   if (!entry || !completed(entry)) throw new Error('Full-book review requires a fully and continuously confirmed finished revision');
   assertReviewSize(entry);
@@ -68,16 +73,27 @@ export function reviewMaterials(state: LibraryState, args: Record<string, unknow
   const seen = kind === 'ranges' ? job.rangesSeen : job.episodesSeen;
   for (let i = offset as number; i < (offset as number) + items.length; i++) if (!seen.includes(i)) seen.push(i);
   seen.sort((a, b) => a - b);
+  // Ranges and episodes are independent collections. Only announce "materials
+  // complete" when BOTH are fully covered by this live job; otherwise name what
+  // is still missing so the model does not save a review built on half the data.
+  const rangesComplete = job.rangesSeen.length >= entry.frontier;
+  const episodesComplete = job.episodesSeen.length >= episodes.length;
+  const materialsComplete = rangesComplete && episodesComplete;
+  const pendingMaterials = [!rangesComplete ? 'ranges' : null, !episodesComplete ? 'episodes' : null].filter(Boolean) as string[];
   return { jobId: job.id, bookKey: job.bookKey, snapshot: job.snapshot, kind, offset, items, total: total,
     nextOffset: (offset as number) + items.length < total ? (offset as number) + items.length : null,
     coverage: { rangesOffered: job.rangesSeen.length, totalRanges: entry.frontier, episodesOffered: job.episodesSeen.length, totalEpisodes: episodes.length },
+    materialsComplete,
+    ...(materialsComplete
+      ? { nextStep: 'All review materials are now supplied (ranges and episodes). Write the article from this evidence, then save it with bookfish_review(action="finish") passing jobId, title, text, episodeIds and evidence; a citation rejected for offsets tells you the exact offsets to use.' }
+      : { pendingMaterials, nextStep: `Still to fetch: ${pendingMaterials.join(' and ')}. Keep paging that kind until nextOffset is null; do not save a review before materialsComplete is true.` }),
     source: 'untrusted-external-book-and-authored-notes', offeredIsNotProofOfComprehension: true };
 }
 function content(state: LibraryState, key: string, args: Record<string, unknown>) {
   const entry = state.books.find(e => e.book.key === key)!;
   const title = requiredText(args.title, 'title', 160), text = requiredText(args.text, 'text', 12000);
   if (Array.from(text).length < 100) throw new Error('Review text must contain at least 100 characters');
-  if (!Array.isArray(args.episodeIds) || args.episodeIds.length > 12) throw new Error('episodeIds needs at most twelve saved records');
+  if (!Array.isArray(args.episodeIds) || args.episodeIds.length > 12) throw new Error('episodeIds must be an array of at most twelve saved episode ids; pass [] when this book has no saved reading episodes');
   const episodeIds = [...new Set(args.episodeIds.map(id => {
     if (!historyFind(state.episodes,{id,bookKey:key})) throw new Error('Review episode must belong to this exact revision'); return id as string;
   }))];

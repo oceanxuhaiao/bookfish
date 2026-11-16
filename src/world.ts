@@ -24,6 +24,7 @@ import { NovelRuntimeManager } from './novel-runtime/manager.ts';
 import { BUILTIN_RUNTIME_MANIFEST } from './novel-runtime/builtin-manifest.ts';
 import { SelectionCoordinator } from './selection.ts';
 import { BOOKFISH_TOOL_DECLS } from './tool-schemas.ts';
+import { HELP_TOPICS } from './protocols.ts';
 import { assertWritableTextStoreDir } from './text-store.ts';
 
 const ENV_PROMPT_FILE = join(dirname(fileURLToPath(import.meta.url)), 'ENV_PROMPT.md');
@@ -233,9 +234,15 @@ export class BookfishWorld implements World {
           default: throw new Error('bookfish_review action must be begin, materials, finish, fail, list, get or story');
         }
       },
-      bookfish_discussion: (args) => {
+      bookfish_discussion: async (args) => {
         switch (String(args.action)) {
-          case 'append': return this.discussions.append(args);
+          case 'append': {
+            const saved = this.discussions.append(args);
+            // 每条气泡的间隔由这里承担，模型不必再多花一轮调 pace。
+            const waitMs = discussionPauseMs(Array.from(String(args.segment ?? '')).length);
+            await new Promise((done) => setTimeout(done, waitMs));
+            return { ...saved, waitedMs: waitMs, paced: true, nextStep: 'The gap after this bubble is already applied. Call pet_say for the next line now - do not call pace - and finish with bookfish_discussion(action="reply").' };
+          }
           case 'reply': return handlers.bookfish_reply_discussion(args);
           case 'pace': return handlers.bookfish_pace_discussion(args);
           default: throw new Error('bookfish_discussion action must be append, reply or pace');
@@ -247,13 +254,39 @@ export class BookfishWorld implements World {
       if (call.signal?.aborted) throw new Error('Bookfish request was cancelled');
       const fn = (handlers as Record<string, (a: Record<string, unknown>, s?: AbortSignal) => unknown>)[decl.name] ?? grouped[decl.name];
       if (!fn) throw new Error(`Unknown Bookfish tool: ${decl.name}`);
-      return JSON.stringify(await fn(args, call.signal));
+      const value = await fn(args, call.signal) as unknown;
+      return JSON.stringify(this.attachProtocolHint(decl.name, args, value));
     } }));
   }
-  private help(topic: unknown): string {
+  /** 每个主题在一次挂载里只提示一次：不重复注入，重启后自然会再提示。 */
+  private hintShown = new Set<string>();
+  private onceHint(topic: string, why: string): string | undefined {
+    if (this.hintShown.has(topic)) return undefined;
+    this.hintShown.add(topic);
+    return `bookfish_help("${topic}") — ${why}`;
+  }
+  /**
+   * 在"刚刚用到了某类规则"的回执上挂一次指针，而不是每轮都写进前缀。
+   * 只对对象结果生效；数组与标量原样返回，避免破坏既有回执形状。
+   */
+  /**
+   * Only story memory keeps a receipt pointer: its evidence boundary cannot be
+   * read off the data itself. journal/retrieval/sharing now carry the needed
+   * fields and actionable errors, so their pointers were measured as pure cost
+   * (no behaviour change) and removed.
+   */
+  private attachProtocolHint(tool: string, args: Record<string, unknown>, value: unknown): unknown {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+    if (tool === 'bookfish_lookup' && String(args.action ?? '') === 'story') {
+      const hint = this.onceHint('story', '故事记忆的边界与证据范围，见这份协议');
+      if (hint) return { ...(value as Record<string, unknown>), protocolHint: hint };
+    }
+    return value;
+  }  private help(topic: unknown): string {
     const name = requiredText(topic, 'topic', 40);
-    const allowed = ['reading', 'journal', 'retrieval', 'sharing', 'review', 'selection', 'discussion', 'story'];
-    if (!allowed.includes(name)) throw new Error(`Unknown protocol topic; use one of ${allowed.join(', ')}`);
+    if (!(HELP_TOPICS as readonly string[]).includes(name)) {
+      throw new Error(`Unknown protocol topic "${name}"; use one of ${HELP_TOPICS.join(', ')}`);
+    }
     return readFileSync(join(PROTOCOL_DIR, `${name}.md`), 'utf8');
   }
   private readingLamp(en: boolean): WorldLamp {
@@ -375,7 +408,7 @@ export class BookfishWorld implements World {
           const { episode, book } = this.library.episode(o.episodeId); const question = requiredText(o.text, 'text', 2000);
           // Like the official console: this invoke is an explicit local WebUI operator message, not imported novel text.
           const discussion=this.discussions.create(book.key,episode.id,question);
-          let event;try { event = await this.host.pushEvent({ source: this.id, ts: nowIso(this.opts.timezone), type: 'bookfish.discussion', origin: 'internal', senderKey: 'bookfish-user', text: JSON.stringify({ discussionId: discussion.id, userQuestion: question, bookKey: book.key, episodeId: episode.id, guidance: `User asks to discuss this saved episode. Retrieve its confirmed source/context. Answer on the desktop pet as a friend, not only in the reading panel. Split the answer into 1-${DISCUSSION_SEGMENT_COUNT} chat bubbles by meaning and breath, not by character count. Keep one complete sentence together even when it has several comma-linked clauses; never split a sentence merely to make it shorter. Start a new bubble only at a real sentence boundary or a clear change of thought. Each bubble may be up to ${DISCUSSION_SEGMENT_LIMIT} code points and the whole reply up to ${DISCUSSION_TOTAL_LIMIT}; if a sentence is too long, shorten it instead of cutting it. Never cut a name or clause with an ellipsis; if unsure of a name, describe the person instead of writing "库...". Call pet_say once per bubble in order and wait for each call to succeed. Immediately after each successful pet_say, call bookfish_discussion(action="append") with discussionId and segment set to the exact spoken line, so the panel can show it before the next bubble. After each bubble except the last, call bookfish_discussion(action="pace") with that exact previous segment and wait for it to return before the next pet_say; this only adds a gap between bubbles, never changes the typing speed. Then call bookfish_discussion(action="reply") with this discussionId, delivery "spoken", and all exact segments in the same order; the panel only mirrors what you actually said. If pet_say is missing or any call fails, do not invent spoken lines: call bookfish_discussion(action="reply") with delivery "unavailable" and a short reason. Unread plot can only be an explicitly labelled guess; do not read ahead or invent past feelings.` }) }, { trigger: 'flush' }); } catch(error) {this.discussions.cancel(discussion.id);throw error;}
+          let event;try { event = await this.host.pushEvent({ source: this.id, ts: nowIso(this.opts.timezone), type: 'bookfish.discussion', origin: 'internal', senderKey: 'bookfish-user', text: JSON.stringify({ discussionId: discussion.id, userQuestion: question, bookKey: book.key, episodeId: episode.id, episode: { trigger: episode.content.trigger, interpretation: episode.content.interpretation, mood: episode.content.mood, evidence: episode.content.evidence.map(e => ({ segmentId: e.segmentId, quote: e.quote })).slice(0, 3) }, citedSource: [...new Set(episode.content.evidence.map(e => e.segmentId))].slice(0, 2).map(id => { try { const seg = this.library.reread(book.key, id).segment; return { segmentId: id, start: seg.start, end: seg.end, text: Array.from(seg.text).slice(0, 400).join("") }; } catch { return null; } }).filter(Boolean), guidance: `User asks to discuss this saved episode. This event already carries the saved episode and its cited source excerpt (citedSource); do not call bookfish_lookup or bookfish_get_status first unless the user asks about something outside it. Answer on the desktop pet as a friend, not only in the reading panel. Split the answer into 1-${DISCUSSION_SEGMENT_COUNT} chat bubbles by meaning and breath, not by character count. Keep one complete sentence together even when it has several comma-linked clauses; never split a sentence merely to make it shorter. Start a new bubble only at a real sentence boundary or a clear change of thought. Each bubble may be up to ${DISCUSSION_SEGMENT_LIMIT} code points and the whole reply up to ${DISCUSSION_TOTAL_LIMIT}; if a sentence is too long, shorten it instead of cutting it. Never cut a name or clause with an ellipsis; if unsure of a name, describe the person instead of writing "库...". Call pet_say once per bubble in order and wait for each call to succeed. Immediately after each successful pet_say, call bookfish_discussion(action="append") with discussionId and segment set to the exact spoken line, so the panel can show it before the next bubble. After each bubble except the last, call bookfish_discussion(action="pace") with that exact previous segment and wait for it to return before the next pet_say; this only adds a gap between bubbles, never changes the typing speed. Then call bookfish_discussion(action="reply") with this discussionId, delivery "spoken", and all exact segments in the same order; the panel only mirrors what you actually said. If pet_say is missing or any call fails, do not invent spoken lines: call bookfish_discussion(action="reply") with delivery "unavailable" and a short reason. Unread plot can only be an explicitly labelled guess; do not read ahead or invent past feelings.` }) }, { trigger: 'flush' }); } catch(error) {this.discussions.cancel(discussion.id);throw error;}
           return { accepted: true, cursor: event.cursor, discussionId: discussion.id };
         }
         if(method==='read_now'&&args.length===1)return this.scheduler.requestNow(args[0]);
@@ -420,7 +453,7 @@ export class BookfishWorld implements World {
       }, { key: 'bookfish-sharing', label: en ? 'Share history (budget retained)' : '分享文本与历史（保留尝试预算）', kind: 'disk', location: this.library.dir, danger: true,
         stat: () => `${this.sharing.status().total} shares`, note: en ? 'Clears share text; hashed deduplication and budget remain. Not included in library backups.' : '清除分享文本；保留去重摘要及尝试预算。书架备份不包含分享历史。', clear: () => this.sharing.clearHistory() }],
       promptDocs: [{ key: 'worlds.bookfish.envPrompt', title: en ? 'Bookfish environment' : '阅读环境提示词',
-        description: en ? 'Reading protocol and external text boundaries.' : '阅读协议与外部正文边界。', path: ENV_PROMPT_FILE, role: 'envPrompt' }],
+        description: en ? 'Identity, truth and privacy principles, and where to fetch the rest.' : '身份、真实性与隐私原则，以及其余规则的获取入口。', path: ENV_PROMPT_FILE, role: 'envPrompt' }],
     };
   }
   async start(host: WorldHost): Promise<void> {

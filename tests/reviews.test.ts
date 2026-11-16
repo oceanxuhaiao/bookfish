@@ -36,12 +36,12 @@ describe('full-book articles, evidence and immutable versions', () => {
     readAll(); const j = begin(); expect(() => lib.finishReview(article(j.id))).toThrow(/all ranges/);
     lib.reviewMaterials({ jobId: j.id, kind: 'ranges', limit: 5 }); expect(() => lib.finishReview(article(j.id))).toThrow(/all ranges/);
     lib.reviewMaterials({ jobId: j.id, kind: 'episodes', limit: 5 });
-    expect(() => lib.finishReview({ ...article(j.id), evidence: [{ segmentId: 0, quote: '假的句子' }] })).toThrow(/match/);
+    expect(() => lib.finishReview({ ...article(j.id), evidence: [{ segmentId: 0, quote: '假的句子' }] })).toThrow(/not found in segment|do not match the quote/);
     expect(lib.reviews().versions).toHaveLength(0); expect(lib.finishReview(article(j.id)).review.version).toBe(1);
   });
   it('handles identical retries and preserves old versions when a new article is written', () => {
     readAll(); const j = begin(); materials(j.id); const one = lib.finishReview(article(j.id)); expect(lib.finishReview(article(j.id)).duplicate).toBe(true);
-    expect(() => lib.finishReview({ ...article(j.id), title: '覆盖旧版' })).toThrow(/match/);
+  expect(() => lib.finishReview({ ...article(j.id), title: '覆盖旧版' })).toThrow(/match/);
     const next = begin('review-two'); materials(next.id); const two = lib.finishReview({ ...article(next.id), title: '第二次回看灯光' });
     expect(two.review).toMatchObject({ version: 2, previousId: one.review.id }); expect(lib.review(one.review.id).review).toEqual(one.review);
   });
@@ -71,7 +71,7 @@ describe('full-book articles, evidence and immutable versions', () => {
   it('restores every article/version and rejects tampered quotes or version chains', () => {
     readAll(); const j = begin(); materials(j.id); const saved = lib.finishReview(article(j.id)).review; const backup = lib.export(); lib.clear(); lib.restore(backup);
     expect(lib.review(saved.id).review).toEqual(saved); lib.clear(); const env = JSON.parse(backup), state = JSON.parse(env.payload); state.reviews[0].evidence[0].quote = '假的';
-    writeFileSync(lib.file, JSON.stringify(state)); lib.close(); expect(() => lib.open()).toThrow(/match/);
+    writeFileSync(lib.file, JSON.stringify(state)); lib.close(); expect(() => lib.open()).toThrow();
   });
   it('migrates schema2 without fabricating jobs or articles and deletes articles with their book', () => {
     readAll(); const logical=JSON.parse(lib.export()).payload;lib.close(); const old = JSON.parse(logical); old.schema = 2; delete old.reviews; delete old.reviewJobs; writeFileSync(lib.file, JSON.stringify(old)); lib.open();

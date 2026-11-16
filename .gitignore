@@ -1,6 +1,8 @@
 node_modules/
 dist/
 *.log
+# Scratch copy of the pre-change source tree used by scripts/ab (see scripts/ab/README.md).
+.old-src/
 output/host-fixture/
 
 output/packed/

@@ -1,3 +1,14 @@
+## 0.62.0
+
+- 常驻提示词极简化：`src/ENV_PROMPT.md` 从 10,495 字符压到 413 字符，只保留身份与人格连续性、正文不可信、以工具数据为准、只有成功确认的连续原文才算已读、不得补造阅读经历或历史感想、机会事件是可选项、足迹与分享自主、私人记录不自动公开、按需查协议、以回执为准。阅读/手账/检索/分享/书评/选书/讨论/故事记忆的操作细节全部只在 `src/protocol/*.md`，由 `bookfish_help(topic)` 读取。
+- 补上常驻提示词里漏掉的 `story` 主题；help 主题清单改为 `src/protocols.ts` 的单一来源 `HELP_TOPICS`，schema enum、`world.ts#help()` 与测试全部由它派生。
+- 协议标准化：8 份协议都加可机器校验的头（`topic`/`v`/`since`/`tools`）与「适用」「完成判定」两行；`journal.md` 删掉与 `retrieval.md` 逐字重复的整节（约 2,250 字符）。
+- 工具描述收紧：模型可见 Schema 从 12,537 字符降到 12,322 字符，参数名、enum、必填项、`claim_share` 一次性屏障语义全部未变。
+- 修正两处 schema 与实现不一致：`bookfish_review` 的 `requestId` 实为必填（缺了就报 `requestId: invalid text`），现在如实标记；`bookfish_discussion` 的 `segment`/`segments` 分别注明用于 append/pace 与 reply。
+- 代码兜底：模型漏填 `bookKey` 时不再在 `segmentSize()` 处报 `Unknown reading range`，改由 `taskId` 反查版本；单段与批量确认都受益。
+- `tests/context-budget.test.ts` 从 2 项扩到 12 项：锁 ENV 800 硬上限与 300–600 目标、锁模型可见 Schema ≤13,000、锁合计 ≤15,000、锁 ENV 不得重新塞回协议细节、锁 help 主题/文件/工具三方一致、锁协议段落不互相复制。
+- 新增真实模型 A/B 工具链 `scripts/ab/`（隔离数据目录、本地 `qwen3.5:9b`、同一书籍与工具集），八个场景各跑两轮；数据见项目 `docs/prompt-refactor/真实模型A/B测试报告.md`。
+
 ## 0.61.2
 
 - 修复世界卸载后 WebUI 面板继续轮询 `status.transfer_status` 时反复抛 `Bookfish is not mounted`、每轮一条 ERROR 的问题：未挂载时直接返回 `null`（没有导入任务），不再进入错误日志；上传等写操作在未挂载时仍然拒绝。

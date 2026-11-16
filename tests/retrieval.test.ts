@@ -89,7 +89,7 @@ describe('bounded evidence bundles distinguish then, later and missing', () => {
     expect(() => lib.context({ segmentIds: [pending.segmentId] })).toThrow(/unread/);
     expect(() => lib.context({ taskIds: [pending.taskId] })).toThrow(/unconfirmed/);
     expect(() => lib.context({ episodeIds: ['missing'] })).toThrow(/missing/);
-    expect(() => lib.context({})).toThrow(/Locate/);
+    expect(() => lib.context({})).toThrow(/context needs ids/);
   });
   it('preserves whole reasons and quotations or explicitly omits the record under a small budget', () => {
     const bundle = lib.context({ episodeIds: [original, revised], maxChars: 2000 });

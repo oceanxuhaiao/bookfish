@@ -12,6 +12,12 @@ const MAX_META = 320 * 1024 * 1024;
 const hash = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
 const validHash = (v:unknown):v is string=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
 /** Immutable book blobs are committed before the small progress snapshot. */
+export interface ArchiveHooks {
+  onStage?: (stage: 'preflight' | 'before-books' | 'after-books' | 'before-history' | 'after-history' | 'before-story' | 'after-story' | 'before-commit' | 'after-commit') => void;
+  validateHistory?: (file: string, ref: unknown) => void;
+  validateStory?: (file: string) => void;
+}
+
 export class BookStorage {
   readonly metaRoot:string;
   private bodyDir:string;
@@ -118,30 +124,58 @@ export class BookStorage {
     for(const id of this.rollbackSet())keep.add(id);
     for(const name of readdirSync(this.dir)){if(/^[a-f0-9]{64}\.json\.gz$/.test(name)&&!keep.has(name.slice(0,64)))unlinkSync(join(this.dir,name));}
   }
-  writeArchive(file:string,state:LibraryState,history?:{file:string;ref:unknown}){
+  writeArchive(file:string,state:LibraryState,history?:{file:string;ref:unknown},story?:{file:string}){
     const prepared=this.prepare(state,true) as {books:Array<{book:{$bookBlob:string}}>};const serial=state.books.some(e=>e.book.remote?.serial);const manifest=history?{...prepared,schema:serial?7:6,tasks:[],episodes:[],$history:history.ref}:prepared;
     const ids=[...new Set(manifest.books.map(e=>e.book.$bookBlob))];
     const fd=openSync(file,'wx');let size=0;
     const write=(v:Uint8Array|string)=>{const b=typeof v==='string'?Buffer.from(v):v;let at=0;while(at<b.length)at+=writeSync(fd,b,at,b.length-at);size+=b.length;};
-    try{write(history?(serial?'BOOKFISH4\n':'BOOKFISH3\n'):'BOOKFISH2\n');const payload=JSON.stringify(manifest);write(JSON.stringify({checksum:hash(payload),payload})+'\n');for(const id of ids){const source=openSync(this.source(id),'r');try{write(JSON.stringify({id,size:statSync(this.source(id)).size})+'\n');const chunk=Buffer.alloc(256*1024);let n;while((n=readSync(source,chunk,0,chunk.length,null)))write(chunk.subarray(0,n));}finally{closeSync(source);}}if(history){write(JSON.stringify({id:'history',size:statSync(history.file).size,checksum:fileHash(history.file)})+'\n');const source=openSync(history.file,'r');try{const chunk=Buffer.alloc(256*1024);let n;while((n=readSync(source,chunk,0,chunk.length,null)))write(chunk.subarray(0,n));}finally{closeSync(source);}}fsyncSync(fd);}finally{closeSync(fd);}return {size};
+    try{write(story?'BOOKFISH5\n':history?(serial?'BOOKFISH4\n':'BOOKFISH3\n'):'BOOKFISH2\n');const payload=JSON.stringify(manifest);write(JSON.stringify({checksum:hash(payload),payload})+'\n');for(const id of ids){const source=openSync(this.source(id),'r');try{write(JSON.stringify({id,size:statSync(this.source(id)).size})+'\n');const chunk=Buffer.alloc(256*1024);let n;while((n=readSync(source,chunk,0,chunk.length,null)))write(chunk.subarray(0,n));}finally{closeSync(source);}}if(history){write(JSON.stringify({id:'history',size:statSync(history.file).size,checksum:fileHash(history.file)})+'\n');const source=openSync(history.file,'r');try{const chunk=Buffer.alloc(256*1024);let n;while((n=readSync(source,chunk,0,chunk.length,null)))write(chunk.subarray(0,n));}finally{closeSync(source);}}if(story){write(JSON.stringify({id:'story',size:statSync(story.file).size,checksum:fileHash(story.file)})+'\n');const source=openSync(story.file,'r');try{const chunk=Buffer.alloc(256*1024);let n;while((n=readSync(source,chunk,0,chunk.length,null)))write(chunk.subarray(0,n));}finally{closeSync(source);}}fsyncSync(fd);}finally{closeSync(fd);}return {size};
   }
-  readArchive(file:string,historySink?:(file:string,ref:unknown,state:LibraryState)=>LibraryState):unknown{
+  readArchive(file:string,historySink?:(file:string,ref:unknown,state:LibraryState)=>LibraryState,storySink?:(file:string|null)=>void,hooks?:ArchiveHooks):unknown{
     const fd=openSync(file,'r');let offset=0;const total=statSync(file).size;
     const line=()=>{const parts:Buffer[]=[];let count=0;while(offset<total){const b=Buffer.alloc(Math.min(65536,total-offset));const n=readSync(fd,b,0,b.length,offset);if(!n)break;const end=b.subarray(0,n).indexOf(10);const length=end<0?n:end;parts.push(b.subarray(0,length));offset+=length+(end<0?0:1);count+=length;if(count>MAX_META)throw Error('Backup manifest oversized');if(end>=0)return Buffer.concat(parts).toString('utf8');}throw Error('Truncated backup header');};
+    const copy=(size:number,dest:string)=>{const out=openSync(dest,'wx');try{let remaining=size;const chunk=Buffer.alloc(256*1024);while(remaining){const n=readSync(fd,chunk,0,Math.min(chunk.length,remaining),offset);if(!n)throw Error('Truncated archive');let at=0;while(at<n)at+=writeSync(out,chunk,at,n-at);offset+=n;remaining-=n;}fsyncSync(out);}finally{closeSync(out);}};
+    const temps:string[]=[];const installed:string[]=[];let committed=false;
     try{
-      const magic=line();if(!['BOOKFISH2','BOOKFISH3','BOOKFISH4'].includes(magic))throw Error('Unsupported backup archive');
+      const magic=line();if(!['BOOKFISH2','BOOKFISH3','BOOKFISH4','BOOKFISH5'].includes(magic))throw Error('Unsupported backup archive');
       const header=JSON.parse(line());let manifest;if(typeof header.payload==='string'){if(hash(header.payload)!==header.checksum)throw Error('Backup metadata checksum mismatch');manifest=JSON.parse(header.payload);}else manifest=header;if(!Array.isArray(manifest.books)||manifest.books.length>100)throw Error('Invalid archive books');
+      hooks?.onStage?.('preflight');
       const ids=[...new Set<string>(manifest.books.map((e:{book:{$bookBlob:string}})=>e.book?.$bookBlob))];mkdirSync(this.dir,{recursive:true});
-      for(const id of ids){if(!validHash(id))throw Error('Invalid archive book reference');const header=JSON.parse(line());if(header.id!==id||!Number.isSafeInteger(header.size)||header.size<1||header.size>MAX_JSON||offset+header.size>total)throw Error('Invalid archive blob');
-        const tmp=this.path(id)+'.'+randomUUID()+'.tmp',out=openSync(tmp,'wx');try{let remaining=header.size;const chunk=Buffer.alloc(256*1024);while(remaining){const n=readSync(fd,chunk,0,Math.min(chunk.length,remaining),offset);if(!n)throw Error('Truncated archive');let at=0;while(at<n)at+=writeSync(out,chunk,at,n-at);offset+=n;remaining-=n;}fsyncSync(out);}catch(error){closeSync(out);if(existsSync(tmp))unlinkSync(tmp);throw error;}finally{try{closeSync(out);}catch{}}
-        try{renameSync(tmp,this.path(id));}finally{if(existsSync(tmp))unlinkSync(tmp);}
+      const bookTemps:Array<{id:string;file:string}>=[];
+      for(const id of ids){if(!validHash(id))throw Error('Invalid archive book reference');const blobHeader=JSON.parse(line());if(blobHeader.id!==id||!Number.isSafeInteger(blobHeader.size)||blobHeader.size<1||blobHeader.size>MAX_JSON||offset+blobHeader.size>total)throw Error('Invalid archive blob');
+        const tmp=this.path(id)+'.'+randomUUID()+'.tmp';copy(blobHeader.size,tmp);temps.push(tmp);if(fileHash(tmp)!==id)throw Error('Archive book blob checksum mismatch');bookTemps.push({id,file:tmp});
       }
-      if(magic==='BOOKFISH3'||magic==='BOOKFISH4'){
-        const header=JSON.parse(line());if(header.id!=='history'||!validHash(header.checksum)||!Number.isSafeInteger(header.size)||header.size<1||header.size>512*1024*1024||offset+header.size!==total||!historySink)throw Error('Invalid history archive');
-        const tmp=join(this.metaRoot,randomUUID()+'.history-restore.sqlite'),out=openSync(tmp,'wx');try{const chunk=Buffer.alloc(256*1024);let remaining=header.size;while(remaining){const n=readSync(fd,chunk,0,Math.min(chunk.length,remaining),offset);if(!n)throw Error('Truncated history archive');let at=0;while(at<n)at+=writeSync(out,chunk,at,n-at);offset+=n;remaining-=n;}fsyncSync(out);}finally{closeSync(out);}
-        try{if(fileHash(tmp)!==header.checksum)throw Error('History archive checksum mismatch');return historySink(tmp,manifest.$history,this.hydrate(manifest) as LibraryState);}finally{if(existsSync(tmp))unlinkSync(tmp);}
-      }
-      if(offset!==total)throw Error('Unexpected backup tail');return this.hydrate(manifest);
-    }finally{closeSync(fd);}
+      let historyTmp:string|undefined,storyTmp:string|undefined;
+      if(magic==='BOOKFISH3'||magic==='BOOKFISH4'||magic==='BOOKFISH5'){
+        const historyHeader=JSON.parse(line());if(historyHeader.id!=='history'||!validHash(historyHeader.checksum)||!Number.isSafeInteger(historyHeader.size)||historyHeader.size<1||historyHeader.size>512*1024*1024||offset+historyHeader.size>total||!historySink)throw Error('Invalid history archive');
+        historyTmp=join(this.metaRoot,randomUUID()+'.history-restore.sqlite');copy(historyHeader.size,historyTmp);temps.push(historyTmp);if(fileHash(historyTmp)!==historyHeader.checksum)throw Error('History archive checksum mismatch');
+        if(magic==='BOOKFISH5'){
+          const storyHeader=JSON.parse(line());if(storyHeader.id!=='story'||!validHash(storyHeader.checksum)||!Number.isSafeInteger(storyHeader.size)||storyHeader.size<1||storyHeader.size>512*1024*1024||offset+storyHeader.size!==total||!storySink)throw Error('Invalid story archive');
+          storyTmp=join(this.metaRoot,randomUUID()+'.story-restore.sqlite');copy(storyHeader.size,storyTmp);temps.push(storyTmp);if(fileHash(storyTmp)!==storyHeader.checksum)throw Error('Story archive checksum mismatch');
+        } else if(offset!==total) throw Error('Unexpected backup tail');
+        hooks?.validateHistory?.(historyTmp,manifest.$history);
+        if(storyTmp)hooks?.validateStory?.(storyTmp);
+      } else if(offset!==total) throw Error('Unexpected backup tail');
+      hooks?.onStage?.('before-books');
+      for(const blob of bookTemps){if(existsSync(this.path(blob.id)))throw Error('Archive book blob already exists');renameSync(blob.file,this.path(blob.id));installed.push(blob.id);}
+      hooks?.onStage?.('after-books');
+      let result:LibraryState;
+      // Install story before the library/history commit. A crash after this
+      // point leaves only an orphan sidecar, which startup cleanup can remove;
+      // it cannot leave books that claim a missing story snapshot.
+      if(storySink){hooks?.onStage?.('before-story');storySink(storyTmp??null);hooks?.onStage?.('after-story');}
+      if(historyTmp&&historySink){hooks?.onStage?.('before-history');result=historySink(historyTmp,manifest.$history,this.hydrate(manifest) as LibraryState);hooks?.onStage?.('after-history');}
+      else result=this.hydrate(manifest) as LibraryState;
+      hooks?.onStage?.('before-commit');
+      committed=true;
+      try{hooks?.onStage?.('after-commit');}catch{}
+      return result;
+    }catch(error){
+      if(!committed)for(const id of installed){try{const target=this.path(id);if(existsSync(target))unlinkSync(target);}catch{}}
+      throw error;
+    }finally{
+      closeSync(fd);
+      for(const temp of temps)if(existsSync(temp))unlinkSync(temp);
+    }
   }
 }

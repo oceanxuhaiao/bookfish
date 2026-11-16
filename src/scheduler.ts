@@ -254,6 +254,11 @@ export class ReadingScheduler {
       }
       if (a){a.taskIds=result.segments.map(item=>item.taskId);a.segmentIds=result.segments.map(item=>item.segmentId);a.taskId=result.taskId;a.batchChars=result.batch.chars;a.readRate??=limits.charsPerMinute;}
       if(a?.manual&&this.manual?.id===a.id)this.manual.state='reading';
+      // Just-in-time next step. This used to live in the resident ENV_PROMPT; a
+      // 9B model that receives a whole segment of fiction often forgets the
+      // follow-up, so the receipt repeats it at the moment it is needed instead
+      // of paying for it on every request.
+      return { ...result, nextStep: 'Read every segment above, then confirm them in ONE bookfish_finish_reading call with confirmations[] in reading order (or one call per segment with its taskId and segmentId). understanding may be empty.' };
     }
     return result;
   }
@@ -265,7 +270,12 @@ export class ReadingScheduler {
     if (this.failures.size > 200) { const first = this.failures.keys().next().value; if (first) this.failures.delete(first); }
     if (count >= 2 && error instanceof Error) throw new Error(`${error.message}. This exact range already failed twice: confirm it with taskId, segmentId and an empty understanding, no episode; record any reflection separately with bookfish_record_reflection.`);
   }
-  finish(args: Record<string, unknown>) {
+  finish(rawArgs: Record<string, unknown>) {
+    // The task already identifies the revision, so a dropped bookKey is filled in
+    // here instead of failing with "Unknown reading range".
+    const args = typeof rawArgs.bookKey === 'string' && rawArgs.bookKey
+      ? rawArgs
+      : { ...rawArgs, bookKey: this.lib.bookKeyOfTask(rawArgs.taskId) ?? this.lib.status().current?.key };
     if (this.signature() !== this.observed) this.changed();
     const done=this.completedOpportunity;if(args.opportunityId!==undefined&&done&&args.opportunityId===done.id){if(done.generation!==this.lib.generation()||this.now()>=done.expires||done.taskId!==args.taskId)throw Error('Completed reading opportunity is stale');return this.lib.finish(args);}
     this.requireAwake();
@@ -324,7 +334,7 @@ export class ReadingScheduler {
     }
     const key = this.lib.status().current?.key;
     let chars = 0;
-    for (const item of items) chars += this.lib.segmentSize(item.bookKey ?? key, item.segmentId);
+    for (const item of items) chars += this.lib.segmentSize(item.bookKey ?? this.lib.bookKeyOfTask(item.taskId) ?? key, item.segmentId);
     const ms = chars / (a.readRate ?? readingLimits(this.cfg).charsPerMinute) * 60000;
     const accrued = this.sessionReadMs + ms;
     const rest = accrued >= readingLimits(this.cfg).sessionMinutes * 60000 ? this.lib.planRest(this.restDuration(accrued), accrued, 'session') : undefined;

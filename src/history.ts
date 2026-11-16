@@ -129,4 +129,12 @@ export class HistoryStore{
  bind<T extends {tasks:ReadingTask[];episodes:ReadingEpisode[]}>(state:T,ref:HistoryRef):T{return {...state,tasks:new View<ReadingTask>(this,'tasks',ref.version,this.positions('tasks',ref.version)).array,episodes:new View<ReadingEpisode>(this,'episodes',ref.version,this.positions('episodes',ref.version)).array};}
  payloadBytes(ref:HistoryRef){return Number((this.sql.prepare('SELECT COALESCE(SUM(length(CAST(json AS BLOB))),0) AS n FROM history WHERE '+visibility).get(ref.version,ref.version) as any).n);}
  snapshot(file:string){this.sql.exec('VACUUM INTO '+"'"+file.replaceAll("'","''")+"'");if(statSync(file).size>MAX_DB)throw Error('History snapshot oversized');}
+  /** Read-only preflight: schema, quick_check, snapshot ref and row checks. */
+  validateSnapshot(file:string, ref:HistoryRef){
+    const source=new HistoryStore(file,true);
+    try{
+      source.open();
+      source.hydrate({tasks:[],episodes:[]},ref);
+    }finally{source.close();}
+  }
 }

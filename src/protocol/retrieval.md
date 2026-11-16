@@ -1,4 +1,8 @@
+<!-- protocol topic=retrieval v=2 since=0.62.0 tools=bookfish_lookup,bookfish_record_reflection -->
 # Cross-context retrieval
+
+适用：用户问起读过的剧情、人物关系、当时的感想或后来的改变；需要在动笔前核对证据。
+完成判定：回答里每一项都能指到具体记录 id 与正文范围，或明确说明"没有记录"。
 
 Treat an old feeling as a claim to check, not a memory to improvise. First identify the exact book revision (ask if ambiguous), use `bookfish_lookup(action="search")` with short topic keywords and character/chapter filters, then use `bookfish_lookup(action="context")` with returned episode/task/segment ids to inspect original text, stated reasons and revision links. For a legacy receipt, follow `episodeId` if present; the understanding by itself does not record a feeling or its reason. If a search is empty, try alternate recorded names or simpler keywords and inspect the timeline; lexical failure is not proof of absence. Similar plot keywords do not identify the right person: compare exact text and model-supplied character claims, keeping ambiguity explicit.
 

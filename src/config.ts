@@ -34,6 +34,8 @@ export interface BookfishConfigSection {
   dailyChars: number;
   automaticSharing?: boolean;
   automaticReview?: boolean;
+  /** Opt-in story memory sidecar; independent of reading progress and personal journal. */
+  storyMemoryEnabled?: boolean;
   shareCooldownMinutes?: number;
   shareQuietEnabled?: boolean;
   shareQuietStart?: number;
@@ -46,7 +48,7 @@ export const BOOKFISH_DEFAULTS: BookfishConfigSection = { enabled: false, readin
   automaticReading: true, autonomousAcquisition: false, autonomousAcquisitionMode: 'auto', autonomousSourceIds: '', autonomousDiskBudgetMb: 1024, textStoreDir: '',
   dailyChapterGoal:0, readingSessionMinutes:10,realRoutineEnabled:true, speed: 'normal', readingCharsPerMinute: 0, dailyTasks: 40, dailyChars: 48000,
   readingBatchSegments:2, dailyReadingCap:0,
-  automaticSharing: true, automaticReview: true, shareCooldownMinutes: 60, shareQuietEnabled: true, shareQuietStart: 22, shareQuietEnd: 8, shareMaxSentenceChars: 80, shareQuietStartMinute: -1, shareQuietEndMinute: -1 };
+  automaticSharing: true, automaticReview: true, storyMemoryEnabled: false, shareCooldownMinutes: 60, shareQuietEnabled: true, shareQuietStart: 22, shareQuietEnd: 8, shareMaxSentenceChars: 80, shareQuietStartMinute: -1, shareQuietEndMinute: -1 };
 export function sharingLimits(cfg: BookfishConfigSection) {
   const integer = (v: unknown, fallback: number, min: number, max: number) => Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max ? v as number : fallback;
   return { cooldownMs: integer(cfg.shareCooldownMinutes, 60, 1, 1440) * 60000,
@@ -72,6 +74,7 @@ export function bookfishConfigGroup(english: boolean): ConfigGroup {
       properties: {
         'worlds.bookfish.realRoutineEnabled':{type:'boolean',title:english?'Real daily routine':'真实作息',description:english?'On by default. Fixed sleep and meal hours; turning off removes these reading gates.':'默认开启，按固定时间睡觉和用餐；关闭后不再因吃饭、睡觉停止阅读。','x-hot':true},
         'worlds.bookfish.automaticReview': { type: 'boolean', title: english ? 'Offer one review after automatic completion' : '自主阅读完本后给予一次读后感机会', description: english ? 'Only while automatic reading is enabled. Failure needs explicit retry; preserves earlier versions.' : '仅自主阅读开启时生效；失败需手动重试，保留旧版本。', 'x-hot': true },
+        'worlds.bookfish.storyMemoryEnabled': { type: 'boolean', title: english ? 'Story memory index (experimental)' : '故事记忆索引（实验）', description: english ? 'Off by default. Stores evidence-linked structured story facts in a separate SQLite file; never advances reading or writes Persona Memory.' : '默认关闭。用独立 SQLite 保存有原文证据的结构化故事事实；不推进已读，不写 Persona Memory。', 'x-hot': true },
         'worlds.bookfish.automaticSharing': { type: 'boolean', title: english ? 'Automatic reading shares' : '主动分享阅读感想', description: english ? 'On by default for new configurations. Uses existing pet_say; does not prove display.' : '新配置默认开启；由大肥鱼调用现有桌宠输出，不把工具接收当作已显示。', 'x-hot': true },
         'worlds.bookfish.shareCooldownMinutes': { type: 'integer', minimum: 1, maximum: 1440, title: english ? 'Share cooldown (minutes)' : '分享冷却（分钟）', 'x-hot': true },
         'worlds.bookfish.shareMaxSentenceChars': { type: 'integer', minimum: 10, maximum: 300, title: english ? 'Maximum characters per sentence' : '每句话最多字数', 'x-hot': true },
@@ -112,7 +115,7 @@ export function bookfishConfigGroup(english: boolean): ConfigGroup {
 export function bookfishConfigGroups(english: boolean): ConfigGroup[] {
   const all=bookfishConfigGroup(english);const fields=all.schema.properties;
   const main=['realRoutineEnabled','automaticReading','autonomousAcquisition','autonomousAcquisitionMode','autonomousSourceIds','autonomousDiskBudgetMb','speed','readingCharsPerMinute','dailyChapterGoal','readingSessionMinutes','readingBatchSegments','dailyReadingCap','automaticSharing','shareCooldownMinutes','shareMaxSentenceChars','shareQuietEnabled','shareQuietStartMinute','shareQuietEndMinute'];
-  const advanced=['automaticReview','allowNetwork','readingMode','textStoreDir'];
+  const advanced=['automaticReview','storyMemoryEnabled','allowNetwork','readingMode','textStoreDir'];
   const pick=(names:string[])=>Object.fromEntries(names.map(k=>['worlds.bookfish.'+k,fields['worlds.bookfish.'+k]]));
   return [{...all,schema:{...all.schema,title:english?'Reading and sharing':'阅读与分享',properties:pick(main)}},{...all,id:'world:bookfish:advanced',schema:{...all.schema,title:english?'Advanced reading limits':'高级阅读限制',properties:pick(advanced)}}];
 }

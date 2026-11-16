@@ -2,8 +2,7 @@ import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, re
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { HistoryStore, historyFork, historySelect, historyFind, historyPage, historyCount, isHistory, plainHistory, type HistoryRef } from './history.ts';
-import { BookStorage } from './book-storage.ts';
-import { isPagedBook, chapterSpan, chapterEndIds, remoteLayout, readerChapters } from './paged-book.ts';
+import { BookStorage, type ArchiveHooks } from './book-storage.ts';import { isPagedBook, chapterSpan, chapterEndIds, remoteLayout, readerChapters } from './paged-book.ts';
 import { buildBook, decodeFile, digest, requiredText, type Book } from './books.ts';
 import { searchReading, readingContext } from './retrieval.ts';
 import { beginReview, reviewMaterials, finishReview, failReview, validateReviews, type BookReview, type ReviewJob } from './reviews.ts';
@@ -12,6 +11,9 @@ import { buildRemoteBook, buildSerialBook } from './remote-books.ts';
 import { SourceError, type CachedChapter, type SourceCatalog } from './source-types.ts';
 import { SERIAL_INTERVALS, SERIAL_PAGE_LIMIT, chapterId, nextCheckIso, receiptFor, stableSerialIdentity, validateSerialCatalog, validateSerialRecord, type SerialCatalogCommit, type SerialPublicationEvidence, type SerialReceipt, type SerialRecord, type SerialSyncCommit } from './serial-types.ts';
 import { emptySelection, validateSelection, type SelectionState } from './selection-types.ts';
+import { StoryStore, type StoryChange, type StoryPackInput } from './story/store.ts';
+import { validateStoryChanges } from './story/core.ts';
+import { normalizeName } from './story/core.ts';
 
 const MAX_STATE_BYTES = 128 * 1024 * 1024;
 const MAX_LIBRARY_CHARS = 128 * 1024 * 1024;
@@ -135,10 +137,14 @@ export interface LibraryOptions {
   dataDir: string;
   /** Absolute directory for full book text; empty keeps dataDir/bookfish/books. */
   textStoreDir?: string;
+  /** Opt-in story memory sidecar; default off and independent of the main schema. */
+  storyMemoryEnabled?: boolean;
   now?: () => number;
   /** Tests may inject a failing disk commit; live instances always use atomicWrite. */
   write?: (file: string, state: LibraryState) => void;
   beforeMetadataCommit?:()=>void;
+  /** Test-only observation point after the archive write gate is closed. */
+  onArchiveSnapshot?:()=>void;
 }
 function atomicWrite(file: string, state: LibraryState): void {
   const json = JSON.stringify(state);
@@ -157,6 +163,11 @@ export class Library {
   private opened = false;
   private readonly bookStorage: BookStorage;
   private readonly history:HistoryStore;
+  private story?:StoryStore;
+  private storyError:string|null=null;
+  private archiving=false;
+  private readonly storyCleanupFile:string;
+  private readonly restoreMarker:string;
   private historyRef?:HistoryRef;
   private characterCache=new Map<string,{characters:Array<{name:string;aliases:string[];episodeIds:string[];aliasesTruncated:boolean;episodeLinksTruncated:boolean}>;truncated:boolean}>();
   private lockToken: string | undefined;
@@ -165,7 +176,10 @@ export class Library {
   private readonly now: () => number;
   constructor(private readonly options: LibraryOptions) {
     this.dir = join(options.dataDir, 'bookfish'); this.file = join(this.dir, 'library.json');
+    this.storyCleanupFile = join(this.dir, 'story-cleanup.json');
+    this.restoreMarker = join(this.dir, 'restore-in-progress.json');
     this.now = options.now ?? Date.now; this.bookStorage = new BookStorage(this.dir, options.textStoreDir);this.history=new HistoryStore(join(this.dir,'history.sqlite'));
+    if (options.storyMemoryEnabled) this.story = new StoryStore(join(this.dir, 'story.sqlite'), { now: this.now });
   }
   private acquire(): void {
     const file = join(this.dir, 'writer.lock');
@@ -194,6 +208,10 @@ export class Library {
       try { const moved=this.bookStorage.prepareTextStore(this.options.textStoreDir ?? '', join(this.dir,'books')); this.textStoreError=null; this.textStoreMoved=moved.moved; }
       catch (error) { this.textStoreError=String(error); this.bookStorage.fallbackToDefault(join(this.dir,'books')); }
       this.history.open();
+      if (this.story) {
+        try { this.story.open(); this.storyError = null; }
+        catch (error) { this.storyError = String(error); }
+      }
       if (existsSync(this.file)) {
         if (statSync(this.file).size > MAX_STATE_BYTES) throw new Error('Library state is too large');
         const raw=JSON.parse(readFileSync(this.file, 'utf8'));
@@ -205,6 +223,14 @@ export class Library {
       this.recoverTemporary();
       this.opened = true;
       this.change((draft) => this.invalidate(draft));
+      if (existsSync(this.restoreMarker)) {
+        this.bookStorage.collect(this.state);
+        if (this.story) {
+          this.cleanupOrphanStoryRecords();
+          if (existsSync(this.restoreMarker)) unlinkSync(this.restoreMarker);
+        }
+      }
+      this.retryStoryCleanups();
     } catch (error) { this.close(); throw error; }
   }
   private recoverTemporary(){
@@ -219,13 +245,14 @@ export class Library {
       const saved = JSON.parse(readFileSync(file, 'utf8'));
       if (saved.token === this.lockToken) unlinkSync(file);
     }
-    this.lockToken = undefined; this.opened = false; this.state = empty(); this.bookStorage.clearCache();this.history.close();this.historyRef=undefined;this.goalCache=undefined;this.characterCache.clear();
+    this.lockToken = undefined; this.opened = false; this.state = empty(); this.bookStorage.clearCache();this.history.close();this.story?.close();this.storyError=null;this.historyRef=undefined;this.goalCache=undefined;this.characterCache.clear();
   }
   storageStats(){return {...this.bookStorage.cache.stats(),history:this.history.stats(),textStore:this.textStoreStatus()};}
   textStoreStatus(){return {dir:this.bookStorage.dir,defaultDir:join(this.dir,'books'),configured:this.options.textStoreDir??'',error:this.textStoreError,moved:this.textStoreMoved};}
   private ensureOpen(): void { if (!this.opened) throw new Error('Bookfish library is not mounted'); }
   private change<T>(action: (draft: LibraryState) => T): T {
     this.ensureOpen();
+    if (this.archiving) throw new Error('Library is being archived; no writes are allowed');
     const draft = { ...structuredClone({ ...this.state, books: [],tasks:[],episodes:[] }), tasks:historyFork(this.state.tasks),episodes:historyFork(this.state.episodes),books: this.state.books.map(e=>({ book:e.book, frontier:e.frontier, ...(e.serial?{serial:e.serial}:{}) })) };
     const result = action(draft);
     if(this.options.write)this.options.write(this.file,draft);else {const ref=this.history.prepare(draft,this.historyRef);this.options.beforeMetadataCommit?.();atomicWrite(this.file,{...this.bookStorage.prepare(draft) as LibraryState,schema:draft.books.some(e=>e.book.remote?.serial)?7:6,tasks:[],episodes:[],$history:ref} as unknown as LibraryState);this.historyRef=ref;this.state=this.history.bind(draft,ref);this.history.committed(ref);}
@@ -314,7 +341,221 @@ export class Library {
     return { mounted: this.opened, paused: this.state.paused, current: entry ? this.view(entry) : null,
       providedChars: offered.length?entry!.book.segments[offered[0].segmentId].end:0,
       pending: task ? { taskId: task.id, bookKey: task.bookKey, segmentId: task.segmentId, expiresAt: task.expiresAt } : null,
-      textStore: this.textStoreStatus() };
+      textStore: this.textStoreStatus(), story: this.storyStatus() };
+  }
+  storyStatus(): { enabled: boolean; error: string | null; path?: string; schemaVersion?: number; records?: number; batches?: number; pendingCleanups?: number; packs?: number; changeSeq?: number; readOnly?: boolean } {
+    if (!this.story) {
+      const pending = this.pendingCleanupCount();
+      return pending ? { enabled: false, error: this.storyError, pendingCleanups: pending } : { enabled: false, error: this.storyError };
+    }
+    try { return { enabled: true, error: this.storyError, ...this.story.status(), pendingCleanups: this.pendingCleanupCount() }; }
+    catch (error) { return { enabled: true, error: String(error), pendingCleanups: this.pendingCleanupCount() }; }
+  }
+  private pendingCleanupFileCount(): number {
+    try {
+      if (!existsSync(this.storyCleanupFile)) return 0;
+      const value = JSON.parse(readFileSync(this.storyCleanupFile, 'utf8'));
+      if (!Array.isArray(value)) throw new Error('Story cleanup tombstone is not an array');
+      return value.length;
+    } catch (error) { this.storyError = String(error); return 1; }
+  }
+  private readCleanupTombstones(strict = true): Array<Record<string, unknown>> {
+    if (!existsSync(this.storyCleanupFile)) return [];
+    try {
+      const value = JSON.parse(readFileSync(this.storyCleanupFile, 'utf8'));
+      if (!Array.isArray(value)) throw new Error('Story cleanup tombstone is not an array');
+      return value;
+    } catch (error) {
+      this.storyError = String(error);
+      if (strict) throw new Error(`Story cleanup tombstone is corrupt: ${String(error)}`);
+      return [];
+    }
+  }
+  private pendingCleanupCount(): number {
+    let storeCount = 0;
+    try { storeCount = this.story?.pendingCleanups().length ?? 0; } catch {}
+    return storeCount + this.pendingCleanupFileCount();
+  }
+  private cleanupStoryBook(bookKey: string) {
+    if (this.story) return this.story.deleteBook(bookKey);
+    const file = join(this.dir, 'story.sqlite');
+    if (!existsSync(file)) return { records: 0, batches: 0 };
+    const store = new StoryStore(file, { now: this.now });
+    try { store.open(); return store.deleteBook(bookKey); } finally { store.close(); }
+  }
+  private writeCleanupTombstone(bookKey: string, reason: string) {
+    const items = this.readCleanupTombstones(true);
+    const existing = items.find(item => item.bookKey === bookKey);
+    if (existing) { existing.attempts = Number(existing.attempts ?? 0) + 1; existing.lastError = reason.slice(0, 500); existing.updatedAt = this.now(); }
+    else items.push({ bookKey, attempts: 1, lastError: reason.slice(0, 500), createdAt: this.now(), updatedAt: this.now() });
+    const trimmed = items.slice(-100);
+    const tmp = this.storyCleanupFile + '.' + randomUUID() + '.tmp';
+    const fd = openSync(tmp, 'wx');
+    try { writeFileSync(fd, JSON.stringify(trimmed)); fsyncSync(fd); } finally { closeSync(fd); }
+    renameSync(tmp, this.storyCleanupFile);
+    try { const dirFd = openSync(this.dir, 'r'); try { fsyncSync(dirFd); } finally { closeSync(dirFd); } } catch {}
+  }
+  private cleanupOrphanStoryRecords() {
+    if (!this.story || this.storyError) return;
+    try {
+      const known = new Set(this.state.books.map(entry => entry.book.key));
+      for (const bookKey of this.story.listBookKeys()) {
+        if (known.has(bookKey)) continue;
+        try { this.story.recordCleanup(bookKey, 'orphan story record from interrupted restore or removed book'); }
+        catch (error) { this.writeCleanupTombstone(bookKey, String(error)); }
+      }
+    } catch (error) { this.storyError = String(error); }
+  }
+  retryStoryCleanups() {    let cleaned = 0, failed = 0;
+    if (this.story && !this.storyError) {
+      try { const result = this.story.retryCleanups(); cleaned += result.cleaned; failed += result.failed; }
+      catch (error) { this.storyError = String(error); failed++; }
+    }
+    let items: Array<Record<string, unknown>> = [];
+    try { items = this.readCleanupTombstones(true); }
+    catch (error) { return { cleaned, failed: failed + 1, pending: this.pendingCleanupCount(), error: String(error) }; }
+    if (!items.length) return { cleaned, failed, pending: this.pendingCleanupCount() };
+    const remaining: Array<Record<string, unknown>> = [];
+    for (const item of items) {
+      const bookKey = String(item.bookKey ?? '');
+      if (!bookKey) continue;
+      try { this.cleanupStoryBook(bookKey); cleaned++; }
+      catch (error) { failed++; remaining.push({ ...item, attempts: Number(item.attempts ?? 0) + 1, lastError: String(error).slice(0, 500), updatedAt: this.now() }); }
+    }
+    const tmp = this.storyCleanupFile + '.' + randomUUID() + '.tmp';
+    writeFileSync(tmp, JSON.stringify(remaining));
+    renameSync(tmp, this.storyCleanupFile);
+    return { cleaned, failed, pending: this.pendingCleanupCount() };
+  }
+  /** Backend capture entry point; a future tool layer must validate text with the core first. */
+  captureStory(input: Record<string, unknown>) {    this.ensureOpen();
+    if (this.archiving) throw new Error('Library is being archived; no story writes are allowed');
+    if (!this.story) throw new Error('Story memory is disabled');
+    if (this.storyError) throw new Error(`Story memory unavailable: ${this.storyError}`);
+    const bookKey = requiredText(input.bookKey, 'bookKey', 150);
+    const entry = this.state.books.find((e) => e.book.key === bookKey);
+    if (!entry) throw new Error('Book revision is not in the library');
+    const requestId = requiredText(input.requestId, 'requestId', 80);
+    if (!Array.isArray(input.changes)) throw new Error('changes must be an array');
+    const changes = validateStoryChanges(input.changes, entry.book, { frontier: entry.frontier }) as StoryChange[];
+    return this.story.capture({ bookKey, bookRevision: entry.book.revision,
+      contentVersion: entry.serial?.contentVersion ?? null, frontier: entry.frontier,
+      requestId, changes });
+  }
+  putStoryPack(input: Record<string, unknown>) {
+    this.ensureOpen();
+    if (this.archiving) throw new Error('Library is being archived; no story writes are allowed');
+    if (!this.story) throw new Error('Story memory is disabled');
+    if (this.storyError) throw new Error(`Story memory unavailable: ${this.storyError}`);
+    const bookKey = requiredText(input.bookKey, 'bookKey', 150);
+    const entry = this.state.books.find((e) => e.book.key === bookKey);
+    if (!entry) throw new Error('Book revision is not in the library');
+    return this.story.putPack({
+      ...(input as unknown as StoryPackInput),
+      bookKey, bookRevision: entry.book.revision,
+      contentVersion: entry.serial?.contentVersion ?? null,
+      frontier: entry.frontier,
+    });
+  }
+  listStoryPacks(bookKey: string, contentVersion?: number | null) {
+    this.ensureOpen();
+    if (!this.story) throw new Error('Story memory is disabled');
+    return this.story.listPacks(bookKey, contentVersion);
+  }
+  invalidateStoryPacks(bookKey: string, contentVersion?: number | null) {
+    this.ensureOpen();
+    if (this.archiving) throw new Error('Library is being archived; no story writes are allowed');
+    if (!this.story) throw new Error('Story memory is disabled');
+    return this.story.invalidatePacks(bookKey, contentVersion);
+  }
+  validateStoryPacks(bookKey: string, contentVersion?: number | null) {
+    this.ensureOpen();
+    if (!this.story) throw new Error('Story memory is disabled');
+    return this.story.validatePackTree(bookKey, contentVersion);
+  }
+  publishStoryPack(id: string, contentVersion?: number | null) {
+    this.ensureOpen();
+    if (this.archiving) throw new Error('Library is being archived; no story writes are allowed');
+    if (!this.story) throw new Error('Story memory is disabled');
+    return this.story.publishPack(id, contentVersion);
+  }
+  storyOverview(bookKey: string, atFrontier?: number, limit = 20, cursor?: string) {
+    this.ensureOpen();
+    if (!this.story) throw new Error('Story memory is disabled');
+    const entry = this.state.books.find(e => e.book.key === bookKey);
+    if (!entry) throw new Error('Book revision is not in the library');
+    const frontier = atFrontier === undefined ? entry.frontier : Math.max(0, Math.min(entry.frontier, atFrontier));
+    const version = entry.serial?.contentVersion ?? null;
+    const changeSeq = this.story.changeSeq();
+    const pageSize = Math.max(1, Math.min(20, Math.trunc(limit)));
+    let offset = 0;
+    if (cursor !== undefined) {
+      let payload: any;
+      try { payload = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')); }
+      catch { throw new Error('Invalid story overview cursor'); }
+      if (payload.b !== bookKey || payload.v !== version || payload.f !== frontier || payload.s !== changeSeq || payload.l !== pageSize) {
+        throw new Error('Story overview snapshot changed; restart from the first page');
+      }
+      offset = Math.max(0, Number(payload.o) || 0);
+    }
+    const all = this.story.listPacks(bookKey, version);
+    const visible = all.filter(pack => pack.frontier <= frontier);
+    const packs = visible.slice(offset, offset + pageSize).map(pack => ({ id: pack.id, level: pack.level, label: pack.label, summary: pack.summary, frontier: pack.frontier, coveredRanges: pack.coveredRanges, inputFingerprint: pack.inputFingerprint }));
+    const next = offset + pageSize < visible.length
+      ? Buffer.from(JSON.stringify({ b: bookKey, v: version, f: frontier, s: changeSeq, l: pageSize, o: offset + pageSize })).toString('base64url')
+      : null;
+    return { bookKey, frontier, total: visible.length, returned: packs.length, omitted: visible.length - packs.length, nextCursor: next, truncated: next !== null, hasFuturePacks: all.length > visible.length, packs };
+  }
+  createStoryEntity(input: Record<string, unknown>) {
+    this.ensureOpen();
+    if (this.archiving) throw new Error('Library is being archived; no story writes are allowed');
+    if (!this.story) throw new Error('Story memory is disabled');
+    const bookKey = requiredText(input.bookKey, 'bookKey', 150);
+    const entry = this.state.books.find(e => e.book.key === bookKey);
+    if (!entry) throw new Error('Book revision is not in the library');
+    return this.story.createEntity({ ...(input as any), bookKey, contentVersion: entry.serial?.contentVersion ?? null, firstRevealedAt: entry.frontier });
+  }
+  bindStoryEntity(entityId: string, aliases: string[] = [], revealedAt?: number) {
+    this.ensureOpen();
+    if (this.archiving) throw new Error('Library is being archived; no story writes are allowed');
+    if (!this.story) throw new Error('Story memory is disabled');
+    return this.story.bindEntity(entityId, aliases, revealedAt);
+  }
+  storyEntityCandidates(bookKey: string, name: string, atFrontier?: number) {
+    this.ensureOpen();
+    if (!this.story) throw new Error('Story memory is disabled');
+    const entry = this.state.books.find(e => e.book.key === bookKey);
+    if (!entry) throw new Error('Book revision is not in the library');
+    const frontier = atFrontier === undefined ? entry.frontier : Math.max(0, Math.min(entry.frontier, atFrontier));
+    const bound = this.story.resolveEntity(bookKey, name, frontier, entry.serial?.contentVersion ?? null);
+    if (bound.status !== 'none') return bound;
+    const wanted = normalizeName(name);
+    const records = this.story.list(bookKey, entry.serial?.contentVersion ?? null);
+    const candidates = [];
+    for (const record of records) {
+      if (record.revealedAt > frontier) continue;
+      const payload = record.payload as Record<string, any>;
+      const values = [...(Array.isArray(payload.names) ? payload.names : []), payload.fromName, payload.toName].filter((value): value is string => typeof value === 'string');
+      if (!values.some(value => normalizeName(value) === wanted)) continue;
+      candidates.push({ recordId: record.id, kind: record.kind, summary: payload.summary, names: values, fromEntityId: payload.fromEntityId ?? null, toEntityId: payload.toEntityId ?? null, status: payload.entityBinding ?? 'unresolved' });
+    }
+    return { status: candidates.length === 0 ? 'none' : candidates.length === 1 ? 'resolved' : 'ambiguous', candidates };
+  }
+  storyEvidence(bookKey: string, eventIds: string[], atFrontier?: number) {
+    this.ensureOpen();
+    if (!this.story) throw new Error('Story memory is disabled');
+    const entry = this.state.books.find(e => e.book.key === bookKey);
+    if (!entry) throw new Error('Book revision is not in the library');
+    const frontier = atFrontier === undefined ? entry.frontier : Math.max(0, Math.min(entry.frontier, atFrontier));
+    const version = entry.serial?.contentVersion ?? null;
+    const selected = eventIds.slice(0, 8);
+    const omittedEventIds = eventIds.slice(8);
+    return { bookKey, frontier, requested: eventIds.length, returned: selected.length, truncated: omittedEventIds.length > 0, omittedEventIds, events: selected.map(id => {
+      const record = this.story!.get(id);
+      if (record.bookKey !== bookKey || record.contentVersion !== version) throw new Error('Story record belongs to another version');
+      if (record.revealedAt > frontier) return { id, omitted: true, reason: 'unread-at-frontier' };
+      return { id, summary: record.payload.summary, kind: record.kind, status: record.status, sourceKind: record.sourceKind, revealedAt: record.revealedAt, evidence: record.evidence };
+    }) };
   }
   import(input: unknown) { return this.addBook(decodeFile(input)); }
   importBytes(metadata: {filename:unknown;title:unknown;author?:unknown}, bytes:Uint8Array) { return this.addBook(buildBook(metadata.filename,metadata.title,metadata.author,bytes)); }
@@ -591,6 +832,17 @@ export class Library {
     if (typeof taskId !== 'string') return false;
     return historyFind(this.state.tasks,{id:taskId})?.status === 'committed';
   }
+  /**
+   * The book a pending task belongs to. A task id already proves which revision
+   * the model was handed, so the World does not need to trust a bookKey echoed
+   * back by the model — and a dropped bookKey must not turn a valid confirmation
+   * into "Unknown reading range".
+   */
+  bookKeyOfTask(taskId: unknown): string | undefined {
+    this.ensureOpen();
+    if (typeof taskId !== 'string') return undefined;
+    return historyFind(this.state.tasks,{id:taskId})?.bookKey;
+  }
   finish(input: Record<string, unknown>,rest?:RestRecord) {
     return this.change((draft) => this.commitConfirmation(draft, input, rest, false));
   }
@@ -791,7 +1043,7 @@ export class Library {
     return { bookKey: entry.book.key, segment: structuredClone(entry.book.segments[index]), progressAdvanced: false, source: 'external-book-text' };
   }
   remove(key: unknown) {
-    return this.change((draft) => {
+    const result = this.change((draft) => {
       if (!draft.books.some((e) => e.book.key === key)) throw new Error('Book is not in the library');
       this.invalidate(draft);
       draft.books = draft.books.filter((e) => e.book.key !== key);
@@ -810,20 +1062,66 @@ export class Library {
       draft.selection.queue = draft.selection.queue.filter((item) => item.bookKey !== key);
       return { removed: true };
     });
+    let storyCleanupError: string | null = null;
+    try { this.cleanupStoryBook(String(key)); }
+    catch (error) {
+      storyCleanupError = String(error); this.storyError = storyCleanupError;
+      try { if (this.story) this.story.recordCleanup(String(key), storyCleanupError); else this.writeCleanupTombstone(String(key), storyCleanupError); }
+      catch (writeError) {
+        try { this.writeCleanupTombstone(String(key), storyCleanupError); }
+        catch (tombstoneError) { storyCleanupError = `${storyCleanupError}; tombstone: ${String(writeError)} / ${String(tombstoneError)}`; this.storyError = storyCleanupError; }
+      }
+    }
+    return storyCleanupError ? { ...result, storyCleanupError } : result;
   }
   writeArchive(file:string) {
     this.ensureOpen();if(this.options.write)return this.bookStorage.writeArchive(file,this.state);
-    const snapshot=join(this.dir,randomUUID()+'.history-backup.sqlite');try{this.history.snapshot(snapshot);return this.bookStorage.writeArchive(file,this.state,{file:snapshot,ref:this.historyRef!});}finally{if(existsSync(snapshot))unlinkSync(snapshot);}
+    const generation=this.state.generation,historyVersion=this.historyRef?.version,storyChangeSeq=this.story?.status().changeSeq;
+    const snapshot=join(this.dir,randomUUID()+'.history-backup.sqlite');
+    const storySnapshot=this.story?join(this.dir,randomUUID()+'.story-backup.sqlite'):undefined;
+    this.archiving=true;
+    try{
+      this.options.onArchiveSnapshot?.();
+      this.history.snapshot(snapshot);
+      if(this.story) this.story.snapshot(storySnapshot!);
+      if(this.state.generation!==generation||this.historyRef?.version!==historyVersion||this.story?.status().changeSeq!==storyChangeSeq)
+        throw new Error('Archive snapshot changed while reading; retry');
+      return this.bookStorage.writeArchive(file,this.state,{file:snapshot,ref:this.historyRef!},storySnapshot?{file:storySnapshot}:undefined);
+    }finally{
+      this.archiving=false;
+      if(existsSync(snapshot))unlinkSync(snapshot);
+      if(storySnapshot&&existsSync(storySnapshot))unlinkSync(storySnapshot);
+    }
   }
-  restoreArchive(file:string) {
+  restoreArchive(file:string, hooks?:ArchiveHooks) {
     this.ensureOpen();if(this.state.books.length)throw Error('Restore requires an empty library');let installed=false;
+    const markerTmp = this.restoreMarker + '.' + randomUUID() + '.tmp';
+    writeFileSync(markerTmp, JSON.stringify({ file, startedAt: this.now() }));
+    renameSync(markerTmp, this.restoreMarker);
     try{
       const result=this.bookStorage.readArchive(file,(database,ref,raw)=>{
         const source=new HistoryStore(database,true);try{source.open();const restored=validateState(source.hydrate(raw,ref as HistoryRef));this.change(draft=>{Object.assign(draft,restored,{tasks:historyFork(restored.tasks),episodes:historyFork(restored.episodes)});this.invalidate(draft);this.pauseSerialAfterRestore(draft);});installed=true;return this.state;}finally{source.close();}
+      },(storyFile)=>{
+        if(!this.story) {
+          if(storyFile) throw new Error('备份包含故事记忆；请先在设置中开启“故事记忆索引（实验）”并重新挂载后再恢复，不能静默丢弃故事索引。This backup contains story memory; enable story memory and remount before restoring it.');
+          return;
+        }
+        if(storyFile) this.story.restoreFrom(storyFile); else this.story.clear();
+      },{
+        ...hooks,
+        validateHistory: hooks?.validateHistory ?? ((snapshot,ref)=>this.history.validateSnapshot(snapshot,ref as HistoryRef)),
+        validateStory: hooks?.validateStory ?? (snapshot=>StoryStore.validateSnapshot(snapshot)),
       }) as LibraryState;
       if(!installed){const restored=validateState(result);this.change(draft=>{Object.assign(draft,restored,{tasks:historyFork(restored.tasks),episodes:historyFork(restored.episodes)});this.invalidate(draft);this.pauseSerialAfterRestore(draft);});}
       return {restoredBooks:this.state.books.length};
-    }catch(error){this.bookStorage.collect(this.state);throw error;}
+    }catch(error){
+      // A failed restore must not leave a half-installed library or sidecar.
+      try { this.clear(); } catch {}
+      this.bookStorage.collect(this.state);
+      throw error;
+    } finally {
+      if (existsSync(this.restoreMarker)) unlinkSync(this.restoreMarker);
+    }
   }
   export() {
     this.ensureOpen();
@@ -833,10 +1131,20 @@ export class Library {
     return JSON.stringify({ format: 'bookfish-backup-v1', checksum: digest(payload), payload });
   }
   clear() {
-    return this.change((draft) => {
+    const result = this.change((draft) => {
       this.invalidate(draft); draft.books = []; draft.tasks = []; draft.episodes = []; draft.selected = null; draft.reviews = []; draft.reviewJobs = []; draft.selection = emptySelection();
       return 'Bookfish books and progress cleared';
     });
+    let storyCleanupError: string | null = null;
+    try {
+      if (this.story) this.story.clear();
+      else {
+        const file = join(this.dir, 'story.sqlite');
+        if (existsSync(file)) { const store = new StoryStore(file, { now: this.now }); try { store.open(); store.clear(); } finally { store.close(); } }
+      }
+      if (existsSync(this.storyCleanupFile)) unlinkSync(this.storyCleanupFile);
+    } catch (error) { storyCleanupError = String(error); this.storyError = storyCleanupError; }
+    return storyCleanupError ? `${result} (story cleanup failed: ${storyCleanupError})` : result;
   }
   restore(text: unknown) {
     if (typeof text !== 'string' || Buffer.byteLength(text) > 25 * 1024 * 1024) throw new Error('Invalid or oversized backup');

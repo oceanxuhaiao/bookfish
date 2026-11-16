@@ -229,4 +229,18 @@ describe('explicit Read now requests',()=>{
  it('rejects late work after pause or expiry and reports requests that end without confirmation',async()=>{
   const first=await scheduler.requestNow(lib.status().current!.key);scheduler.onEventsSettled(host.events,'delivered');scheduler.onTurnEnded();expect(scheduler.status().manual?.state).toBe('failed');expect(()=>scheduler.read(first.opportunityId)).toThrow(/stale/);await scheduler.tick();const second=await scheduler.requestNow(lib.status().current!.key);time+=10*60000;await scheduler.tick();expect(scheduler.status().manual?.state).toBe('expired');expect(()=>scheduler.read(second.opportunityId)).toThrow(/stale/);expect(lib.status().current!.confirmedSegments).toBe(0);
  });
+ it('confirms a supplied range even when the model drops bookKey, deriving it from the task',async()=>{
+  cfg.automaticReading=false;const r=await scheduler.requestNow(lib.status().current!.key);const task=scheduler.read(r.opportunityId);
+  if(task.complete)throw new Error('Expected an unread segment');
+  // Real 9B models routinely omit the echoed bookKey. The task itself already
+  // proves which revision was handed out, so this must confirm instead of
+  // failing with "Unknown reading range".
+  const result=scheduler.finish({opportunityId:r.opportunityId,taskId:task.taskId,segmentId:task.segmentId,understanding:''});
+  expect(result.duplicate).toBe(false);expect(lib.status().current!.confirmedSegments).toBe(1);
+  // A batch confirmation derives the key the same way.
+  const batch=await scheduler.requestNow(lib.status().current!.key);const next=scheduler.read(batch.opportunityId);
+  if(next.complete)throw new Error('Expected an unread segment');
+  const many=scheduler.finishBatch(batch.opportunityId,[{taskId:next.taskId,segmentId:next.segmentId,understanding:''}]);
+  expect(many.confirmed).toBe(1);expect(lib.status().current!.confirmedSegments).toBe(2);
+ });
 });

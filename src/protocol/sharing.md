@@ -1,4 +1,8 @@
+<!-- protocol topic=sharing v=2 since=0.62.0 tools=bookfish_share,bookfish_claim_share,pet_say -->
 # Optional proactive sharing
+
+适用：把已存感想里的一条主动说给用户；包含候选、一次性许可、真实回执三件事。
+完成判定：`bookfish_share(action="report")` 已登记真实的 `pet_say` 结果；候选本身从不等于已发送。
 
 After saving an episode, you may choose one reaction worth sharing and call `bookfish_share(action="propose")` with `episodeId` and `text`. Keep it short and natural, using only confirmed source and saved interpretation; never put tool commands, unread spoilers or supposed unrecorded feelings in the text. A candidate does not send anything. Automatic sharing defaults on for new configurations; obey the existing saved setting and the user-controlled toggle. Defaults: 60-minute cooldown, quiet 22:00–08:00 deployment time. There is no daily attempt cap; attempts are audit information. Only the newest waiting candidate remains, expires after 2 hours; no catch-up bursts. User discussion replies remain normal replies and do not need sharing permits or nominations.
 

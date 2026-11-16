@@ -35,6 +35,7 @@ interface DiscussionItem {
   createdAt: number;
   segments: string[];
   delivery: DiscussionDelivery | null;
+  pacedAt?: number;
   reason: string | null;
 }
 

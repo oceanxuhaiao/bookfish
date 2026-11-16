@@ -1,4 +1,24 @@
+<!-- protocol topic=review v=3 since=0.62.0 tools=bookfish_review,bookfish_lookup -->
 # Full-book reviews
+
+适用：整本书连续确认完毕后写一篇读后感；包含任务生命周期、材料分页、文章要求与版本。
+完成判定：`bookfish_review(action="finish")` 保存成功，返回新的不可变文章版本。
+
+## 七个动作与参数
+
+只有 `begin` 需要 `requestId`；其余动作一个字都不用给。`requestId` 只用于"这次 begin 是不是同一次尝试"，它是 ASCII 的字母/数字/`:`/`_`/`-`。
+
+| action | 需要什么 | requestId | 重试怎么办 |
+|---|---|---|---|
+| `begin` | `bookKey` + `requestId` | **必须**，每次尝试新生成一个 | 同一个 begin 传输重试：**复用同一个 id**，返回原 job；已失败/取消后重新开始：**换新 id** |
+| `materials` | `jobId` + `kind`(`ranges`/`episodes`) + `offset`/`limit` | 不要 | 幂等：同一页重复取只更新"已提供过"的页集合 |
+| `finish` | `jobId` + `title` + `text` + `episodeIds` + `evidence` | 不要 | 内容完全相同：返回已存版本；内容不同：报错，必须换新 job |
+| `fail` | `jobId` + `reason` | 不要 | 已完成的评论不能被 fail；重复 fail 只覆盖失败原因 |
+| `list` | 可选 `bookKey`（默认当前书） | 不要 | 纯读 |
+| `get` | `reviewId` | 不要 | 纯读 |
+| `story` | 见 `bookfish_help("story")` | 不要 | 属故事记忆工作流，与书评任务无关 |
+
+`begin` 被拒时的常见原因（按顺序检查）：这本书没有连续读完 → 先读；当前没选中这本书 / 处于暂停 → 先选中并继续；已有 pending job → 用它或先 `fail`；`episodeIds` 缺失 → 若已有手账，`finish` 至少要引用一条。
 
 Never write or label a partial-stage reaction as a finished-book review. The World requires continuously confirmed completion; remote books must include every catalog chapter and be marked finished by the source. Automatic reading may offer ONE review job after completion when `automaticReview` is enabled; failed/cancelled jobs are retried only at a user's explicit request, using a new `requestId`. User panel requests also create one job. A job expires in 30 minutes and pause/book-switch/remount cancels pending work. New journal records invalidate its snapshot; keep all earlier article versions.
 

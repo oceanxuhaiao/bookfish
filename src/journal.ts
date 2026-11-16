@@ -15,7 +15,31 @@ export interface ReadingEpisode {
   kind: 'reading' | 'reflection' | 'revision'; content: EpisodeContent;
   taskId?: string; requestId?: string; revises?: string;
 }
-export const MAX_EPISODES = 100000;
+/** Where a quote actually lives, for the "wrong segmentId" case. */
+function suggestSegments(entry: BookEntry, frontier: number, exclude: number, quote: string): Array<{ segmentId: number; start: number }> {
+  const hits: Array<{ segmentId: number; start: number }> = [];
+  for (let index = 0; index < Math.min(frontier, entry.book.segments.length); index++) {
+    if (index === exclude) continue;
+    for (const start of quoteOffsets(entry.book.segments[index], quote)) {
+      hits.push({ segmentId: index, start });
+      if (hits.length >= 3) return hits;
+    }
+  }
+  return hits;
+}
+/** Absolute code-point offsets of every occurrence of `quote` inside the segment. */
+function quoteOffsets(segment: { start: number; text: string }, quote: string): number[] {
+  const offsets: number[] = [];
+  const codePoints = Array.from(segment.text);
+  const needle = Array.from(quote);
+  if (!needle.length) return offsets;
+  for (let index = 0; index + needle.length <= codePoints.length; index++) {
+    let same = true;
+    for (let offset = 0; offset < needle.length; offset++) if (codePoints[index + offset] !== needle[offset]) { same = false; break; }
+    if (same) offsets.push(segment.start + index);
+  }
+  return offsets;
+}
 export function record(value: unknown, field: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${field} must be an object`);
   return value as Record<string, unknown>;
@@ -27,26 +51,39 @@ function array(value: unknown, field: string, max: number): unknown[] {
   if (!Array.isArray(value) || value.length > max) throw new Error(`${field} must be an array of at most ${max}`);
   return value;
 }
+export const MAX_EPISODES = 100000;
 export function normalizeEpisode(input: unknown, entry: BookEntry, earlier: readonly ReadingEpisode[], frontier = entry.frontier): EpisodeContent {
   const v = record(input, 'episode');
   const evidence = array(v.evidence, 'evidence', 5).map(item => {
     const e = record(item, 'evidence');
     if (!Number.isSafeInteger(e.segmentId) || (e.segmentId as number) < 0 || (e.segmentId as number) >= frontier) throw new Error('Evidence must belong to a confirmed range of this exact revision');
     const segment = entry.book.segments[e.segmentId as number];
-    if (typeof e.quote !== 'string' || !e.quote.trim() || Array.from(e.quote).length > 300) throw new Error('Evidence quote must be 1–300 exact source characters');
+    if (typeof e.quote !== 'string' || !e.quote.trim() || Array.from(e.quote).length > 300) throw new Error('Evidence quote must be 1–300 exact source characters copied from the supplied segment. Required shape: {"trigger":"what happened","interpretation":"what you make of it","evidence":[{"segmentId":<id>,"quote":"<exact excerpt>","start":<optional offset>}]}');
+    // Report every absolute offset where the quote really occurs, so a rejected
+    // citation can be fixed in one step instead of guessed at.
+    const matches = quoteOffsets(segment, e.quote as string);
+    const elsewhere = matches.length ? [] : suggestSegments(entry, frontier, e.segmentId as number, e.quote as string);
+    const elsewhereText = elsewhere.length
+      ? ` The same text does occur at ${elsewhere.slice(0, 3).map(hit => `segment ${hit.segmentId} offset ${hit.start}`).join(', ')}.`
+      : '';
     let start: number;
     if (e.start === undefined) {
-      const index = segment.text.indexOf(e.quote);
-      if (index < 0) throw new Error('Evidence quote does not match the supplied source text');
-      if (segment.text.indexOf(e.quote, index + 1) >= 0) throw new Error('Evidence quote is ambiguous; provide its absolute Unicode-codepoint start');
-      start = segment.start + Array.from(segment.text.slice(0, index)).length;
+      if (!matches.length) throw new Error(`Evidence quote was not found in segment ${segment.id}; copy a contiguous excerpt exactly as supplied.${elsewhereText}`);
+      if (matches.length > 1) throw new Error(`Evidence quote occurs ${matches.length} times in segment ${segment.id} (absolute offsets ${matches.join(', ')}); pass one of them as start, or quote a longer unique passage`);
+      start = matches[0];
     } else {
       if (!Number.isSafeInteger(e.start)) throw new Error('Evidence start must be an absolute Unicode-codepoint offset');
       start = e.start as number;
     }
     const end = start + Array.from(e.quote).length;
-    if (start < segment.start || end > segment.end || (e.end !== undefined && e.end !== end) ||
-      Array.from(segment.text).slice(start - segment.start, end - segment.start).join('') !== e.quote) throw new Error('Evidence offsets and exact quote do not match this segment');
+    const exact = start >= segment.start && end <= segment.end &&
+      Array.from(segment.text).slice(start - segment.start, end - segment.start).join('') === e.quote;
+    if (!exact || (e.end !== undefined && e.end !== end)) {
+      const hint = matches.length
+        ? `the same quote occurs at absolute offset${matches.length > 1 ? 's' : ''} ${matches.join(', ')}; start must be one of them and end = start + quote length`
+        : `that exact character sequence does not occur in segment ${segment.id}; copy it verbatim from the supplied text${elsewhereText}`;
+      throw new Error(`Evidence offsets do not match the quote (start ${start}, end ${end}): ${hint}`);
+    }
     return { segmentId: e.segmentId as number, start, end, quote: e.quote };
   });
   if (!evidence.length) throw new Error('An episode needs at least one exact source quotation');
@@ -86,10 +123,10 @@ export function validateEpisodes(raw: unknown, books: Map<string, BookEntry>, ta
     if (e.kind === 'reading') {
       const task = taskById?taskById.get(e.taskId!):historyFind(tasks,{id:e.taskId});
       if (!task || task.status !== 'committed' || task.bookKey !== e.bookKey || task.receipt?.episodeId !== e.id || readingTasks.has(task.id) ||
-        !content.evidence.some(q => q.segmentId === task.segmentId) || content.evidence.some(q => q.segmentId > task.segmentId) || e.requestId !== undefined || e.revises !== undefined) throw new Error('Episode is not backed by its confirmed task');
+        !content.evidence.some(q => q.segmentId === task.segmentId) || content.evidence.some(q => q.segmentId > task.segmentId) || e.requestId !== undefined || e.revises !== undefined) throw new Error('Episode is not backed by its confirmed task: a reading-time episode may cite only the segment of that confirmed task; later reflections are separate records.');
       readingTasks.add(task.id);
     } else {
-      if (typeof e.requestId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(e.requestId) || requests.has(e.requestId) || e.taskId !== undefined) throw new Error('Invalid or duplicate reflection request');
+      if (typeof e.requestId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(e.requestId) || requests.has(e.requestId) || e.taskId !== undefined) throw new Error('Invalid or duplicate reflection request: requestId must be 1–80 characters of A–Z a–z 0–9 _ - and must not repeat within this book. Example: {"bookKey":"<current>","requestId":"reflection-20261115-1","episode":{"trigger":"...","interpretation":"...","evidence":[{"segmentId":<confirmed id>,"quote":"<exact excerpt>"}]},"revises":"<earlier episode id, optional>"}');
       requests.add(e.requestId);
       if (e.kind === 'revision' ? earlier.get(e.revises!)?.bookKey!==e.bookKey : e.revises !== undefined) throw new Error('Revision must reference an earlier record of the same revision');
     }
@@ -120,13 +157,13 @@ export function evidenceView(entry: BookEntry, evidence: Evidence) {
 export const EPISODE_SCHEMA = {
   type: 'object', additionalProperties: false,
   properties: {
-    trigger: { type: 'string', maxLength: 500, description: 'Event in the cited text that prompted this record; your account, not a verified fact.' },
+    trigger: { type: 'string', maxLength: 500, description: 'Cited event that prompted this record; your account, not a verified fact.' },
     interpretation: { type: 'string', maxLength: 800 }, priorJudgment: { type: ['string', 'null'], maxLength: 500 },
-    reason: { type: ['string', 'null'], maxLength: 800, description: 'Short stated explanation, never hidden chain-of-thought. Omit when not recorded.' },
+    reason: { type: ['string', 'null'], maxLength: 800, description: 'Short stated reason; omit when not recorded.' },
     mood: { anyOf: [{ type: 'null' }, { type: 'object', additionalProperties: false, properties: { label: { type: 'string', maxLength: 80 }, intensity: { type: 'integer', minimum: 1, maximum: 5 } }, required: ['label'] }] },
     evidence: { type: 'array', minItems: 1, maxItems: 5, items: { type: 'object', additionalProperties: false, properties: {
-      segmentId: { type: 'integer', minimum: 0 }, quote: { type: 'string', minLength: 1, maxLength: 300, description: 'Exact substring of the provided segment, never paraphrase.' },
-      start: { type: 'integer', minimum: 0, description: 'Optional absolute Unicode-codepoint offset; omit for unique quotations so the World locates it.' },
+      segmentId: { type: 'integer', minimum: 0 }, quote: { type: 'string', minLength: 1, maxLength: 300, description: 'Exact substring of the segment.' },
+      start: { type: 'integer', minimum: 0, description: 'Optional absolute offset; omit for unique quotes.' },
     }, required: ['segmentId', 'quote'] } },
     characters: { type: 'array', maxItems: 8, items: { type: 'object', additionalProperties: false, properties: { name: { type: 'string', maxLength: 60 }, aliases: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 60 } } }, required: ['name'] } },
     questions: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 200 } },

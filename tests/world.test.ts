@@ -73,6 +73,52 @@ describe('Bookfish library World', () => {
     expect(calls).toBe(0);
     await world.stop();
   });
+  it('mounts and closes the optional story sidecar without enabling it by default', async () => {
+    const ctx = fakeWorldContext(BOOKFISH, { scratchDir });
+    Object.assign(ctx.cfg, { automaticReading: false, realRoutineEnabled: false, readingBatchSegments: 1, storyMemoryEnabled: true });
+    const world = BOOKFISH.create(ctx);
+    await world.start(new FakeHost());
+    const panel = await world.webUi!('zh').invoke!('status', 'get', []) as { status: { library: { story: { enabled: boolean; records?: number } } } };
+    expect(panel.status.library.story).toMatchObject({ enabled: true });
+    await world.stop();
+  });
+  it('captures a story fact through the optional tool without advancing reading', async () => {
+    const ctx = fakeWorldContext(BOOKFISH, { scratchDir });
+    Object.assign(ctx.cfg, { automaticReading: false, realRoutineEnabled: false, readingBatchSegments: 1, storyMemoryEnabled: true });
+    const world = BOOKFISH.create(ctx);
+    const host = new FakeHost();
+    await world.start(host);
+    try {
+      const invoke = world.webUi!('zh').invoke!;
+      const imported = await invoke('status', 'import', [{ filename: 's.txt', title: '故事工具', base64: Buffer.from('第一章\n鱼读海边故事。\n' + '海风。'.repeat(200)).toString('base64') }]) as { book: { key: string } };
+      await invoke('status', 'select', [imported.book.key]);
+      const opportunity = await invoke('status', 'read_now', [imported.book.key]) as { opportunityId: string };
+      const tool = async (name: string, args: Record<string, unknown>) => JSON.parse(await world.tools().find(t => t.name === name)!.handler(args, {} as ToolCallContext) as string);
+      const task = await tool('bookfish_read_next', { opportunityId: opportunity.opportunityId });
+      await tool('bookfish_finish_reading', { taskId: task.taskId, bookKey: task.bookKey, segmentId: task.segmentId, understanding: '' });
+      const before = (await status(world)).library.current.confirmedSegments;
+      const captured = await tool('bookfish_review', {
+        action: 'story', bookKey: imported.book.key, requestId: 'tool-story-1',
+        storyChanges: [{ kind: 'event', summary: '鱼在海边读故事', names: ['鱼'], evidenceSegmentIds: [0], quote: '鱼读海边故事。' }],
+      });
+      expect(captured.records).toHaveLength(1);
+      expect((await status(world)).library.current.confirmedSegments).toBe(before);
+      const overview = await tool('bookfish_lookup', { action: 'story', storyAction: 'overview', bookKey: imported.book.key, atFrontier: 1 });
+      expect(overview.packs).toEqual([]);
+      const evidence = await tool('bookfish_lookup', { action: 'story', storyAction: 'evidence', bookKey: imported.book.key, eventIds: [captured.records[0].id], atFrontier: 1 });
+      expect(evidence.events[0]).toMatchObject({ summary: '鱼在海边读故事' });
+      const entity = await tool('bookfish_lookup', { action: 'story', storyAction: 'entity', bookKey: imported.book.key, query: '鱼' });
+      expect(entity.status).toBe('resolved');
+      const duplicate = await tool('bookfish_review', {
+        action: 'story', bookKey: imported.book.key, requestId: 'tool-story-1',
+        storyChanges: [{ kind: 'event', summary: '鱼在海边读故事', names: ['鱼'], evidenceSegmentIds: [0], quote: '鱼读海边故事。' }],
+      });
+      expect(duplicate.duplicate).toBe(true);
+      expect((await status(world)).library.current.confirmedSegments).toBe(before);
+    } finally {
+      await world.stop();
+    }
+  });
   it('keeps the model-facing status compact while the panel keeps the full shape', async () => {
     const { world } = create();
     await world.start(new FakeHost());
