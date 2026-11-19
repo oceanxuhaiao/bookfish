@@ -35,6 +35,25 @@ it('keeps old progress for a duplicate streaming import and leaves a failed comm
  }finally{lib.close();}
 });
 
+it('repairs isolated invalid bytes instead of rejecting the whole novel',()=>{
+  // A real desktop file (刀锋.txt) is valid UTF-8 except for one stray 0xA4 in the body.
+  const body='黎望把灯芯剪短了一点。'.repeat(2000);
+  const bytes=Buffer.concat([Buffer.from(body.slice(0,3000)),Buffer.from([0xa4]),Buffer.from(body.slice(3000))]);
+  const file=join(dir,'stray.txt');writeFileSync(file,bytes);
+  const id=importFileBlob(dir,file,{filename:'stray.txt',title:'孤立坏字节'},16*1024);
+  const book=loadPagedBook(join(dir,id+'.json.gz'),id,new PageCache());
+  const text=book.segments.map(segment=>segment.text).join('');
+  expect(text).toContain('\uFFFD');
+  expect(text.replace(/\uFFFD/g,'')).toBe(body);
+});
+
+it('still refuses a body that is mostly undecodable',()=>{
+  const bytes=Buffer.concat([Buffer.from('海风。'.repeat(500)),Buffer.alloc(8000,0xff),Buffer.from('结尾正文。'.repeat(100))]);
+  const file=join(dir,'garbage.txt');writeFileSync(file,bytes);
+  expect(()=>importFileBlob(dir,file,{filename:'garbage.txt',title:'大面积乱码'},16*1024)).toThrow(/UTF-8/);
+  expect(readdirSync(dir)).toEqual(['garbage.txt']);
+});
+
 it('cleans a late UTF-8 error after multiple input chunks and preserves the existing shelf',()=>{
  const file=join(dir,'source.txt'),lib=new Library({dataDir:dir});try{
   lib.open();const first=lib.importBytes({filename:'old.txt',title:'原书'},Buffer.from('原有正文。'));
