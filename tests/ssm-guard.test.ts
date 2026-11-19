@@ -131,6 +131,28 @@ describe('清单自身的完整性', () => {
   });
 });
 
+describe('清单与文档不得漂移', () => {
+  const docPath = join(process.cwd(), 'docs/dev/BookFish-SSM-PROVISIONAL-PROTECTED-PATHS.md');
+
+  it('documents every blocked path from the manifest', () => {
+    const text = readFileSync(docPath, 'utf8').toLowerCase();
+    for (const entry of manifest.blocked) expect(text, `missing ${entry}`).toContain(entry);
+  });
+
+  it('documents every review path from the manifest', () => {
+    const text = readFileSync(docPath, 'utf8').toLowerCase();
+    for (const entry of manifest.review) expect(text, `missing ${entry}`).toContain(entry);
+  });
+
+  it('does not let the guard block its own documentation', () => {
+    const result = classifyPaths(
+      ['docs/dev/BookFish-SSM-PROVISIONAL-PROTECTED-PATHS.md', 'docs/dev/Bugfix-开发模板.md'],
+      manifest,
+    );
+    for (const item of result) expect(item.verdict).toBe('allowed');
+  });
+});
+
 describe('git 输出解析', () => {
   it('takes both sides of a rename', () => {
     expect(parseNameStatus('M\tsrc/a.ts\nR100\told/b.ts\tnew/b.ts\nA\tsrc/c.ts\n')).toEqual([
@@ -139,6 +161,14 @@ describe('git 输出解析', () => {
       'new/b.ts',
       'src/c.ts',
     ]);
+  });
+
+  it('keeps non-ASCII paths verbatim so name rules still apply', () => {
+    expect(parseNameStatus('A\tsrc/story/回忆.ts\nA\tdocs/开发笔记.md\n')).toEqual([
+      'src/story/回忆.ts',
+      'docs/开发笔记.md',
+    ]);
+    expect(verdicts(['src/story/回忆.ts'])['src/story/回忆.ts']).toBe('blocked');
   });
 
   it('parses CLI arguments and rejects a missing base', () => {

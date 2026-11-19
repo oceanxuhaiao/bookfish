@@ -28,12 +28,18 @@
     "src/journal.ts",
     "src/retrieval.ts",
     "tests/predeploy-data-lifecycle.test.ts",
-    "tests/scope-r2.test.ts"
+    "tests/scope-r2.test.ts",
+    "tests/closeout-data-recovery.test.ts",
+    "tests/world.test.ts",
+    "tests/fixtures/kill-restore.ts",
+    "tests/security/untrusted-book-content.test.ts"
   ],
   "exempt": [
     "scripts/ssm-protected-paths.json",
     "scripts/check-ssm-protected.mts",
-    "tests/ssm-guard.test.ts"
+    "tests/ssm-guard.test.ts",
+    "docs/dev/BookFish-SSM-PROVISIONAL-PROTECTED-PATHS.md",
+    "docs/dev/Bugfix-开发模板.md"
   ],
   "namePatterns": [
     "(^|/)story([-._]|$)",

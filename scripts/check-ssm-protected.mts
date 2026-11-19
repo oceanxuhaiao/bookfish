@@ -163,7 +163,9 @@ export function parseNameStatus(text: string): string[] {
 }
 
 function git(root: string, args: string[]): string {
-  return execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  // core.quotepath=false keeps non-ASCII paths (e.g. Chinese file names) verbatim;
+  // without it git escapes them as octal and every name-based rule misses.
+  return execFileSync('git', ['-C', root, '-c', 'core.quotepath=false', ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 }
 
 export interface CollectOptions {
