@@ -13,7 +13,17 @@ const prompt = readFileSync(join(root, 'src', 'ENV_PROMPT.md'), 'utf8');
 const protocolDir = join(root, 'src', 'protocol');
 const protocolFiles = readdirSync(protocolDir).filter((name) => name.endsWith('.md')).sort();
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string };
-const minor = pkg.version.split('.').slice(0, 2).join('.');
+
+/** Compare two dotted versions by their numeric parts; positive means `a` is newer. */
+const compareMinor = (a: string, b: string): number => {
+  const left = a.split('.').map(Number);
+  const right = b.split('.').map(Number);
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const delta = (left[index] ?? 0) - (right[index] ?? 0);
+    if (delta !== 0) return delta;
+  }
+  return 0;
+};
 
 /**
  * What a model actually receives per tool: name, description and parameters.
@@ -91,7 +101,10 @@ describe('on-demand protocol set', () => {
       const header = headerOf(file, text);
       expect(header.topic, file).toBe(file.replace(/\.md$/, ''));
       expect(header.version, file).toBeGreaterThanOrEqual(1);
-      expect(header.since.split('.').slice(0, 2).join('.'), `${file} must record the release that last changed it`).toBe(minor);
+      // A protocol records the release its text last changed in, so an unchanged
+      // document keeps an older release across minor bumps. It must never claim a
+      // release newer than the package itself.
+      expect(compareMinor(header.since, pkg.version), `${file} must not come from a newer release than ${pkg.version}`).toBeLessThanOrEqual(0);
       expect(text.length, file).toBeGreaterThan(200);
       expect(header.tools.length, `${file} must declare the tools it drives`).toBeGreaterThan(0);
       for (const tool of header.tools) {
