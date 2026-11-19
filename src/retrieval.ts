@@ -38,7 +38,7 @@ export function searchReading(entry: BookEntry, allEpisodes: readonly ReadingEpi
   if (words.length > 8 || words.some(w => Array.from(w).length > 40)) throw new Error('Use at most eight search keywords, each up to 40 characters');
   const limit = integer(args.limit, 5, 1, 10, 'limit');
   const segmentId = args.segmentId === undefined ? undefined : integer(args.segmentId, 0, 0, Number.MAX_SAFE_INTEGER, 'segmentId');
-  if (segmentId !== undefined && segmentId >= entry.frontier) throw new Error('Search range is unread; queries cannot expand the confirmed frontier');
+  if (segmentId !== undefined && (segmentId >= entry.frontier || segmentId < (entry.skip ?? 0))) throw new Error('Search range is unread; queries cannot expand the confirmed frontier');
   const episodes = historySelect(allEpisodes,{bookKey:entry.book.key});
   const tasks = historySelect(allTasks,{bookKey:entry.book.key,status:'committed',before:entry.frontier});
   const snapshot = digest(JSON.stringify([entry.book.key, entry.frontier, episodes.map(e => e.id), tasks.map(t => t.id)]));
@@ -63,7 +63,7 @@ export function searchReading(entry: BookEntry, allEpisodes: readonly ReadingEpi
     } };
   if (kind === 'all' || kind === 'receipt') for (const t of tasks) yield { kind: 'receipt', id: t.id, task: t, sequence: t.segmentId,
     segmentIds: [t.segmentId], chapter: [entry.book.segments[t.segmentId].chapter], characterNames: [], fields: { understanding: t.receipt!.understanding } };
-  if (kind === 'all' || kind === 'text') for (let index=0;index<entry.frontier;index++) {const segment=entry.book.segments[index]; yield { kind: 'text', id: String(segment.id), sequence: segment.id,
+  if (kind === 'all' || kind === 'text') for (let index=(entry.skip ?? 0);index<entry.frontier;index++) {const segment=entry.book.segments[index]; yield { kind: 'text', id: String(segment.id), sequence: segment.id,
     segmentIds: [segment.id], chapter: [segment.chapter], characterNames: [], fields: { text: segment.text } };}
   }
   type Hit = {row: SearchRow; score:number; matchedFields:string[]; preview:string};
@@ -91,7 +91,7 @@ export function searchReading(entry: BookEntry, allEpisodes: readonly ReadingEpi
   hits.sort(compare);
   if (offset > totalHits) throw new Error('Invalid search cursor offset');
   const page = hits.slice(offset, offset + limit);
-  return { bookKey: entry.book.key, confirmedSegments: entry.frontier, snapshot, total: totalHits,
+  return { bookKey: entry.book.key, confirmedSegments: entry.frontier - (entry.skip ?? 0), snapshot, total: totalHits,
     items: page.map(({ row, score, matchedFields, preview }) => ({ kind: row.kind, id: row.id, score, matchedFields, segmentIds: row.segmentIds,
       chapters: [...new Set(row.chapter)], snippet: preview,
       ...(row.episode ? { episodeKind: row.episode.kind, recordedAt: row.episode.recordedAt, reasonRecorded: row.episode.content.reason !== null,
@@ -124,7 +124,7 @@ export function readingContext(entry: BookEntry, allEpisodes: readonly ReadingEp
   if (!wanted.length && !taskIds.length && !segmentIds.length) throw new Error('context needs ids: pass episodeIds, taskIds or segmentIds (up to four each). Get them from bookfish_lookup(action="search", query=...) — every returned item has an id — or from a discussion event, and then call context with those ids. Example: {"action":"context","episodeIds":["<id from search>"]}');
   const episodes = historySelect(allEpisodes,{bookKey:entry.book.key}); const byId={get:(id:string)=>historyFind(episodes,{id}),has:(id:string)=>!!historyFind(episodes,{id})};
   for (const id of wanted) if (!byId.has(id)) throw new Error('Episode is missing or belongs to a different revision');
-  for (const index of segmentIds) if (index >= entry.frontier) throw new Error('Requested source range is unread; context retrieval never reads ahead');
+  for (const index of segmentIds) if (index >= entry.frontier || index < (entry.skip ?? 0)) throw new Error('Requested source range is unread; context retrieval never reads ahead');
   const receipts = taskIds.map(id => {
     const task = historyFind(historySelect(allTasks,{bookKey:entry.book.key,status:'committed',before:entry.frontier}),{id});
     if (!task) throw new Error('Receipt is missing, unconfirmed or from another revision');
@@ -138,7 +138,7 @@ export function readingContext(entry: BookEntry, allEpisodes: readonly ReadingEp
   }
   const included = [...wanted, ...[...related].slice(0, 4)].map(id => byId.get(id)!);
   const result = {
-    book: { key: entry.book.key, title: entry.book.title, revision: entry.book.revision, confirmedSegments: entry.frontier, confirmedChars: entry.frontier ? entry.book.segments[entry.frontier - 1].end : 0 },
+    book: { key: entry.book.key, title: entry.book.title, revision: entry.book.revision, confirmedSegments: entry.frontier - (entry.skip ?? 0), confirmedChars: entry.frontier > (entry.skip ?? 0) ? entry.book.segments[entry.frontier - 1].end - entry.book.segments[entry.skip ?? 0].start : 0, priorReadingSegments: entry.skip ?? 0, positionSegments: entry.frontier },
     accounts: [] as Array<Record<string, unknown>>, receipts: [] as Array<Record<string, unknown>>, sources: [] as Array<Record<string, unknown>>,
     omitted: [] as Array<{ kind: string; id: string; reason: string }>, omittedCount: 0, omissionDetailsTruncated: false,
     additionalRelatedRecords: Math.max(0, related.size - 4), additionalSourceSegments: 0, maxChars, usedChars: 0, progressAdvanced: false,

@@ -175,4 +175,37 @@ describe('Bookfish library World', () => {
       expect((await status(world)).library.current.confirmedSegments).toBe(1);
     } finally { await world.stop(); }
   });
+  it('exposes the declared reading start to the panel only, and rejects an invalid start', async () => {
+    const { world } = create(); await world.start(new FakeHost());
+    try {
+      const invoke = world.webUi!().invoke!;
+      const body = '风吹过海面。\n'.repeat(1800);
+      const imported = await invoke('status', 'import', [{ filename: 'start.md', title: '起点样本', base64: Buffer.from(`# 第一章 海边\n${body}\n# 第二章 回家\n${body}`).toString('base64') }]) as { book: { key: string } };
+      const key = imported.book.key;
+      await invoke('status', 'select', [key]);
+      const listed = await invoke('status', 'chapters', [key]) as { total: number; truncated: boolean; items: Array<{ title: string; segment: number }> };
+      expect(listed.total).toBeGreaterThanOrEqual(2);
+      expect(listed.truncated).toBe(false);
+      expect(listed.items[0]!.title).toContain('第一章');
+      const second = listed.items[1]!;
+      // Panel-only: no model tool may exist for either control.
+      expect(world.tools().map(tool => tool.name)).not.toContain('bookfish_set_start');
+      expect(world.tools().map(tool => tool.name)).not.toContain('bookfish_chapters');
+      await expect(invoke('status', 'set_start', [{ bookKey: key, segment: 'nope' }])).rejects.toThrow(/out of range/);
+      await expect(invoke('status', 'set_start', [{ bookKey: key, segment: second.segment + 1 }])).rejects.toThrow(/first segment of a chapter/);
+      const panelCurrent = async () => ((await invoke('status', 'get', [])) as { status: { library: { current: Record<string, unknown> } } }).status.library.current;
+      expect((await panelCurrent()).priorReadingSegments).toBe(0);
+      const view = await invoke('status', 'set_start', [{ bookKey: key, segment: second.segment }]) as { priorReadingSegments: number; confirmedSegments: number };
+      expect(view.priorReadingSegments).toBe(second.segment);
+      expect(view.confirmedSegments).toBe(0);
+      const current = await panelCurrent();
+      expect(current.priorReadingSegments).toBe(second.segment);
+      expect(current.chapter).toContain('第二章');
+      expect(current.confirmedChars).toBe(0);
+      // A declared start locks once reading begins.
+      const task = JSON.parse(await world.tools().find(tool => tool.name === 'bookfish_read_next')!.handler({}, {} as ToolCallContext) as string);
+      await world.tools().find(tool => tool.name === 'bookfish_finish_reading')!.handler({ taskId: task.taskId, bookKey: task.bookKey, segmentId: task.segmentId, understanding: '' }, {} as ToolCallContext);
+      await expect(invoke('status', 'set_start', [{ bookKey: key, segment: 0 }])).rejects.toThrow(/locked/);
+    } finally { await world.stop(); }
+  });
 });

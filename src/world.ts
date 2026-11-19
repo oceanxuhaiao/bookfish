@@ -439,6 +439,18 @@ export class BookfishWorld implements World {
         if (method === 'reader' && args.length === 1) return this.library.reader(args[0]);
         if (method === 'select' && args.length === 1) { const result = this.library.select(args[0]); this.scheduler.changed(); this.selection.onSelectionChanged(String(args[0])); return result; }
         if (method === 'pause' && args.length === 1) { const result = this.library.setPaused(args[0]); this.scheduler.changed(); return result; }
+        if (method === 'chapters' && args.length === 1) return this.library.chapters(args[0]);
+        // Human-only control: declares that the leading chapters were read elsewhere.
+        // Deliberately not exposed as a model tool, so imported book text can never
+        // talk the pet into skipping ahead.
+        if (method === 'set_start' && args.length === 1) {
+          const value = args[0];
+          if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid reading start');
+          const options = value as { bookKey?: unknown; segment?: unknown };
+          const result = this.library.setReadingStart(options.bookKey, options.segment);
+          this.scheduler.changed();
+          return result;
+        }
         if (method === 'resume_rest' && args.length === 0) return this.scheduler.resume();
         if (method === 'remove' && args.length === 1) { this.serialSync.cancelForBook(String(args[0])); const result = this.library.remove(args[0]); this.discussions.removeBook(String(args[0])); this.scheduler.changed(); this.sharing.status(); this.selection.summary(); return result; }
         if (method === 'export' && args.length === 0) return this.library.export();

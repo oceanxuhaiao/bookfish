@@ -23,7 +23,9 @@ export interface ReadingTask {
   id: string; bookKey: string; segmentId: number; generation: number; expiresAt: number;
   status: 'pending' | 'committed' | 'cancelled' | 'expired'; receipt?: Receipt;
 }
-export interface BookEntry { book: Book; frontier: number; serial?: SerialRecord }
+export interface BookEntry { book: Book; frontier: number; serial?: SerialRecord;
+  /** Leading segments the human declared already read elsewhere. Read range is [skip, frontier). */
+  skip?: number; skipDeclaredAt?: number }
 export interface RestRecord {id:string;bookKey:string;startedAt:number;plannedUntil:number;endedAt:number|null;state:'scheduled'|'ended'|'interrupted'|'skipped';source:'session'|'model';readingMs:number}
 export interface LibraryState {
   schema: 3; generation: number; selected: string | null; paused: boolean;
@@ -35,19 +37,40 @@ export interface LibraryState {
 function empty(): LibraryState { return { schema: 3, generation: 0, selected: null, paused: false, books: [], tasks: [], episodes: [], nextEpisodeSequence: 1, reviewJobs: [], reviews: [],rests:[],selection:emptySelection() }; }
 function integer(value: unknown): value is number { return Number.isSafeInteger(value) && (value as number) >= 0; }
 const serialOf = (book: Book) => book.remote?.serial;
+/**
+ * A declared start is only ever a chapter boundary, never mid-chapter, and it can never
+ * exceed what has been read. Kept separate so snapshots, archives and restores agree.
+ */
+function readStart(entry: BookEntry, total: number): number {
+  const skip = entry.skip ?? 0;
+  if (!integer(skip) || skip > entry.frontier || skip > total) throw new Error('Invalid declared reading start');
+  if (skip > 0) {
+    if (entry.skipDeclaredAt !== undefined && (!integer(entry.skipDeclaredAt) || entry.skipDeclaredAt > 8640000000000000)) throw new Error('Invalid declared reading start');
+    const segments = entry.book.segments;
+    if (segments[skip].chapter === segments[skip - 1].chapter) throw new Error('Declared reading start must be the first segment of a chapter');
+  }
+  return skip;
+}
 export type SerialReadiness = 'backlog' | 'waiting_content' | 'caught_up' | 'finished' | 'conflict';
-function serialSummary(book: Book, frontier: number, serial = serialOf(book)) {
+function serialSummary(book: Book, frontier: number, serial = serialOf(book), skip = 0) {
   if (!serial || !book.remote) return null;
   const catalog = book.remote.catalog, cached = book.remote.cache.length, total = catalog.chapters.length;
   let confirmedChapters = 0;
   while (confirmedChapters < cached && serial.layout[confirmedChapters] <= frontier) confirmedChapters++;
+  // Position counts every chapter the reading cursor has passed, including the ones
+  // declared read elsewhere, so chapter progress keeps tracking the cursor.
+  const positionChapters = confirmedChapters;
+  // Chapters that ended at or before the declared start were read elsewhere, not here.
+  let declared = 0;
+  while (declared < confirmedChapters && serial.layout[declared] <= skip) declared++;
+  confirmedChapters -= declared;
   let readiness: SerialReadiness;
   if (serial.lastCheck?.status === 'conflict') readiness = 'conflict';
   else if (frontier < book.segments.length) readiness = 'backlog';
   else if (cached < total) readiness = 'waiting_content';
   else if (catalog.publicationStatus === 'finished') readiness = 'finished';
   else readiness = 'caught_up';
-  return { serial, catalog, cached, total, confirmedChapters, readiness, complete: readiness === 'finished' };
+  return { serial, catalog, cached, total, confirmedChapters, positionChapters, readiness, complete: readiness === 'finished' };
 }
 
 /** Rebuild indexes from source and verify progress against unique committed ranges before trusting a snapshot. */
@@ -66,13 +89,13 @@ export function validateState(raw: unknown): LibraryState {
     if(isPagedBook(original)){
       const serial=entry.serial??serialOf(original);
       if(serial){const identity=stableSerialIdentity(serial.serialId,serial.editionEpoch);if(original.key!==identity.key||original.id!==identity.id||original.revision!==identity.revision)throw new Error('Serial book identity does not match its record');validateSerialRecord(serial,original.remote!.cache.length,original.segments.length);}
-      if(entry.frontier>original.segments.length||books.has(original.key))throw Error('Invalid paged book progress');books.set(original.key,{book:original,frontier:entry.frontier,...(entry.serial?{serial:entry.serial}:{})});continue;
+      if(entry.frontier>original.segments.length||books.has(original.key))throw Error('Invalid paged book progress');const pagedSkip=readStart(entry,original.segments.length);books.set(original.key,{book:original,frontier:entry.frontier,...(pagedSkip?{skip:pagedSkip,...(entry.skipDeclaredAt!==undefined?{skipDeclaredAt:entry.skipDeclaredAt}:{})}:{}),...(entry.serial?{serial:entry.serial}:{})});continue;
     }
     const rebuilt = original.remote ? buildRemoteBook(original.remote) : buildBook(original.filename, original.title, original.author, original.text);
     if (original.key !== rebuilt.key || original.id !== rebuilt.id || original.revision !== rebuilt.revision ||
       original.text !== rebuilt.text || original.sourceHash !== rebuilt.sourceHash || original.parserVersion !== rebuilt.parserVersion || original.totalChars !== rebuilt.totalChars ||
       (!Array.isArray(original.segments)||original.segments.length!==rebuilt.segments.length||original.segments.some((s,i)=>!s||Object.keys(s).length!==5||s.id!==rebuilt.segments[i].id||s.chapter!==rebuilt.segments[i].chapter||s.start!==rebuilt.segments[i].start||s.end!==rebuilt.segments[i].end||s.text!==rebuilt.segments[i].text)) || entry.frontier > rebuilt.segments.length || books.has(original.key)) throw new Error('Book content or index is inconsistent');
-    books.set(original.key, { book: rebuilt, frontier: entry.frontier, ...(entry.serial ? { serial: entry.serial } : {}) });
+    books.set(original.key, { book: rebuilt, frontier: entry.frontier, ...(readStart(entry, rebuilt.segments.length) ? { skip: readStart(entry, rebuilt.segments.length), ...(entry.skipDeclaredAt !== undefined ? { skipDeclaredAt: entry.skipDeclaredAt } : {}) } : {}), ...(entry.serial ? { serial: entry.serial } : {}) });
   }
   if (state.books.reduce((n, e) => n + e.book.totalChars, 0) > MAX_LIBRARY_CHARS) throw new Error('Library exceeds size limit');
   if (state.selected !== null && (typeof state.selected !== 'string' || !books.has(state.selected))) throw new Error('Selected book is missing');
@@ -111,7 +134,9 @@ export function validateState(raw: unknown): LibraryState {
   }
   for (const entry of state.books) {
     const ranges = committed.get(entry.book.key) ?? new Set<number>();
-    if (ranges.size !== entry.frontier || [...ranges].some((i) => i >= entry.frontier)) throw new Error('Progress is not a continuous confirmed range');
+    const skip = entry.skip ?? 0;
+    // The confirmed range is [skip, frontier): contiguous, but it need not start at 0.
+    if (ranges.size !== entry.frontier - skip || [...ranges].some((i) => i < skip || i >= entry.frontier)) throw new Error('Progress is not a continuous confirmed range');
   }
   const episodes = validateEpisodes(schema === 1 ? [] : state.episodes, books, state.tasks);
   const nextEpisodeSequence = schema === 1 ? 1 : state.nextEpisodeSequence;
@@ -253,7 +278,7 @@ export class Library {
   private change<T>(action: (draft: LibraryState) => T): T {
     this.ensureOpen();
     if (this.archiving) throw new Error('Library is being archived; no writes are allowed');
-    const draft = { ...structuredClone({ ...this.state, books: [],tasks:[],episodes:[] }), tasks:historyFork(this.state.tasks),episodes:historyFork(this.state.episodes),books: this.state.books.map(e=>({ book:e.book, frontier:e.frontier, ...(e.serial?{serial:e.serial}:{}) })) };
+    const draft = { ...structuredClone({ ...this.state, books: [],tasks:[],episodes:[] }), tasks:historyFork(this.state.tasks),episodes:historyFork(this.state.episodes),books: this.state.books.map(e=>({ book:e.book, frontier:e.frontier, ...(e.skip?{skip:e.skip,...(e.skipDeclaredAt!==undefined?{skipDeclaredAt:e.skipDeclaredAt}:{})}:{}), ...(e.serial?{serial:e.serial}:{}) })) };
     const result = action(draft);
     if(this.options.write)this.options.write(this.file,draft);else {const ref=this.history.prepare(draft,this.historyRef);this.options.beforeMetadataCommit?.();atomicWrite(this.file,{...this.bookStorage.prepare(draft) as LibraryState,schema:draft.books.some(e=>e.book.remote?.serial)?7:6,tasks:[],episodes:[],$history:ref} as unknown as LibraryState);this.historyRef=ref;this.state=this.history.bind(draft,ref);this.history.committed(ref);}
     if(this.options.write)this.state = draft;
@@ -292,32 +317,66 @@ export class Library {
     while(end<b.segments.length&&end<start+8&&b.segments[end].chapter===b.segments[start].chapter){chunks.push({id:end,text:b.segments[end].text});end++;}
     return {bookKey:b.key,title:b.title,chapter:b.segments[start].chapter,segment:start,segments:chunks,totalSegments:b.segments.length,previous:start?Math.max(0,start-8):null,next:end<b.segments.length?end:null,chapters:chapters.slice(index,index+100),chapterOffset:index,nextChapterOffset:index+100<chapters.length?index+100:null,cachedOnly:!!b.remote};
   }
+  /**
+   * Human-declared prior reading: the reader already finished the leading chapters elsewhere.
+   * Deliberately NOT a model tool — only the WebUI panel may call it, so book text can never
+   * talk the pet into skipping ahead. Records no receipt and never marks skipped text read.
+   */
+  setReadingStart(key: unknown, segment: unknown) {
+    this.ensureOpen();
+    const entry = this.state.books.find((e) => e.book.key === key);
+    if (!entry) throw new Error('Book is not in the library');
+    if (!integer(segment) || segment >= entry.book.segments.length) throw new Error('Start segment is out of range');
+    const current = entry.skip ?? 0;
+    if (entry.frontier !== current) throw new Error('Reading has already started in BookFish; the start point is locked for this revision');
+    if (segment > 0 && entry.book.segments[segment].chapter === entry.book.segments[segment - 1].chapter) throw new Error('Start must be the first segment of a chapter');
+    return this.change((draft) => {
+      const target = draft.books.find((e) => e.book.key === key)!;
+      this.invalidate(draft);
+      target.frontier = Number(segment);
+      if (segment) { target.skip = Number(segment); target.skipDeclaredAt = this.now(); }
+      else { delete target.skip; delete target.skipDeclaredAt; }
+      return this.view(target);
+    });
+  }
+  /** Chapter starts for the "start from chapter" control; positions are absolute segment ids. */
+  chapters(key: unknown) {
+    this.ensureOpen();
+    const entry = this.state.books.find((e) => e.book.key === key);
+    if (!entry) throw new Error('Book is not in the library');
+    const all = readerChapters(entry.book);
+    const items = all.slice(0, 5000).map((chapter) => ({ title: chapter.title, segment: chapter.segment }));
+    return { bookKey: entry.book.key, total: all.length, truncated: all.length > items.length, items };
+  }
   private view(entry: BookEntry) {
     const b = entry.book;
-    const serial = serialSummary(b, entry.frontier, entry.serial);
-    const confirmedChars = entry.frontier ? b.segments[entry.frontier - 1].end : 0;
+    const skip = entry.skip ?? 0;
+    const serial = serialSummary(b, entry.frontier, entry.serial, skip);
+    const positionChars = entry.frontier ? b.segments[entry.frontier - 1].end : 0;
+    const confirmedChars = entry.frontier > skip ? b.segments[entry.frontier - 1].end - b.segments[skip].start : 0;
     const loaded = b.remote?.cache.length ?? 0;
     let completedChapters = serial?.confirmedChapters ?? 0;
-    const layout=remoteLayout(b);if(layout&&!serial)completedChapters=layout.ends.filter(end=>end<=entry.frontier).length;
+    const layout=remoteLayout(b);if(layout&&!serial)completedChapters=layout.ends.filter(end=>end<=entry.frontier&&end>skip).length;
     if (b.remote&&!layout&&!serial) {
       let segmentCount = 0;
       for (const chapter of b.remote.cache) {
         segmentCount += Math.ceil(Array.from(`# ${b.remote.catalog.chapters[chapter.index].title}\n${chapter.text}\n\n`).length / 1200);
-        if (entry.frontier >= segmentCount) completedChapters++;
+        if (entry.frontier >= segmentCount && segmentCount > skip) completedChapters++;
       }
     }
-    const chapterIndex = Math.max(0, entry.frontier-1); let lo=chapterIndex, hi=chapterIndex;
+    const chapterIndex = Math.max(0, entry.frontier > skip ? entry.frontier-1 : skip); let lo=chapterIndex, hi=chapterIndex;
     const span=chapterSpan(b,chapterIndex);if(span){lo=span.first;hi=span.last;}
     while(!span && lo>0 && b.segments[lo-1].chapter===b.segments[chapterIndex].chapter)lo--;
     while(!span && hi+1<b.segments.length && b.segments[hi+1].chapter===b.segments[chapterIndex].chapter)hi++;
-    const chapterProgress=entry.frontier && b.segments.length ? (confirmedChars-b.segments[lo].start)/(b.segments[hi].end-b.segments[lo].start) : 0;
+    const chapterProgress=entry.frontier>skip && b.segments.length ? (positionChars-b.segments[lo].start)/(b.segments[hi].end-b.segments[lo].start) : 0;
     const totalChapters=serial?.total ?? (b.remote?b.remote.catalog.chapters.length:0);
     return { chapterProgress, key: b.key, id: b.id, revision: b.revision, title: b.title, author: b.author,
       identifiedChapters:serial?serial.total:b.remote?b.remote.catalog.chapters.length:chapterEndIds(b).size,chapterGoalSupported:!!b.remote||chapterEndIds(b).size>0,
-      totalChars: b.totalChars, totalSegments: b.segments.length, confirmedSegments: entry.frontier,
-      confirmedChars, progress: serial ? (serial.total ? serial.confirmedChapters / serial.total : 0) : b.remote ? completedChapters / b.remote.catalog.chapters.length : confirmedChars / b.totalChars,
+      totalChars: b.totalChars, totalSegments: b.segments.length, confirmedSegments: entry.frontier - skip,
+      confirmedChars, priorReadingSegments: skip, positionSegments: entry.frontier, positionChars,
+      progress: serial ? (serial.total ? serial.positionChapters / serial.total : 0) : b.remote ? completedChapters / b.remote.catalog.chapters.length : positionChars / b.totalChars,
       progressUnit: b.remote ? 'chapters' as const : 'characters' as const,
-      chapter: entry.frontier ? b.segments[entry.frontier - 1].chapter : '尚未开始',
+      chapter: entry.frontier > skip ? b.segments[entry.frontier - 1].chapter : skip ? b.segments[skip].chapter : '尚未开始',
       complete: serial ? serial.complete : entry.frontier === b.segments.length && (!b.remote || (loaded === b.remote.catalog.chapters.length && b.remote.catalog.publicationStatus === 'finished')),
       readiness: serial?.readiness ?? (entry.frontier === b.segments.length && b.remote ? 'caught_up' : 'backlog'),
       serial: serial ? { serialId: serial.serial.serialId, editionEpoch: serial.serial.editionEpoch, contentVersion: serial.serial.contentVersion,
@@ -437,6 +496,12 @@ export class Library {
     if (!entry) throw new Error('Book revision is not in the library');
     const requestId = requiredText(input.requestId, 'requestId', 80);
     if (!Array.isArray(input.changes)) throw new Error('changes must be an array');
+    // Chapters declared read elsewhere are not text this reader ever saw: no story facts from them.
+    const skip = entry.skip ?? 0;
+    if (skip) for (const change of input.changes as Array<Record<string, unknown>>) {
+      const evidence = Array.isArray(change?.evidence) ? change.evidence as Array<Record<string, unknown>> : [];
+      for (const item of evidence) if (Number.isSafeInteger(item?.segmentId) && Number(item.segmentId) < skip) throw new Error('Story evidence must come from text read in BookFish; earlier chapters were declared read elsewhere');
+    }
     const changes = validateStoryChanges(input.changes, entry.book, { frontier: entry.frontier }) as StoryChange[];
     return this.story.capture({ bookKey, bookRevision: entry.book.revision,
       contentVersion: entry.serial?.contentVersion ?? null, frontier: entry.frontier,
@@ -450,6 +515,11 @@ export class Library {
     const bookKey = requiredText(input.bookKey, 'bookKey', 150);
     const entry = this.state.books.find((e) => e.book.key === bookKey);
     if (!entry) throw new Error('Book revision is not in the library');
+    const packSkip = entry.skip ?? 0;
+    if (packSkip) {
+      const ranges = Array.isArray((input as { coveredRanges?: unknown }).coveredRanges) ? (input as { coveredRanges: Array<Record<string, unknown>> }).coveredRanges : [];
+      for (const range of ranges) if (Number.isSafeInteger(range?.from) && Number(range.from) < packSkip) throw new Error('Story packs may only cover text read in BookFish; earlier chapters were declared read elsewhere');
+    }
     return this.story.putPack({
       ...(input as unknown as StoryPackInput),
       bookKey, bookRevision: entry.book.revision,
@@ -915,7 +985,7 @@ export class Library {
       const saved = historyFind(draft.episodes,{id:task.receipt!.episodeId});
       const entry = draft.books.find(e => e.book.key === bookKey)!;
       if (!lenientDuplicate) {
-        const retryContent = input.episode === undefined ? undefined : normalizeEpisode(input.episode, entry, (saved?historySelect(draft.episodes,{before:saved.sequence}):draft.episodes), task.segmentId + 1);
+        const retryContent = input.episode === undefined ? undefined : normalizeEpisode(input.episode, entry, (saved?historySelect(draft.episodes,{before:saved.sequence}):draft.episodes), task.segmentId + 1, entry.skip ?? 0);
         if (JSON.stringify(retryContent) !== JSON.stringify(saved?.content)) throw new Error('Confirmation retry must match the original episode; add a later reflection instead');
         if (task.receipt!.understanding !== understanding) throw new Error('Confirmation retry must match the original content');
       }
@@ -926,7 +996,7 @@ export class Library {
     if (entry.frontier !== task.segmentId) throw new Error('Range is not the next unread segment');
     let episode: ReadingEpisode | undefined;
     if (input.episode !== undefined) {
-      const content = normalizeEpisode(input.episode, entry, draft.episodes, entry.frontier + 1);
+      const content = normalizeEpisode(input.episode, entry, draft.episodes, entry.frontier + 1, entry.skip ?? 0);
       if (!content.evidence.some(e => e.segmentId === task.segmentId)) throw new Error('Reading episode must cite the current task segment');
       episode = this.appendEpisode(draft, { kind: 'reading', bookKey, taskId, content });
     }
@@ -966,7 +1036,7 @@ export class Library {
       const entry = draft.books.find(e => e.book.key === bookKey);
       if (!entry) throw new Error('Book revision is not in the library');
       const existing = historyFind(draft.episodes,{requestId});
-      const content = normalizeEpisode(input.episode, entry, existing ? historySelect(draft.episodes,{before:existing.sequence}) : draft.episodes);
+      const content = normalizeEpisode(input.episode, entry, existing ? historySelect(draft.episodes,{before:existing.sequence}) : draft.episodes, entry.frontier, entry.skip ?? 0);
       const revises = input.revises === undefined ? undefined : requiredText(input.revises, 'revises', 80);
       if (existing) {
         if (existing.bookKey !== bookKey || existing.revises !== revises || JSON.stringify(existing.content) !== JSON.stringify(content)) throw new Error('Reflection retry must match the original request');
@@ -1004,7 +1074,7 @@ export class Library {
       for(const e of historySelect(this.state.episodes,{bookKey}))for(const c of e.content.characters){let item=characters.get(c.name);if(!item){if(characters.size>=50){truncated=true;continue;}item={name:c.name,aliases:new Set(),episodeIds:[],count:0};characters.set(c.name,item);}for(const alias of c.aliases)if(item.aliases.size<9)item.aliases.add(alias);item.episodeIds.push(e.id);if(item.episodeIds.length>20)item.episodeIds.shift();item.count++;}
       characterIndex={characters:[...characters.values()].map(c=>({name:c.name,aliases:[...c.aliases].slice(0,8),episodeIds:c.episodeIds,aliasesTruncated:c.aliases.size>8,episodeLinksTruncated:c.count>20})),truncated};this.characterCache.set(cacheKey,characterIndex);while(this.characterCache.size>4)this.characterCache.delete(this.characterCache.keys().next().value!);
     }
-    return structuredClone({ bookKey, total, confirmedRanges: entry.frontier, rangesWithoutReadingEpisode: entry.frontier - noted,
+    return structuredClone({ bookKey, total, confirmedRanges: entry.frontier - (entry.skip ?? 0), rangesWithoutReadingEpisode: Math.max(0, entry.frontier - (entry.skip ?? 0) - noted),
       mood: lastMood ? { ...lastMood.content.mood!, recordedAt: lastMood.recordedAt, episodeId: lastMood.id, kind: lastMood.kind, isCurrentMentalState: false } : null,
       items: page.map(e => ({ id: e.id, sequence: e.sequence, recordedAt: e.recordedAt, kind: e.kind, revises: e.revises ?? null,
         trigger: e.content.trigger, interpretation: e.content.interpretation, mood: e.content.mood,
@@ -1039,7 +1109,7 @@ export class Library {
   reread(key: unknown, index: unknown) {
     this.ensureOpen();
     const entry = this.state.books.find((e) => e.book.key === key);
-    if (!entry || !integer(index) || index >= entry.frontier) throw new Error('Only confirmed segments may be recalled');
+    if (!entry || !integer(index) || index >= entry.frontier || index < (entry.skip ?? 0)) throw new Error('Only confirmed segments may be recalled');
     return { bookKey: entry.book.key, segment: structuredClone(entry.book.segments[index]), progressAdvanced: false, source: 'external-book-text' };
   }
   remove(key: unknown) {

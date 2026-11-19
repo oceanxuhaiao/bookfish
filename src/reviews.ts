@@ -13,7 +13,7 @@ export const REVIEW_MAX_SEGMENTS = 300;
 function assertReviewSize(entry: BookEntry) {
   if (entry.frontier > REVIEW_MAX_SEGMENTS) throw new Error(`Long-book full review is disabled in this release: ${entry.frontier} confirmed segments exceeds the ${REVIEW_MAX_SEGMENTS}-segment limit. Use the reading journal or a stage review.`);
 }
-export function completed(entry: BookEntry) { return entry.frontier === entry.book.segments.length && (!entry.book.remote ||
+export function completed(entry: BookEntry) { return (entry.skip ?? 0) === 0 && entry.frontier === entry.book.segments.length && (!entry.book.remote ||
   entry.book.remote.cache.length === entry.book.remote.catalog.chapters.length && entry.book.remote.catalog.publicationStatus === 'finished'); }
 export function reviewSnapshot(state: LibraryState, key: string, count = Infinity) { const entry = state.books.find(e => e.book.key === key)!;
   return digest(JSON.stringify([key, entry.frontier, entry.book.sourceHash, historySelect(state.episodes,{bookKey:key}).slice(0, count).map(e => e.id)])); }

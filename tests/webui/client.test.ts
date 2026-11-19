@@ -382,4 +382,21 @@ it.each(['shelf','trail'] as const)('opens the top-level %s panel directly witho
  const {root}=await mount(panel);expect(root.querySelector<HTMLElement>('[data-page='+ (panel==='shelf'?'shelf':'trail') +']')!.hidden).toBe(false);expect(root.querySelector('nav')!.hidden).toBe(true);expect(root.querySelector('h2')!.hidden).toBe(true);expect(world.webUi!('zh').panels!.map(p=>p.title)).toEqual(['正在读','书架','阅读足迹','反馈','配置']);
 });
 
+it('lets the panel declare a later chapter as the reading start without marking it read',async()=>{
+ const invoke=world.webUi!().invoke!;const imported:any=await invoke('status','import',[{filename:'start.md',title:'起点样本',base64:Buffer.from('# 第一章 海边\n'+'风吹过海面。\n'.repeat(1800)+'\n# 第二章 回家\n'+'小鱼回来了。\n'.repeat(1800)).toString('base64')}]);
+ const key=imported.book.key;const {root}=await mount();root.querySelector('.bf')!.dispatchEvent(new CustomEvent('bookfish-book',{bubbles:true,detail:{key}}));await settle();await settle();
+ expect(root.textContent).toContain('从某一章开始读（此前在别处读过）');
+ const pick=[...root.querySelectorAll<HTMLSelectElement>('select')].find(select=>[...select.options].some(option=>option.textContent?.includes('第二章')))!;
+ expect(pick).toBeTruthy();const option=[...pick.options].find(entry=>entry.textContent?.includes('第二章'))!;
+ pick.value=option.value;pick.dispatchEvent(new Event('change',{bubbles:true}));confirmAnswer=true;action(root,'设为起点').click();await settle();await settle();
+ expect(lastConfirm?.title).toContain('第二章 回家');
+ const state:any=await invoke('status','get',[]);const book=state.books.find((entry:any)=>entry.key===key);
+ expect(book.priorReadingSegments).toBeGreaterThan(0);expect(book.confirmedSegments).toBe(0);expect(book.confirmedChars).toBe(0);
+ expect(book.chapter).toContain('第二章 回家');expect(book.positionSegments).toBe(book.priorReadingSegments);
+ expect(action(root,'清除阅读起点')).toBeTruthy();
+ // Never a model tool: imported text must not be able to talk the pet into skipping.
+ expect(world.tools().map(tool=>tool.name)).not.toContain('bookfish_set_start');
+ expect(world.tools().map(tool=>tool.name)).not.toContain('bookfish_chapters');
+});
+
 
