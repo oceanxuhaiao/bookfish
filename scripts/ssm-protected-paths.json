@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "spec": "BF-GIT-20261119",
+  "baseline": "0.62.1 ea9b45be7eda6d63f0f1172a76585d794dbdb01f",
+  "updatedAt": "2026-11-19",
+  "note": "SSM (故事骨架系统 / story memory) 保护清单。blocked = 禁止 Bugfix 修改；review = 共享文件中的 SSM 区段，需 SSM 负责人确认后才可改；namePatterns = 无法确定归属时默认受保护的新文件。路径为仓库相对 POSIX 风格，大小写不敏感。",
+  "blocked": [
+    "src/story/",
+    "src/protocol/story.md",
+    "tests/story-core.test.ts",
+    "tests/story-store.test.ts",
+    "tests/story-e2e.test.ts",
+    "tests/story-library.test.ts",
+    "tests/story-scale.test.ts",
+    "tests/predeploy-ssm-isolation.test.ts"
+  ],
+  "review": [
+    "src/library.ts",
+    "src/world.ts",
+    "src/config.ts",
+    "src/tool-schemas.ts",
+    "src/ENV_PROMPT.md",
+    "describe.json",
+    "src/stream-index.ts",
+    "src/paged-book.ts",
+    "src/stream-import.ts",
+    "src/history.ts",
+    "src/journal.ts",
+    "src/retrieval.ts",
+    "tests/predeploy-data-lifecycle.test.ts",
+    "tests/scope-r2.test.ts"
+  ],
+  "exempt": [
+    "scripts/ssm-protected-paths.json",
+    "scripts/check-ssm-protected.mts",
+    "tests/ssm-guard.test.ts"
+  ],
+  "namePatterns": [
+    "(^|/)story([-._]|$)",
+    "(^|/)ssm([-._]|$)"
+  ]
+}

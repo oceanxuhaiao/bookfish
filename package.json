@@ -55,7 +55,8 @@
     "build:bridge": "node scripts/build-novel-bridge.mjs",
     "package:runtime": "node scripts/package-novel-runtime.mjs --write-builtin",
     "verify:runtime": "node --import tsx scripts/verify-novel-runtime.mts",
-    "verify:world": "node --import tsx scripts/verify-novel-world.mts"
+    "verify:world": "node --import tsx scripts/verify-novel-world.mts",
+    "check:ssm": "node --import tsx scripts/check-ssm-protected.mts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
