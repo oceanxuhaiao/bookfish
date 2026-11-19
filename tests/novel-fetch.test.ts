@@ -130,6 +130,37 @@ describe('novel fetch task manager', () => {
     expect(imported).toHaveLength(1);
   });
 
+  it('reaches a lower-ranked source when several catalogs fail the gate', async () => {
+    // The clean edition of a book can sit well past the second fallback (香书小说
+    // was 6th by source rank for 凡人修仙传), so the manager must widen the budget.
+    const alternates = [
+      { id: 7, url: 'https://www.yeudusk.com/book/2/' },
+      { id: 9, url: 'https://www.d8zw.com/0/102/' },
+      { id: 12, url: 'https://www.xbiquge.info/0/102/' },
+      { id: 1, url: 'https://www.ibiqugu.net/5/5395/' },
+    ].map(({ id, url }) => ({
+      ...candidate,
+      url,
+      source: { id, name: `source-${id}` },
+      revision: String(id).padStart(16, '0'),
+    }));
+    const clean = alternates[3]!;
+    class WideEngine extends FakeEngine {
+      override async search(): Promise<NovelSearchCandidate[]> { return [candidate, ...alternates]; }
+      override async toc(url?: string): Promise<CatalogChapter[]> {
+        this.calls.push('toc');
+        const base = catalog(3);
+        return url === clean.url ? base : [...base.slice(0, 2), { ...base[1]!, order: 3 }];
+      }
+    }
+    const { manager, imported } = setup(new WideEngine());
+    const done = await waitFor(manager, manager.start(candidate).id, ['complete', 'failed']);
+    expect(done.state).toBe('complete');
+    expect(done.source.id).toBe(1);
+    expect(done.warnings.filter((warning) => warning.code === 'source_fallback').length).toBeGreaterThanOrEqual(4);
+    expect(imported).toHaveLength(1);
+  });
+
   it('rejects a mixed catalog before downloading', async () => {
     const mixed = [...catalog(3), { order: 4, title: '第一章 另一个版本', url: 'https://www.biquge365.net/chapter/1/x.html' }];
     const engine = new FakeEngine(); engine.onToc = () => mixed;
@@ -353,7 +384,9 @@ describe('novel fetch task manager', () => {
     engine.toc = async (url: string) => {
       if (url.includes('/book/9/')) return catalog(4);
       const list = catalog(1200);
-      list[1] = { ...list[1]!, title: '第1章 海边来信' };
+      // A duplicated link is unambiguous evidence of a bad edition (a same-volume
+      // repeated *title* alone is now a bounded warning on long catalogs).
+      list[1] = { ...list[1]!, url: list[0]!.url };
       return list;
     };
     const { manager } = setup(engine);

@@ -735,7 +735,10 @@ export class NovelFetches {
         .filter((candidate) => candidate.match === 'exact' && !tried.has(this.resumeKey(candidate)))
         // Prefer a different source over another edition on the same site.
         .sort((a, b) => Number(a.source.id === currentSource) - Number(b.source.id === currentSource))
-        .slice(0, 2);
+        // A catalog gate can reject the top-ranked edition for one upstream typo
+        // while a lower-ranked one is clean, so try a wider set than the first two
+        // fallbacks (凡人修仙传: the only clean edition is 6th by source rank).
+        .slice(0, 6);
     } catch {
       return [];
     }

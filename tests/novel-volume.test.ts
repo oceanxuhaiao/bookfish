@@ -126,4 +126,32 @@ describe('multi-volume catalogs', () => {
     expect(result.issues.some((item) => item.code === 'catalog_duplicate_title')).toBe(true);
     expect(result.issues.some((item) => item.code === 'catalog_duplicate_number')).toBe(true);
   });
+
+  function longSerial() {
+    return Array.from({ length: 2467 }, (_, index) => ({
+      order: index + 1,
+      title: `第${index + 1}章 章节${index + 1}`,
+      url: `https://example.test/fanren/${index + 1}.html`,
+    }));
+  }
+
+  it('tolerates one same-volume title repeat on a long serial with distinct links', () => {
+    // The real 笔尖中文 凡人修仙传 lists 2,467 chapters and posts one heading
+    // twice (orders 1089/1090) under two distinct URLs. A single upstream typo
+    // must not reject the only complete edition of a book.
+    const entries = longSerial();
+    entries[1089] = { ...entries[1089]!, title: entries[1088]!.title };
+    const result = assess('fanren', entries);
+    expect(result.complete, result.issues.map((item) => item.message).join('; ')).toBe(true);
+    expect(result.issues).toEqual([]);
+    expect(result.warnings.some((item) => item.code === 'catalog_duplicate_title')).toBe(true);
+  });
+
+  it('still rejects a same-volume title repeat that points at the same link', () => {
+    const entries = longSerial();
+    entries[1089] = { ...entries[1089]!, title: entries[1088]!.title, url: entries[1088]!.url };
+    const result = assess('fanren-same-url', entries);
+    expect(result.complete).toBe(false);
+    expect(result.issues.some((item) => item.code === 'catalog_duplicate_title')).toBe(true);
+  });
 });

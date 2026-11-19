@@ -288,6 +288,8 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
   const orders = new Set<number>();
   const urls = new Set<string>();
   const titles = new Map<string, number>();
+  const titleUrls = new Map<string, string>();
+  const sameVolumeRepeats: Array<{ order: number; title: string; firstOrder: number; url: string; firstUrl: string }> = [];
   const numbers = new Map<string, number>();
   const numberedEntries: Array<{ order: number; number: number; part: string; volume: string }> = [];
   const duplicateNumberOrders = new Set<number>();
@@ -391,8 +393,8 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
 
     const normalized = normalizedTitle(chapter.title);
     const titleKey = `${currentVolume}|${normalized}`;
-    if (titles.has(titleKey)) issues.push(issue('catalog_duplicate_title', `Duplicate chapter title "${chapter.title}" (orders ${titles.get(titleKey)} and ${chapter.order})`, chapter.order));
-    else titles.set(titleKey, chapter.order);
+    if (titles.has(titleKey)) sameVolumeRepeats.push({ order: chapter.order, title: chapter.title, firstOrder: titles.get(titleKey)!, url: chapter.url, firstUrl: titleUrls.get(titleKey)! });
+    else { titles.set(titleKey, chapter.order); titleUrls.set(titleKey, chapter.url); }
     if (number !== null) {
       const part = chapterPart(chapter.title);
       numberedEntries.push({ order: chapter.order, number, part, volume: currentVolume });
@@ -495,6 +497,27 @@ export function assessNovelDownload(input: NovelIntegrityInput): NovelIntegrityR
     }
   }
 
+  // A repeated title inside one volume is normally the fingerprint of a
+  // duplicated listing. Long serials do occasionally re-post a chapter under the
+  // same heading with a distinct URL (笔尖中文's 凡人修仙传 repeats one title at
+  // orders 1089/1090 out of 2,467 chapters). Tolerate that as a warning only on
+  // long catalogs; a same-URL repeat, a meaningful share of repeats, or a short
+  // catalog still blocks, so a concatenated edition cannot hide here.
+  if (sameVolumeRepeats.length) {
+    const repeatBudget = Math.max(2, Math.floor(numberedEntries.length * 0.02));
+    const duplicatedEdition = sameVolumeRepeats.length > repeatBudget || numberedEntries.length < 200 ||
+      sameVolumeRepeats.some((repeat) => repeat.url === repeat.firstUrl);
+    for (const repeat of sameVolumeRepeats.slice(0, 12)) {
+      const message = `Duplicate chapter title "${repeat.title}" (orders ${repeat.firstOrder} and ${repeat.order})`;
+      if (duplicatedEdition) issues.push(issue('catalog_duplicate_title', message, repeat.order));
+      else warnings.push(issue('catalog_duplicate_title', message, repeat.order));
+    }
+    if (duplicatedEdition) {
+      for (let index = 12; index < sameVolumeRepeats.length; index += 1) {
+        issues.push(issue('catalog_duplicate_title', `Chapter title repeats: "${sameVolumeRepeats[index]!.title}"`, sameVolumeRepeats[index]!.order));
+      }
+    }
+  }
   // Small numbers of misnumbered title labels (e.g. three chapters labelled
   // 第一百章) are common upstream OCR/export typos. They are accepted only when
   // the identity checks are clean and the anomalies are a small fraction of a
