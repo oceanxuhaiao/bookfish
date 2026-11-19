@@ -16,9 +16,9 @@ export interface ReadingEpisode {
   taskId?: string; requestId?: string; revises?: string;
 }
 /** Where a quote actually lives, for the "wrong segmentId" case. */
-function suggestSegments(entry: BookEntry, frontier: number, exclude: number, quote: string): Array<{ segmentId: number; start: number }> {
+function suggestSegments(entry: BookEntry, frontier: number, exclude: number, quote: string, from = 0): Array<{ segmentId: number; start: number }> {
   const hits: Array<{ segmentId: number; start: number }> = [];
-  for (let index = 0; index < Math.min(frontier, entry.book.segments.length); index++) {
+  for (let index = from; index < Math.min(frontier, entry.book.segments.length); index++) {
     if (index === exclude) continue;
     for (const start of quoteOffsets(entry.book.segments[index], quote)) {
       hits.push({ segmentId: index, start });
@@ -52,17 +52,17 @@ function array(value: unknown, field: string, max: number): unknown[] {
   return value;
 }
 export const MAX_EPISODES = 100000;
-export function normalizeEpisode(input: unknown, entry: BookEntry, earlier: readonly ReadingEpisode[], frontier = entry.frontier): EpisodeContent {
+export function normalizeEpisode(input: unknown, entry: BookEntry, earlier: readonly ReadingEpisode[], frontier = entry.frontier, from = 0): EpisodeContent {
   const v = record(input, 'episode');
   const evidence = array(v.evidence, 'evidence', 5).map(item => {
     const e = record(item, 'evidence');
-    if (!Number.isSafeInteger(e.segmentId) || (e.segmentId as number) < 0 || (e.segmentId as number) >= frontier) throw new Error('Evidence must belong to a confirmed range of this exact revision');
+    if (!Number.isSafeInteger(e.segmentId) || (e.segmentId as number) < from || (e.segmentId as number) >= frontier) throw new Error('Evidence must belong to a confirmed range of this exact revision');
     const segment = entry.book.segments[e.segmentId as number];
     if (typeof e.quote !== 'string' || !e.quote.trim() || Array.from(e.quote).length > 300) throw new Error('Evidence quote must be 1–300 exact source characters copied from the supplied segment. Required shape: {"trigger":"what happened","interpretation":"what you make of it","evidence":[{"segmentId":<id>,"quote":"<exact excerpt>","start":<optional offset>}]}');
     // Report every absolute offset where the quote really occurs, so a rejected
     // citation can be fixed in one step instead of guessed at.
     const matches = quoteOffsets(segment, e.quote as string);
-    const elsewhere = matches.length ? [] : suggestSegments(entry, frontier, e.segmentId as number, e.quote as string);
+    const elsewhere = matches.length ? [] : suggestSegments(entry, frontier, e.segmentId as number, e.quote as string, from);
     const elsewhereText = elsewhere.length
       ? ` The same text does occur at ${elsewhere.slice(0, 3).map(hit => `segment ${hit.segmentId} offset ${hit.start}`).join(', ')}.`
       : '';

@@ -103,7 +103,7 @@ export class BookStorage {
     const book=loadPagedBook(target,id,this.cache,{size:statSync(target).size,mtimeMs:statSync(target).mtimeMs});this.refs.set(book,id);this.lazy.add(book);return book;
   }
   prepare(state:LibraryState,force=false):unknown{
-    const books=state.books.map(e=>{const id=this.ensure(e.book,force);if(id&&!this.lazy.has(e.book)){const book=loadPagedBook(this.source(id),id,this.cache);this.refs.set(book,id);this.lazy.add(book);e.book=book;}return {frontier:e.frontier,book:id?{$bookBlob:id}:e.book,...(e.serial?{serial:e.serial}:{})};});return {...state,schema:books.some(e=>'$bookBlob' in e.book)?5:state.schema,books};
+    const books=state.books.map(e=>{const id=this.ensure(e.book,force);if(id&&!this.lazy.has(e.book)){const book=loadPagedBook(this.source(id),id,this.cache);this.refs.set(book,id);this.lazy.add(book);e.book=book;}return {frontier:e.frontier,...(e.skip?{skip:e.skip,...(e.skipDeclaredAt!==undefined?{skipDeclaredAt:e.skipDeclaredAt}:{})}:{}),book:id?{$bookBlob:id}:e.book,...(e.serial?{serial:e.serial}:{})};});return {...state,schema:books.some(e=>'$bookBlob' in e.book)?5:state.schema,books};
   }
   private lazy=new WeakSet<Book>();
   clearCache(){this.cache.clear();}

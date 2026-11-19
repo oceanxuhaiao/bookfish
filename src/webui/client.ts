@@ -359,7 +359,7 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
     const detailCover=el('div','',detailHead);paintCover(detailCover,data.book);
     const detailInfo=el('div','',detailHead);detailInfo.className='detail-info';
     el('h2',data.book.title,detailInfo);el('small',data.book.author||say('作者未识别','Author unknown'),detailInfo);
-    el('p',say('已读 '+Math.ceil(data.book.confirmedChars/600)+' 页','Read '+Math.ceil(data.book.confirmedChars/600)+' pages'),detailInfo);
+    el('p',say('已读 '+Math.ceil(data.book.confirmedChars/600)+' 页','Read '+Math.ceil(data.book.confirmedChars/600)+' pages')+(data.book.priorReadingSegments?say('（从「'+data.book.chapter+'」开始，此前在别处读过）',' (starts at “'+data.book.chapter+'”, read elsewhere before)'):''),detailInfo);
     const detailActions=el('div','',detailInfo);detailActions.className='detail-actions';
     button(detailActions,say('阅读正文','Read the novel'),async()=>{page('reader');await humanReader.open(key);}).className='primary';
     if(state?.status.library.current?.key===key)button(detailActions,say('回到正在读','Back to reading'),async()=>page('home'));
@@ -372,6 +372,44 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
       if(!confirmed||disposed||ctx.signal.aborted)return;
       await perform(async()=>{await ctx.invoke('remove',[key]);browsingBook=undefined;page('shelf');ctx.ui.toast(say('已移除《'+data.book.title+'》','Removed “'+data.book.title+'”'));});
     })()},{signal:ctx.signal});
+    // Declared reading start. Human-only: the panel is the only place that can say
+    // "she already read the earlier chapters elsewhere". It never records them as read.
+    const priorStart=data.book.priorReadingSegments??0;
+    if(priorStart&&!data.book.confirmedSegments)button(detailActions,say('清除阅读起点','Clear the declared start'),async()=>{
+      if(!await ctx.ui.confirm({title:say('清除阅读起点？','Clear the declared start?'),body:say('这本书会回到从第一章开始。已经记录的阅读内容不受影响。','The book goes back to chapter one. Nothing already recorded changes.'),danger:false}))return;
+      await ctx.invoke('set_start',[{bookKey:key,segment:0}]);
+      if(browsingBook===key)await showBook(key);
+    });
+    if(!data.book.complete&&!data.book.confirmedSegments){
+      const startSection=details(bookDetail,say('从某一章开始读（此前在别处读过）','Start from a later chapter (read elsewhere before)'));
+      el('small',say('只改变起点：前面的章节不会被记成“已读”，也不会进入她的阅读手账、读后感或故事记忆。起点必须落在章节开头，她读完第一段后即锁定。','This only moves where reading starts: earlier chapters are never recorded as read, and never reach her journal, reviews or story memory. The start must be a chapter boundary and locks after her first confirmed segment.'),startSection);
+      const startRow=el('div','',startSection);startRow.className='detail-actions';startRow.hidden=true;
+      void (async()=>{
+        const list=await ctx.invoke<{total:number;items:Array<{title:string;segment:number}>;truncated:boolean}>('chapters',[key]);
+        if(!list.items.length||disposed||ctx.signal.aborted||browsingBook!==key)return;
+        const initial=Math.max(0,list.items.findIndex(chapter=>chapter.segment===priorStart));
+        let segment=list.items[initial]!.segment;
+        const field=el('label','',startRow);field.textContent=say('选择章节：','Chapter: ');
+        if(list.items.length<=800){
+          const pick=el('select','',field);
+          list.items.forEach((chapter,offset)=>{const option=el('option',(offset+1)+'. '+chapter.title,pick);option.value=String(chapter.segment);});
+          pick.value=String(segment);
+          pick.addEventListener('change',()=>{segment=Number(pick.value);});
+        }else{
+          const pick=el('input','',field);pick.type='number';pick.min='1';pick.max=String(list.items.length);pick.value=String(initial+1);
+          el('small',say('共 '+list.items.length+' 章'+(list.truncated?'（只列出前 '+list.items.length+' 章）':'')+'，请输入章节序号。','Enter a chapter number; '+list.items.length+' chapters listed'+(list.truncated?' (truncated)':'')+'.'),startRow);
+          const sync=()=>{const index=Math.min(Math.max(1,Number(pick.value)||1),list.items.length);segment=list.items[index-1]!.segment;};
+          pick.addEventListener('input',sync);sync();
+        }
+        button(startRow,say('设为起点','Use this chapter'),async()=>{
+          const chapter=list.items.find(item=>item.segment===segment);
+          if(!await ctx.ui.confirm({title:say('从「'+(chapter?.title??'')+'」开始读？','Start at “'+(chapter?.title??'')+'”?'),body:say('前面的章节会记作“在别处已读”：她不会声称读过，也不能引用那里的原文，这本书也不再生成整书读后感。','Earlier chapters become “read elsewhere”: she will never claim them, cannot quote them, and this book will not get a full-book review.'),danger:false}))return;
+          await ctx.invoke('set_start',[{bookKey:key,segment}]);
+          if(browsingBook===key)await showBook(key);
+        });
+        startRow.hidden=false;
+      })();
+    }
     const history=details(bookDetail,say('最近感想','Recent thoughts'));
     for(const item of data.journal.items){el('p',moodPrefix(item.mood?.label)+item.interpretation,history);button(history,say('聊聊这一段','Discuss this passage'),async()=>discuss(item.id,item.interpretation,key));}
     const manage=details(bookDetail,say('书籍来源与管理','Source and management'));el('p',data.book.source?data.book.source.bookUrl:say('本地导入','Local file'),manage);el('small',say('版本 ','Revision ')+data.book.revision.slice(0,8),manage);
@@ -445,14 +483,14 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   let selectionSignature='';
   addBook.addEventListener('click',()=>{recommend.hidden=false;addBook.setAttribute('aria-expanded','true');methodSelect.value='file';selectImportMethod('file',true);recommend.scrollIntoView?.({block:'nearest'});},{signal:ctx.signal});closeRecommend.addEventListener('click',()=>{recommend.hidden=true;addBook.setAttribute('aria-expanded','false');addBook.focus();},{signal:ctx.signal});
   pages.shelf.append(advanced);let shelfSignature='';
-  function renderShelf(){if(!state)return;const signature=JSON.stringify([state.books,state.status.library.current?.key,search.value,filter.value,sort.value]);if(signature===shelfSignature)return;shelfSignature=signature;coverGrid.replaceChildren();const q=search.value.trim().toLocaleLowerCase();const books=[...state.books].reverse().filter(b=>(!q||(b.title+' '+b.author).toLocaleLowerCase().includes(q))&&(filter.value==='all'||(filter.value==='finished'?b.complete:!b.complete)));if(sort.value==='title')books.sort((a,b)=>a.title.localeCompare(b.title,en?undefined:'zh-Hans-CN',{numeric:true,sensitivity:'base'})||a.key.localeCompare(b.key));for(const b of books){const card=el('article','',coverGrid);const open=button(card,say('查看这本书：','View book: ')+b.title,async()=>showBook(b.key));open.className='cover-button';open.setAttribute('aria-label',say('查看这本书：','View book: ')+b.title);open.textContent='';const cover=el('span','',open);paintCover(cover,b);el('strong',b.title,card);el('small',b.key===state.status.library.current?.key?say('正在读','Reading'):b.serial?(b.readiness==='caught_up'?say('已追平','Caught up'):b.readiness==='waiting_content'?say('等待正文','Waiting for text'):b.readiness==='conflict'?say('目录冲突','Catalog conflict'):b.readiness==='finished'?say('已完结','Finished'):say('连载中','Serial')):b.complete?say('已读完','Finished'):b.confirmedChars?say('读过一些','Started'):say('未开始','Not started'),card);const more=details(card,'⋯');button(more,say('书籍详情与管理','Book details and management'),async()=>showBook(b.key));}if(!books.length)el('p',say('没有符合条件的书。','No matching books.'),coverGrid);}
+  function renderShelf(){if(!state)return;const signature=JSON.stringify([state.books,state.status.library.current?.key,search.value,filter.value,sort.value]);if(signature===shelfSignature)return;shelfSignature=signature;coverGrid.replaceChildren();const q=search.value.trim().toLocaleLowerCase();const books=[...state.books].reverse().filter(b=>(!q||(b.title+' '+b.author).toLocaleLowerCase().includes(q))&&(filter.value==='all'||(filter.value==='finished'?b.complete:!b.complete)));if(sort.value==='title')books.sort((a,b)=>a.title.localeCompare(b.title,en?undefined:'zh-Hans-CN',{numeric:true,sensitivity:'base'})||a.key.localeCompare(b.key));for(const b of books){const card=el('article','',coverGrid);const open=button(card,say('查看这本书：','View book: ')+b.title,async()=>showBook(b.key));open.className='cover-button';open.setAttribute('aria-label',say('查看这本书：','View book: ')+b.title);open.textContent='';const cover=el('span','',open);paintCover(cover,b);el('strong',b.title,card);el('small',b.key===state.status.library.current?.key?say('正在读','Reading'):b.serial?(b.readiness==='caught_up'?say('已追平','Caught up'):b.readiness==='waiting_content'?say('等待正文','Waiting for text'):b.readiness==='conflict'?say('目录冲突','Catalog conflict'):b.readiness==='finished'?say('已完结','Finished'):say('连载中','Serial')):b.complete?say('已读完','Finished'):b.priorReadingSegments&&!b.confirmedChars?say('从中途开始','Started mid-book'):b.confirmedChars?say('读过一些','Started'):say('未开始','Not started'),card);const more=details(card,'⋯');button(more,say('书籍详情与管理','Book details and management'),async()=>showBook(b.key));}if(!books.length)el('p',say('没有符合条件的书。','No matching books.'),coverGrid);}
   search.addEventListener('input',renderShelf,{signal:ctx.signal});filter.addEventListener('change',renderShelf,{signal:ctx.signal});sort.addEventListener('change',renderShelf,{signal:ctx.signal});
 
   update=async()=>{if(!state||disposed||ctx.signal.aborted)return;const c=state.status.library.current;const empty=!c;hero.classList.toggle('is-empty',empty);viewBookButton.hidden=empty;emptyRecommend.hidden=!empty;readActions.hidden=empty;readNow.hidden=empty;pauseReading.hidden=empty;reviews.hidden=empty;log.hidden=empty;renderShelf();renderSelection();renderNovelTasks(state.novel);const selection=state.selection;selectionNotice.hidden=!selection?.notice;selectionNotice.textContent=selection?.notice??'';if(state.novel.tasks.some(task=>['queued','fetching','validating'].includes(task.state)))startNovelPoll();heroCover.replaceChildren();if(c){const cover=el('span','',heroCover);paintCover(cover,c);}heroCover.hidden=!c;
     const messagesForEpisode=state.discussions.filter(d=>d.episodeId===discussionEpisode);const latest=messagesForEpisode.at(-1);if(latest?.delivery==='spoken'&&latest.segments.length)context.textContent=say('大肥鱼在桌面上回了你，记录同步在这里。','She replied on the desktop; the transcript is mirrored here.');else if(latest?.delivery==='unavailable'&&latest.segments.length)context.textContent=say('大肥鱼只说了一部分，已经说出的句子和中断原因都记录在这里。','Only part of the reply was spoken; the spoken lines and the interruption are recorded here.');else if(latest?.delivery==='unavailable')context.textContent=say('这次桌宠没有说出来，扩展里只记录原因。','This reply was not spoken on the desktop; only the reason is recorded here.');else if(latest?.segments.length)context.textContent=say('大肥鱼正在桌面上说，已经说出的句子会同步到这里。','She is speaking on the desktop; each spoken line appears here.');const replySignature=JSON.stringify(messagesForEpisode);if(replySignature!==conversationSignature){conversationSignature=replySignature;conversation.replaceChildren();for(const item of messagesForEpisode){const you=el('p','你：'+item.question,conversation);you.className='chat-line you';if(item.segments.length){for(const segment of item.segments){const line=el('p','🐟：'+segment,conversation);line.className='chat-line pet'+(item.delivery===null?' pending':'');}}if(item.delivery==='unavailable'){const line=el('p','🐟：'+(item.reason?say('没有说出来：','Not spoken: ')+item.reason:say('桌宠输出不可用，这次没有说出来。','Desktop output was unavailable; nothing was spoken.')),conversation);line.className='chat-line pet unavailable';}else if(!item.segments.length){const line=el('p',item.expired?say('🐟：这次请求已过期，请重新提问。','🐟 Request expired; ask again.'):say('🐟：正在想……','🐟 Thinking…'),conversation);line.className='chat-line pet';}}}
     const booksSignature=JSON.stringify([state.books.map(b=>[b.key,b.title]),c?.key]);if(booksSignature!==trailSignature){trailSignature=booksSignature;trailChoice.replaceChildren();for(const book of state.books){const option=el('option',book.title,trailChoice);option.value=book.key;}trailKey=c?.key;trailChoice.value=trailKey??'';notebook.hidden=false;episodeDetail.hidden=false;searchForm.hidden=false;otherTrail.hidden=true;}
     title.textContent=c?c.title+(c.author?' · '+c.author:''):say('送她一本书吧','Recommend a book');chapter.textContent=c?.chapter??say('书架还是空的。点下面的按钮，选择文件、链接或书名/作者，把第一本小说交给她。','The shelf is empty. Use the button below to add a file, a link, or fetch by title/author.');meter.hidden=!c;if(c)meter.value=c.source?c.chapterProgress:c.progress;meterLabel.textContent=c?.source?say('本章已读 '+Math.round(c.chapterProgress*100)+'%','Chapter '+Math.round(c.chapterProgress*100)+'%'):'';
-    const known=c&&(!c.source||c.source.cachedChapters===c.source.totalChapters&&c.source.publicationStatus==='finished');pageText.textContent=c?say('已读 '+Math.ceil(c.confirmedChars/600)+' 页','Read '+Math.ceil(c.confirmedChars/600)+' pages')+(known?' / '+Math.ceil(c.totalChars/600)+say(' 页',' pages'):say(' · 正文未完整获取，无法计算总页数',' · Total pages unknown')):'';pageText.hidden=!c;
+    const known=c&&(!c.source||c.source.cachedChapters===c.source.totalChapters&&c.source.publicationStatus==='finished');pageText.textContent=c?((c.priorReadingSegments&&c.positionChars>c.confirmedChars?say('已到 ','Reached '):say('已读 ','Read '))+Math.ceil((c.priorReadingSegments&&c.positionChars>c.confirmedChars?c.positionChars:c.confirmedChars)/600)+say(' 页',' pages')+(known?' / '+Math.ceil(c.totalChars/600)+say(' 页',' pages'):say(' · 正文未完整获取，无法计算总页数',' · Total pages unknown'))):'';pageText.hidden=!c;
     zone.textContent=say('现实确认时间 · 最新在上 · ','Confirmation time · Newest first · ')+state.status.sharing.timezone;
     for(const b of controls.querySelectorAll('button')){if(b.textContent===say('结束休息','End rest'))b.hidden=state.status.scheduler.reason!=='resting';else b.hidden=!c;}
     const run=state.status.scheduler,manual=run.manual?.bookKey===c?.key?run.manual:null;
