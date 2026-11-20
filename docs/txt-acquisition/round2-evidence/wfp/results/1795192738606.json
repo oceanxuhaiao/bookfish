@@ -1,0 +1,162 @@
+[
+  {
+    "kind": "canary-endpoints",
+    "p4": 49833,
+    "p6": 49834,
+    "lanIp": "10.68.49.207",
+    "lanPort": 49835,
+    "u4": 50460,
+    "u6": 50461,
+    "proxyPort": 49836,
+    "manifest": "E:\\项目\\桌面宠物\\扩展\\cortina\\state\\packages\\bookfish-txt-acquisition-hardening\\_verify\\wfp\\filters-1795192738606.txt"
+  },
+  {
+    "kind": "browser",
+    "label": "baseline",
+    "exit": 0,
+    "result": "{\"tcp4\":\"reached\",\"tcp6\":\"reached\",\"lan\":\"reached\",\"stun:127.0.0.1:50460\":\"attempted\",\"stun:[::1]:50461\":\"attempted\"}",
+    "networkAccessDenied": false
+  },
+  {
+    "kind": "browser-baseline",
+    "counts": {
+      "tcp4": 1,
+      "tcp6": 1,
+      "lan": 1,
+      "udp4": 5,
+      "udp6": 5,
+      "udpAtProxy": 0,
+      "proxy": 3
+    }
+  },
+  {
+    "kind": "wfp-install",
+    "code": 0,
+    "stdout": "added 548a1793-b7b4-4e9a-96f2-112f174f365e id=105822\r\nadded 47683f77-ac5a-48cf-b6fa-a6eb1ea69b66 id=105823\r\nadded c24f95e2-7502-493d-8b5a-12dd265fc5c6 id=105824\r\nadded 9f87da82-7d52-4339-afdd-76c8852d6e62 id=105825\r\nadded d1cc228a-c72c-488a-8cad-c1eeceafed5d id=105826\r\nadded 08c30fcf-3a1e-4029-8587-72e3209cd5b5 id=105827\r\n",
+    "stderr": ""
+  },
+  {
+    "kind": "filters-after-installer-exit",
+    "code": 0,
+    "stdout": "filter 548a1793-b7b4-4e9a-96f2-112f174f365e result=0x00000000\r\nfilter 47683f77-ac5a-48cf-b6fa-a6eb1ea69b66 result=0x00000000\r\nfilter c24f95e2-7502-493d-8b5a-12dd265fc5c6 result=0x00000000\r\nfilter 9f87da82-7d52-4339-afdd-76c8852d6e62 result=0x00000000\r\nfilter d1cc228a-c72c-488a-8cad-c1eeceafed5d result=0x00000000\r\nfilter 08c30fcf-3a1e-4029-8587-72e3209cd5b5 result=0x00000000\r\nfound=6 expected=6\r\n",
+    "stderr": ""
+  },
+  {
+    "kind": "native-block-and-exact-permit",
+    "denied": 6,
+    "allowed": "connected",
+    "details": [
+      {
+        "mode": "tcp",
+        "host": "127.0.0.1",
+        "port": 49833,
+        "code": 2,
+        "stdout": "blocked-or-failed AccessDenied\r\n",
+        "stderr": ""
+      },
+      {
+        "mode": "tcp",
+        "host": "::1",
+        "port": 49834,
+        "code": 2,
+        "stdout": "blocked-or-failed AccessDenied\r\n",
+        "stderr": ""
+      },
+      {
+        "mode": "tcp",
+        "host": "10.68.49.207",
+        "port": 49835,
+        "code": 2,
+        "stdout": "blocked-or-failed AccessDenied\r\n",
+        "stderr": ""
+      },
+      {
+        "mode": "udp",
+        "host": "127.0.0.1",
+        "port": 50460,
+        "code": 0,
+        "stdout": "sent\r\n",
+        "stderr": ""
+      },
+      {
+        "mode": "udp",
+        "host": "::1",
+        "port": 50461,
+        "code": 0,
+        "stdout": "sent\r\n",
+        "stderr": ""
+      },
+      {
+        "mode": "udp",
+        "host": "127.0.0.1",
+        "port": 49836,
+        "code": 0,
+        "stdout": "sent\r\n",
+        "stderr": ""
+      }
+    ]
+  },
+  {
+    "kind": "browser",
+    "label": "restricted-page",
+    "exit": 0,
+    "result": "{\"tcp4\":\"failed\",\"tcp6\":\"failed\",\"lan\":\"failed\",\"stun:127.0.0.1:50460\":\"attempted\",\"stun:[::1]:50461\":\"attempted\"}",
+    "networkAccessDenied": false
+  },
+  {
+    "kind": "restricted-browser-canary-deltas",
+    "tcp4": 0,
+    "tcp6": 0,
+    "lan": 0,
+    "udp4": 0,
+    "udp6": 0,
+    "udpAtProxy": 0,
+    "proxyRequests": 3
+  },
+  {
+    "kind": "browser",
+    "label": "direct-forbidden",
+    "exit": 0,
+    "result": null,
+    "networkAccessDenied": false
+  },
+  {
+    "kind": "direct-top-level-navigation",
+    "targetConnectionDelta": 0,
+    "note": "Chrome dump-dom need not contain its internal network error code"
+  },
+  {
+    "kind": "browser",
+    "label": "wrong-proxy",
+    "exit": 0,
+    "result": null,
+    "networkAccessDenied": false
+  },
+  {
+    "kind": "wrong-proxy-no-direct-fallback",
+    "forbiddenTargetDelta": 0,
+    "browserFailed": false
+  },
+  {
+    "kind": "controller-killed-policy-still-blocks",
+    "probe": "blocked-or-failed AccessDenied",
+    "filtersPresent": true
+  },
+  {
+    "kind": "result",
+    "passed": true,
+    "scope": "real Chrome standalone canaries plus native WFP TCP/UDP probes; BookFish extension not yet integrated"
+  },
+  {
+    "kind": "cleanup",
+    "code": 0,
+    "stdout": "removed scoped filters and sublayer\r\n",
+    "stderr": ""
+  },
+  {
+    "kind": "post-cleanup-filter-query",
+    "code": 2,
+    "stdout": "filter 548a1793-b7b4-4e9a-96f2-112f174f365e result=0x80320003\r\nfilter 47683f77-ac5a-48cf-b6fa-a6eb1ea69b66 result=0x80320003\r\nfilter c24f95e2-7502-493d-8b5a-12dd265fc5c6 result=0x80320003\r\nfilter 9f87da82-7d52-4339-afdd-76c8852d6e62 result=0x80320003\r\nfilter d1cc228a-c72c-488a-8cad-c1eeceafed5d result=0x80320003\r\nfilter 08c30fcf-3a1e-4029-8587-72e3209cd5b5 result=0x80320003\r\nfound=0 expected=6\r\n",
+    "stderr": ""
+  }
+]

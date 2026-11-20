@@ -1,0 +1,13 @@
+{"kind":"independent-reference","bytes":3215,"sha256":"a8660fa4f47bd5e3db1cd5d5baad983d8b6f3f1e8a1a04b8552f3c2ce8f33c18","sourceHost":"www.rfc-editor.org"}
+{"kind":"browser","label":"target-positive","exit":0}
+{"kind":"target-positive-control","connections":3}
+{"kind":"wfp-install","code":0,"stdout":"added 634fb766-0dfa-4799-87f7-ea9ec97f6ecd id=105828\r\nadded 72a30095-e6a0-4b06-aebb-92d49ca79cf0 id=105829\r\nadded e14b027a-27f9-4206-931c-693243ad1ee4 id=105830\r\n","stderr":""}
+{"kind":"browser","label":"public-txt","exit":0}
+{"kind":"real-browser-public-file","status":200,"bytes":3215,"sha256":"a8660fa4f47bd5e3db1cd5d5baad983d8b6f3f1e8a1a04b8552f3c2ce8f33c18","bytesMatch":true,"hashMatches":true,"connectCount":1,"blockedOtherConnects":6,"tls":"browser validates upstream certificate; no local CA or TLS interception"}
+{"kind":"browser","label":"public-direct-denied","exit":0}
+{"kind":"browser-public-direct-fails","error":"TypeError"}
+{"kind":"browser","label":"proxy-stopped","exit":0}
+{"kind":"proxy-stopped-target-delta","connections":0}
+{"kind":"result","passed":true,"scope":"controlled Chrome fixed-IP CONNECT/public TXT byte identity/direct failure/stopped-proxy; not extension or Coopanion"}
+{"kind":"cleanup","code":0,"stdout":"removed scoped filters and sublayer\r\n","stderr":""}
+{"kind":"post-cleanup-filter-query","code":2,"stdout":"filter 634fb766-0dfa-4799-87f7-ea9ec97f6ecd result=0x80320003\r\nfilter 72a30095-e6a0-4b06-aebb-92d49ca79cf0 result=0x80320003\r\nfilter e14b027a-27f9-4206-931c-693243ad1ee4 result=0x80320003\r\nfound=0 expected=3\r\n","stderr":""}

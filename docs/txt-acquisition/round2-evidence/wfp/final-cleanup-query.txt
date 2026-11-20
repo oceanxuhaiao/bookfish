@@ -1,0 +1,37 @@
+Manifest filters-1795192660545.txt
+filter 13008d79-dba7-4179-a18b-c8a3a0c9dee9 result=0x80320003
+filter 4d92d338-e312-4fa0-b267-973875447e98 result=0x80320003
+filter c701390d-3cb5-45e8-9a68-ee40d10585af result=0x80320003
+filter 68335336-bf65-4d61-acaf-962023781f4d result=0x80320003
+filter 7d0152a4-3f22-44d4-a3a6-9838625c2819 result=0x80320003
+filter f09b65fa-c68a-4e07-98d4-a6b3e56aa244 result=0x80320003
+found=0 expected=6
+Manifest filters-1795192692097.txt
+filter cfb3ce19-433f-4a12-a2d9-6edaf2b86b2f result=0x80320003
+filter 8392e80a-0eaa-475e-9bd4-3b0aff2628af result=0x80320003
+filter 8125a575-4478-4b3d-94ed-db97745e704b result=0x80320003
+filter 4e4ec2b9-c4ee-4ac3-a095-da4cf50158d7 result=0x80320003
+filter 61181031-f3d3-438a-804e-10d8592804b1 result=0x80320003
+filter bfc8e154-270b-43bd-9e29-e20d2760cc1e result=0x80320003
+found=0 expected=6
+Manifest filters-1795192738606.txt
+filter 548a1793-b7b4-4e9a-96f2-112f174f365e result=0x80320003
+filter 47683f77-ac5a-48cf-b6fa-a6eb1ea69b66 result=0x80320003
+filter c24f95e2-7502-493d-8b5a-12dd265fc5c6 result=0x80320003
+filter 9f87da82-7d52-4339-afdd-76c8852d6e62 result=0x80320003
+filter d1cc228a-c72c-488a-8cad-c1eeceafed5d result=0x80320003
+filter 08c30fcf-3a1e-4029-8587-72e3209cd5b5 result=0x80320003
+found=0 expected=6
+Manifest filters.txt
+filter 77124811-7549-4e30-a2d3-48470fe0365d result=0x80320003
+filter 563224c4-dd7b-4833-a7a2-8d21176546da result=0x80320003
+filter f4310024-bcd7-4601-bcc0-c450f18deb9d result=0x80320003
+filter 67de056d-74fa-4b41-9993-832c7fd22e9c result=0x80320003
+filter f4a508a2-8983-4f9f-a432-a9e67997b041 result=0x80320003
+filter 09c026bc-315a-4d13-88c4-56362b0954ef result=0x80320003
+found=0 expected=6
+Manifest public-filters-1795192958344.txt
+filter 634fb766-0dfa-4799-87f7-ea9ec97f6ecd result=0x80320003
+filter 72a30095-e6a0-4b06-aebb-92d49ca79cf0 result=0x80320003
+filter e14b027a-27f9-4206-931c-693243ad1ee4 result=0x80320003
+found=0 expected=3

@@ -1,0 +1,139 @@
+[
+  {
+    "kind": "canary-endpoints",
+    "p4": 49701,
+    "p6": 49702,
+    "lanIp": "10.68.49.207",
+    "lanPort": 49703,
+    "u4": 63149,
+    "u6": 63150,
+    "proxyPort": 49704,
+    "manifest": "E:\\项目\\桌面宠物\\扩展\\cortina\\state\\packages\\bookfish-txt-acquisition-hardening\\_verify\\wfp\\filters-1795192692097.txt"
+  },
+  {
+    "kind": "browser",
+    "label": "baseline",
+    "exit": 0,
+    "result": "{\"tcp4\":\"reached\",\"tcp6\":\"reached\",\"lan\":\"reached\",\"stun:127.0.0.1:63149\":\"attempted\",\"stun:[::1]:63150\":\"attempted\"}",
+    "networkAccessDenied": false
+  },
+  {
+    "kind": "browser-baseline",
+    "counts": {
+      "tcp4": 1,
+      "tcp6": 1,
+      "lan": 1,
+      "udp4": 5,
+      "udp6": 5,
+      "udpAtProxy": 0,
+      "proxy": 3
+    }
+  },
+  {
+    "kind": "wfp-install",
+    "code": 0,
+    "stdout": "added cfb3ce19-433f-4a12-a2d9-6edaf2b86b2f id=105816\r\nadded 8392e80a-0eaa-475e-9bd4-3b0aff2628af id=105817\r\nadded 8125a575-4478-4b3d-94ed-db97745e704b id=105818\r\nadded 4e4ec2b9-c4ee-4ac3-a095-da4cf50158d7 id=105819\r\nadded 61181031-f3d3-438a-804e-10d8592804b1 id=105820\r\nadded bfc8e154-270b-43bd-9e29-e20d2760cc1e id=105821\r\n",
+    "stderr": ""
+  },
+  {
+    "kind": "filters-after-installer-exit",
+    "code": 0,
+    "stdout": "filter cfb3ce19-433f-4a12-a2d9-6edaf2b86b2f result=0x00000000\r\nfilter 8392e80a-0eaa-475e-9bd4-3b0aff2628af result=0x00000000\r\nfilter 8125a575-4478-4b3d-94ed-db97745e704b result=0x00000000\r\nfilter 4e4ec2b9-c4ee-4ac3-a095-da4cf50158d7 result=0x00000000\r\nfilter 61181031-f3d3-438a-804e-10d8592804b1 result=0x00000000\r\nfilter bfc8e154-270b-43bd-9e29-e20d2760cc1e result=0x00000000\r\nfound=6 expected=6\r\n",
+    "stderr": ""
+  },
+  {
+    "kind": "native-block-and-exact-permit",
+    "denied": 6,
+    "allowed": "connected",
+    "details": [
+      {
+        "mode": "tcp",
+        "host": "127.0.0.1",
+        "port": 49701,
+        "code": 2,
+        "stdout": "blocked-or-failed AccessDenied\r\n",
+        "stderr": ""
+      },
+      {
+        "mode": "tcp",
+        "host": "::1",
+        "port": 49702,
+        "code": 2,
+        "stdout": "blocked-or-failed AccessDenied\r\n",
+        "stderr": ""
+      },
+      {
+        "mode": "tcp",
+        "host": "10.68.49.207",
+        "port": 49703,
+        "code": 2,
+        "stdout": "blocked-or-failed AccessDenied\r\n",
+        "stderr": ""
+      },
+      {
+        "mode": "udp",
+        "host": "127.0.0.1",
+        "port": 63149,
+        "code": 0,
+        "stdout": "sent\r\n",
+        "stderr": ""
+      },
+      {
+        "mode": "udp",
+        "host": "::1",
+        "port": 63150,
+        "code": 0,
+        "stdout": "sent\r\n",
+        "stderr": ""
+      },
+      {
+        "mode": "udp",
+        "host": "127.0.0.1",
+        "port": 49704,
+        "code": 0,
+        "stdout": "sent\r\n",
+        "stderr": ""
+      }
+    ]
+  },
+  {
+    "kind": "browser",
+    "label": "restricted-page",
+    "exit": 0,
+    "result": "{\"tcp4\":\"failed\",\"tcp6\":\"failed\",\"lan\":\"failed\",\"stun:127.0.0.1:63149\":\"attempted\",\"stun:[::1]:63150\":\"attempted\"}",
+    "networkAccessDenied": false
+  },
+  {
+    "kind": "restricted-browser-canary-deltas",
+    "tcp4": 0,
+    "tcp6": 0,
+    "lan": 0,
+    "udp4": 0,
+    "udp6": 0,
+    "proxyRequests": 3
+  },
+  {
+    "kind": "browser",
+    "label": "direct-forbidden",
+    "exit": 0,
+    "result": null,
+    "networkAccessDenied": false
+  },
+  {
+    "kind": "result",
+    "passed": false,
+    "error": "AssertionError [ERR_ASSERTION]: false == true"
+  },
+  {
+    "kind": "cleanup",
+    "code": 0,
+    "stdout": "removed scoped filters and sublayer\r\n",
+    "stderr": ""
+  },
+  {
+    "kind": "post-cleanup-filter-query",
+    "code": 2,
+    "stdout": "filter cfb3ce19-433f-4a12-a2d9-6edaf2b86b2f result=0x80320003\r\nfilter 8392e80a-0eaa-475e-9bd4-3b0aff2628af result=0x80320003\r\nfilter 8125a575-4478-4b3d-94ed-db97745e704b result=0x80320003\r\nfilter 4e4ec2b9-c4ee-4ac3-a095-da4cf50158d7 result=0x80320003\r\nfilter 61181031-f3d3-438a-804e-10d8592804b1 result=0x80320003\r\nfilter bfc8e154-270b-43bd-9e29-e20d2760cc1e result=0x80320003\r\nfound=0 expected=6\r\n",
+    "stderr": ""
+  }
+]
