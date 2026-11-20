@@ -43,12 +43,19 @@ export interface BookfishConfigSection {
   shareQuietStartMinute?: number;
   shareQuietEndMinute?: number;
   shareMaxSentenceChars?: number;
+  /** Opt-in browser-assisted TXT/MD acquisition; independent of the novel source engine. */
+  txtAcquisitionEnabled?: boolean;
+  /** Dedicated loopback Chrome DevTools port; 0 means the browser path is unavailable. */
+  browserDebugPort?: number;
+  /** Upper bound for retained original files under data/bookfish/txt-acquisition (MiB). */
+  txtAcquisitionRetentionMb?: number;
 }
 export const BOOKFISH_DEFAULTS: BookfishConfigSection = { enabled: false, readingMode: 'auto', allowNetwork: true,
   automaticReading: true, autonomousAcquisition: false, autonomousAcquisitionMode: 'auto', autonomousSourceIds: '', autonomousDiskBudgetMb: 1024, textStoreDir: '',
   dailyChapterGoal:0, readingSessionMinutes:10,realRoutineEnabled:true, speed: 'normal', readingCharsPerMinute: 0, dailyTasks: 40, dailyChars: 48000,
   readingBatchSegments:2, dailyReadingCap:0,
-  automaticSharing: true, automaticReview: true, storyMemoryEnabled: false, shareCooldownMinutes: 60, shareQuietEnabled: true, shareQuietStart: 22, shareQuietEnd: 8, shareMaxSentenceChars: 80, shareQuietStartMinute: -1, shareQuietEndMinute: -1 };
+  automaticSharing: true, automaticReview: true, storyMemoryEnabled: false, shareCooldownMinutes: 60, shareQuietEnabled: true, shareQuietStart: 22, shareQuietEnd: 8, shareMaxSentenceChars: 80, shareQuietStartMinute: -1, shareQuietEndMinute: -1,
+  txtAcquisitionEnabled: false, browserDebugPort: 0, txtAcquisitionRetentionMb: 512 };
 export function sharingLimits(cfg: BookfishConfigSection) {
   const integer = (v: unknown, fallback: number, min: number, max: number) => Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max ? v as number : fallback;
   return { cooldownMs: integer(cfg.shareCooldownMinutes, 60, 1, 1440) * 60000,
@@ -107,6 +114,21 @@ export function bookfishConfigGroup(english: boolean): ConfigGroup {
           description: english ? 'Auto uses Persona cognition when available, otherwise the main session.' : '自动模式在 Persona 提供后台认知时使用，否则使用主会话。',
           'x-hot': true,
         },
+        'worlds.bookfish.txtAcquisitionEnabled': {
+          type: 'boolean', title: english ? 'Browser-assisted TXT import' : '浏览器辅助 TXT 获取',
+          description: english ? 'Off by default. Lets her open a resource page, find TXT/MD downloads, keep the original bytes and add a readable copy to the shelf. It never logs in, pays, or bypasses a captcha; it is a supplement to the novel source engine, not a replacement.' : '默认关闭。允许她打开资源页、发现 TXT/MD 下载、保留原始字节并把可读副本加入书架。不会登录、付费或绕过验证码；它是书源引擎的补充，不替代原有书源。',
+          'x-hot': true,
+        },
+        'worlds.bookfish.browserDebugPort': {
+          type: 'integer', minimum: 0, maximum: 65535, title: english ? 'Browser debug port (0 = off)' : '浏览器调试端口（0 关闭）',
+          description: english ? 'A dedicated loopback Chrome DevTools port you start yourself, e.g. 9333. Only 127.0.0.1 is used, no port is scanned, and no existing tab is taken over. 0 disables the browser path.' : '你自己启动的专用本机 Chrome 调试端口，例如 9333。只连接 127.0.0.1，不扫描端口，不接管已有标签页。填 0 关闭浏览器路径。',
+          'x-hot': true,
+        },
+        'worlds.bookfish.txtAcquisitionRetentionMb': {
+          type: 'integer', minimum: 64, maximum: 10240, title: english ? 'Retained original files (MiB)' : '保留原始文件上限（MiB）',
+          description: english ? 'Original downloads are kept when a file has warnings or a failed import, so a later repair can reuse them. Files are only removed when the area exceeds this bound and no task is running.' : '文件有警告或导入失败时保留原始下载，便于日后补正。只有在本区域超过上限且没有进行中的任务时才清理。',
+          'x-hot': true,
+        },
       },
     },
   };
@@ -115,7 +137,7 @@ export function bookfishConfigGroup(english: boolean): ConfigGroup {
 export function bookfishConfigGroups(english: boolean): ConfigGroup[] {
   const all=bookfishConfigGroup(english);const fields=all.schema.properties;
   const main=['realRoutineEnabled','automaticReading','autonomousAcquisition','autonomousAcquisitionMode','autonomousSourceIds','autonomousDiskBudgetMb','speed','readingCharsPerMinute','dailyChapterGoal','readingSessionMinutes','readingBatchSegments','dailyReadingCap','automaticSharing','shareCooldownMinutes','shareMaxSentenceChars','shareQuietEnabled','shareQuietStartMinute','shareQuietEndMinute'];
-  const advanced=['automaticReview','storyMemoryEnabled','allowNetwork','readingMode','textStoreDir'];
+  const advanced=['automaticReview','storyMemoryEnabled','allowNetwork','readingMode','textStoreDir','txtAcquisitionEnabled','browserDebugPort','txtAcquisitionRetentionMb'];
   const pick=(names:string[])=>Object.fromEntries(names.map(k=>['worlds.bookfish.'+k,fields['worlds.bookfish.'+k]]));
   return [{...all,schema:{...all.schema,title:english?'Reading and sharing':'阅读与分享',properties:pick(main)}},{...all,id:'world:bookfish:advanced',schema:{...all.schema,title:english?'Advanced reading limits':'高级阅读限制',properties:pick(advanced)}}];
 }
@@ -128,6 +150,7 @@ export function validateSettings(input:unknown):Partial<BookfishConfigSection>{
     if(prop.type==='boolean'&&typeof value!=='boolean'||prop.type==='string'&&(typeof value!=='string'||prop.enum&&!prop.enum.includes(value))||prop.type==='integer'&&(!Number.isSafeInteger(value)||typeof value!=='number'||value<(prop.minimum??-Infinity)||value>(prop.maximum??Infinity)))throw Error('Invalid setting: '+key);
     if(key==='readingCharsPerMinute'&&value!==0&&(value as number)<100)throw Error('Reading speed must be 0 or 100—1200');
     if(key==='autonomousSourceIds'&&(typeof value!=='string'||value.length>100||value.trim()!==''&&! /^\s*\d+(?:\s*,\s*\d+)*\s*$/.test(value)))throw Error('Autonomous source ids must be comma-separated integers');
+    if(key==='browserDebugPort'&&value!==0&&(value as number)<1024)throw Error('Browser debug port must be 0 or 1024—65535');
     if(key==='textStoreDir'){const text=(value as string).trim();if(text&&! /^(?:[a-zA-Z]:[\\/]|\\\\|\/)/.test(text))throw Error('Text storage path must be absolute');patch[key]=text;continue;}
     patch[key]=value;
   }

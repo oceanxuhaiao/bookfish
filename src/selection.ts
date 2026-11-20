@@ -469,8 +469,56 @@ export class SelectionCoordinator {
     }
   }
 
-  private recordFailure(intentId: string, failure: { code: string; global: boolean; message: string }, stage: string): void {
+  /**
+   * Browser-assisted file acquisition finished for an autonomous intent. Manual
+   * imports never reach here: they carry no intentId and change no selection state.
+   */
+  onExternalImport(task: { id: string; intentId?: string; bookKey?: string }, identity: 'exact' | 'partial' | 'unknown'): void {
+    if (this.stopped || !task.intentId || !task.bookKey) return;
+    const bookKey = task.bookKey;
     const state = this.refresh();
+    const intent = state.intents.find((entry) => entry.id === task.intentId);
+    if (!intent) return;
+    if (!this.bookExists(bookKey)) {
+      this.recordFailure(intent.id, { code: 'import_failed', global: false, message: '文件已导入但未找到持久化书籍，未安排阅读。' }, 'import');
+      return;
+    }
+    if (intent.bookKey && intent.bookKey !== bookKey) {
+      // A repaired revision was imported as its own version. The old entry keeps its
+      // progress; switching is an explicit choice, never an implicit overwrite.
+      return;
+    }
+    if (intent.status === 'cancelled') {
+      let announced: SelectionIntent | undefined;
+      this.update((draft) => {
+        const target = draft.intents.find((entry) => entry.id === intent.id);
+        if (!target) return;
+        target.bookKey = bookKey; target.acquisitionTaskId = task.id; target.updatedAt = this.now();
+        target.failure = { code: 'cancelled', message: '已入架，已取消后续排队；无法撤销已完成的导入。', at: this.now() };
+        announced = structuredClone(target);
+      });
+      if (announced) this.announce(announced, 'cancelled_after_import', 'import');
+      return;
+    }
+    if (identity !== 'exact') {
+      // The file's own title or author differ from the request: shelf it, but require
+      // a candidate confirmation before it enters the reading queue.
+      let announced: SelectionIntent | undefined;
+      this.update((draft) => {
+        const target = draft.intents.find((entry) => entry.id === intent.id);
+        if (!target) return;
+        target.bookKey = bookKey; target.acquisitionTaskId = task.id; target.status = 'awaiting_choice';
+        target.failure = { code: 'identity_mismatch', message: `文件书名或作者与《${intent.title}》不完全一致，需确认后再排队。`, at: this.now() };
+        target.updatedAt = this.now();
+        announced = structuredClone(target);
+      });
+      if (announced) this.announce(announced, 'awaiting_choice', 'import');
+      return;
+    }
+    this.fulfill(intent.id, bookKey);
+  }
+
+  private recordFailure(intentId: string, failure: { code: string; global: boolean; message: string }, stage: string): void {    const state = this.refresh();
     const intent = state.intents.find((entry) => entry.id === intentId);
     if (!intent) return;
     const now = this.now();

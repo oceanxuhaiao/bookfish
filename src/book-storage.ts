@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, readdirSync, statSync, openSync, closeSync, readSync, writeSync, fsyncSync, copyFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { gunzipSync } from 'node:zlib';
-import { importFileBlob } from './stream-import.ts';
+import { importFileBlob, importFileBlobBestEffort, type BestEffortDecoded } from './stream-import.ts';
 import type { Book } from './books.ts';
 import type { LibraryState } from './library.ts';
 import { PageCache, fileHash, pagedFile, loadPagedBook, writePagedBook, appendPagedBook } from './paged-book.ts';
@@ -94,6 +94,13 @@ export class BookStorage {
   }
   importFile(file:string,metadata:{filename:unknown;title:unknown;author?:unknown}){
     mkdirSync(this.dir,{recursive:true});const id=importFileBlob(this.dir,file,metadata),book=loadPagedBook(this.path(id),id,this.cache);this.refs.set(book,id);this.lazy.add(book);return book;
+  }
+  /** Loose sibling of `importFile`; only the acquisition flow may call it. */
+  importFileBestEffort(file:string,metadata:{filename:unknown;title:unknown;author?:unknown},decoded?:BestEffortDecoded){
+    mkdirSync(this.dir,{recursive:true});
+    const {id,decoded:prepared}=importFileBlobBestEffort(this.dir,file,metadata,16*1024,undefined,decoded);
+    const book=loadPagedBook(this.path(id),id,this.cache);this.refs.set(book,id);this.lazy.add(book);
+    return {book,decoded:prepared};
   }
   adoptValidatedImport(file:string,id:string,receipt:{size:number;mtimeMs:number}){
     if(!validHash(id))throw Error('Invalid imported blob');

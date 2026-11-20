@@ -23,6 +23,7 @@ import { SerialScheduler } from './serial-scheduler.ts';
 import { NovelRuntimeManager } from './novel-runtime/manager.ts';
 import { BUILTIN_RUNTIME_MANIFEST } from './novel-runtime/builtin-manifest.ts';
 import { SelectionCoordinator } from './selection.ts';
+import { TxtAcquisition } from './txt-acquisition/index.ts';
 import { BOOKFISH_TOOL_DECLS } from './tool-schemas.ts';
 import { HELP_TOPICS } from './protocols.ts';
 import { assertWritableTextStoreDir } from './text-store.ts';
@@ -52,6 +53,7 @@ export class BookfishWorld implements World {
   private readonly serialSync: SerialSync;
   private readonly serialScheduler: SerialScheduler;
   private selection!: SelectionCoordinator;
+  private txtAcquisition!: TxtAcquisition;
   private lifetime = new AbortController();
   constructor(private readonly opts: BookfishWorldOptions) {
     this.library = new Library({ dataDir: opts.dataDir, textStoreDir: opts.cfg.textStoreDir, storyMemoryEnabled: opts.cfg.storyMemoryEnabled === true }); this.transfers = new BookTransfers(this.library); this.sources = new Sources(this.library, undefined, () => opts.cfg.allowNetwork);
@@ -78,6 +80,10 @@ export class BookfishWorld implements World {
     });
     this.selection = new SelectionCoordinator({ library: this.library, novelFetches: this.novelFetches,
       scheduler: this.scheduler, cfg: () => this.opts.cfg, timezone: opts.timezone });
+    // Browser-assisted file acquisition: an independent route into the same Library.
+    // It never opens a second shelf and never queues reading on its own.
+    this.txtAcquisition = new TxtAcquisition({ dataDir: opts.dataDir, library: this.library, cfg: () => this.opts.cfg,
+      onImported: (task, identity) => this.selection?.onExternalImport(task, identity) });
   }
   private sourceSignal(signal?: AbortSignal): AbortSignal {
     if (!this.host) throw new SourceError('cancelled', 'Bookfish is not mounted');
@@ -97,6 +103,7 @@ export class BookfishWorld implements World {
       novelFetch: this.novelFetches.status(),
       serial: this.serialSync.status(),
       selection: this.host ? this.selection.compact() : this.selection.detached(),
+      txtAcquisition: this.txtAcquisition.summary(),
     };
   }
   envPromptVars(): Record<string, string> { return {}; }
@@ -109,6 +116,7 @@ export class BookfishWorld implements World {
     const full = this.status();
     const current = full.library.current;
     const s = full.scheduler;
+    const txt = this.txtAcquisition.summary();
     return {
       lifecycle: full.lifecycle, readingAvailable: full.readingAvailable, automaticReadingAvailable: full.automaticReadingAvailable,
       selectedMode: full.selectedMode, cognition: full.cognition, networkEnabled: full.networkEnabled, reviewError: full.reviewError,
@@ -125,6 +133,7 @@ export class BookfishWorld implements World {
           progressUnit: current.progressUnit, complete: current.complete, readiness: current.readiness,
           chapterGoalSupported: current.chapterGoalSupported } : null },
       sharing: this.sharing.summary(),
+      txtFiles: { enabled: txt.enabled, browserConfigured: txt.browserConfigured, active: txt.active },
     };
   }
   tools(): ToolDef[] {
@@ -174,6 +183,43 @@ export class BookfishWorld implements World {
         ? { ...this.selection.summary(args.intentId), candidates: this.selection.candidates(args.intentId) }
         : this.selection.summary(),
       bookfish_plan_reading: (args) => this.selection.plan(args.intentId, args.action, args.notBefore),
+      bookfish_import_txt: async (args) => {
+        const action = String(args.action);
+        const taskId = args.taskId === undefined ? undefined : requiredText(args.taskId, 'taskId', 80);
+        const intentId = args.intentId === undefined ? undefined : requiredText(args.intentId, 'intentId', 80);
+        const origin = intentId ? 'autonomous' as const : 'manual' as const;
+        switch (action) {
+          case 'discover':
+            return this.txtAcquisition.discover({ pageUrl: requiredText(args.pageUrl, 'pageUrl', 2000),
+              title: requiredText(args.title, 'title', 200),
+              ...(args.author === undefined ? {} : { author: requiredText(args.author, 'author', 100) }),
+              origin, ...(intentId ? { intentId } : {}) });
+          case 'import':
+            if (args.fileUrl !== undefined) {
+              return this.txtAcquisition.importFile({ url: requiredText(args.fileUrl, 'fileUrl', 2000),
+                title: requiredText(args.title, 'title', 200),
+                ...(args.author === undefined ? {} : { author: requiredText(args.author, 'author', 100) }),
+                origin, ...(intentId ? { intentId } : {}) });
+            }
+            if (!taskId || args.candidateId === undefined) throw new Error('import needs fileUrl, or taskId plus candidateId');
+            return this.txtAcquisition.importFile({ taskId, candidateId: requiredText(args.candidateId, 'candidateId', 80) });
+          case 'status':
+            return this.txtAcquisition.status(taskId);
+          case 'retry':
+            return this.txtAcquisition.retry(requiredText(taskId, 'taskId', 80));
+          case 'repair': {
+            const encoding = args.encoding === undefined ? undefined : String(args.encoding);
+            if (encoding !== undefined && !['utf-8', 'utf-8-bom', 'gb18030', 'utf-16le', 'utf-16be'].includes(encoding)) {
+              throw new Error('encoding must be utf-8, utf-8-bom, gb18030, utf-16le or utf-16be');
+            }
+            return this.txtAcquisition.repair(requiredText(taskId, 'taskId', 80), encoding as 'utf-8' | 'utf-8-bom' | 'gb18030' | 'utf-16le' | 'utf-16be' | undefined);
+          }
+          case 'cancel':
+            return this.txtAcquisition.cancel(requiredText(taskId, 'taskId', 80));
+          default:
+            throw new Error('bookfish_import_txt action must be discover, import, status, retry, repair or cancel');
+        }
+      },
     };
     const grouped: Record<string, (args: Record<string, unknown>, signal?: AbortSignal) => unknown> = {
       bookfish_lookup: (args) => {
@@ -473,6 +519,7 @@ export class BookfishWorld implements World {
     this.library.open();try{this.transfers.recover();}catch(error){this.library.close();throw error;} this.host = host; this.lifetime = new AbortController();
     try {
       try { await this.runtime.start(); } catch { /* runtime faults stay inside the runtime card, not the whole World */ }
+      try { await this.txtAcquisition.init(); } catch { /* acquisition state faults must not block reading */ }
       this.scheduler.start(host);
       this.sharing.start(host);
       this.reviewFlow.start(host);

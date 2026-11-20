@@ -49,8 +49,8 @@ function paragraphs(text: string): string[] {
 
 describe('resident context budget', () => {
   it('keeps the model-visible tool surface within budget', () => {
-    expect(BOOKFISH_TOOL_DECLS).toHaveLength(15);
-    expect(tools.length).toBeLessThanOrEqual(13_000);
+    expect(BOOKFISH_TOOL_DECLS).toHaveLength(16);
+    expect(tools.length).toBeLessThanOrEqual(13_400);
     expect(prompt.length + tools.length).toBeLessThanOrEqual(15_000);
   });
 
@@ -59,10 +59,12 @@ describe('resident context budget', () => {
     expect(prompt.length).toBeGreaterThanOrEqual(300);
   });
 
-  it('stays inside the 300-600 character target band', () => {
+  it('stays inside the 300-800 character target band', () => {
     // If this fails legitimately, change the number here together with a written
     // reason in docs/prompt-refactor/. Silent budget increases are not allowed.
-    expect(prompt.length).toBeLessThanOrEqual(600);
+    // 2026-11: browser-assisted TXT acquisition added one resident principle line;
+    // see docs/prompt-refactor/2026-11-txt-acquisition.md for the measured reason.
+    expect(prompt.length).toBeLessThanOrEqual(800);
   });
 
   it('keeps the seven non-negotiable principles in the resident prompt', () => {
@@ -175,3 +177,4 @@ describe('bookfish_help', () => {
     } finally { dispose(); }
   });
 });
+

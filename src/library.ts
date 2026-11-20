@@ -4,6 +4,9 @@ import { randomUUID } from 'node:crypto';
 import { HistoryStore, historyFork, historySelect, historyFind, historyPage, historyCount, isHistory, plainHistory, type HistoryRef } from './history.ts';
 import { BookStorage, type ArchiveHooks } from './book-storage.ts';import { isPagedBook, chapterSpan, chapterEndIds, remoteLayout, readerChapters } from './paged-book.ts';
 import { buildBook, decodeFile, digest, requiredText, type Book } from './books.ts';
+import { BestEffortRejected } from './stream-import.ts';
+import type { BestEffortDecoded } from './stream-import.ts';
+import { assessText } from './txt-acquisition/quality.ts';
 import { searchReading, readingContext } from './retrieval.ts';
 import { beginReview, reviewMaterials, finishReview, failReview, validateReviews, type BookReview, type ReviewJob } from './reviews.ts';
 import { normalizeEpisode, validateEpisodes, evidenceView, record, MAX_EPISODES, type ReadingEpisode } from './journal.ts';
@@ -634,6 +637,46 @@ export class Library {
   }
   adoptValidatedImport(file:string,id:string,receipt:{size:number;mtimeMs:number}){
     this.ensureOpen();try{return this.addBook(this.bookStorage.adoptValidatedImport(file,id,receipt));}finally{this.bookStorage.collect(this.state);}
+  }
+  /**
+   * Controlled loose import for the TXT acquisition flow. Ordinary `importFile`
+   * stays strict; this path decodes leniently, records what it repaired and
+   * refuses only files that cannot form readable prose. A rejected file leaves
+   * its original bytes in the acquisition staging area for a later retry.
+   */
+  importFileBestEffort(
+    metadata:{filename:unknown;title:unknown;author?:unknown},
+    file:string,
+    options?:{wanted?:{title?:string;author?:string};declared?:{title?:string;author?:string};decoded?:BestEffortDecoded},
+  ){
+    this.ensureOpen();
+    try{
+      const {book,decoded}=this.bookStorage.importFileBestEffort(file,metadata,options?.decoded);
+      const assessment=assessText({
+        text:decoded.text,
+        encoding:decoded.encoding,
+        replacements:decoded.replacements,
+        truncatedTail:decoded.truncatedTail,
+        repairs:decoded.repairs,
+        filename:book.filename,
+        ...(options?.wanted?{wanted:options.wanted}:{}),
+        ...(options?.declared?{declared:options.declared}:{}),
+      });
+      if(assessment.verdict==='reject'&&assessment.reject)throw new BestEffortRejected(assessment.reject.code,assessment.reject.message);
+      const added=this.addBook(book);
+      return {
+        imported:true as const,
+        duplicate:added.duplicate,
+        book:added.book,
+        quality:assessment.report,
+        readableChars:assessment.report.readableChars,
+        identity:assessment.identity,
+        repairs:assessment.report.repairs.map(issue=>issue.code),
+      };
+    }finally{
+      // Unreferenced blobs from a rejected or duplicate import are collected here.
+      this.bookStorage.collect(this.state);
+    }
   }
   private addBook(book:Book) {
     return this.change((draft) => {

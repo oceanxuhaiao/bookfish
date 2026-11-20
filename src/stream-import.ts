@@ -1,10 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { TextDecoder } from 'node:util';
-import { openSync, closeSync, readSync, writeSync, ftruncateSync, fsyncSync, statSync, unlinkSync, existsSync } from 'node:fs';
+import { openSync, closeSync, readSync, writeSync, ftruncateSync, fsyncSync, statSync, unlinkSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildBook, MAX_BOOK_BYTES, type Segment } from './books.ts';
 import { streamIndex } from './stream-index.ts';
 import { writePagedStream } from './paged-book.ts';
+import { decodeBestEffort, detectEncoding as detectEncodingLoosely, looksBinary, normalizeText } from './txt-acquisition/repair.ts';
+import type { DetectedEncoding, QualityIssue } from './txt-acquisition/types.ts';
 const TEXT_ENCODING_ERROR = 'Book must use UTF-8, GB18030 or UTF-16 encoding';
 const TEXT_ENCODING_DAMAGED = 'Book must use UTF-8, GB18030 or UTF-16 encoding; too many undecodable bytes (the file looks damaged or mixed-encoded)';
 /** Pick an encoding from a bounded prefix without letting one stray byte flip the whole book. */
@@ -78,3 +80,105 @@ export function importFileBlob(dir:string,file:string,metadata:{filename:unknown
     return writePagedStream(dir,()=>{const rev=revision.digest('hex');return {key:identity.id+':'+rev,id:identity.id,revision:rev,title:identity.title,author:identity.author,filename:identity.filename,sourceHash:sourceHash.digest('hex'),totalChars,parserVersion:1};},segments());
   }finally{if(existsSync(canonical))unlinkSync(canonical);}
 }
+
+/**
+ * Loose import entry point. The strict path above keeps refusing damaged files;
+ * this one is only reached from the acquisition flow, which already holds the
+ * original bytes and a quality report. It decodes leniently (BOM/GB18030/
+ * UTF-16, stray bad bytes, incomplete tail) and never rejects a file merely for
+ * imperfect chapters or suspected truncation.
+ */
+export class BestEffortRejected extends Error {
+  constructor(readonly code: string, message: string) {
+    super(message);
+    this.name = 'BestEffortRejected';
+  }
+}
+
+export interface BestEffortDecoded {
+  text: string;
+  encoding: DetectedEncoding;
+  repairs: QualityIssue[];
+  replacements: number;
+  truncatedTail: boolean;
+  bytes: number;
+}
+
+/** Read the staged file, detect the encoding from content, decode and normalize. */
+export function decodeFileBestEffort(file: string, chunkBytes = 16 * 1024, progress?: (done: number, total: number) => void): BestEffortDecoded {
+  if (!Number.isSafeInteger(chunkBytes) || chunkBytes < 1 || chunkBytes > 256 * 1024) throw Error('Invalid import buffer size');
+  const size = statSync(file).size;
+  if (!size) throw new BestEffortRejected('empty_file', 'The downloaded file is empty');
+  if (size > MAX_BOOK_BYTES) throw new BestEffortRejected('too_large', 'The downloaded file exceeds 100 MiB');
+  const chunks: Buffer[] = [];
+  const fd = openSync(file, 'r');
+  try {
+    const buffer = Buffer.alloc(Math.min(chunkBytes, size));
+    let read = 0;
+    let n: number;
+    while ((n = readSync(fd, buffer, 0, buffer.length, null))) {
+      chunks.push(Buffer.from(buffer.subarray(0, n)));
+      read += n;
+      progress?.(read, size);
+    }
+  } finally {
+    closeSync(fd);
+  }
+  const bytes = Buffer.concat(chunks, size);
+  if (looksBinary(bytes)) throw new BestEffortRejected('binary_file', 'The downloaded file looks binary, not text');
+  const encoding = detectEncodingLoosely(bytes);
+  const decoded = decodeBestEffort(bytes, encoding);
+  const normalized = normalizeText(decoded.text);
+  const text = normalized.text;
+  if (!text.trim()) throw new BestEffortRejected('empty_file', 'The downloaded file has no readable text');
+  return {
+    text,
+    encoding,
+    repairs: [...decoded.issues, ...normalized.issues],
+    replacements: decoded.replacements,
+    truncatedTail: normalized.truncatedTail,
+    bytes: size,
+  };
+}
+
+/** Build the paged book from already-decoded text; shares the strict segmenter. */
+export function importFileBlobBestEffort(
+  dir: string,
+  file: string,
+  metadata: { filename: unknown; title: unknown; author?: unknown },
+  chunkBytes = 16 * 1024,
+  progress?: (stage: string, done: number, total: number) => void,
+  decoded?: BestEffortDecoded,
+): { id: string; decoded: BestEffortDecoded } {
+  if (!Number.isSafeInteger(chunkBytes) || chunkBytes < 1 || chunkBytes > 256 * 1024) throw Error('Invalid import buffer size');
+  const identity = buildBook(metadata.filename, metadata.title, metadata.author, 'x');
+  const prepared = decoded ?? decodeFileBestEffort(file, chunkBytes, (n, total) => progress?.('normalize', n, total));
+  const canonical = join(dir, randomUUID() + '.canonical.tmp');
+  try {
+    writeFileSync(canonical, prepared.text, 'utf8');
+    progress?.('index', 0, statSync(canonical).size);
+    const sourceHash = createHash('sha256');
+    const revision = createHash('sha256').update('1\n');
+    let totalChars = 0;
+    let indexBytes = 0;
+    const canonicalBytes = statSync(canonical).size;
+    function* segments(): Generator<Segment> {
+      for (const segment of streamIndex(() => fileText(canonical, chunkBytes))) {
+        sourceHash.update(segment.text);
+        revision.update(segment.text);
+        totalChars = segment.end;
+        indexBytes += Buffer.byteLength(segment.text);
+        progress?.('index', indexBytes, canonicalBytes);
+        yield segment;
+      }
+    }
+    const id = writePagedStream(dir, () => {
+      const rev = revision.digest('hex');
+      return { key: identity.id + ':' + rev, id: identity.id, revision: rev, title: identity.title, author: identity.author, filename: identity.filename, sourceHash: sourceHash.digest('hex'), totalChars, parserVersion: 1 };
+    }, segments());
+    return { id, decoded: prepared };
+  } finally {
+    if (existsSync(canonical)) unlinkSync(canonical);
+  }
+}
+

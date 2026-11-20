@@ -20,5 +20,6 @@ export interface BookfishStatus {
   novelFetch: ReturnType<NovelFetches['status']>;
   serial: ReturnType<SerialSync['status']>;
   selection: ReturnType<SelectionCoordinator['compact']>;
+  txtAcquisition: ReturnType<import('./txt-acquisition/index.ts').TxtAcquisition['summary']>;
 }
 export interface LibraryPanelState { discussions: ReturnType<import('./discussions.ts').Discussions['list']>; config: import('./config.ts').BookfishConfigSection; status: BookfishStatus; books: ReturnType<Library['list']>; journal: ReturnType<Library['journal']> | null; reviews: ReturnType<Library['reviews']> | null; novel: ReturnType<NovelFetches['status']>; serial: ReturnType<SerialSync['status']>; selection: ReturnType<SelectionCoordinator['view']> }
