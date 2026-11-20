@@ -1,0 +1,43 @@
+{
+  "base": "origin/main",
+  "blocked": [],
+  "review": [
+    {
+      "path": "describe.json",
+      "verdict": "review",
+      "rule": "describe.json"
+    },
+    {
+      "path": "src/env_prompt.md",
+      "verdict": "review",
+      "rule": "src/env_prompt.md"
+    },
+    {
+      "path": "src/config.ts",
+      "verdict": "review",
+      "rule": "src/config.ts"
+    },
+    {
+      "path": "src/library.ts",
+      "verdict": "review",
+      "rule": "src/library.ts"
+    },
+    {
+      "path": "src/stream-import.ts",
+      "verdict": "review",
+      "rule": "src/stream-import.ts"
+    },
+    {
+      "path": "src/tool-schemas.ts",
+      "verdict": "review",
+      "rule": "src/tool-schemas.ts"
+    },
+    {
+      "path": "src/world.ts",
+      "verdict": "review",
+      "rule": "src/world.ts"
+    }
+  ],
+  "allowedCount": 3520,
+  "note": "allowed count includes local ignored-by-pack verification artifacts; review not accepted"
+}

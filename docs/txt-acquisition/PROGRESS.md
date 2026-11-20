@@ -103,3 +103,7 @@ npm run build:webui
 用户授权继续后，在独立 Chrome 158.0.8127.36 副本上通过 WFP 按应用路径限制。真实页面/STUN正向对照可达，受限后TCP4/TCP6/本机LAN地址、UDP4/UDP6及TCP允许端口的同号UDP接收/连接增量全0；精确允许端口仍正常，控制器强杀后规则仍在。继续真实Chrome经固定IP CONNECT取得RFC1149公开TXT，3215字节、SHA与独立下载完全一致；删除代理配置后无法直取，实际停止代理后禁止目标0连接。全部实验过滤器和sublayer已按GUID清理，最终查询found0，未改日常安装目录/生产宿主。
 
 详见[浏览器阻断与联调报告](ROUND2-WFP-BROWSER-VERIFICATION.md)。这不是BookFish MV3或Coopanion验收；当前产品入口尚未接入保护，P0本体仍待修复。保留两次测试断言修正与GitHub来源超时的原始失败记录。共享系统DNS、Edge、QUIC、BFE/系统重启等未专项验证，不宣称所有浏览器出站路径已闭合。
+
+## 2026-11-21 第二轮收尾审核
+
+协议v2、DNS固定传输、来源授权、记录脱敏、原件保护与宽松质量修复完成。75文件778测试、类型、构建、官方契约通过；真实CDP导航与WFP实验通过。正式控制器／MV3／实际Coopanion／真实样本仍待验收，SSM review7未放行，未push。详见ROUND2-IMPLEMENTATION-REVIEW.md。

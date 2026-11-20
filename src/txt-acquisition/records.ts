@@ -1,6 +1,7 @@
 /** Durable acquisition task records, kept apart from the library and its book bodies. */
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { redactMessage, sourceReference } from './privacy.ts';
 import {
   MAX_HISTORY, MAX_TASKS, isTerminal, validateAcquisitionState,
   type AcquisitionState, type AcquisitionStatus, type AcquisitionTask,
@@ -27,6 +28,7 @@ export class AcquisitionRecords {
       }
     }
     this.loaded = true;
+    this.save();
   }
 
   private ensureLoaded(): void {
@@ -34,6 +36,15 @@ export class AcquisitionRecords {
   }
 
   save(): void {
+    for (const task of this.state.tasks) {
+      if (task.pageUrl) {
+        try { const source = sourceReference(task.pageUrl); task.pageUrlHash ??= source.sha256; task.requiresRediscovery ||= source.requiresRediscovery; task.pageUrl = source.url; }
+        catch { delete task.pageUrl; task.requiresRediscovery = true; }
+      }
+      if (task.failure) task.failure.message = redactMessage(task.failure.message);
+      if (task.rejection) task.rejection.message = redactMessage(task.rejection.message);
+      for (const entry of task.history) if (entry.note) entry.note = redactMessage(entry.note);
+    }
     mkdirSync(this.dir, { recursive: true });
     const temporary = `${this.file}.${process.pid}.tmp`;
     writeFileSync(temporary, `${JSON.stringify(this.state)}\n`, 'utf8');
@@ -64,7 +75,7 @@ export class AcquisitionRecords {
     if (index >= 0) this.state.tasks[index] = next; else this.state.tasks.push(next);
     this.trim();
     this.save();
-    return structuredClone(next);
+    return this.get(next.id)!;
   }
 
   /** Mutate a task, recording history and the update time, then persist once. */

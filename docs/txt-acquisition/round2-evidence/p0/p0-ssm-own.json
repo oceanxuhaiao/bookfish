@@ -1,0 +1,13 @@
+{
+  "base": "88e6847",
+  "blocked": [],
+  "review": [
+    {
+      "path": "describe.json",
+      "verdict": "review",
+      "rule": "describe.json"
+    }
+  ],
+  "allowedCount": 3457,
+  "note": "allowed count includes local ignored-by-pack verification artifacts; review not accepted"
+}

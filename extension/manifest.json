@@ -4,8 +4,13 @@
   "version": "0.63.0",
   "description": "Lets the BookFish world use your own Edge/Chrome to open resource pages and fetch TXT files.",
   "minimum_chrome_version": "116",
-  "permissions": ["storage", "alarms"],
-  "host_permissions": ["http://127.0.0.1/*", "<all_urls>"],
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -13,5 +18,9 @@
   "action": {
     "default_title": "BookFish bridge",
     "default_popup": "popup.html"
-  }
+  },
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ]
 }

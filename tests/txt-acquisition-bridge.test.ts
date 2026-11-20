@@ -16,13 +16,14 @@ function scratch(): { dir: string; discard: () => void } {
 }
 
 async function start(dir: string): Promise<{ bridge: BrowserBridge; port: number; token: string }> {
-  const bridge = new BrowserBridge({ dataDir: dir, port: 0, resolve: resolvePublic });
+  const bridge = new BrowserBridge({ dataDir: dir, port: 0, resolve: resolvePublic, authorize: async () => undefined });
   const { port, token } = await bridge.start();
   return { bridge, port, token };
 }
 
+const leases = new Map<string, string>();
 function headers(token: string, extra: Record<string, string> = {}): Record<string, string> {
-  return { 'x-bookfish-token': token, ...extra };
+  return { 'x-bookfish-token': token, 'x-bookfish-consumer': 'existing-test-client', ...(leases.has(token) ? { 'x-bookfish-lease': leases.get(token)! } : {}), 'x-bookfish-sequence': '0', ...extra };
 }
 
 /** Attach the handler right away; the bridge may settle while the POST is in flight. */
@@ -32,7 +33,9 @@ function capture<T>(promise: Promise<T>): Promise<{ value?: T; error?: unknown }
 
 async function poll(port: number, token: string): Promise<{ job: { id: string; kind: string; url: string } | null }> {
   const response = await fetch(`http://127.0.0.1:${port}/bridge/jobs`, { headers: headers(token) });
-  return await response.json() as { job: { id: string; kind: string; url: string } | null };
+  const result = await response.json() as { job: { id: string; kind: string; url: string; lease: string } | null };
+  if (result.job) leases.set(token, result.job.lease);
+  return result;
 }
 
 describe('browser extension bridge', () => {
@@ -148,7 +151,7 @@ describe('browser extension bridge', () => {
       const done = await fetch(`http://127.0.0.1:${port}/bridge/jobs/${job!.id}/done`, {
         method: 'POST',
         headers: headers(token, { 'content-type': 'application/json' }),
-        body: JSON.stringify({ finalUrl: BOOK, contentType: 'text/plain' }),
+        body: JSON.stringify({ finalUrl: BOOK, contentType: 'text/plain', bytes: gbk.length }),
       });
       expect(done.status).toBe(200);
 

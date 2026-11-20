@@ -1,0 +1,9 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-hardening
+
+ ✓ tests/txt-acquisition-worker.test.ts (6 tests) 26ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  01:20:48
+   Duration  2.82s (transform 1.37s, setup 0ms, collect 1.37s, tests 26ms, environment 0ms, prepare 226ms)

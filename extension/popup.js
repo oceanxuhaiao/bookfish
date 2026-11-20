@@ -40,3 +40,33 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 void load();
+
+async function renderSources() {
+  const { allowedOrigins = [] } = await chrome.storage.local.get({ allowedOrigins: [] });
+  document.getElementById('sources').textContent = allowedOrigins.join('、') || '尚未授权公网来源';
+}
+function selectedOrigin() {
+  const url = new URL(document.getElementById('source').value.trim());
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error('invalid origin');
+  return url.origin;
+}
+document.getElementById('grant').addEventListener('click', async () => {
+  try {
+    const origin = selectedOrigin();
+    const granted = await chrome.permissions.request({ origins: [`${new URL(origin).protocol}//${new URL(origin).hostname}/*`] });
+    if (!granted) { show('来源授权未获允许', false); return; }
+    const { allowedOrigins = [] } = await chrome.storage.local.get({ allowedOrigins: [] });
+    await chrome.storage.local.set({ allowedOrigins: [...new Set([...allowedOrigins, origin])] });
+    await renderSources();
+  } catch { show('请填写有效的 http/https 来源地址', false); }
+});
+document.getElementById('revoke').addEventListener('click', async () => {
+  try {
+    const origin = selectedOrigin(); const { allowedOrigins = [] } = await chrome.storage.local.get({ allowedOrigins: [] });
+    await chrome.storage.local.set({ allowedOrigins: allowedOrigins.filter(item => item !== origin) });
+    // Chrome host permissions ignore port specificity; retain the browser grant if another saved origin needs it.
+    if (!allowedOrigins.some(item => item !== origin && new URL(item).hostname === new URL(origin).hostname && new URL(item).protocol === new URL(origin).protocol)) await chrome.permissions.remove({ origins: [`${new URL(origin).protocol}//${new URL(origin).hostname}/*`] });
+    await renderSources();
+  } catch { show('请填写需要撤销的来源', false); }
+});
+void renderSources();

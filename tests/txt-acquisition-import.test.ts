@@ -185,12 +185,14 @@ describe('lenient TXT import still refuses what cannot be read', () => {
     expect(library.list()).toHaveLength(0);
   });
 
-  it('refuses a body that is mostly undecodable', () => {
+  it('retains usable prose even when it has a large undecodable tail', () => {
     const bytes = Buffer.concat([Buffer.from(novel(), 'utf8'), Buffer.alloc(600, 0xff)]);
     const file = write('garbage.txt', bytes);
-    let thrown: unknown;
-    try { library.importFileBestEffort({ filename: 'garbage.txt', title: '大面积乱码' }, file); } catch (error) { thrown = error; }
-    expect((thrown as BestEffortRejected).code).toMatch(/unreadable_text|binary_file/);
+    const result = library.importFileBestEffort({ filename: 'garbage.txt', title: '大面积乱码' }, file);
+    expect(result.imported).toBe(true);
+    expect(result.quality.quality).toBe('partial');
+    expect(result.quality.warnings.map(issue => issue.code)).toContain('encoding_damaged');
+    expect(textOf(result.book.key)).toContain('她把信折好');
   });
 
   it('leaves the strict import entry untouched', () => {

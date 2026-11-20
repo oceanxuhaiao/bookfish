@@ -116,6 +116,8 @@ export interface AcquisitionTask {
   intentId?: string;
   target: { title: string; author?: string };
   pageUrl?: string;
+  pageUrlHash?: string;
+  requiresRediscovery?: boolean;
   sourceHost: string;
   candidates: CandidateRecord[];
   selectedCandidateId?: string;
@@ -169,6 +171,8 @@ export interface TaskView {
   target: { title: string; author?: string };
   intentId?: string;
   pageUrl?: string;
+  pageUrlHash?: string;
+  requiresRediscovery?: boolean;
   sourceHost: string;
   bookKey?: string;
   duplicate?: boolean;

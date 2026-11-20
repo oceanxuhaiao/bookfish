@@ -50,7 +50,7 @@ export class BrowserClient {
   private async endpoint(): Promise<string> {
     let response: Response;
     try {
-      response = await this.fetchImpl(`http://127.0.0.1:${this.port}/json/version`, { signal: AbortSignal.timeout(5000) });
+      response = await this.fetchImpl(`http://127.0.0.1:${this.port}/json/version`, { signal: AbortSignal.timeout(5000), redirect: 'error' });
     } catch {
       throw new BrowserError('browser_unavailable', `No browser debugging endpoint on 127.0.0.1:${this.port}`);
     }
@@ -115,6 +115,10 @@ export class BrowserClient {
     });
   }
 
+  onEvent(listener: (method: string, params: unknown, sessionId?: string) => void): () => void {
+    this.listeners.add(listener); return () => this.listeners.delete(listener);
+  }
+
   waitForEvent(method: string, sessionId: string, timeoutMs: number): Promise<unknown> {    return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.listeners.delete(listener); reject(new BrowserError('timeout', `Page did not emit ${method}`)); }, timeoutMs);
       const listener = (eventMethod: string, params: unknown, eventSession?: string) => {
@@ -177,6 +181,8 @@ export class BrowserClient {
 }
 
 export class PageSession {
+  private removeProtection?: () => void;
+  private protectionFailure = false;
   constructor(private readonly client: BrowserClient, readonly targetId: string, private readonly sessionId: string) {}
 
   async send(method: string, params: Record<string, unknown> = {}, timeoutMs?: number): Promise<unknown> {
@@ -191,10 +197,46 @@ export class PageSession {
     return result.result?.value as T;
   }
 
+  /** Pause every request before dispatch, reject redirects/subresources, and cap the document body before rendering. */
+  async protectNavigation(allowedUrl: string): Promise<void> {
+    this.removeProtection?.();
+    this.protectionFailure = false;
+    this.removeProtection = this.client.onEvent((method, raw, session) => {
+      if (method !== 'Fetch.requestPaused' || session !== this.sessionId) return;
+      const event = raw as { requestId: string; request: { url: string }; resourceType: string; redirectedRequestId?: string; responseStatusCode?: number; responseHeaders?: Array<{ name: string; value: string }> };
+      void (async () => {
+        let handle: string | undefined;
+        try {
+          if (event.request.url !== allowedUrl || event.resourceType !== 'Document' || event.redirectedRequestId) throw new Error('not the approved document');
+          if (event.responseStatusCode === undefined) { await this.send('Fetch.continueRequest', { requestId: event.requestId }); return; }
+          if (event.responseStatusCode >= 300 && event.responseStatusCode < 400) throw new Error('redirect');
+          const headers = event.responseHeaders ?? [];
+          const declared = Number(headers.find(header => header.name.toLowerCase() === 'content-length')?.value);
+          const encoding = headers.find(header => header.name.toLowerCase() === 'content-encoding')?.value;
+          if (declared > 8 * 1024 * 1024 || (encoding && encoding !== 'identity')) throw new Error('unsupported document transfer');
+          const stream = await this.send('Fetch.takeResponseBodyAsStream', { requestId: event.requestId }) as { stream: string }; handle = stream.stream;
+          const chunks: Buffer[] = []; let bytes = 0;
+          for (;;) {
+            const part = await this.send('IO.read', { handle, size: 64 * 1024 }) as { data: string; base64Encoded?: boolean; eof: boolean };
+            const chunk = Buffer.from(part.data, part.base64Encoded ? 'base64' : 'utf8'); bytes += chunk.length;
+            if (bytes > 8 * 1024 * 1024) throw new Error('document too large'); chunks.push(chunk); if (part.eof) break;
+          }
+          await this.send('IO.close', { handle }); handle = undefined;
+          await this.send('Fetch.fulfillRequest', { requestId: event.requestId, responseCode: event.responseStatusCode, responseHeaders: headers.filter(header => !['content-length', 'content-encoding', 'transfer-encoding'].includes(header.name.toLowerCase())), body: Buffer.concat(chunks).toString('base64') });
+        } catch { if (event.resourceType === 'Document' && (event.request.url === allowedUrl || event.redirectedRequestId)) this.protectionFailure = true; await this.send('Fetch.failRequest', { requestId: event.requestId, errorReason: 'BlockedByClient' }).catch(() => undefined); }
+        finally { if (handle) await this.send('IO.close', { handle }).catch(() => undefined); }
+      })();
+    });
+    await this.send('Emulation.setScriptExecutionDisabled', { value: true });
+    await this.send('Network.setBypassServiceWorker', { bypass: true });
+    await this.send('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }, { urlPattern: '*', requestStage: 'Response' }] });
+  }
+
   /** Navigate and wait for load, with a readyState probe as the authority. */
   async navigate(url: string, timeoutMs = 30_000): Promise<void> {
     await this.send('Page.enable');
     const loaded = this.client.waitForEvent('Page.loadEventFired', this.sessionId, timeoutMs);
+    void loaded.catch(() => undefined);
     const started = await this.send('Page.navigate', { url }) as { errorText?: string };
     if (started.errorText) throw new BrowserError('network', `Navigation failed: ${started.errorText}`);
     await loaded.catch(async () => {
@@ -202,11 +244,13 @@ export class PageSession {
       const state = await this.evaluate<string>('document.readyState').catch(() => 'loading');
       if (state !== 'complete' && state !== 'interactive') throw new BrowserError('timeout', 'Page did not finish loading');
     });
+    if (this.protectionFailure) throw new BrowserError('policy_blocked', 'The document transfer was blocked by the browser policy');
     const state = await this.evaluate<string>('document.readyState');
     if (state !== 'complete' && state !== 'interactive') throw new BrowserError('timeout', `Page readyState is ${state}`);
   }
 
   async close(): Promise<void> {
+    this.removeProtection?.();
     await this.client.closeTarget(this.targetId);
   }
 }

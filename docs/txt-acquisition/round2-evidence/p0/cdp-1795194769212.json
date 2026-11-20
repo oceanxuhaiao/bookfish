@@ -1,0 +1,34 @@
+[
+  {
+    "kind": "wfp-install",
+    "code": 0,
+    "stdout": "added 272454b6-88bd-4669-8722-ef5b654ce78b id=105831\r\nadded 75e335f8-8466-4ad6-a32f-008a5e0c1d0e id=105832\r\nadded 5916e9c0-771d-4d93-ae2c-6c0c7c6b17a2 id=105833\r\n"
+  },
+  {
+    "kind": "cdp-document-blocked",
+    "route": "redirect"
+  },
+  {
+    "kind": "cdp-document-blocked",
+    "route": "large"
+  },
+  {
+    "kind": "actual-production-cdp-policy",
+    "passed": true,
+    "normalDocumentRead": true,
+    "forbiddenConnections": 0,
+    "childRequests": 0,
+    "scriptExecution": "disabled",
+    "scope": "real Chrome + production PageSession + WFP; local fixtures, not MV3 or Coopanion"
+  },
+  {
+    "kind": "cleanup",
+    "code": 0,
+    "stdout": "removed scoped filters and sublayer\r\n"
+  },
+  {
+    "kind": "post-cleanup-filter-query",
+    "code": 2,
+    "stdout": "filter 272454b6-88bd-4669-8722-ef5b654ce78b result=0x80320003\r\nfilter 75e335f8-8466-4ad6-a32f-008a5e0c1d0e result=0x80320003\r\nfilter 5916e9c0-771d-4d93-ae2c-6c0c7c6b17a2 result=0x80320003\r\nfound=0 expected=3\r\n"
+  }
+]

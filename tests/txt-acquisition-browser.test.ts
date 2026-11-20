@@ -177,3 +177,34 @@ describe('browser navigation stays inside the URL policy', () => {
     await expect(verifyLandedUrl('https://example.com/a.txt', { allowNetwork: false })).rejects.toMatchObject({ code: 'policy_blocked' });
   });
 });
+
+describe('CDP request-before-dispatch policy', () => {
+  it('refuses redirects and child resources before continuing their requests', async () => {
+    const approved = 'https://example.com/book';
+    const { client: instance, socket } = client((message, fake) => {
+      if (message.method === 'Target.createTarget') fake.reply(message.id!, { targetId: 't1' });
+      else if (message.method === 'Target.attachToTarget') fake.reply(message.id!, { sessionId: 's1' });
+      else fake.reply(message.id!, {});
+    });
+    const page = await instance.createPage(); await page.protectNavigation(approved);
+    for (const event of [
+      { requestId: 'private', request: { url: 'http://127.0.0.1/private' }, resourceType: 'Document' },
+      { requestId: 'redirect', request: { url: approved }, resourceType: 'Document', redirectedRequestId: 'prior' },
+      { requestId: 'image', request: { url: approved }, resourceType: 'Image' },
+      { requestId: 'response', request: { url: approved }, resourceType: 'Document', responseStatusCode: 302 },
+    ]) socket().event('Fetch.requestPaused', event, 's1');
+    await new Promise(ok => setTimeout(ok, 5));
+    expect(socket().sent.filter(message => message.method === 'Fetch.continueRequest')).toHaveLength(0);
+    expect(socket().sent.filter(message => message.method === 'Fetch.failRequest')).toHaveLength(4); await instance.disconnect();
+  });
+  it('caps response bytes before fulfilling a document', async () => {
+    const { client: instance, socket } = client((message, fake) => {
+      if (message.method === 'Target.createTarget') fake.reply(message.id!, { targetId: 't1' });
+      else if (message.method === 'Target.attachToTarget') fake.reply(message.id!, { sessionId: 's1' });
+      else fake.reply(message.id!, {});
+    });
+    const page = await instance.createPage(); await page.protectNavigation('https://example.com/book');
+    socket().event('Fetch.requestPaused', { requestId: 'large', request: { url: 'https://example.com/book' }, resourceType: 'Document', responseStatusCode: 200, responseHeaders: [{ name: 'Content-Length', value: String(8 * 1024 * 1024 + 1) }] }, 's1');
+    await new Promise(ok => setTimeout(ok, 5)); expect(socket().methods()).toContain('Fetch.failRequest'); expect(socket().methods()).not.toContain('Fetch.fulfillRequest'); await instance.disconnect();
+  });
+});

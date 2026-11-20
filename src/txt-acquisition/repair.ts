@@ -9,7 +9,7 @@
  */
 import type { DetectedEncoding, QualityIssue } from './types.ts';
 
-const REPLACEMENT = /^\uFFFD/mu;
+const REPLACEMENT = /\uFFFD/u;
 
 export function countReplacement(text: string): number {
   let count = 0;
@@ -63,6 +63,12 @@ export function detectEncoding(bytes: Buffer): DetectedEncoding {
     if (pairs > 0 && oddZero / pairs > 0.3 && evenZero / pairs < 0.05) return 'utf-16le';
     if (pairs > 0 && evenZero / pairs > 0.3 && oddZero / pairs < 0.05) return 'utf-16be';
   }
+  // A damaged tail must not reinterpret a clearly UTF-8 opening as UTF-16 gibberish.
+  try {
+    const opening = new TextDecoder('utf-8', { fatal: true }).decode(sample.subarray(0, 256), { stream: true });
+    const nonAsciiLetters = [...opening].filter(char => char.codePointAt(0)! > 127 && /\p{L}/u.test(char)).length;
+    if (nonAsciiLetters >= 16 && !opening.includes('\0')) return 'utf-8';
+  } catch { /* the opening needs another decoder */ }
   const utf8Damage = countReplacement(decodeSample(sample, 'utf-8'));
   if (utf8Damage === 0) return 'utf-8';
   // Hard cases: UTF-16 text that is mostly Chinese has almost no NUL bytes, and
@@ -170,9 +176,7 @@ export function looksBinary(bytes: Buffer, encoding: DetectedEncoding = detectEn
     total += 1;
     const code = char.codePointAt(0) ?? 0;
     if (code === 0) continue;
-    const isCjk = (code >= 0x4e00 && code <= 0x9fff) || (code >= 0x3400 && code <= 0x4dbf) || (code >= 0x3040 && code <= 0x30ff)
-      || (code >= 0x3000 && code <= 0x303f) || (code >= 0xff00 && code <= 0xffef) || (code >= 0x2000 && code <= 0x206f);
-    const isText = (code >= 0x20 && code <= 0x7e) || isCjk || code === 0x0a || code === 0x0d || code === 0x09 || code === 0xfffd;
+    const isText = /[\p{L}\p{N}\p{P}\p{M}\p{Z}\p{S}\s]/u.test(char) || code === 0xfffd;
     if (isText) readable += 1;
   }
   return total > 0 && readable / total < 0.75;

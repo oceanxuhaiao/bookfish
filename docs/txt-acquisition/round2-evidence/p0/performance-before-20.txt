@@ -1,0 +1,1 @@
+{"synthetic":true,"mib":20,"bytes":20971520,"encoding":"utf-8","textChars":8007309,"replacements":1,"decodeMs":378.78870000000006,"importMs":1325.6819,"initialRss":92643328,"decodeRss":185016320,"decodePeakRss":185024512,"finalRss":170545152,"peakRss":206073856,"id":"b0ec477aebf09c5d5478219d8fc026473ce5f588dc7b3bf5899013d933f8809d"}

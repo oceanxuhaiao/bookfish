@@ -25,9 +25,10 @@ import {
   type DetectedEncoding, type FileFormat, type QualityReport, type TaskView, type DiscoveredLink,
 } from './types.ts';
 import { checkUrl, hostOf, isPolicyError, type HostResolver } from './url-policy.ts';
+import { redactMessage, sourceReference } from './privacy.ts';
 
 export interface PageLoadResult { html: string; close: () => Promise<void> }
-export type PageLoader = (url: string, options: { allowNetwork: boolean; port: number; resolve?: HostResolver }) => Promise<PageLoadResult>;
+export type PageLoader = (url: string, options: { allowNetwork: boolean; port: number; resolve?: HostResolver; signal?: AbortSignal }) => Promise<PageLoadResult>;
 
 export interface AcquisitionOptions {
   dataDir: string;
@@ -39,6 +40,8 @@ export interface AcquisitionOptions {
   pageLoader?: PageLoader;
   /** Test seam for the loopback bridge; production builds create their own. */
   bridge?: BrowserBridge;
+  /** Supplied by the operator controller after enforcing the browser network boundary. */
+  browserGuard?: (url: string) => Promise<void>;
   /** Called after a successful shelf insert so autonomous selection can finish its intent. */
   onImported?: (task: AcquisitionTask, identity: IdentityMatch) => void;
 }
@@ -57,10 +60,8 @@ class AcquisitionFailure extends Error {
 }
 
 /**
- * A browser follows redirects on its own, so the address we asked for is not
- * necessarily the address we ended up on. Re-check where the page landed before
- * reading its DOM; otherwise a public page could redirect the task into an
- * intranet host or a cloud metadata endpoint.
+ * Defense in depth after the request interception and external network guard.
+ * This final URL check is not a request-before-connect SSRF boundary.
  */
 export async function verifyLandedUrl(landed: unknown, options: { allowNetwork: boolean; resolve?: HostResolver }): Promise<void> {
   if (typeof landed !== 'string' || !landed.trim()) throw new BrowserError('policy_blocked', 'The browser did not report where the page landed');
@@ -70,8 +71,13 @@ export async function verifyLandedUrl(landed: unknown, options: { allowNetwork: 
 const defaultPageLoader = (fetchImpl?: typeof fetch): PageLoader => async (url, options) => {
   if (!options.port) throw new BrowserError('browser_unavailable', 'No browser debug port is configured');
   const client = new BrowserClient(options.port, fetchImpl ?? fetch);
+  options.signal?.throwIfAborted();
   const page = await client.createPage();
+  const abort = (): void => { void page.close().then(() => client.disconnect()).catch(() => undefined); };
+  options.signal?.addEventListener('abort', abort, { once: true });
   try {
+    options.signal?.throwIfAborted();
+    await page.protectNavigation(url);
     await page.navigate(url);
     await verifyLandedUrl(await page.evaluate<string>('location.href'), { allowNetwork: options.allowNetwork, ...(options.resolve ? { resolve: options.resolve } : {}) });
     const html = await page.evaluate<string>("document.documentElement.outerHTML");
@@ -80,7 +86,7 @@ const defaultPageLoader = (fetchImpl?: typeof fetch): PageLoader => async (url, 
     await page.close().catch(() => undefined);
     await client.disconnect().catch(() => undefined);
     throw error;
-  }
+  } finally { options.signal?.removeEventListener('abort', abort); }
 };
 
 function slugTitle(value: string): string {
@@ -94,10 +100,12 @@ export class TxtAcquisition {
   private readonly library: Library;
   private readonly cfg: () => BookfishConfigSection;
   private readonly now: () => number;
-  private readonly fetchImpl: typeof fetch;
+  private readonly fetchImpl?: typeof fetch;
   private readonly resolve?: HostResolver;
   private readonly pageLoader: PageLoader;
   private bridge: BrowserBridge | undefined;
+  private readonly browserGuard?: (url: string) => Promise<void>;
+  private readonly pageUrls = new Map<string, string>();
   private readonly onImported?: (task: AcquisitionTask, identity: IdentityMatch) => void;
   /** Candidate URLs stay in memory only; records carry their digest. */
   private readonly urls = new Map<string, { taskId: string; url: string }>();
@@ -110,10 +118,14 @@ export class TxtAcquisition {
     this.library = options.library;
     this.cfg = options.cfg;
     this.now = options.now ?? Date.now;
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.fetchImpl = options.fetchImpl;
     this.resolve = options.resolve;
-    this.pageLoader = options.pageLoader ?? defaultPageLoader(options.fetchImpl);
+    this.pageLoader = options.pageLoader ?? (async (url, settings) => {
+      if (!this.browserGuard) throw new BrowserError('policy_blocked', 'A protected browser controller is required');
+      await this.browserGuard(url); return defaultPageLoader(options.fetchImpl)(url, settings);
+    });
     this.bridge = options.bridge;
+    this.browserGuard = options.browserGuard;
     if (options.onImported) this.onImported = options.onImported;
   }
 
@@ -121,6 +133,7 @@ export class TxtAcquisition {
     await this.staging.init();
     this.records.load(this.now());
     this.recover();
+    await this.staging.clearExpiredParts(this.now());
     // A busy port must not stop reading; the failure surfaces on the first task.
     try { await this.ensureBridge(); } catch { /* reported by discover or import */ }
   }
@@ -142,6 +155,8 @@ export class TxtAcquisition {
     if (!this.bridge) {
       this.bridge = new BrowserBridge({
         dataDir: this.root,
+        authorize: this.browserGuard,
+        networkAllowed: () => this.cfg().allowNetwork,
         ...(typeof cfg.browserBridgePort === 'number' && cfg.browserBridgePort > 0 ? { port: cfg.browserBridgePort } : {}),
         ...(this.resolve ? { resolve: this.resolve } : {}),
       });
@@ -240,7 +255,7 @@ export class TxtAcquisition {
       origin: task.origin,
       target: task.target,
       ...(task.intentId ? { intentId: task.intentId } : {}),
-      ...(task.pageUrl ? { pageUrl: task.pageUrl } : {}),
+      ...(task.pageUrl ? { pageUrl: task.pageUrl, pageUrlHash: task.pageUrlHash, requiresRediscovery: task.requiresRediscovery } : {}),
       sourceHost: task.sourceHost,
       ...(task.bookKey ? { bookKey: task.bookKey } : {}),
       ...(task.duplicate !== undefined ? { duplicate: task.duplicate } : {}),
@@ -269,7 +284,7 @@ export class TxtAcquisition {
   private fail(taskId: string, code: string, message: string): AcquisitionTask {
     const recoverable = failureRecoverable(code);
     return this.records.update(taskId, (draft) => {
-      draft.failure = { code, message: message.slice(0, 300), recoverable, at: this.now() };
+      draft.failure = { code, message: redactMessage(message), recoverable, at: this.now() };
     }, { status: recoverable ? 'failed_recoverable' : 'failed_terminal', note: code });
   }
 
@@ -330,27 +345,32 @@ export class TxtAcquisition {
   /** Scan a page inside this task; re-running it replaces the stale candidate list. */
   private async runDiscovery(taskId: string, pageUrl: string): Promise<TaskView> {
     const cfg = this.cfg();
+    if (this.aborts.has(taskId)) throw new AcquisitionFailure('invalid_input', 'This task is already active');
+    const controller = new AbortController(); this.aborts.set(taskId, controller);
     this.setStatus(taskId, 'discovering');
     try {
       const checked = await checkUrl(pageUrl, { allowNetwork: cfg.allowNetwork, ...(this.resolve ? { resolve: this.resolve } : {}) });
       this.forgetUrls(taskId);
-      this.records.update(taskId, (draft) => { draft.pageUrl = checked.toString(); draft.sourceHost = checked.hostname; draft.candidates = []; });
+      this.pageUrls.set(taskId, checked.href);
+      const source = sourceReference(checked.href);
+      this.records.update(taskId, (draft) => { draft.pageUrl = source.url; draft.pageUrlHash = source.sha256; draft.requiresRediscovery = source.requiresRediscovery; draft.sourceHost = checked.hostname; draft.candidates = []; });
       const port = cfg.browserDebugPort ?? 0;
       const bridge = await this.ensureBridge();
       let html: string;
       if (bridge) {
         // The extension runs in the user's own browser, so their logins are already there.
-        const page = await bridge.fetchPage(checked.toString(), { allowNetwork: cfg.allowNetwork });
+        const page = await bridge.fetchPage(checked.toString(), { allowNetwork: cfg.allowNetwork, signal: controller.signal });
         html = page.html;
       } else {
         if (!port) throw new BrowserError('browser_unavailable', 'Set a browser debug port (for example 9333) or start the BookFish browser extension');
-        const page = await this.pageLoader(checked.toString(), { allowNetwork: cfg.allowNetwork, port, ...(this.resolve ? { resolve: this.resolve } : {}) });
+        const page = await this.pageLoader(checked.toString(), { allowNetwork: cfg.allowNetwork, port, signal: controller.signal, ...(this.resolve ? { resolve: this.resolve } : {}) });
         try {
           html = page.html;
         } finally {
           await page.close().catch(() => undefined);
         }
       }
+      controller.signal.throwIfAborted();
       const found = discoverLinks(html, checked.toString(), MAX_CANDIDATES);
       if (!found.links.length) {
         this.fail(taskId, 'no_candidates', 'No TXT or Markdown download link was found on that page');
@@ -359,9 +379,9 @@ export class TxtAcquisition {
       this.addCandidates(taskId, found.links);
       return this.status(taskId) as TaskView;
     } catch (error) {
-      this.classifyFailure(taskId, error);
+      if (controller.signal.aborted) this.fail(taskId, 'cancelled', 'Discovery cancelled'); else this.classifyFailure(taskId, error);
       return this.status(taskId) as TaskView;
-    }
+    } finally { this.aborts.delete(taskId); }
   }
 
   /** Candidate addresses live in memory only, so a new scan drops the old ones. */
@@ -417,20 +437,23 @@ export class TxtAcquisition {
 
   /** download -> validate -> repair -> import, with the original file kept on any trouble. */
   private async runPipeline(taskId: string, url: string, filename: string, declared: { title?: string; author?: string }): Promise<TaskView> {
+    if (this.aborts.has(taskId)) throw new AcquisitionFailure('invalid_input', 'This task already has a transfer in progress');
     const cfg = this.cfg();
     const task = this.records.get(taskId)!;
     let rawRelative: string | undefined;
+    let downloadedPart: string | undefined;
     const controller = new AbortController();
     this.aborts.set(taskId, controller);
     try {
       this.setStatus(taskId, 'downloading');
       this.records.update(taskId, (draft) => { draft.attempts.downloads += 1; });
+      const checked = await checkUrl(url, { allowNetwork: cfg.allowNetwork, resolve: this.resolve });
       const bridge = await this.ensureBridge();
       // Both routes hand back raw bytes: the bridge appends what the browser read,
       // downloadFile streams the response. Neither decodes the text.
       const downloaded = bridge
         ? await bridge.fetchFile({
-            url,
+            url: checked.href,
             taskId,
             staging: this.staging,
             filename,
@@ -438,14 +461,17 @@ export class TxtAcquisition {
             signal: controller.signal,
           })
         : await downloadFile({
-            url,
+            url: checked.href,
             allowNetwork: cfg.allowNetwork,
             staging: this.staging,
             taskId,
             signal: controller.signal,
             ...(this.resolve ? { resolve: this.resolve } : {}),
             fetchImpl: this.fetchImpl,
+            networkAllowed: () => this.cfg().allowNetwork,
           });
+      downloadedPart = downloaded.partPath;
+      controller.signal.throwIfAborted();
       rawRelative = await this.staging.commitRaw(downloaded.partPath, downloaded.sha256, /\.md$|\.markdown$/iu.test(filename) ? 'md' : 'txt');
       this.records.update(taskId, (draft) => {
         draft.file = {
@@ -458,11 +484,14 @@ export class TxtAcquisition {
         };
       });
       this.setStatus(taskId, 'validating');
+      controller.signal.throwIfAborted();
       return await this.finishImport(taskId, rawRelative, filename, declared);
     } catch (error) {
-      this.classifyFailure(taskId, error);
+      if (controller.signal.aborted) this.fail(taskId, 'cancelled', 'Acquisition cancelled');
+      else this.classifyFailure(taskId, error);
       return this.status(taskId) as TaskView;
     } finally {
+      if (downloadedPart && !rawRelative) await this.staging.removeIfPresent(downloadedPart);
       this.aborts.delete(taskId);
     }
   }
@@ -485,6 +514,7 @@ export class TxtAcquisition {
   }
 
   private async importDecoded(taskId: string, rawRelative: string, filename: string, decoded: BestEffortDecoded, declared: { title?: string; author?: string }): Promise<TaskView> {
+    this.aborts.get(taskId)?.signal.throwIfAborted();
     const task = this.records.get(taskId)!;
     const assessment: Assessment = assessText({
       text: decoded.text,
@@ -548,6 +578,7 @@ export class TxtAcquisition {
 
   private async dropRaw(relative?: string): Promise<void> {
     if (!relative) return;
+    if (this.records.list().some(task => task.file?.path === relative && task.file.retained)) return;
     await this.staging.removeIfPresent(this.staging.resolveInside(relative));
   }
 
@@ -569,10 +600,11 @@ export class TxtAcquisition {
         return await this.runPipeline(taskId, known.url, candidate.filename, { title: candidate.title, author: candidate.author });
       }
       // The address is gone (for example after a restart): scan the page again.
-      if (!task.pageUrl) throw new AcquisitionFailure('invalid_input', 'No retained file and no page to rediscover; run discover again');
+      const pageUrl = this.pageUrls.get(taskId) ?? (!task.requiresRediscovery ? task.pageUrl : undefined);
+      if (!pageUrl) throw new AcquisitionFailure('candidate_expired', 'The signed or path-specific resource must be discovered again; its address was not retained');
       // Same task, same page: never pile up duplicate tasks for one book.
       this.records.update(taskId, (draft) => { draft.failure = undefined; draft.rejection = undefined; });
-      return await this.runDiscovery(taskId, task.pageUrl);
+      return await this.runDiscovery(taskId, pageUrl);
     }
     this.records.update(taskId, (draft) => { draft.failure = undefined; draft.rejection = undefined; });
     this.setStatus(taskId, 'validating', 'retry from retained file');
@@ -682,7 +714,8 @@ export class TxtAcquisition {
     if (this.records.hasActive()) return [];
     const limit = (this.cfg().txtAcquisitionRetentionMb ?? 512) * 1024 * 1024;
     const referenced = new Set<string>();
-    for (const task of this.records.list()) if (task.file?.retained) referenced.add(task.file.sha256);
+    for (const task of this.records.list()) if (task.file?.path) referenced.add(task.file.sha256);
+    await this.staging.clearExpiredParts(this.now());
     return this.staging.enforceQuota(limit, referenced);
   }
 

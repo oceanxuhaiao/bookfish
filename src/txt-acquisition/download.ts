@@ -5,6 +5,8 @@
  */
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
+import { fetchPinned } from './pinned-http.ts';
+import { redactMessage } from './privacy.ts';
 import { MAX_REDIRECTS } from './types.ts';
 import { checkUrl, isPolicyError, type HostResolver } from './url-policy.ts';
 import type { AcquisitionStaging } from './staging.ts';
@@ -24,6 +26,7 @@ export class DownloadError extends Error {
 export interface DownloadRequest {
   url: string;
   allowNetwork: boolean;
+  networkAllowed?: () => boolean;
   staging: AcquisitionStaging;
   taskId: string;
   maxBytes?: number;
@@ -48,6 +51,7 @@ function abortable(parent: AbortSignal | undefined, timeoutMs: number): { signal
   const timer = setTimeout(() => controller.abort(new Error('Download timed out')), timeoutMs);
   const onAbort = () => controller.abort(parent?.reason);
   parent?.addEventListener('abort', onAbort, { once: true });
+  if (parent?.aborted) onAbort();
   return {
     signal: controller.signal,
     done: () => {
@@ -58,16 +62,20 @@ function abortable(parent: AbortSignal | undefined, timeoutMs: number): { signal
 }
 
 export async function downloadFile(request: DownloadRequest): Promise<DownloadResult> {
-  const doFetch = request.fetchImpl ?? fetch;
+  const doFetch = request.fetchImpl ?? ((url, init) => fetchPinned(String(url), { allowNetwork: request.allowNetwork, resolve: request.resolve, networkAllowed: request.networkAllowed, signal: limit.signal, headers: init?.headers as Record<string, string> })) as typeof fetch;
   const maxBytes = request.maxBytes ?? MAX_BOOK_BYTES;
   const timeoutMs = request.timeoutMs ?? 5 * 60_000;
   const limit = abortable(request.signal, timeoutMs);
-  const { path: partPath, stream } = await request.staging.beginDownload(request.taskId);
+  const attempt = await request.staging.beginDownload(request.taskId).catch(error => { limit.done(); throw error; });
+  const { path: partPath, stream } = attempt;
 
+  let response: Response | undefined;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   let hash = createHash('sha256');
   let bytes = 0;
   let contentLength: number | undefined;
   const cleanup = async () => {
+    if (reader) await reader.cancel().catch(() => undefined); else await response?.body?.cancel().catch(() => undefined);
     // Windows keeps the handle busy until the stream closes, so wait for it
     // before unlinking the partial file.
     if (!stream.closed) {
@@ -81,7 +89,6 @@ export async function downloadFile(request: DownloadRequest): Promise<DownloadRe
   try {
     let current = await checkUrl(request.url, { allowNetwork: request.allowNetwork, ...(request.resolve ? { resolve: request.resolve } : {}) });
     let redirects = 0;
-    let response: Response | undefined;
     for (;;) {
       let hop: Response;
       try {
@@ -91,11 +98,13 @@ export async function downloadFile(request: DownloadRequest): Promise<DownloadRe
           headers: { 'user-agent': USER_AGENT, accept: 'text/plain,text/markdown,application/octet-stream,*/*;q=0.8', 'accept-encoding': 'identity' },
         });
       } catch (error) {
-        if (limit.signal.aborted) throw new DownloadError('cancelled', 'Download was cancelled', true);
-        throw new DownloadError('network', `Download failed: ${(error as Error).message}`, true);
+        if (limit.signal.aborted) throw new DownloadError(request.signal?.aborted ? 'cancelled' : 'timeout', 'Download was interrupted', true);
+      if (request.networkAllowed?.() === false) throw new DownloadError('policy_blocked', 'Network access is disabled', false);
+        throw new DownloadError('network', `Download failed: ${redactMessage((error as Error).message)}`, true);
       }
       if (REDIRECT_STATUS.has(hop.status)) {
         const location = hop.headers.get('location');
+        await hop.body?.cancel();
         if (!location) throw new DownloadError('http_error', `Redirect ${hop.status} without a Location header`, true);
         redirects += 1;
         if (redirects > MAX_REDIRECTS) throw new DownloadError('http_error', `More than ${MAX_REDIRECTS} redirects`, false);
@@ -127,11 +136,12 @@ export async function downloadFile(request: DownloadRequest): Promise<DownloadRe
 
     const body = response.body;
     if (!body) throw new DownloadError('download_failed', 'The server sent no body', true);
-    const reader = body.getReader();
+    reader = body.getReader();
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
-      if (limit.signal.aborted) throw new DownloadError('cancelled', 'Download was cancelled', true);
+      if (limit.signal.aborted) throw new DownloadError(request.signal?.aborted ? 'cancelled' : 'timeout', 'Download was interrupted', true);
+      if (request.networkAllowed?.() === false) throw new DownloadError('policy_blocked', 'Network access is disabled', false);
       if (!value) continue;
       bytes += value.byteLength;
       if (bytes > maxBytes) {
@@ -159,9 +169,9 @@ export async function downloadFile(request: DownloadRequest): Promise<DownloadRe
     stream.destroy();
     await cleanup();
     if (error instanceof DownloadError) throw error;
-    if (limit.signal.aborted) throw new DownloadError('cancelled', 'Download was cancelled', true);
+    if (limit.signal.aborted) throw new DownloadError(request.signal?.aborted ? 'cancelled' : 'timeout', 'Download was interrupted', true);
     if (isPolicyError(error)) throw new DownloadError('policy_blocked', error.message, false);
-    throw new DownloadError('download_failed', (error as Error).message, true);
+    throw new DownloadError('download_failed', redactMessage((error as Error).message), true);
   } finally {
     limit.done();
   }

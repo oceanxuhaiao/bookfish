@@ -1,0 +1,339 @@
+{
+  "source": {
+    "url": null,
+    "synthetic": true,
+    "sha256": "651f705915dc4c6a9657ffa9e7bedf8f7af30770715e38fc7bf566a1cec547a2",
+    "bytes": 51000
+  },
+  "realNovelCount": 0,
+  "derivedOrSyntheticCount": 12,
+  "negativeControls": 4,
+  "humanReadingReview": false,
+  "results": [
+    {
+      "id": "utf8-public-novel",
+      "kind": "synthetic original prose",
+      "bytes": 51000,
+      "sha256": "651f705915dc4c6a9657ffa9e7bedf8f7af30770715e38fc7bf566a1cec547a2",
+      "encoding": "utf-8",
+      "readableChars": 16800,
+      "replacements": 0,
+      "replacementRatio": 0,
+      "repairs": [],
+      "quality": "warning",
+      "warnings": [
+        "no_chapters"
+      ],
+      "imported": true,
+      "readableSegment": 1200,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "expectationMet": true
+    },
+    {
+      "id": "gbk",
+      "kind": "synthetic GBK Chinese prose",
+      "bytes": 2000,
+      "sha256": "ed2eb24da78b76e6a489761e9cec83c9c4cb61314dc07eee5204b1a754e14d5e",
+      "encoding": "gb18030",
+      "readableChars": 1000,
+      "replacements": 0,
+      "replacementRatio": 0,
+      "repairs": [],
+      "quality": "warning",
+      "warnings": [
+        "no_chapters"
+      ],
+      "imported": true,
+      "readableSegment": 1000,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "expectationMet": true
+    },
+    {
+      "id": "minor-damage",
+      "kind": "derived source prose",
+      "bytes": 29311,
+      "sha256": "7c4db8e99b960ae91a9ef922da20f86db85ea7f956acbd03dd7f67820b0203b5",
+      "encoding": "utf-8",
+      "readableChars": 9655,
+      "replacements": 1,
+      "replacementRatio": 0.00009999000099990002,
+      "repairs": [
+        {
+          "code": "encoding_repaired",
+          "message": "1 undecodable byte(s) replaced while reading as utf-8",
+          "count": 1
+        }
+      ],
+      "quality": "partial",
+      "warnings": [
+        "replacement_characters",
+        "no_chapters",
+        "possible_truncation"
+      ],
+      "imported": true,
+      "readableSegment": 1200,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "expectationMet": true
+    },
+    {
+      "id": "mixed-encoding",
+      "kind": "derived public novel plus GBK text",
+      "bytes": 29316,
+      "sha256": "d6c61600e0b14101ae80149b086eac92cbbe436ef9e1bc6ae34d3115bd337999",
+      "encoding": "utf-8",
+      "readableChars": 9656,
+      "replacements": 4,
+      "replacementRatio": 0.00039984006397441024,
+      "repairs": [
+        {
+          "code": "encoding_repaired",
+          "message": "4 undecodable byte(s) replaced while reading as utf-8",
+          "count": 4
+        },
+        {
+          "code": "tail_truncated",
+          "message": "Dropped an incomplete character at the end of the file"
+        }
+      ],
+      "quality": "partial",
+      "warnings": [
+        "replacement_characters",
+        "no_chapters",
+        "tail_truncated",
+        "possible_truncation"
+      ],
+      "imported": true,
+      "readableSegment": 1200,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "expectationMet": true
+    },
+    {
+      "id": "ads",
+      "kind": "derived public novel",
+      "bytes": 58678,
+      "sha256": "2d83af89ee8207eac471be6fa5f4ec7947e543e51da210c554dc6f568db3d5a4",
+      "encoding": "utf-8",
+      "readableChars": 19338,
+      "replacements": 0,
+      "replacementRatio": 0,
+      "repairs": [],
+      "quality": "partial",
+      "warnings": [
+        "no_chapters",
+        "ad_lines",
+        "possible_truncation"
+      ],
+      "imported": true,
+      "readableSegment": 1200,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "expectationMet": true
+    },
+    {
+      "id": "missing-chapters",
+      "kind": "derived public novel",
+      "bytes": 58637,
+      "sha256": "e04a01c46c4a3a942893ffed0805e8a115168048c66f7c7f13bd03fd392f3dd5",
+      "encoding": "utf-8",
+      "readableChars": 19316,
+      "replacements": 0,
+      "replacementRatio": 0,
+      "repairs": [],
+      "quality": "partial",
+      "warnings": [
+        "chapters_missing",
+        "possible_truncation"
+      ],
+      "imported": true,
+      "readableSegment": 1200,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "expectationMet": true
+    },
+    {
+      "id": "irregular-chapters",
+      "kind": "derived public novel",
+      "bytes": 58637,
+      "sha256": "57c51ae838c2390bb791f65c708741accf5fc724c2263d0e3fb76fdaf4b79446",
+      "encoding": "utf-8",
+      "readableChars": 19316,
+      "replacements": 0,
+      "replacementRatio": 0,
+      "repairs": [],
+      "quality": "partial",
+      "warnings": [
+        "chapter_numbers_irregular",
+        "possible_truncation"
+      ],
+      "imported": true,
+      "readableSegment": 1200,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "expectationMet": true
+    },
+    {
+      "id": "truncated-tail",
+      "kind": "derived public novel",
+      "bytes": 29311,
+      "sha256": "6d167c2e648e3edb7c58917345cdcbd6d0c01b989032e5649c3854972ff93f36",
+      "encoding": "utf-8",
+      "readableChars": 9655,
+      "replacements": 1,
+      "replacementRatio": 0.0001,
+      "repairs": [
+        {
+          "code": "encoding_repaired",
+          "message": "1 undecodable byte(s) replaced while reading as utf-8",
+          "count": 1
+        },
+        {
+          "code": "tail_truncated",
+          "message": "Dropped an incomplete character at the end of the file"
+        }
+      ],
+      "quality": "partial",
+      "warnings": [
+        "replacement_characters",
+        "no_chapters",
+        "tail_truncated",
+        "possible_truncation"
+      ],
+      "imported": true,
+      "readableSegment": 1200,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "expectationMet": true
+    },
+    {
+      "id": "readable-partial",
+      "kind": "derived public novel",
+      "bytes": 7328,
+      "sha256": "0a6154f39de3962ad72eb19bac0ce29a45970b1050274d88f5864642fae4227f",
+      "encoding": "utf-8",
+      "readableChars": 2414,
+      "replacements": 0,
+      "replacementRatio": 0,
+      "repairs": [],
+      "quality": "partial",
+      "warnings": [
+        "no_chapters",
+        "possible_truncation"
+      ],
+      "imported": true,
+      "readableSegment": 1200,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "expectationMet": true
+    },
+    {
+      "id": "microfiction",
+      "kind": "synthetic original short prose",
+      "bytes": 111,
+      "sha256": "7baeae689e03b5e597c84a4fbeab5b7c255e0f81b4337e9f4d5ba1db022ba0a2",
+      "encoding": "utf-8",
+      "readableChars": 37,
+      "replacements": 0,
+      "replacementRatio": 0,
+      "repairs": [],
+      "quality": "partial",
+      "warnings": [
+        "short_text",
+        "no_chapters"
+      ],
+      "imported": true,
+      "readableSegment": 37,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "expectationMet": true
+    },
+    {
+      "id": "non-ascii",
+      "kind": "synthetic multilingual prose",
+      "bytes": 3380,
+      "sha256": "0aa7c1fc0f34505609f5469fdcf13027c8050e42ad31207e51c78d6373eb7b68",
+      "encoding": "utf-8",
+      "readableChars": 1360,
+      "replacements": 0,
+      "replacementRatio": 0,
+      "repairs": [],
+      "quality": "partial",
+      "warnings": [
+        "no_chapters",
+        "possible_truncation"
+      ],
+      "imported": true,
+      "readableSegment": 1200,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "expectationMet": true
+    },
+    {
+      "id": "strict-rejected-control",
+      "kind": "derived public novel; strict rejection reproduced here",
+      "bytes": 29311,
+      "sha256": "9962c97ad24a80cd21a45c23529dccc91209eaed2af65a1b52dbb058d1a153d0",
+      "encoding": "utf-8",
+      "readableChars": 9655,
+      "replacements": 0,
+      "replacementRatio": 0,
+      "repairs": [
+        {
+          "code": "control_characters_removed",
+          "message": "Removed 1 control character(s)",
+          "count": 1
+        }
+      ],
+      "quality": "partial",
+      "warnings": [
+        "no_chapters",
+        "possible_truncation"
+      ],
+      "imported": true,
+      "readableSegment": 1200,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "strictRejected": true,
+      "expectationMet": true
+    },
+    {
+      "id": "empty",
+      "kind": "negative control",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "imported": false,
+      "error": "The downloaded file is empty",
+      "expectationMet": true
+    },
+    {
+      "id": "binary",
+      "kind": "negative control",
+      "bytes": 4096,
+      "sha256": "ad7facb2586fc6e966c004d7d1d16b024f5805ff7cb47c7a85dabd8b48892ca7",
+      "imported": false,
+      "error": "The downloaded file looks binary, not text",
+      "expectationMet": true
+    },
+    {
+      "id": "gate",
+      "kind": "negative control",
+      "bytes": 1720,
+      "sha256": "423cabdbe8e4a3f4e5df57f114187c26ba1dd060bb082d40e90fdb73cf057377",
+      "imported": false,
+      "error": "Looks like a login, captcha or error page rather than a book",
+      "expectationMet": true
+    },
+    {
+      "id": "no-prose",
+      "kind": "negative control",
+      "bytes": 1400,
+      "sha256": "e570f89bc656360c0a901a715f928efec6bf24dbd3dd382b082d1d7c4f4ed4e7",
+      "imported": false,
+      "error": "The file has no readable prose",
+      "expectationMet": true
+    }
+  ]
+}

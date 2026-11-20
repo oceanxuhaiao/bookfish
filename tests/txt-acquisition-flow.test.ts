@@ -94,7 +94,8 @@ describe('browser-assisted acquisition flow', () => {
     const stored = readFileSync(join(dir, 'bookfish', 'txt-acquisition', 'tasks.json'), 'utf8');
     expect(stored).not.toContain('/dl/hai.txt');
     expect(stored).not.toContain('/dl/hai-full.md');
-    expect(stored).toContain(PAGE);
+    expect(stored).toContain(new URL(PAGE).origin);
+    expect(stored).not.toContain(new URL(PAGE).pathname);
   });
 
   it('downloads a candidate, imports it and drops the clean original', async () => {
@@ -157,9 +158,8 @@ describe('browser-assisted acquisition flow', () => {
     const task = restarted.status(found.taskId) as { status: string; failure?: { code: string }; pageUrl?: string };
     expect(task.status).toBe('failed_recoverable');
     expect(task.failure?.code).toBe('restart_interrupted');
-    expect(task.pageUrl).toBe(PAGE);
-    const again = await restarted.retry(found.taskId);
-    expect(again.status).toBe('candidate_ready');
+    expect(task.pageUrl).toBe(new URL(PAGE).origin);
+    await expect(restarted.retry(found.taskId)).rejects.toThrow(/discovered again/u);
   });
 
   it('cancels a pending task, keeps it recoverable and leaves no partial file', async () => {
@@ -250,6 +250,7 @@ describe('browser-assisted acquisition flow', () => {
       library,
       cfg: () => cfg,
       resolve,
+      browserGuard: async () => undefined,
       pageLoader: async () => { throw new Error('the debug port must not be used when the extension is connected'); },
       fetchImpl: (async () => { throw new Error('the world must not fetch directly when the extension is connected'); }) as typeof fetch,
     });
@@ -262,7 +263,7 @@ describe('browser-assisted acquisition flow', () => {
     const html = '<a href="/dl/hai.txt">《海风》 作者：小鱼</a>';
     const controller = new AbortController();
     const serving = (async () => {
-      const auth = { 'x-bookfish-token': token };
+      const auth = { 'x-bookfish-token': token, 'x-bookfish-consumer': 'flow-test-client' };
       for (;;) {
         let response: Response;
         try {
@@ -270,17 +271,18 @@ describe('browser-assisted acquisition flow', () => {
         } catch {
           return;
         }
-        const body = await response.json() as { job?: { id: string; kind: string } | null };
+        const body = await response.json() as { job?: { id: string; kind: string; lease: string } | null };
         if (!body.job) continue;
         const base = `http://127.0.0.1:${port}/bridge/jobs/${body.job.id}`;
+        const leaseAuth = { ...auth, 'x-bookfish-lease': body.job.lease };
         if (body.job.kind === 'page') {
-          await fetch(`${base}/page`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ html, finalUrl: PAGE }) });
+          await fetch(`${base}/page`, { method: 'POST', headers: { ...leaseAuth, 'content-type': 'application/json' }, body: JSON.stringify({ html, finalUrl: PAGE }) });
           continue;
         }
         for (let offset = 0; offset < bytes.length; offset += 1024) {
-          await fetch(`${base}/chunk`, { method: 'POST', headers: { ...auth, 'content-type': 'application/octet-stream' }, body: bytes.subarray(offset, offset + 1024) });
+          await fetch(`${base}/chunk`, { method: 'POST', headers: { ...leaseAuth, 'x-bookfish-sequence': String(offset / 1024), 'content-type': 'application/octet-stream' }, body: bytes.subarray(offset, offset + 1024) });
         }
-        await fetch(`${base}/done`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ finalUrl: TXT_LINK, contentType: 'text/plain' }) });
+        await fetch(`${base}/done`, { method: 'POST', headers: { ...leaseAuth, 'content-type': 'application/json' }, body: JSON.stringify({ finalUrl: TXT_LINK, contentType: 'text/plain', bytes: bytes.length }) });
       }
     })();
     try {

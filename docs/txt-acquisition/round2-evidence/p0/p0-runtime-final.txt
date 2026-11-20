@@ -1,0 +1,200 @@
+
+> cortico-world-bookfish@0.63.0 verify:runtime
+> node --import tsx scripts/verify-novel-runtime.mts
+
+{"step":"start","zip":"E:\\项目\\桌面宠物\\扩展\\cortina\\state\\packages\\bookfish-txt-acquisition-hardening\\output\\novel-runtime\\bookfish-novel-runtime-1.12.0-bf1-win32-x64.zip","size":85784286,"dataDir":"C:\\Users\\Administrator\\AppData\\Local\\Temp\\bookfish-runtime-verify-bxubTq"}
+
+upload 1048576/85784286
+upload 2097152/85784286
+upload 3145728/85784286
+upload 4194304/85784286
+upload 5242880/85784286
+upload 6291456/85784286
+upload 7340032/85784286
+upload 8388608/85784286
+upload 9437184/85784286
+upload 10485760/85784286
+upload 11534336/85784286
+upload 12582912/85784286
+upload 13631488/85784286
+upload 14680064/85784286
+upload 15728640/85784286
+upload 16777216/85784286
+upload 17825792/85784286
+upload 18874368/85784286
+upload 19922944/85784286
+upload 20971520/85784286
+upload 22020096/85784286
+upload 23068672/85784286
+upload 24117248/85784286
+upload 25165824/85784286
+upload 26214400/85784286
+upload 27262976/85784286
+upload 28311552/85784286
+upload 29360128/85784286
+upload 30408704/85784286
+upload 31457280/85784286
+upload 32505856/85784286
+upload 33554432/85784286
+upload 34603008/85784286
+upload 35651584/85784286
+upload 36700160/85784286
+upload 37748736/85784286
+upload 38797312/85784286
+upload 39845888/85784286
+upload 40894464/85784286
+upload 41943040/85784286
+upload 42991616/85784286
+upload 44040192/85784286
+upload 45088768/85784286
+upload 46137344/85784286
+upload 47185920/85784286
+upload 48234496/85784286
+upload 49283072/85784286
+upload 50331648/85784286
+upload 51380224/85784286
+upload 52428800/85784286
+upload 53477376/85784286
+upload 54525952/85784286
+upload 55574528/85784286
+upload 56623104/85784286
+upload 57671680/85784286
+upload 58720256/85784286
+upload 59768832/85784286
+upload 60817408/85784286
+upload 61865984/85784286
+upload 62914560/85784286
+upload 63963136/85784286
+upload 65011712/85784286
+upload 66060288/85784286
+upload 67108864/85784286
+upload 68157440/85784286
+upload 69206016/85784286
+upload 70254592/85784286
+upload 71303168/85784286
+upload 72351744/85784286
+upload 73400320/85784286
+upload 74448896/85784286
+upload 75497472/85784286
+upload 76546048/85784286
+upload 77594624/85784286
+upload 78643200/85784286
+upload 79691776/85784286
+upload 80740352/85784286
+upload 81788928/85784286
+upload 82837504/85784286
+upload 83886080/85784286
+upload 84934656/85784286
+upload 85784286/85784286
+
+phase verifying
+phase verifying
+phase extracting
+phase extracting
+phase extracting
+phase extracting
+phase extracting
+phase extracting
+phase extracting
+phase extracting
+phase extracting
+phase extracting
+phase extracting
+phase extracting
+phase probing{
+  "ok": true,
+  "status": {
+    "platform": {
+      "platform": "win32",
+      "arch": "x64",
+      "supported": true
+    },
+    "installed": true,
+    "usable": true,
+    "runtimeId": "bookfish-runtime-1.12.0-bf1-win32-x64",
+    "runtimeVersion": "bf1",
+    "soNovelVersion": "1.12.0",
+    "javaVersion": "Java 21",
+    "source": "managed",
+    "health": {
+      "state": "ok",
+      "checkedAt": "2026-11-20T17:21:38.400Z",
+      "bridgeProtocol": 1,
+      "javaMajor": 21,
+      "soNovelVersion": "1.12.0",
+      "rulesSha256": "9ffaf5324138a7f62cf567175ef8a8d26af3037d42ee5bb772093a201625e92e",
+      "message": "Java 21.0.8 · 引擎 1.12.0 · 13 个书源"
+    },
+    "install": {
+      "installId": "2fe83e02-c2fa-46af-94e2-20d37dde5e26",
+      "kind": "offline",
+      "phase": "ready",
+      "runtimeId": "bookfish-runtime-1.12.0-bf1-win32-x64",
+      "bytesReceived": 85784286,
+      "bytesTotal": 85784286,
+      "percent": null,
+      "speedBytesPerSecond": null,
+      "startedAt": "2026-11-20T17:21:32.006Z",
+      "updatedAt": "2026-11-20T17:21:38.755Z",
+      "error": null
+    },
+    "error": null,
+    "online": {
+      "available": true,
+      "reason": null,
+      "sizeBytes": 85784286,
+      "fileName": "bookfish-novel-runtime-1.12.0-bf1-win32-x64.zip",
+      "urlHost": "bookfish-runtime.oss-cn-hangzhou.aliyuncs.com",
+      "offlineUrl": "https://bookfish-runtime.oss-cn-hangzhou.aliyuncs.com/bookfish-novel-runtime-1.12.0-bf1-win32-x64.zip",
+      "offlineUrls": [
+        {
+          "name": "国内镜像",
+          "url": "https://bookfish-runtime.oss-cn-hangzhou.aliyuncs.com/bookfish-novel-runtime-1.12.0-bf1-win32-x64.zip"
+        },
+        {
+          "name": "GitHub Release",
+          "url": "https://github.com/oceanxuhaiao/bookfish/releases/download/runtime-1.12.0-bf1/bookfish-novel-runtime-1.12.0-bf1-win32-x64.zip"
+        }
+      ],
+      "offlineFileName": "bookfish-novel-runtime-1.12.0-bf1-win32-x64.zip",
+      "offlineSizeBytes": 85784286
+    },
+    "archiveBytes": 85784286,
+    "payloadBytes": 189431419,
+    "versions": [
+      {
+        "runtimeId": "bookfish-runtime-1.12.0-bf1-win32-x64",
+        "runtimeVersion": "bf1",
+        "soNovelVersion": "1.12.0",
+        "platform": "win32-x64",
+        "source": "managed",
+        "active": true
+      }
+    ],
+    "canRollback": false,
+    "canUninstall": true,
+    "busyTasks": 0,
+    "bridgeProtocol": 1,
+    "note": null
+  }
+}
+{
+  "probe": {
+    "ok": true,
+    "health": {
+      "state": "ok",
+      "checkedAt": "2026-11-20T17:21:39.605Z",
+      "bridgeProtocol": 1,
+      "javaMajor": 21,
+      "soNovelVersion": "1.12.0",
+      "rulesSha256": "9ffaf5324138a7f62cf567175ef8a8d26af3037d42ee5bb772093a201625e92e",
+      "message": "Java 21.0.8 · 引擎 1.12.0 · 13 个书源"
+    }
+  }
+}
+{
+  "source": {
+    "ok": true,
+    "message": "www.biquge365.net · 书源站点可连接（HTTP 200）"
+  }
+}

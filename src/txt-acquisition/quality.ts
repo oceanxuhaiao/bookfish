@@ -7,6 +7,7 @@
 import { normalizeIdentity } from '../novel-match.ts';
 import type { DetectedEncoding, QualityIssue, QualityReport } from './types.ts';
 
+/** Below this size the copy is flagged for review, never rejected solely for length. */
 export const MIN_READABLE_CHARS = 200;
 export const MAX_REPLACEMENT_RATIO = 0.1;
 
@@ -46,24 +47,9 @@ function isReadableChar(char: string): boolean {
 }
 
 function textishRatio(text: string): number {
-  let textish = 0;
-  let total = 0;
-  for (const char of text) {
-    total += 1;
-    const code = char.codePointAt(0) ?? 0;
-    if (code === 0x0a || code === 0x0d || code === 0x09) { textish += 1; continue; }
-    if (code >= 0x20 && code <= 0x7e) { textish += 1; continue; }
-    if (code >= 0x4e00 && code <= 0x9fff) { textish += 1; continue; }
-    if (code >= 0x3400 && code <= 0x4dbf) { textish += 1; continue; }
-    if (code >= 0x3000 && code <= 0x303f) { textish += 1; continue; }
-    if (code >= 0xff00 && code <= 0xffef) { textish += 1; continue; }
-    if (code >= 0x2000 && code <= 0x206f) { textish += 1; continue; }
-    if (code >= 0x0400 && code <= 0x04ff) { textish += 1; continue; }
-    if (code >= 0x3040 && code <= 0x30ff) { textish += 1; continue; }
-    if (code >= 0xac00 && code <= 0xd7af) { textish += 1; continue; }
-    if (code === 0xfeff) { textish += 1; continue; }
-  }
-  return total ? textish / total : 0;
+  let supported = 0, total = 0;
+  for (const char of text) { total++; if (/[\p{L}\p{N}\p{P}\p{M}\p{Z}\p{S}\s]/u.test(char) || char === '\ufffd') supported++; }
+  return total ? supported / total : 0;
 }
 
 function chapterLines(text: string): string[] {
@@ -104,12 +90,13 @@ export function assessText(input: AssessInput): Assessment {
   });
 
   if (!text.trim()) return fail('empty_file', 'The file has no text content');
-  if (readableChars < MIN_READABLE_CHARS) return fail('not_a_book', `Only ${readableChars} readable characters — not enough to form prose`);
+  if (!/\p{L}/u.test(text)) return fail('not_a_book', 'The file has no readable prose');
+  if (readableChars < MIN_READABLE_CHARS) warnings.push({ code: 'short_text', message: 'Short text retained for reading; completeness is uncertain' });
   if (textishRatio(text) < 0.6) return fail('binary_file', 'Content is mostly non-text data');
 
   const replacementRatio = input.replacements / Math.max(1, totalChars);
   if (replacementRatio > MAX_REPLACEMENT_RATIO) {
-    return fail('unreadable_text', `${Math.round(replacementRatio * 100)}% of the text could not be decoded`);
+    warnings.push({ code: 'encoding_damaged', message: `${Math.round(replacementRatio * 100)}% could not be decoded; readable text retained for review` });
   }
   if (input.replacements > 0) {
     warnings.push({ code: 'replacement_characters', message: `${input.replacements} undecodable character(s) kept as replacement marks`, count: input.replacements });
@@ -117,7 +104,10 @@ export function assessText(input: AssessInput): Assessment {
 
   const lowerHead = text.slice(0, 4000).toLowerCase();
   const loginHits = LOGIN_HINTS.filter((hint) => lowerHead.includes(hint)).length;
-  if (loginHits >= 2 && readableChars < 6000) return fail('not_a_book', 'Looks like a login, captcha or error page rather than a book');
+  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+  const gateChars = lines.filter(line => LOGIN_HINTS.some(hint => line.toLowerCase().includes(hint))).reduce((sum, line) => sum + line.length, 0);
+  if (loginHits >= 2 && readableChars < 6000 && gateChars / Math.max(1, text.trim().length) > 0.7) return fail('not_a_book', 'Looks like a login, captcha or error page rather than a book');
+  if (loginHits >= 2) warnings.push({ code: 'possible_gate_text', message: 'Login or error wording occurs alongside readable text; content retained' });
 
   const headings = chapterLines(text);
   if (!headings.length) {
@@ -154,7 +144,7 @@ export function assessText(input: AssessInput): Assessment {
   const adLines = text.split('\n').filter((line) => AD_HINTS.some((hint) => line.includes(hint))).length;
   if (adLines) warnings.push({ code: 'ad_lines', message: `${adLines} line(s) look like site advertising or navigation; kept as-is`, count: adLines });
 
-  let suspectedPartial = false;
+  let suspectedPartial = replacementRatio > MAX_REPLACEMENT_RATIO || readableChars < MIN_READABLE_CHARS;
   if (input.truncatedTail) {
     suspectedPartial = true;
     warnings.push({ code: 'tail_truncated', message: 'The file ended with an incomplete character' });
