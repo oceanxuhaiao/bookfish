@@ -1,0 +1,21 @@
+warning: in the working copy of 'describe.json', LF will be replaced by CRLF the next time Git touches it
+SSM protected-path guard — working tree vs c440c03 (manifest v1)
+  REVIEW  describe.json                                        [describe.json]
+  REVIEW  src/library.ts                                       [src/library.ts]
+  REVIEW  src/world.ts                                         [src/world.ts]
+  ok       tests/library.test.ts                                [not-protected]
+  ok       docs/writer-lock/design.md                           [not-protected]
+  ok       docs/writer-lock/report.md                           [not-protected]
+  ok       evidence/writer-lock/.gitignore                      [not-protected]
+  ok       evidence/writer-lock/coopanion-host.json             [not-protected]
+  ok       evidence/writer-lock/protected-hashes.json           [not-protected]
+  ok       evidence/writer-lock/typecheck-exit.json             [not-protected]
+  ok       evidence/writer-lock/windows-environment.json        [not-protected]
+  ok       evidence/writer-lock/windows-processes.json          [not-protected]
+  ok       scripts/verify-writer-lock-host.mts                  [not-protected]
+  ok       src/process-identity.ts                              [not-protected]
+  ok       src/writer-lock.ts                                   [not-protected]
+  ok       tests/fixtures/writer-lock-child.ts                  [not-protected]
+
+结论: blocked=0 review=3 allowed=13
+已登记 review 放行理由：用户Issue #2任务书第4节授权Library/World锁生命周期修复；自描述同步基线既有说明差异；9个SSM blocked文件Git blob一致

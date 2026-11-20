@@ -41,6 +41,8 @@ export class BookfishWorld implements World {
   readonly id = 'bookfish';
   private readonly discussions = new Discussions();
   private host: WorldHost | undefined;
+  private lifecycle: Promise<void> = Promise.resolve();
+  private backgroundNeedsStop = false;
   private readonly library: Library;
   private readonly transfers: BookTransfers;
   private readonly sources: Sources;
@@ -469,9 +471,21 @@ export class BookfishWorld implements World {
     };
   }
   async start(host: WorldHost): Promise<void> {
+    return this.queueLifecycle(() => this.startMounted(host));
+  }
+  private queueLifecycle(action: () => Promise<void>): Promise<void> {
+    const pending = this.lifecycle.then(action);
+    this.lifecycle = pending.catch(() => {});
+    return pending;
+  }
+  private async startMounted(host: WorldHost): Promise<void> {
     if (this.host) return;
-    this.library.open();try{this.transfers.recover();}catch(error){this.library.close();throw error;} this.host = host; this.lifetime = new AbortController();
+    if (this.backgroundNeedsStop) throw new Error('Bookfish 上次停止尚未完成，写锁仍保留；请先重试停用或退出当前实例');
+    this.library.open();
+    this.backgroundNeedsStop = true;
+    this.lifetime = new AbortController();
     try {
+      this.transfers.recover(); this.host = host;
       try { await this.runtime.start(); } catch { /* runtime faults stay inside the runtime card, not the whole World */ }
       this.scheduler.start(host);
       this.sharing.start(host);
@@ -484,7 +498,8 @@ export class BookfishWorld implements World {
         text: 'Bookfish library mounted. Previous pending reading tasks were cancelled. Automatic reading is opt-in; sharing uses the saved user configuration. Saved sharing reservations with no reliable result become unknown, never retried. Use bookfish_get_status for reading and sharing gates. Output is Persona-mediated; a tool receipt is not proof of visible display.',
       }, { trigger: 'piggyback' });
     } catch (error) {
-      try { await this.selection.stop(); this.serialScheduler.stop(); this.serialSync.stop(); this.reviewFlow.stop(); this.sharing.stop(); this.scheduler.stop(); await this.novelFetches.stop(); await this.runtime.stop(); } finally { this.lifetime.abort(); this.host = undefined; this.library.close(); }
+      try { await this.stopMounted(); }
+      catch (cleanup) { throw new AggregateError([error, cleanup], `Bookfish 启动失败：${String(error)}；资源清理失败：${String(cleanup)}`); }
       throw error;
     }
   }
@@ -492,7 +507,23 @@ export class BookfishWorld implements World {
   onTurnEnded(): void { this.scheduler.onTurnEnded(); this.sharing.onTurnEnded(); }
   onEventsSettled(events: readonly EventEnvelope[], outcome: 'delivered' | 'discarded'): void { this.scheduler.onEventsSettled(events, outcome); this.sharing.onEventsSettled(events, outcome); }
   async stop(): Promise<void> {
-    try { await this.selection.stop(); this.serialScheduler.stop(); this.serialSync.stop(); this.reviewFlow.stop(); this.sharing.stop(); this.scheduler.stop(); await this.novelFetches.stop(); await this.runtime.stop(); } finally { await this.transfers.shutdown(); this.discussions.clear(); this.lifetime.abort(); this.library.close(); this.host = undefined; }
+    return this.queueLifecycle(() => this.stopMounted());
+  }
+  private async stopMounted(): Promise<void> {
+    this.host = undefined; this.lifetime.abort();
+    if (!this.backgroundNeedsStop) { this.library.close(); return; }
+    const errors: unknown[] = [];
+    for (const stop of [
+      () => this.selection.stop(), () => this.serialScheduler.stop(), () => this.serialSync.stop(),
+      () => this.reviewFlow.stop(), () => this.sharing.stop(), () => this.scheduler.stop(),
+      () => this.novelFetches.stop(), () => this.runtime.stop(), () => this.transfers.shutdown(),
+      () => this.discussions.clear(),
+    ]) {
+      try { await stop(); } catch (error) { errors.push(error); }
+    }
+    if (errors.length) throw new AggregateError(errors, 'Bookfish 后台资源关闭失败，书库写锁仍保留；请重试停用或退出当前实例');
+    this.backgroundNeedsStop = false;
+    this.library.close();
   }
 }
 

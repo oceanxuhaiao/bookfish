@@ -1,6 +1,7 @@
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, copyFileSync, readdirSync, lstatSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { WriterLock } from './writer-lock.ts';
 import { HistoryStore, historyFork, historySelect, historyFind, historyPage, historyCount, isHistory, plainHistory, type HistoryRef } from './history.ts';
 import { BookStorage, type ArchiveHooks } from './book-storage.ts';import { isPagedBook, chapterSpan, chapterEndIds, remoteLayout, readerChapters } from './paged-book.ts';
 import { buildBook, decodeFile, digest, requiredText, type Book } from './books.ts';
@@ -195,35 +196,20 @@ export class Library {
   private readonly restoreMarker:string;
   private historyRef?:HistoryRef;
   private characterCache=new Map<string,{characters:Array<{name:string;aliases:string[];episodeIds:string[];aliasesTruncated:boolean;episodeLinksTruncated:boolean}>;truncated:boolean}>();
-  private lockToken: string | undefined;
+  private readonly writerLock: WriterLock;
   private textStoreError: string | null = null;
   private textStoreMoved = 0;
   private readonly now: () => number;
   constructor(private readonly options: LibraryOptions) {
     this.dir = join(options.dataDir, 'bookfish'); this.file = join(this.dir, 'library.json');
+    this.writerLock = new WriterLock(this.dir);
     this.storyCleanupFile = join(this.dir, 'story-cleanup.json');
     this.restoreMarker = join(this.dir, 'restore-in-progress.json');
     this.now = options.now ?? Date.now; this.bookStorage = new BookStorage(this.dir, options.textStoreDir);this.history=new HistoryStore(join(this.dir,'history.sqlite'));
     if (options.storyMemoryEnabled) this.story = new StoryStore(join(this.dir, 'story.sqlite'), { now: this.now });
   }
   private acquire(): void {
-    const file = join(this.dir, 'writer.lock');
-    if (existsSync(file)) {
-      let pid: number;
-      try { pid = JSON.parse(readFileSync(file, 'utf8')).pid; }
-      catch { throw new Error('Bookfish writer lock is invalid; inspect it before recovery'); }
-      if (!Number.isSafeInteger(pid) || pid <= 0) throw new Error('Invalid lock owner');
-      try { process.kill(pid, 0); throw new Error('Bookfish library is already open'); }
-      catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
-      }
-      unlinkSync(file);
-    }
-    const token = randomUUID();
-    const fd = openSync(file, 'wx');
-    try { writeFileSync(fd, JSON.stringify({ pid: process.pid, token })); }
-    finally { closeSync(fd); }
-    this.lockToken = token;
+    this.writerLock.acquire();
   }
   open(): void {
     if (this.opened) return;
@@ -256,7 +242,10 @@ export class Library {
         }
       }
       this.retryStoryCleanups();
-    } catch (error) { this.close(); throw error; }
+    } catch (error) {
+      try { this.close(); } catch (cleanup) { throw new AggregateError([error, cleanup], `Bookfish 初始化失败：${String(error)}；资源清理失败：${String(cleanup)}`); }
+      throw error;
+    }
   }
   private recoverTemporary(){
     // Writer lock is held and the committed snapshot has passed validation.
@@ -265,12 +254,15 @@ export class Library {
     for(const {dir,re}of patterns)if(existsSync(dir))for(const name of readdirSync(dir)){if(re.test(name)){const file=join(dir,name),st=lstatSync(file);if(!st.isFile()||st.isSymbolicLink())throw Error('Unexpected temporary path');unlinkSync(file);}}
   }
   close(): void {
-    const file = join(this.dir, 'writer.lock');
-    if (this.lockToken && existsSync(file)) {
-      const saved = JSON.parse(readFileSync(file, 'utf8'));
-      if (saved.token === this.lockToken) unlinkSync(file);
+    this.opened = false;
+    const errors: unknown[] = [];
+    for (const close of [() => this.bookStorage.clearCache(), () => this.history.close(), () => this.story?.close()]) {
+      try { close(); } catch (error) { errors.push(error); }
     }
-    this.lockToken = undefined; this.opened = false; this.state = empty(); this.bookStorage.clearCache();this.history.close();this.story?.close();this.storyError=null;this.historyRef=undefined;this.goalCache=undefined;this.characterCache.clear();
+    // A failed business close may still own a connection: keep the writer fence for retry.
+    if (errors.length) throw new AggregateError(errors, 'Bookfish 书库资源关闭失败，写锁仍保留；请重试关闭或退出当前实例');
+    this.state = empty(); this.storyError=null;this.historyRef=undefined;this.goalCache=undefined;this.characterCache.clear();
+    this.writerLock.release();
   }
   storageStats(){return {...this.bookStorage.cache.stats(),history:this.history.stats(),textStore:this.textStoreStatus()};}
   textStoreStatus(){return {dir:this.bookStorage.dir,defaultDir:join(this.dir,'books'),configured:this.options.textStoreDir??'',error:this.textStoreError,moved:this.textStoreMoved};}

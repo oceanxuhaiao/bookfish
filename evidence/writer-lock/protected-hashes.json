@@ -1,0 +1,61 @@
+{
+  "baseline": "c440c03",
+  "files": [
+    {
+      "path": "src/protocol/story.md",
+      "baselineGitBlob": "54ee0acd61103bb2bb9d66299f3407a6a458ef41",
+      "currentGitBlob": "54ee0acd61103bb2bb9d66299f3407a6a458ef41",
+      "equal": true
+    },
+    {
+      "path": "src/story/core.ts",
+      "baselineGitBlob": "c92903c48739fd12e434ab16e416774d5202dd04",
+      "currentGitBlob": "c92903c48739fd12e434ab16e416774d5202dd04",
+      "equal": true
+    },
+    {
+      "path": "src/story/store.ts",
+      "baselineGitBlob": "4205310e15c9b41bf646b502f001fa5f956a90c7",
+      "currentGitBlob": "4205310e15c9b41bf646b502f001fa5f956a90c7",
+      "equal": true
+    },
+    {
+      "path": "tests/predeploy-ssm-isolation.test.ts",
+      "baselineGitBlob": "5362eb7cf0e4bd76adfa4098d2e376f01ce80f16",
+      "currentGitBlob": "5362eb7cf0e4bd76adfa4098d2e376f01ce80f16",
+      "equal": true
+    },
+    {
+      "path": "tests/story-core.test.ts",
+      "baselineGitBlob": "e03d0485b29b2f4fb8296456e429fa786946e5eb",
+      "currentGitBlob": "e03d0485b29b2f4fb8296456e429fa786946e5eb",
+      "equal": true
+    },
+    {
+      "path": "tests/story-e2e.test.ts",
+      "baselineGitBlob": "18ce9e1b22111f14882c2cdddf1e7a0656b6f78c",
+      "currentGitBlob": "18ce9e1b22111f14882c2cdddf1e7a0656b6f78c",
+      "equal": true
+    },
+    {
+      "path": "tests/story-library.test.ts",
+      "baselineGitBlob": "e9834268d1306138ed2d5a7c453e09861bc06520",
+      "currentGitBlob": "e9834268d1306138ed2d5a7c453e09861bc06520",
+      "equal": true
+    },
+    {
+      "path": "tests/story-scale.test.ts",
+      "baselineGitBlob": "5706ba73c9f6df783900976538386b30c1a2dbe0",
+      "currentGitBlob": "5706ba73c9f6df783900976538386b30c1a2dbe0",
+      "equal": true
+    },
+    {
+      "path": "tests/story-store.test.ts",
+      "baselineGitBlob": "7015a9485ff7a12442c0f8dc65400722a057ae33",
+      "currentGitBlob": "7015a9485ff7a12442c0f8dc65400722a057ae33",
+      "equal": true
+    }
+  ],
+  "allEqual": true,
+  "scope": "All tracked blocked SSM paths, working tree normalized by Git attributes; shared lifecycle hunks require separate diff review."
+}
