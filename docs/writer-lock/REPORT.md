@@ -84,3 +84,8 @@ PID 复用是可重复的故障条件重建，没有等待或观测到内核自�
 - 安装版 Coopanion Core PID **37316** 被 SIGKILL 后重开，BookFish 实际 active，合成书库/足迹/故事记录快照相同。独立部署端口 **17992**，无模型凭证、没有模型请求。
 
 依赖说明：本轮复用同机既有 node_modules（目录 junction），没有宣称完成冻结依赖重装。最终执行两端 tsc、worker 构建后的 vitest 全量运行，以及官方 describe/check；产物构建引起的 worker/lockfile 无关差异已恢复。Node 为 v24.14.1，Vitest 为 2.1.9。
+
+## Git 记录
+
+修复与测试证据提交：65ab88fffe8b776405544b3fdaa4502791a6e1b8（fix: use SQLite writer lock and recover stale legacy PID locks）。基线 c440c03；仅本地提交，未 push / publish。报告与证据索引另有后续文档提交，见 git log。
+
