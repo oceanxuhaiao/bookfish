@@ -1,0 +1,2 @@
+{"kind":"controlled-design-checks","passed":8,"scope":"URL policy and one resolution plan only; not a proxy or browser acceptance test"}
+{"kind":"real-public-tls","status":200,"dnsCalls":1,"socketLookupCalls":1,"peerMatchesPinned":true,"certificateAuthorized":true,"servername":"example.com","bytes":577}

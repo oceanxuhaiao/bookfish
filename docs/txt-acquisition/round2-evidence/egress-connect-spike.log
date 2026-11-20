@@ -1,0 +1,2 @@
+{"kind":"real-loopback-proxy-negative","passed":5,"targetDials":0,"scope":"private literals, metadata, port and missing auth only; no browser"}
+{"kind":"real-connect-tls","status":200,"certificateAuthorized":true,"targetDials":1,"bytes":931,"tlsTerminatedBy":"client; proxy forwards encrypted bytes"}
