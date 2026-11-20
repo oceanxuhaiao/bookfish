@@ -1,0 +1,89 @@
+# TXT 获取模块 · 进度说明（跨机器接力用）
+
+> 本文件是给「换一台电脑继续开发」准备的交接说明。分支：`feature/txt-acquisition`，基线 `origin/main` = `c440c03` = BookFish 0.63.0。**不要合并到 main，也不要直接部署生产环境。**
+
+## 1. 现在到哪一步了
+
+两批工作已提交，全部自动化测试为绿：
+
+| 提交 | 内容 |
+|---|---|
+| `5e4cd49` | 第一批：独立的浏览器辅助 TXT/MD 获取模块、宽松导入、补正与重试、自主选书接入、工具与提示词 |
+| `81a31c7` | 第二批：Edge/Chrome 扩展通道（MV3 扩展 + 回环桥），让装了扩展的用户直接可用，不必重启浏览器改调试参数 |
+
+验证结果：`npm test` = **71 文件 / 745 测试通过**；`npm run typecheck`、`npm run build:webui` 通过；`npm run check:ssm` = `blocked=0 review=7`（7 个含 SSM 共享区段的文件需 SSM 负责人确认）；`npm run verify:world` / `verify:runtime` 因本机缺 `output/novel-runtime/…zip` 而失败，已在未改动的 0.63.0 基线上复现同一 ENOENT，属环境缺失。
+
+## 2. 能力现状
+
+- **发现**：给一个资源页 URL，用浏览器打开（扩展通道，或显式配置的调试端口），从页面里提取 `.txt` / `.md` 链接，生成带有效期的 `candidateId`（候选 URL 不落盘，只存 SHA-256）。
+- **下载**：原始字节全程 `Buffer`，不提前转码；分块、进度、超时、取消、实时累计字节、失败清理；`text/html` 明确拒绝；上限沿用 `MAX_BOOK_BYTES` = 100 MiB。
+- **质检**：三档——必须拒绝（空文件/二进制/登录页/超限/违反网络策略）、可导入但记警告（乱码、缺章、重复章、广告、标题不统一、疑似截断、书名作者偏差）、自动补正（BOM、GBK/GB18030、UTF-16LE/BE、换行、坏字节、末尾残字、控制字符、重复空行）。
+- **导入**：新增 `Library.importFileBestEffort`，走真实存储与 1200 字分段；严格入口 `Library.importFile` 行为完全未改。
+- **失败恢复**：原件保留在 `data/bookfish/txt-acquisition/raw/`，任务记录在 `tasks.json`；`retry` 三条路径（原件 / 上次地址 / 重扫页面）都在**同一任务**上继续；`repair` 生成新 revision，不覆盖旧版本、不动旧进度。
+- **自主选书**：成功后调用现有 `SelectionCoordinator.onExternalImport`，只建一次阅读队列；身份不匹配只入架不排队；获取成功不等于阅读成功。
+- **安全**：仅 HTTP/HTTPS；阻断回环/私有/链路本地/云元数据；DNS 解析结果校验；重定向逐跳复检；浏览器落地地址二次复检；标签页只建自己的、绝不接管或关闭用户页面；网络权限关闭时不做任何外呼。
+
+## 3. 代码地图
+
+```
+src/txt-acquisition/
+  types.ts          任务/候选/质量报告/状态机与校验
+  url-policy.ts     URL、IP、DNS、重定向、WS 回环校验
+  browser-client.ts CDP 客户端（只连显式配置的回环端口）
+  link-discovery.ts 页面链接提取与书名/作者/体积启发
+  download.ts       Node 直连下载（原始字节）
+  bridge.ts         扩展通道：127.0.0.1 回环 HTTP 长轮询桥
+  repair.ts         编码探测、宽松解码、文本规范化
+  quality.ts        质量评估与可读性判断
+  records.ts        任务持久化（tasks.json）
+  staging.ts        原件暂存、配额清理、路径逃逸防护
+  acquisition.ts    编排：discover / import / retry / repair / cancel / prune
+  index.ts          公共导出
+extension/           MV3 扩展（Edge / Chrome 通用）
+src/stream-import.ts 新增 decodeFileBestEffort / importFileBlobBestEffort（严格路径未改）
+src/book-storage.ts  新增 importFileBestEffort
+src/library.ts       新增 importFileBestEffort（宽松受控入口）
+src/selection.ts     新增 onExternalImport
+src/config.ts        txtAcquisitionEnabled / browserDebugPort / txtAcquisitionRetentionMb / browserBridgeEnabled / browserBridgePort
+src/world.ts         注册 bookfish_import_txt、设置面板 txt_bridge / txt_bridge_restart、启动与停止钩子
+src/webui/settings.ts 设置页「现成的 TXT 文件」卡片
+tests/txt-acquisition-*.test.ts  url / browser / download / import / flow / selection / tool / bridge
+docs/txt-acquisition/ 本目录：审核包与方案书
+```
+
+## 4. 另一台电脑上怎么继续
+
+```powershell
+git clone https://github.com/oceanxuhaiao/bookfish.git
+cd bookfish
+git checkout feature/txt-acquisition      # 需要的话先 git fetch origin
+npm install                               # Node >= 22.13
+npm test                                  # 预期 71 文件 / 745 测试
+npm run typecheck
+npm run build:webui
+```
+
+真机验证扩展：设置页打开两个开关 → 保存 → 复制「端口 / 令牌」→ `edge://extensions` 或 `chrome://extensions` 开发者模式加载 `extension/` → 弹窗粘贴 → 显示已连接 → 让大肥鱼找一本书，看到 `discovering → candidate_ready → downloading → importing → completed`，书架出现新书且阅读进度为 0。
+
+## 5. 还没做（按优先级）
+
+1. **真实浏览器冒烟脚本化**：目前扩展协议由伪扩展（测试里的轮询客户端）验证，未在真实 Edge/Chrome 跑过。建议用 Puppeteer 拉起带 `--load-extension` 的 Chromium 做 CI 冒烟。
+2. **「自己找资源页」的搜索入口**：本模块只解析页面里的链接，找资源页仍依赖模型已有的联网搜索能力；若宿主没有可用搜索入口，需要单独设计（不得伪造搜索结果）。
+3. **扩展打包与分发**：现在是「加载解压缩的扩展」，没有商店上架、没有自动更新。
+4. **SSM 负责人复核** 7 个 review 文件（`describe.json`、`src/ENV_PROMPT.md`、`src/config.ts`、`src/library.ts`、`src/stream-import.ts`、`src/tool-schemas.ts`、`src/world.ts`）后再决定是否公开合并。
+5. **运行时归档**：在装有 SoNovel 运行时包的环境跑通 `npm run verify:world` 与 `verify:runtime`。
+6. **版本号与 CHANGELOG**：建议 0.64.0，按 `AGENTS.md` 发布清单执行 `pnpm describe:extension`、`pnpm check:extension`。
+
+## 6. 不能碰的红线（改代码前先读）
+
+- 不得用补丁整体覆盖 `src/world.ts`：0.63.0 的 `chapters` 与 `set_start` 面板分支必须保留。
+- 不得运行补丁包里的 `install.ps1`（只检查 `package.json` 存在就覆盖源码）。
+- 严格导入入口 `canonicalize` / `importFileBlob` / `Library.importFile` 的行为不得改动；宽松能力只走新增入口。
+- 下载阶段禁止把未知编码的字节转成 UTF-8 字符串。
+- 不得删除失败任务唯一的原始文件；不得自动覆盖已有书籍版本；不得把获取成功当作阅读成功。
+- 不得绕过登录、付费墙、验证码、DRM 或反爬；不得上传或传播下载到的小说。
+- 获取记录、质量报告、网页内容不得写入 Persona Memory；不得推进已读进度。
+
+## 7. 审核包位置
+
+本目录下除了本文件，还有 `TXT获取模块-方案书.md` 与 `BookFish-TXT-00` … `BookFish-TXT-11` 共 12 份报告（索引见 `BookFish-TXT-00-从这里开始.md`）。工作区里另有 `_verify/`（命令原始输出）与 `output/`（构建产物）为本地未跟踪目录，不需要带走。
