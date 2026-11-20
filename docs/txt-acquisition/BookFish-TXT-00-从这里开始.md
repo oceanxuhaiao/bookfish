@@ -1,3 +1,5 @@
+> **2026-11-21 第二轮审查更正：** 本文件是上一轮历史报告。当前安全门槛未通过；事后 URL 检查不能阻止请求发生。第二轮真实浏览器与 Coopanion 验收尚未进行，不能按旧勾选项宣布可发布。以 [第二轮基线与安全阻断报告](ROUND2-BASELINE-AND-BLOCKER.md) 为准。
+
 # BookFish TXT 获取模块 · 审核包索引
 
 分支：`D:\学习\项目\bookfish` → `feature/txt-acquisition`（基线 `origin/main` = `c440c03` = 0.63.0）
