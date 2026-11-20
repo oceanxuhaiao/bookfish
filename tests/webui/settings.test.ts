@@ -28,3 +28,22 @@ it('exposes an unlimited default goal and persists chapter and session preferenc
 it('defaults real routine on, removes editable clocks, and persists a single routine switch',async()=>{
  await mount();expect(field('realRoutineEnabled').checked).toBe(true);expect(field('sleepStartMinute')).toBeNull();expect(field('sleepEnabled')).toBeNull();expect(field('mealsEnabled')).toBeNull();expect(root.textContent).toContain('23:00—08:00');change('realRoutineEnabled',false);submit();await vi.waitFor(()=>expect(root.textContent).toContain('已保存，下次'));expect(context.cfg.realRoutineEnabled).toBe(false);
 });
+
+it('persists the ready-made TXT switches and shows the extension pairing code',async()=>{
+  context.persist({txtAcquisitionEnabled:true,browserBridgeEnabled:true,browserBridgePort:47899,browserDebugPort:0});
+  await mount();
+  expect(field('txtAcquisitionEnabled').checked).toBe(true);
+  expect(field('browserBridgeEnabled').checked).toBe(true);
+  expect(field('browserBridgePort').value).toBe('47899');
+  expect(field('browserDebugPort').value).toBe('0');
+  const pairing=await vi.waitFor(()=>{const input=[...root.querySelectorAll<HTMLInputElement>('input[readonly]')].find(candidate=>candidate.value.startsWith('47899 / '));expect(input).toBeTruthy();return input!;});
+  expect(pairing.value.split(' / ')[1]!.length).toBeGreaterThan(20);
+  expect(root.textContent).toContain('等待扩展连接');
+  await (world as unknown as {txtAcquisition:{stop():Promise<void>}}).txtAcquisition.stop();
+});
+it('saves the extension switches through host persistence',async()=>{
+  await mount();change('txtAcquisitionEnabled',true);change('browserBridgeEnabled',true);change('browserBridgePort','48001');submit();
+  await vi.waitFor(()=>expect(root.textContent).toContain('已保存，下次'));
+  expect(context.cfg.txtAcquisitionEnabled).toBe(true);expect(context.cfg.browserBridgeEnabled).toBe(true);expect(context.cfg.browserBridgePort).toBe(48001);
+  await (world as unknown as {txtAcquisition:{stop():Promise<void>}}).txtAcquisition.stop();
+});

@@ -12,6 +12,7 @@ import type { BookfishConfigSection } from '../config.ts';
 import type { Library } from '../library.ts';
 import { BestEffortRejected, decodeFileBestEffort, type BestEffortDecoded } from '../stream-import.ts';
 import { BrowserClient, BrowserError } from './browser-client.ts';
+import { BridgeError, BrowserBridge } from './bridge.ts';
 import { DownloadError, downloadFile } from './download.ts';
 import { discoverLinks, extractIdentity } from './link-discovery.ts';
 import { assessText, type Assessment, type IdentityMatch } from './quality.ts';
@@ -36,6 +37,8 @@ export interface AcquisitionOptions {
   fetchImpl?: typeof fetch;
   resolve?: HostResolver;
   pageLoader?: PageLoader;
+  /** Test seam for the loopback bridge; production builds create their own. */
+  bridge?: BrowserBridge;
   /** Called after a successful shelf insert so autonomous selection can finish its intent. */
   onImported?: (task: AcquisitionTask, identity: IdentityMatch) => void;
 }
@@ -94,6 +97,7 @@ export class TxtAcquisition {
   private readonly fetchImpl: typeof fetch;
   private readonly resolve?: HostResolver;
   private readonly pageLoader: PageLoader;
+  private bridge: BrowserBridge | undefined;
   private readonly onImported?: (task: AcquisitionTask, identity: IdentityMatch) => void;
   /** Candidate URLs stay in memory only; records carry their digest. */
   private readonly urls = new Map<string, { taskId: string; url: string }>();
@@ -109,6 +113,7 @@ export class TxtAcquisition {
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.resolve = options.resolve;
     this.pageLoader = options.pageLoader ?? defaultPageLoader(options.fetchImpl);
+    this.bridge = options.bridge;
     if (options.onImported) this.onImported = options.onImported;
   }
 
@@ -116,6 +121,45 @@ export class TxtAcquisition {
     await this.staging.init();
     this.records.load(this.now());
     this.recover();
+    // A busy port must not stop reading; the failure surfaces on the first task.
+    try { await this.ensureBridge(); } catch { /* reported by discover or import */ }
+  }
+
+  /**
+   * The bridge is the browser-extension route: the world only listens on loopback
+   * and the extension polls it. It is off unless the user turns it on, and it
+   * never replaces the explicit CDP port.
+   */
+  private async ensureBridge(): Promise<BrowserBridge | undefined> {
+    const cfg = this.cfg();
+    if (cfg.browserBridgeEnabled !== true) {
+      const existing = this.bridge;
+      this.bridge = undefined;
+      if (existing?.running) await existing.stop().catch(() => undefined);
+      return undefined;
+    }
+    if (this.bridge?.running) return this.bridge;
+    if (!this.bridge) {
+      this.bridge = new BrowserBridge({
+        dataDir: this.root,
+        ...(typeof cfg.browserBridgePort === 'number' && cfg.browserBridgePort > 0 ? { port: cfg.browserBridgePort } : {}),
+        ...(this.resolve ? { resolve: this.resolve } : {}),
+      });
+    }
+    await this.bridge.start();
+    return this.bridge;
+  }
+
+  /** Pairing details for the extension popup; the token never reaches the model. */
+  get bridgeInfo(): { enabled: boolean; running: boolean; connected: boolean; port: number; token: string } {
+    const info = this.bridge?.info();
+    return {
+      enabled: this.cfg().browserBridgeEnabled === true,
+      running: this.bridge?.running === true,
+      connected: this.bridge?.connected === true,
+      port: info?.port ?? 0,
+      token: info?.token ?? '',
+    };
   }
 
   /** A restart interrupts every in-flight task; files are kept for a later retry. */
@@ -139,7 +183,7 @@ export class TxtAcquisition {
     const tasks = this.records.list();
     return {
       enabled: this.cfg().txtAcquisitionEnabled === true,
-      browserConfigured: (this.cfg().browserDebugPort ?? 0) > 0,
+      browserConfigured: (this.cfg().browserDebugPort ?? 0) > 0 || this.bridge?.running === true,
       active: tasks.filter((task) => !isTerminal(task.status)).length,
       tasks: tasks.slice(-5).map((task) => ({
         taskId: task.id, status: task.status, title: task.target.title, updatedAt: task.updatedAt,
@@ -292,13 +336,20 @@ export class TxtAcquisition {
       this.forgetUrls(taskId);
       this.records.update(taskId, (draft) => { draft.pageUrl = checked.toString(); draft.sourceHost = checked.hostname; draft.candidates = []; });
       const port = cfg.browserDebugPort ?? 0;
-      if (!port) throw new BrowserError('browser_unavailable', 'Set a browser debug port (for example 9333) to open resource pages');
-      const page = await this.pageLoader(checked.toString(), { allowNetwork: cfg.allowNetwork, port, ...(this.resolve ? { resolve: this.resolve } : {}) });
+      const bridge = await this.ensureBridge();
       let html: string;
-      try {
+      if (bridge) {
+        // The extension runs in the user's own browser, so their logins are already there.
+        const page = await bridge.fetchPage(checked.toString(), { allowNetwork: cfg.allowNetwork });
         html = page.html;
-      } finally {
-        await page.close().catch(() => undefined);
+      } else {
+        if (!port) throw new BrowserError('browser_unavailable', 'Set a browser debug port (for example 9333) or start the BookFish browser extension');
+        const page = await this.pageLoader(checked.toString(), { allowNetwork: cfg.allowNetwork, port, ...(this.resolve ? { resolve: this.resolve } : {}) });
+        try {
+          html = page.html;
+        } finally {
+          await page.close().catch(() => undefined);
+        }
       }
       const found = discoverLinks(html, checked.toString(), MAX_CANDIDATES);
       if (!found.links.length) {
@@ -374,15 +425,27 @@ export class TxtAcquisition {
     try {
       this.setStatus(taskId, 'downloading');
       this.records.update(taskId, (draft) => { draft.attempts.downloads += 1; });
-      const downloaded = await downloadFile({
-        url,
-        allowNetwork: cfg.allowNetwork,
-        staging: this.staging,
-        taskId,
-        signal: controller.signal,
-        ...(this.resolve ? { resolve: this.resolve } : {}),
-        fetchImpl: this.fetchImpl,
-      });
+      const bridge = await this.ensureBridge();
+      // Both routes hand back raw bytes: the bridge appends what the browser read,
+      // downloadFile streams the response. Neither decodes the text.
+      const downloaded = bridge
+        ? await bridge.fetchFile({
+            url,
+            taskId,
+            staging: this.staging,
+            filename,
+            allowNetwork: cfg.allowNetwork,
+            signal: controller.signal,
+          })
+        : await downloadFile({
+            url,
+            allowNetwork: cfg.allowNetwork,
+            staging: this.staging,
+            taskId,
+            signal: controller.signal,
+            ...(this.resolve ? { resolve: this.resolve } : {}),
+            fetchImpl: this.fetchImpl,
+          });
       rawRelative = await this.staging.commitRaw(downloaded.partPath, downloaded.sha256, /\.md$|\.markdown$/iu.test(filename) ? 'md' : 'txt');
       this.records.update(taskId, (draft) => {
         draft.file = {
@@ -600,6 +663,13 @@ export class TxtAcquisition {
     if (error instanceof BestEffortRejected) { this.fail(taskId, error.code, error.message); return; }
     if (error instanceof DownloadError) { this.fail(taskId, error.code, error.message); return; }
     if (error instanceof BrowserError) { this.fail(taskId, error.code, error.message); return; }
+    if (error instanceof BridgeError) {
+      // A missing extension is a setup problem, not a bad file: retrying is useful,
+      // but the message must say what to fix.
+      const code = error.code === 'bridge_offline' || error.code === 'bridge_timeout' || error.code === 'busy' ? 'browser_unavailable' : error.code;
+      this.fail(taskId, code, error.message);
+      return;
+    }
     if (isPolicyError(error)) { this.fail(taskId, 'policy_blocked', error.message); return; }
     const message = (error as Error)?.message ?? 'Acquisition failed';
     if (/library is full/iu.test(message)) { this.fail(taskId, 'library_full', message); return; }
@@ -614,6 +684,20 @@ export class TxtAcquisition {
     const referenced = new Set<string>();
     for (const task of this.records.list()) if (task.file?.retained) referenced.add(task.file.sha256);
     return this.staging.enforceQuota(limit, referenced);
+  }
+
+  /** Release the loopback port when the world stops. */
+  async stop(): Promise<void> {
+    const bridge = this.bridge;
+    this.bridge = undefined;
+    if (bridge?.running) await bridge.stop().catch(() => undefined);
+  }
+
+  /** Apply a changed bridge setting without restarting the world. */
+  async restartBridge(): Promise<{ enabled: boolean; running: boolean; connected: boolean; port: number; token: string }> {
+    await this.stop();
+    await this.ensureBridge().catch(() => undefined);
+    return this.bridgeInfo;
   }
 }
 

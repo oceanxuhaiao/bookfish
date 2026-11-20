@@ -49,13 +49,18 @@ export interface BookfishConfigSection {
   browserDebugPort?: number;
   /** Upper bound for retained original files under data/bookfish/txt-acquisition (MiB). */
   txtAcquisitionRetentionMb?: number;
+  /** Opt-in loopback bridge for the Edge/Chrome extension; needs no debug port or restart. */
+  browserBridgeEnabled?: boolean;
+  /** Loopback port for that bridge; 0 uses 47823. */
+  browserBridgePort?: number;
 }
 export const BOOKFISH_DEFAULTS: BookfishConfigSection = { enabled: false, readingMode: 'auto', allowNetwork: true,
   automaticReading: true, autonomousAcquisition: false, autonomousAcquisitionMode: 'auto', autonomousSourceIds: '', autonomousDiskBudgetMb: 1024, textStoreDir: '',
   dailyChapterGoal:0, readingSessionMinutes:10,realRoutineEnabled:true, speed: 'normal', readingCharsPerMinute: 0, dailyTasks: 40, dailyChars: 48000,
   readingBatchSegments:2, dailyReadingCap:0,
   automaticSharing: true, automaticReview: true, storyMemoryEnabled: false, shareCooldownMinutes: 60, shareQuietEnabled: true, shareQuietStart: 22, shareQuietEnd: 8, shareMaxSentenceChars: 80, shareQuietStartMinute: -1, shareQuietEndMinute: -1,
-  txtAcquisitionEnabled: false, browserDebugPort: 0, txtAcquisitionRetentionMb: 512 };
+  txtAcquisitionEnabled: false, browserDebugPort: 0, txtAcquisitionRetentionMb: 512,
+  browserBridgeEnabled: false, browserBridgePort: 0 };
 export function sharingLimits(cfg: BookfishConfigSection) {
   const integer = (v: unknown, fallback: number, min: number, max: number) => Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max ? v as number : fallback;
   return { cooldownMs: integer(cfg.shareCooldownMinutes, 60, 1, 1440) * 60000,
@@ -124,6 +129,16 @@ export function bookfishConfigGroup(english: boolean): ConfigGroup {
           description: english ? 'A dedicated loopback Chrome DevTools port you start yourself, e.g. 9333. Only 127.0.0.1 is used, no port is scanned, and no existing tab is taken over. 0 disables the browser path.' : '你自己启动的专用本机 Chrome 调试端口，例如 9333。只连接 127.0.0.1，不扫描端口，不接管已有标签页。填 0 关闭浏览器路径。',
           'x-hot': true,
         },
+        'worlds.bookfish.browserBridgeEnabled': {
+          type: 'boolean', title: english ? 'Use the Edge/Chrome extension' : '使用 Edge/Chrome 扩展',
+          description: english ? 'Off by default. The world listens on 127.0.0.1 only and the extension polls it with a pairing token, so your everyday browser can fetch pages and files without a debug port or a restart. Same limits as the debug-port path: no login, paywall, captcha or DRM bypass.' : '默认关闭。世界只在本机 127.0.0.1 监听，扩展凭配对令牌轮询取任务，因此你日常使用的浏览器不需要调试端口、也不用重启就能打开页面和下载文件。限制与调试端口方式相同：不登录、不付费、不绕过验证码或 DRM。',
+          'x-hot': true,
+        },
+        'worlds.bookfish.browserBridgePort': {
+          type: 'integer', minimum: 0, maximum: 65535, title: english ? 'Extension bridge port (0 = 47823)' : '扩展桥接端口（0 用 47823）',
+          description: english ? 'Loopback only. Change it when another program already uses 47823; the extension popup must use the same port and token.' : '只监听本机回环地址。若 47823 已被其他程序占用可改；扩展弹窗里要填同一个端口和令牌。',
+          'x-hot': true,
+        },
         'worlds.bookfish.txtAcquisitionRetentionMb': {
           type: 'integer', minimum: 64, maximum: 10240, title: english ? 'Retained original files (MiB)' : '保留原始文件上限（MiB）',
           description: english ? 'Original downloads are kept when a file has warnings or a failed import, so a later repair can reuse them. Files are only removed when the area exceeds this bound and no task is running.' : '文件有警告或导入失败时保留原始下载，便于日后补正。只有在本区域超过上限且没有进行中的任务时才清理。',
@@ -137,7 +152,7 @@ export function bookfishConfigGroup(english: boolean): ConfigGroup {
 export function bookfishConfigGroups(english: boolean): ConfigGroup[] {
   const all=bookfishConfigGroup(english);const fields=all.schema.properties;
   const main=['realRoutineEnabled','automaticReading','autonomousAcquisition','autonomousAcquisitionMode','autonomousSourceIds','autonomousDiskBudgetMb','speed','readingCharsPerMinute','dailyChapterGoal','readingSessionMinutes','readingBatchSegments','dailyReadingCap','automaticSharing','shareCooldownMinutes','shareMaxSentenceChars','shareQuietEnabled','shareQuietStartMinute','shareQuietEndMinute'];
-  const advanced=['automaticReview','storyMemoryEnabled','allowNetwork','readingMode','textStoreDir','txtAcquisitionEnabled','browserDebugPort','txtAcquisitionRetentionMb'];
+  const advanced=['automaticReview','storyMemoryEnabled','allowNetwork','readingMode','textStoreDir','txtAcquisitionEnabled','browserDebugPort','browserBridgeEnabled','browserBridgePort','txtAcquisitionRetentionMb'];
   const pick=(names:string[])=>Object.fromEntries(names.map(k=>['worlds.bookfish.'+k,fields['worlds.bookfish.'+k]]));
   return [{...all,schema:{...all.schema,title:english?'Reading and sharing':'阅读与分享',properties:pick(main)}},{...all,id:'world:bookfish:advanced',schema:{...all.schema,title:english?'Advanced reading limits':'高级阅读限制',properties:pick(advanced)}}];
 }
@@ -151,6 +166,7 @@ export function validateSettings(input:unknown):Partial<BookfishConfigSection>{
     if(key==='readingCharsPerMinute'&&value!==0&&(value as number)<100)throw Error('Reading speed must be 0 or 100—1200');
     if(key==='autonomousSourceIds'&&(typeof value!=='string'||value.length>100||value.trim()!==''&&! /^\s*\d+(?:\s*,\s*\d+)*\s*$/.test(value)))throw Error('Autonomous source ids must be comma-separated integers');
     if(key==='browserDebugPort'&&value!==0&&(value as number)<1024)throw Error('Browser debug port must be 0 or 1024—65535');
+    if(key==='browserBridgePort'&&value!==0&&(value as number)<1024)throw Error('Extension bridge port must be 0 or 1024—65535');
     if(key==='textStoreDir'){const text=(value as string).trim();if(text&&! /^(?:[a-zA-Z]:[\\/]|\\\\|\/)/.test(text))throw Error('Text storage path must be absolute');patch[key]=text;continue;}
     patch[key]=value;
   }

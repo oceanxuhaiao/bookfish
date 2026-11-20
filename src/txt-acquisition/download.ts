@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Streaming download of raw bytes. The transfer never decodes text: GBK,
  * GB18030 and UTF-16 files arrive byte-for-byte and are decoded later, once,
  * by the import path. Every redirect hop is re-checked by `checkUrl`.
@@ -12,7 +12,7 @@ import { MAX_BOOK_BYTES } from '../books.ts';
 
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) BookFish/0.63.0 txt-acquisition';
 const REDIRECT_STATUS = new Set([301, 302, 303, 307, 308]);
-const ALLOWED_CONTENT = /^(text\/plain|text\/markdown|text\/x-markdown|application\/octet-stream|application\/x-download|binary\/octet-stream)(\s*;.*)?$/iu;
+export const TEXT_CONTENT_TYPE = /^(text\/plain|text\/markdown|text\/x-markdown|application\/octet-stream|application\/x-download|binary\/octet-stream)(\s*;.*)?$/iu;
 
 export class DownloadError extends Error {
   constructor(readonly code: string, message: string, readonly recoverable: boolean) {
@@ -116,7 +116,7 @@ export async function downloadFile(request: DownloadRequest): Promise<DownloadRe
     if (contentType && /text\/html|application\/xhtml/iu.test(contentType)) {
       throw new DownloadError('download_failed', 'The address returned an HTML page, not a text file', true);
     }
-    if (contentType && !ALLOWED_CONTENT.test(contentType)) {
+    if (contentType && !TEXT_CONTENT_TYPE.test(contentType)) {
       throw new DownloadError('download_failed', `Unexpected content type ${contentType.split(';')[0]?.trim() ?? contentType}`, true);
     }
     const declared = Number(response.headers.get('content-length'));

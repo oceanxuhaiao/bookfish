@@ -369,6 +369,10 @@ export class BookfishWorld implements World {
         if(panel==='settings'){
           if(method==='get'&&args.length===0)return {config:{...this.opts.cfg},timezone:this.opts.timezone,storage:this.library.textStoreStatus()};
           if(method==='save'&&args.length===1){const patch=validateSettings(args[0]);if(patch.textStoreDir!==undefined)patch.textStoreDir=assertWritableTextStoreDir(patch.textStoreDir);if(!this.opts.persist)throw Error('Host settings persistence unavailable');this.opts.persist(patch);this.selection.onConfigChanged();return {config:{...this.opts.cfg},timezone:this.opts.timezone,storage:this.library.textStoreStatus()};}
+          // Pairing details for the Edge/Chrome extension. The panel shows the token;
+          // it is never handed to the model.
+          if(method==='txt_bridge'&&args.length===0)return this.txtAcquisition.bridgeInfo;
+          if(method==='txt_bridge_restart'&&args.length===0)return this.txtAcquisition.restartBridge();
           throw Error('Unsupported settings method');
         }
         if (!['status','shelf','trail'].includes(panel) || !Array.isArray(args)) throw new Error('Unsupported Bookfish panel');
@@ -539,7 +543,7 @@ export class BookfishWorld implements World {
   onTurnEnded(): void { this.scheduler.onTurnEnded(); this.sharing.onTurnEnded(); }
   onEventsSettled(events: readonly EventEnvelope[], outcome: 'delivered' | 'discarded'): void { this.scheduler.onEventsSettled(events, outcome); this.sharing.onEventsSettled(events, outcome); }
   async stop(): Promise<void> {
-    try { await this.selection.stop(); this.serialScheduler.stop(); this.serialSync.stop(); this.reviewFlow.stop(); this.sharing.stop(); this.scheduler.stop(); await this.novelFetches.stop(); await this.runtime.stop(); } finally { await this.transfers.shutdown(); this.discussions.clear(); this.lifetime.abort(); this.library.close(); this.host = undefined; }
+    try { await this.selection.stop(); this.serialScheduler.stop(); this.serialSync.stop(); this.reviewFlow.stop(); this.sharing.stop(); this.scheduler.stop(); await this.txtAcquisition.stop(); await this.novelFetches.stop(); await this.runtime.stop(); } finally { await this.transfers.shutdown(); this.discussions.clear(); this.lifetime.abort(); this.library.close(); this.host = undefined; }
   }
 }
 

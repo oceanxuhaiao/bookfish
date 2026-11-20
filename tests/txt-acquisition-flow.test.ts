@@ -241,6 +241,60 @@ describe('browser-assisted acquisition flow', () => {
     expect(rawFiles()).toHaveLength(1);
     expect(acquisition.list()).toHaveLength(1);
   });
+
+  it('opens the page and downloads through the connected browser extension', async () => {
+    // No debug port and no direct fetch: the extension must carry both jobs.
+    cfg = { ...cfg, browserDebugPort: 0, browserBridgeEnabled: true, browserBridgePort: 0 };
+    const acquisition = new TxtAcquisition({
+      dataDir: dir,
+      library,
+      cfg: () => cfg,
+      resolve,
+      pageLoader: async () => { throw new Error('the debug port must not be used when the extension is connected'); },
+      fetchImpl: (async () => { throw new Error('the world must not fetch directly when the extension is connected'); }) as typeof fetch,
+    });
+    await acquisition.init();
+    const { port, token } = acquisition.bridgeInfo;
+    expect(port).toBeGreaterThan(1024);
+    expect(acquisition.summary().browserConfigured).toBe(true);
+
+    const bytes = Buffer.from(novel(), 'utf8');
+    const html = '<a href="/dl/hai.txt">《海风》 作者：小鱼</a>';
+    const controller = new AbortController();
+    const serving = (async () => {
+      const auth = { 'x-bookfish-token': token };
+      for (;;) {
+        let response: Response;
+        try {
+          response = await fetch(`http://127.0.0.1:${port}/bridge/jobs`, { headers: auth, signal: controller.signal });
+        } catch {
+          return;
+        }
+        const body = await response.json() as { job?: { id: string; kind: string } | null };
+        if (!body.job) continue;
+        const base = `http://127.0.0.1:${port}/bridge/jobs/${body.job.id}`;
+        if (body.job.kind === 'page') {
+          await fetch(`${base}/page`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ html, finalUrl: PAGE }) });
+          continue;
+        }
+        for (let offset = 0; offset < bytes.length; offset += 1024) {
+          await fetch(`${base}/chunk`, { method: 'POST', headers: { ...auth, 'content-type': 'application/octet-stream' }, body: bytes.subarray(offset, offset + 1024) });
+        }
+        await fetch(`${base}/done`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ finalUrl: TXT_LINK, contentType: 'text/plain' }) });
+      }
+    })();
+    try {
+      const found = await acquisition.discover({ pageUrl: PAGE, title: '海风', author: '小鱼' });
+      expect(found.status).toBe('candidate_ready');
+      const done = await acquisition.importFile({ taskId: found.taskId, candidateId: (found.candidates ?? [])[0]!.candidateId });
+      expect(done.status).toBe('completed');
+      expect(library.list()).toHaveLength(1);
+    } finally {
+      controller.abort();
+      await serving.catch(() => undefined);
+      await acquisition.stop();
+    }
+  });
 });
 
 
