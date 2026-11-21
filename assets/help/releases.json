@@ -1,8 +1,33 @@
 {
   "schema": 1,
   "updatedAt": "2026-11-21",
-  "currentVersion": "0.64.8",
+  "currentVersion": "0.64.9",
   "releases": [
+    {
+      "version": "0.64.9",
+      "releaseDate": "2026-11-21",
+      "type": "patch",
+      "majorAnnouncement": false,
+      "title": "开发进度修正",
+      "summary": "移除没有计划依据的开发进度条目，只保留已发布和有任务书依据的内容。",
+      "items": [
+        {
+          "kind": "fix",
+          "text": "移除「更多书源与页面适配」「Windows 11 实机验证」「移动端与其他宿主适配」；这三项没有任务书或当前计划依据，不再写成开发计划。"
+        },
+        {
+          "kind": "note",
+          "text": "开发进度只保留：已发布的帮助与更新中心、计划中的长篇逐段全量读后感、开发中的浏览器内 TXT 获取。"
+        },
+        {
+          "kind": "note",
+          "text": "本次不改变功能、数据格式、更新提醒或重要公告规则。"
+        }
+      ],
+      "technical": [
+        "只修改 assets/help/progress.json 与版本记录，不改变运行时代码。"
+      ]
+    },
     {
       "version": "0.64.8",
       "releaseDate": "2026-11-21",

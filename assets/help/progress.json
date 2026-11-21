@@ -5,10 +5,10 @@
     {
       "id": "help-update-center",
       "title": "帮助与更新中心",
-      "status": "accepted",
-      "summary": "功能指南、版本记录、开发进度和一次性重要更新提醒已接入面板，并通过包内测试、官方检查、浏览器交互与真实宿主验收；尚未正式发布。",
+      "status": "released",
+      "summary": "功能指南、版本记录、开发进度、变化提示和一次性重要更新提醒已随 0.64.9 发布，并通过包内测试、官方检查、浏览器交互与真实宿主验收。",
       "updatedAt": "2026-11-21",
-      "scope": "0.64.8"
+      "scope": "0.64.9"
     },
     {
       "id": "long-book-review",
@@ -25,30 +25,6 @@
       "summary": "面向部分只能通过浏览器访问的来源，仍在做受控出站、任务租约和完整性校验；未进入当前发布包，也不作为正式可用功能宣传。",
       "updatedAt": "2026-11-21",
       "scope": "开发分支，未发布"
-    },
-    {
-      "id": "sources-and-adapters",
-      "title": "更多书源与页面适配",
-      "status": "planned",
-      "summary": "继续按真实可访问、目录完整和正文可校验三个条件筛选来源；不承诺任意小说平台都能获取。",
-      "updatedAt": "2026-11-21",
-      "scope": "持续维护"
-    },
-    {
-      "id": "win11-host-check",
-      "title": "Windows 11 实机验证",
-      "status": "testing",
-      "summary": "Windows 10 已完成真实宿主开关与重启验收；Windows 11 桌面和长时间运行仍需单独验证，不以开发机结果代替。",
-      "updatedAt": "2026-11-21",
-      "scope": "目标环境验证"
-    },
-    {
-      "id": "other-hosts",
-      "title": "移动端与其他宿主适配",
-      "status": "planned",
-      "summary": "当前按 Coopanion / Cortico 桌面宿主的契约实现。移动端和其他宿主没有验收，也不宣称已经支持。",
-      "updatedAt": "2026-11-21",
-      "scope": "后续规划"
     }
   ]
 }

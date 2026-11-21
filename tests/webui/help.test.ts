@@ -18,7 +18,7 @@ afterEach(() => {
 function center(): HelpCenter {
   const dir = mkdtempSync(join(tmpdir(), 'bookfish-help-ui-'));
   dirs.push(dir);
-  const value = new HelpCenter({ dataDir: dir, currentVersion: '0.64.8', now: () => new Date('2026-11-21T12:00:00Z') });
+  const value = new HelpCenter({ dataDir: dir, currentVersion: '0.64.9', now: () => new Date('2026-11-21T12:00:00Z') });
   value.open();
   return value;
 }
