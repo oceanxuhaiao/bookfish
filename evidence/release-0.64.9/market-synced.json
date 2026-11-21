@@ -1,0 +1,12 @@
+{
+  "initialIssue": 1066,
+  "initialResult": "listed 0.64.9 but detail tarball 404 during npm CDN propagation",
+  "issue": 1067,
+  "url": "https://github.com/Pal-AI-Lab/cortico-extensions/issues/1067",
+  "state": "closed",
+  "closedAt": "2026-11-21T09:12:33Z",
+  "commentId": 7060417358,
+  "commentUrl": "https://github.com/Pal-AI-Lab/cortico-extensions/issues/1067#issuecomment-7060417358",
+  "listedVersion": "0.64.9",
+  "workflowConclusion": "success"
+}
