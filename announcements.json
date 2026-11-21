@@ -1,7 +1,16 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-21T10:00:00Z",
+  "updatedAt": "2026-11-21T12:00:00Z",
   "announcements": [
+    {
+      "id": "2026-11-21-0.65.1-online-fallback",
+      "publishedAt": "2026-11-21T11:50:00Z",
+      "title": "在线动态现在更可靠了",
+      "category": "feature",
+      "content": "修复部分环境里看不到在线动态的问题。浏览器直连 GitHub 失败时，宿主会再请求一次；失败时只显示明确标记的内置版本更新，不再和在线动态混在一起。\n\n如果你之前看到过「在线动态暂不可用」，更新到 0.65.1 后再刷新即可。",
+      "link": "https://github.com/oceanxuhaiao/bookfish/releases/tag/v0.65.1",
+      "version": "0.65.1"
+    },
     {
       "id": "2026-11-21-help-center",
       "publishedAt": "2026-11-21T09:40:00Z",

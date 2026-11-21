@@ -13,5 +13,13 @@ for (const feature of allFeatures(catalog)) {
     console.log(`note: ${feature.id} needs ${feature.minVersion}`);
   }
 }
-const feed = parseAnnouncements(readFileSync(new URL('../announcements.json', import.meta.url), 'utf8'));
-console.log(`help content ok: package ${packageJson.version}, ${catalog.categories.length} categories, ${ids.size} guides, ${catalog.releases.length} releases, ${catalog.progress.items.length} progress items, ${feed.announcements.length} online announcements`);
+const feedRaw = JSON.parse(readFileSync(new URL('../announcements.json', import.meta.url), 'utf8')) as { announcements?: Array<{ version?: unknown }> };
+const feed = parseAnnouncements(feedRaw);
+const versioned = (feedRaw.announcements ?? []).filter((item) => item.version !== undefined);
+for (const item of versioned) {
+  if (typeof item.version !== 'string' || !/^\d+\.\d+\.\d+$/u.test(item.version)) throw new Error(`announcements.json has an invalid version field: ${String(item.version)}`);
+}
+if (!versioned.some((item) => item.version === packageJson.version)) {
+  throw new Error(`announcements.json needs an entry for version ${packageJson.version}`);
+}
+console.log(`help content ok: package ${packageJson.version}, ${catalog.categories.length} categories, ${ids.size} guides, ${catalog.releases.length} releases, ${catalog.progress.items.length} progress items, ${feed.announcements.length} online announcements, current-version post present`);

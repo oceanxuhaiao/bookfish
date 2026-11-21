@@ -12,6 +12,7 @@ checkout; `<dir>` is this package's directory.
 - [ ] **Tags**: `cortico.tags` lists every tag in [TAGS.md](https://github.com/Pal-AI-Lab/cortico-extensions/blob/main/TAGS.md) whose "when"
   fits, notice and warning tags included.
 - [ ] **CHANGELOG.md** has a `## <version>` section for the version being published.
+- [ ] **announcements.json** has a current-release entry with `"version": "<version>"`; `pnpm check:help` enforces this. Push the file to GitHub `main` before publishing so the online feed matches the release.
 - [ ] **`os`**: set the npm `os` field when the package runs only on some platforms.
 - [ ] **`pnpm check:extension <dir>`** passes. Its "Before publishing" section reports the items
   above for this package.
