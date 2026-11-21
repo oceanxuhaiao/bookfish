@@ -20,6 +20,7 @@ const onlineFeed: OnlineAnnouncements = {
 const dirs: string[] = [];
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   document.body.replaceChildren();
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
@@ -27,7 +28,7 @@ afterEach(() => {
 function center(): HelpCenter {
   const dir = mkdtempSync(join(tmpdir(), 'bookfish-help-ui-'));
   dirs.push(dir);
-  const value = new HelpCenter({ dataDir: dir, currentVersion: '0.65.0', now: () => new Date('2026-11-21T12:00:00Z') });
+  const value = new HelpCenter({ dataDir: dir, currentVersion: '0.65.1', now: () => new Date('2026-11-21T12:00:00Z') });
   value.open();
   return value;
 }
@@ -42,6 +43,7 @@ function context(centerValue: HelpCenter, calls: Array<{ method: string; args: u
       if (method === 'help_guide') return centerValue.guide(String(args[0]));
       if (method === 'help_release') return centerValue.release(args.length ? String(args[0]) : undefined);
       if (method === 'help_progress') return centerValue.progress();
+      if (method === 'help_online') return onlineFeed;
       if (method === 'help_updates_viewed') return centerValue.markUpdatesViewed();
       if (method === 'help_mark') return centerValue.mark(String(args[0]), args[1] as 'viewed' | 'dismissed');
       throw new Error(`Unexpected help invoke ${method}`);
@@ -110,7 +112,19 @@ describe('help center view', () => {
     expect(host.textContent).toContain('GitHub 在线动态');
   });
 
-  it('falls back to the full built-in release list when the online feed fails', async () => {
+  it('retries through the server-side loader when the browser cannot reach GitHub', async () => {
+    const data = center();
+    const calls: Array<{ method: string; args: unknown[] }> = [];
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('browser blocked'); }));
+    const view = new HelpCenterView(context(data, calls), (zh) => zh, () => undefined);
+    const host = document.createElement('div');
+    await view.open(host, 'updates');
+    await flush();
+    expect(calls.some((call) => call.method === 'help_online')).toBe(true);
+    expect(host.querySelector('.bf-help-online-item')?.textContent).toContain('在线动态标题');
+  });
+
+  it('shows the bundled release card and a reason when both online loaders fail', async () => {
     const data = center();
     const calls: Array<{ method: string; args: unknown[] }> = [];
     const view = new HelpCenterView(context(data, calls), (zh) => zh, () => undefined, async () => { throw new Error('offline'); });
@@ -118,7 +132,7 @@ describe('help center view', () => {
     await view.open(host, 'updates');
     await flush();
     expect(host.textContent).toContain('在线动态暂不可用');
-    expect(host.querySelector('.bf-help-release')).not.toBeNull();
+    expect(host.querySelector('.bf-help-builtin')).not.toBeNull();
     expect(host.querySelector('.bf-help-online-item')).toBeNull();
   });
 

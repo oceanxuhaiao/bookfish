@@ -114,13 +114,14 @@ export async function fetchAnnouncements(options: FetchAnnouncementsOptions = {}
   const cancel = (): void => controller.abort();
   options.signal?.addEventListener('abort', cancel, { once: true });
   try {
-    const response = await fetchImpl(url, {
+    const requestInit = {
       method: 'GET',
       cache: 'no-store',
       redirect: 'follow',
       headers: { Accept: 'application/json' },
       signal: controller.signal,
-    });
+    } as RequestInit & { cache: string };
+    const response = await fetchImpl(url, requestInit);
     if (!response.ok) throw new AnnouncementsError('http', `HTTP ${response.status}`);
     const length = Number(response.headers.get('content-length') ?? 0);
     if (Number.isFinite(length) && length > MAX_BYTES) throw new AnnouncementsError('too-large', 'announcements.json is too large');

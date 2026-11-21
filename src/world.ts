@@ -27,6 +27,7 @@ import { BOOKFISH_TOOL_DECLS } from './tool-schemas.ts';
 import { HELP_TOPICS } from './protocols.ts';
 import { assertWritableTextStoreDir } from './text-store.ts';
 import { HelpCenter } from './help-center.ts';
+import { loadOnlineAnnouncements } from './help-online.ts';
 import { BOOKFISH_VERSION } from './version.ts';
 
 const ENV_PROMPT_FILE = join(dirname(fileURLToPath(import.meta.url)), 'ENV_PROMPT.md');
@@ -316,6 +317,7 @@ export class BookfishWorld implements World {
           if (method==='help_guide'&&args.length===1) return this.helpCenter.guide(requiredText(args[0],'helpId',80));
           if (method==='help_release'&&args.length<=1) return this.helpCenter.release(args.length===0?undefined:requiredText(args[0],'version',20));
           if (method==='help_progress'&&args.length===0) return this.helpCenter.progress();
+          if (method==='help_online'&&args.length===0) return loadOnlineAnnouncements();
           if (method==='help_mark'&&args.length===2) {
             const action=args[1];
             if (action!=='viewed'&&action!=='dismissed') throw new Error('Invalid help announcement action');

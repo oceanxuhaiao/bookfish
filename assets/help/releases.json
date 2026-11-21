@@ -1,8 +1,37 @@
 {
   "schema": 1,
   "updatedAt": "2026-11-21",
-  "currentVersion": "0.65.0",
+  "currentVersion": "0.65.1",
   "releases": [
+    {
+      "version": "0.65.1",
+      "releaseDate": "2026-11-21",
+      "type": "patch",
+      "majorAnnouncement": false,
+      "title": "在线动态兜底修复",
+      "summary": "修复部分环境看不到在线动态的问题：浏览器请求失败时由宿主后台再试；失败提示不再伪装成完整版本列表。",
+      "items": [
+        {
+          "kind": "fix",
+          "text": "在线动态增加宿主端 help_online 兜底；WebUI 直连 GitHub 失败时由 World 后台再请求一次。"
+        },
+        {
+          "kind": "improvement",
+          "text": "在线失败时只显示明确标记的「版本更新（内置）」卡和原因，不再把完整版本列表塞进开发动态。"
+        },
+        {
+          "kind": "improvement",
+          "text": "在线条目使用蓝色时间线卡片；失败提示显示超时、HTTP 错误、数据格式异常或无法连接 GitHub。"
+        },
+        {
+          "kind": "note",
+          "text": "不改变在线数据格式、内置版本数据、阅读、SSM、Persona、书库或 Token 策略。"
+        }
+      ],
+      "technical": [
+        "宿主端请求仍使用同一个 announcements.json 和校验/超时逻辑；不新增模型工具或事件。"
+      ]
+    },
     {
       "version": "0.65.0",
       "releaseDate": "2026-11-21",

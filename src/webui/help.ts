@@ -1,7 +1,7 @@
 import type { WebUiPanelContext } from 'cortico/web/shared/client-panel.ts';
 import type { HelpGuideView, HelpIndexView, HelpProgressView, HelpReleaseView } from '../help-center.ts';
 import type { AnnouncementView } from '../help-store.ts';
-import { fetchAnnouncements, type OnlineAnnouncement, type OnlineAnnouncements } from './announcements.ts';
+import { AnnouncementsError, fetchAnnouncements, type OnlineAnnouncement, type OnlineAnnouncements } from './announcements.ts';
 
 type Say = (zh: string, english: string) => string;
 type OnlineLoader = (signal?: AbortSignal) => Promise<OnlineAnnouncements>;
@@ -66,6 +66,8 @@ export const helpStyle = `
 .bf-help-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
 .bf-help-release,.bf-help-progress,.bf-help-builtin,.bf-help-online-item{border:1px solid #e0e6d9;border-radius:14px;background:#fffefa;padding:16px 18px;margin:0 0 12px}
 .bf-help-builtin{background:#f7f9f2;border-style:dashed}
+.bf-help-online-item{border-left:4px solid #3b78b5;background:#fbfdff}
+.bf-help-online-item .bf-help-source{background:#e3f0fb;color:#2e5f8a}
 .bf-help-builtin h3,.bf-help-online-item h3{margin:0 0 4px}
 .bf-help-builtin-meta,.bf-help-online-meta{font-size:12px;color:#6e7b70;display:flex;gap:10px;flex-wrap:wrap;margin:0 0 8px}
 .bf-help-online-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:18px 0 8px}
@@ -258,13 +260,27 @@ export class HelpCenterView {
   private disposed = false;
   private onlineRequest = 0;
   private onlineController: AbortController | undefined;
+  private readonly loadOnline: OnlineLoader;
 
   constructor(
     private readonly ctx: WebUiPanelContext,
     private readonly say: Say,
     private readonly onUnread: (unread: boolean) => void,
-    private readonly loadOnline: OnlineLoader = (signal) => fetchAnnouncements({ signal }),
-  ) {}
+    loadOnline?: OnlineLoader,
+  ) {
+    this.loadOnline = loadOnline ?? (async (signal) => {
+      try {
+        return await fetchAnnouncements({ signal, timeoutMs: 5000 });
+      } catch (browserError) {
+        if (signal?.aborted) throw browserError;
+        try {
+          return await this.ctx.invoke<OnlineAnnouncements>('help_online');
+        } catch {
+          throw browserError;
+        }
+      }
+    });
+  }
 
   async prime(claim = true): Promise<{ unread: boolean; announcement?: AnnouncementView }> {
     try {
@@ -535,8 +551,6 @@ export class HelpCenterView {
       refresh.disabled = false;
       if (!feed.announcements.length) {
         loading.textContent = this.say('在线动态暂时没有新内容。', 'There are no online updates right now.');
-        builtin.replaceChildren();
-        await this.renderReleases(builtin);
         return;
       }
       online.replaceChildren();
@@ -549,18 +563,26 @@ export class HelpCenterView {
       const refreshAgain = el('button', this.say('刷新', 'Refresh'), listHead); refreshAgain.type = 'button'; refreshAgain.className = 'bf-help-refresh';
       refreshAgain.addEventListener('click', () => void this.renderAnnouncements(host, openReleases));
       for (const item of feed.announcements) online.append(this.onlineItem(item));
-    } catch {
+    } catch (error) {
       if (this.disposed || request !== this.onlineRequest) return;
       refresh.disabled = false;
       online.replaceChildren();
       const box = el('div', this.say('在线动态暂不可用，当前显示内置版本更新。', 'Online updates are unavailable; showing bundled release notes instead.'), online);
       box.className = 'bf-help-error';
-      el('small', this.say('可以稍后点「刷新」重试；版本更新和阅读功能不受影响。', 'Try Refresh later; release notes and reading are unaffected.'), box);
+      el('small', this.say(`原因：${this.onlineErrorReason(error)}。可以稍后点「刷新」重试；版本更新和阅读功能不受影响。`, `Reason: ${this.onlineErrorReason(error)}. Try Refresh later; release notes and reading are unaffected.`), box);
       const retry = el('button', this.say('刷新', 'Refresh'), box); retry.type = 'button'; retry.className = 'bf-help-refresh';
       retry.addEventListener('click', () => void this.renderAnnouncements(host, openReleases));
-      builtin.replaceChildren();
-      await this.renderReleases(builtin);
     }
+  }
+
+  private onlineErrorReason(error: unknown): string {
+    if (error instanceof AnnouncementsError) {
+      if (error.code === 'timeout') return this.say('请求超时', 'request timed out');
+      if (error.code === 'http') return this.say('GitHub 返回 HTTP 错误', 'GitHub returned an HTTP error');
+      if (error.code === 'invalid-json' || error.code === 'invalid-data' || error.code === 'too-large') return this.say('在线数据格式异常', 'the online data is invalid');
+      if (error.code === 'aborted') return this.say('请求被取消', 'the request was cancelled');
+    }
+    return this.say('无法连接 GitHub', 'GitHub is unreachable');
   }
 
   private onlineItem(item: OnlineAnnouncement): HTMLElement {
