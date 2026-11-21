@@ -17,12 +17,12 @@ function tempDir(): string {
 describe('help center data plane', () => {
   it('serves the packaged catalog and guide without touching a model', () => {
     const dir = tempDir();
-    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.64.7', now: () => new Date('2026-11-21T12:00:00Z') });
+    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.64.8', now: () => new Date('2026-11-21T12:00:00Z') });
     center.open();
     const index = center.index(false);
-    expect(index.currentVersion).toBe('0.64.7');
+    expect(index.currentVersion).toBe('0.64.8');
     expect(index.features).toHaveLength(7);
-    expect(index.latest?.version).toBe('0.64.7');
+    expect(index.latest?.version).toBe('0.64.8');
     expect(index.history.length).toBeGreaterThan(2);
     expect(index.announcement).toBeUndefined();
     expect(index.warning).toBeUndefined();
@@ -69,9 +69,9 @@ describe('help center data plane', () => {
     const dir = tempDir();
     mkdirSync(join(dir, 'bookfish'), { recursive: true });
     writeFileSync(join(dir, 'bookfish', 'help-updates.json'), JSON.stringify({
-      schema: 1, lastSeenInstalledVersion: '0.64.7', lastReadVersion: '0.64.3', announcements: {}, updatedAt: '2026-11-21T12:00:00Z',
+      schema: 1, lastSeenInstalledVersion: '0.64.8', lastReadVersion: '0.64.3', announcements: {}, updatedAt: '2026-11-21T12:00:00Z',
     }), 'utf8');
-    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.64.7', now: () => new Date('2026-11-21T12:00:00Z') });
+    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.64.8', now: () => new Date('2026-11-21T12:00:00Z') });
     center.open();
     const index = center.index(false);
     expect(index.latest?.isNew).toBe(true);
@@ -79,11 +79,15 @@ describe('help center data plane', () => {
     const guide = center.guide('settings');
     expect(guide.changed?.snippets).toContain('配置项旁的「?」会直接打开对应说明，不会触发阅读、下载或保存。');
     expect(center.release().isNew).toBe(true);
+    expect(center.markHelpOpened().ok).toBe(true);
+    const refreshed = center.index(false);
+    expect(refreshed.changedFeatures).toEqual([]);
+    expect(refreshed.latest?.isNew).toBe(false);
   });
 
   it('returns a friendly fallback when the content package is missing', () => {
     const dir = tempDir();
-    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.64.7', root: join(dir, 'missing') });
+    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.64.8', root: join(dir, 'missing') });
     center.open();
     const index = center.index(false);
     expect(index.features).toEqual([]);

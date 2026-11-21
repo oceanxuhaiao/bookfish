@@ -229,6 +229,9 @@ export class HelpCenterView {
   private progress: HelpProgressView | undefined;
   private readonly releaseCache = new Map<string, HelpReleaseView>();
   private readonly guideCache = new Map<string, HelpGuideView>();
+  private readonly seenFeatures = new Set<string>();
+  private seenUpdates = false;
+  private changeNote: HTMLElement | undefined;
   private viewedMarked = false;
   private savedScroll = 0;
   private disposed = false;
@@ -286,7 +289,7 @@ export class HelpCenterView {
     const tabs = el('div', '', root); tabs.className = 'bf-help-tabs'; tabs.setAttribute('role', 'tablist'); this.tabs = tabs;
     const guideTab = el('button', this.say('功能指南', 'Feature guide'), tabs); guideTab.type = 'button'; guideTab.setAttribute('role', 'tab');
     const updatesTab = el('button', this.say('更新动态', 'Updates'), tabs); updatesTab.type = 'button'; updatesTab.setAttribute('role', 'tab');
-    guideTab.addEventListener('click', () => { this.tab = 'guide'; this.applyTab(); });
+    guideTab.addEventListener('click', () => { if (this.tab === 'updates') this.seenUpdates = true; this.tab = 'guide'; this.applyTab(); });
     updatesTab.addEventListener('click', () => { this.tab = 'updates'; this.applyTab(); void this.renderUpdates(); });
     const header = el('header', '', root); header.className = 'bf-help-head';
     const copy = el('div', '', header);
@@ -297,7 +300,7 @@ export class HelpCenterView {
     version.textContent = this.say('当前版本 ', 'Installed ') + (this.index?.currentVersion ?? '…');
     const changed = this.index?.changedFeatures ?? [];
     if (changed.length) {
-      const note = document.createElement('div'); note.className = 'bf-help-changed-note'; root.append(note);
+      const note = document.createElement('div'); note.className = 'bf-help-changed-note'; root.append(note); this.changeNote = note;
       note.append(document.createTextNode(this.say(`本次有 ${changed.length} 项功能说明更新：`, `${changed.length} guide${changed.length === 1 ? '' : 's'} changed: `)));
       for (const change of changed) {
         const title = this.index?.features.flatMap((category) => category.features).find((feature) => feature.id === change.featureId)?.title ?? change.featureId;
@@ -352,12 +355,12 @@ export class HelpCenterView {
       details.append(summary);
       const list = el('div', '', details); list.className = 'bf-help-list';
       for (const feature of category.features) {
-        const button = document.createElement('button'); button.type = 'button'; button.className = 'bf-help-item';
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'bf-help-item'; button.dataset.featureId = feature.id;
         const icon = el('span', feature.icon, button); icon.className = 'bf-help-item-icon';
         const text = el('span', '', button);
         const title = el('strong', feature.title, text);
         if (feature.experimental) { const badge = el('span', this.say('实验功能', 'Experimental'), title); badge.className = 'bf-help-badge'; }
-        if (changed.has(feature.id)) { const badge = el('span', this.say('有更新', 'Updated'), title); badge.className = 'bf-help-badge update'; }
+        if (changed.has(feature.id) && !this.seenFeatures.has(feature.id)) { const badge = el('span', this.say('有更新', 'Updated'), title); badge.className = 'bf-help-badge update'; }
         el('small', feature.summary, text);
         button.addEventListener('click', () => void this.openGuide(feature.id));
         list.append(button);
@@ -374,6 +377,10 @@ export class HelpCenterView {
 
   async openGuide(id: string): Promise<void> {
     if (!this.catalog || !this.detail || !this.scroll) return;
+    this.seenFeatures.add(id);
+    const card = this.catalog.querySelector<HTMLElement>(`[data-feature-id="${id}"]`);
+    card?.querySelector('.bf-help-badge.update')?.remove();
+    if (this.changeNote && this.index?.changedFeatures.every((change) => this.seenFeatures.has(change.featureId))) this.changeNote.hidden = true;
     this.activeGuide = id;
     this.savedScroll = window.scrollY;
     if (this.tabs) this.tabs.hidden = true;
@@ -466,9 +473,10 @@ export class HelpCenterView {
   }
 
   private releaseCard(release: HelpReleaseView, compact = false): HTMLElement {
-    const card = document.createElement('article'); card.className = 'bf-help-release' + (release.isNew ? ' is-new' : '');
+    const isNew = release.isNew && !this.seenUpdates;
+    const card = document.createElement('article'); card.className = 'bf-help-release' + (isNew ? ' is-new' : '');
     const title = el('h3', release.title, card);
-    if (release.isNew) { const badge = el('span', this.say('新', 'New'), title); badge.className = 'bf-help-badge new'; }
+    if (isNew) { const badge = el('span', this.say('新', 'New'), title); badge.className = 'bf-help-badge new'; }
     if (release.majorAnnouncement) { const badge = el('span', this.say('重要更新', 'Important'), title); badge.className = 'bf-help-badge'; }
     const meta = el('p', '', card); meta.className = 'bf-help-release-meta';
     el('span', 'v' + release.version, meta); el('span', formatDate(release.releaseDate), meta);
@@ -479,8 +487,8 @@ export class HelpCenterView {
         const items = release.items.filter((item) => item.kind === kind);
         if (!items.length) continue;
         for (const item of items) {
-          const row = el('p', '', card); row.className = 'bf-help-release-item' + (release.isNew ? ' is-new' : '');
-          if (release.isNew) { const badge = el('span', this.say('新', 'New'), row); badge.className = 'bf-help-badge new'; }
+          const row = el('p', '', card); row.className = 'bf-help-release-item' + (isNew ? ' is-new' : '');
+          if (isNew) { const badge = el('span', this.say('新', 'New'), row); badge.className = 'bf-help-badge new'; }
           const labels = KIND_LABEL[kind] ?? [kind, kind];
           el('b', this.say(labels[0], labels[1]) + '：', row);
           row.append(document.createTextNode(item.text));
@@ -520,7 +528,7 @@ export class HelpCenterView {
     for (const entry of history) {
       const button = document.createElement('button'); button.type = 'button';
       const heading = el('span', 'v' + entry.version + ' · ' + entry.title, button);
-      if (entry.isNew) { const badge = el('span', this.say('新', 'New'), heading); badge.className = 'bf-help-badge new'; }
+      if (entry.isNew && !this.seenUpdates) { const badge = el('span', this.say('新', 'New'), heading); badge.className = 'bf-help-badge new'; }
       el('small', formatDate(entry.releaseDate) + ' · ' + entry.summary, button);
       button.addEventListener('click', () => {
         void (async () => {

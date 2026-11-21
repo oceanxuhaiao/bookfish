@@ -18,7 +18,7 @@ afterEach(() => {
 describe('help content catalog', () => {
   it('matches the package version and every feature has loadable content', () => {
     const catalog = loadHelpCatalog();
-    expect(catalog.currentVersion).toBe('0.64.7');
+    expect(catalog.currentVersion).toBe('0.64.8');
     expect(catalog.currentVersion).toBe(BOOKFISH_VERSION);
     expect(catalog.categories).toHaveLength(7);
     expect(allFeatures(catalog)).toHaveLength(19);

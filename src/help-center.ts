@@ -142,10 +142,13 @@ export class HelpCenter {
       };
     }
     const latest = this.currentRelease;
-    const baseline = this.baseline();
+    const state = this.store?.snapshot();
+    // A page refresh asks for the index again. Once help_opened has persisted
+    // the current version, this becomes the new baseline and old highlights go away.
+    const baseline = state?.lastReadVersion ?? this.options.currentVersion;
+    this.changeBaseline = baseline;
     const all = releaseSummaries(catalog).map((entry) => ({ ...entry, isNew: compareVersions(entry.version, baseline) > 0 }));
     const history = all.filter((entry) => entry.version !== latest.version);
-    const state = this.store?.snapshot();
     const announcement = claimAnnouncement ? this.store?.claim() : undefined;
     return {
       currentVersion: this.options.currentVersion,

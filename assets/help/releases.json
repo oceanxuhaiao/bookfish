@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "updatedAt": "2026-11-21",
-  "currentVersion": "0.64.7",
+  "currentVersion": "0.64.8",
   "releases": [
     {
-      "version": "0.64.7",
+      "version": "0.64.8",
       "releaseDate": "2026-11-21",
       "type": "minor",
       "majorAnnouncement": false,
@@ -29,7 +29,7 @@
         },
         {
           "kind": "feature",
-          "text": "进入帮助页后标出本次变化：功能卡显示「有更新」并自动展开分类，详情高亮改动段落；更新动态条目显示「新」，详情高亮该条。"
+          "text": "进入帮助页后标出本次变化：功能卡显示「有更新」并自动展开分类，详情高亮改动段落；更新动态条目显示「新」，详情高亮该条。看过后标记移除，刷新后不再高亮旧变化。"
         },
         {
           "kind": "feature",
