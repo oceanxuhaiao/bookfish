@@ -247,6 +247,7 @@ export class HelpCenterView {
       await this.ctx.invoke('help_mark', [announcementId, 'viewed']);
       const result = await this.ctx.invoke<{ unread: boolean }>('help_updates_viewed', []);
       this.onUnread(result.unread);
+      void this.ctx.refresh();
     } catch { /* the guide remains manually available */ }
   }
 
@@ -405,7 +406,10 @@ export class HelpCenterView {
     el('h3', this.say('更新动态', 'Updates'), head);
     if (!this.viewedMarked) {
       this.viewedMarked = true;
-      void this.ctx.invoke<{ ok: boolean; unread: boolean }>('help_updates_viewed', []).then((result) => this.onUnread(result.unread)).catch(() => undefined);
+      void this.ctx.invoke<{ ok: boolean; unread: boolean }>('help_updates_viewed', []).then((result) => {
+        this.onUnread(result.unread);
+        void this.ctx.refresh();
+      }).catch(() => undefined);
     }
     const tabs = el('div', '', this.updates); tabs.className = 'bf-help-subtabs'; tabs.setAttribute('role', 'tablist');
     const releases = el('button', this.say('版本更新', 'Releases'), tabs); releases.type = 'button'; releases.setAttribute('role', 'tab');

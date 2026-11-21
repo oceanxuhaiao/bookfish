@@ -21,6 +21,8 @@ export interface StoredAnnouncement {
 export interface HelpStateFile {
   schema: 1;
   lastSeenInstalledVersion: string;
+  /** Last version whose update page the user opened; drives the small blue dot. */
+  lastReadVersion: string;
   announcements: Record<string, StoredAnnouncement>;
   updatedAt: string;
 }
@@ -121,7 +123,7 @@ export class HelpStore {
   }
 
   private initialState(): HelpStateFile {
-    return { schema: 1, lastSeenInstalledVersion: this.options.currentVersion, announcements: {}, updatedAt: this.now().toISOString() };
+    return { schema: 1, lastSeenInstalledVersion: this.options.currentVersion, lastReadVersion: this.options.currentVersion, announcements: {}, updatedAt: this.now().toISOString() };
   }
 
   private parse(raw: string): HelpStateFile {
@@ -144,7 +146,8 @@ export class HelpStore {
         };
       }
     }
-    return { schema: 1, lastSeenInstalledVersion, announcements, updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : this.now().toISOString() };
+    const lastReadVersion = validVersion(value.lastReadVersion) ? value.lastReadVersion : lastSeenInstalledVersion;
+    return { schema: 1, lastSeenInstalledVersion, lastReadVersion, announcements, updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : this.now().toISOString() };
   }
 
   private persist(): boolean {
@@ -219,38 +222,36 @@ export class HelpStore {
     if (!release) throw new Error(`Unknown announcement: ${announcementId}`);
     const item = this.state.announcements[announcementId] ?? defaultAnnouncement();
     this.state.announcements[announcementId] = item;
-    if (action === 'viewed') { item.viewed = true; item.viewedAt = this.now().toISOString(); }
-    else { item.dismissed = true; item.dismissedAt = this.now().toISOString(); }
+    if (action === 'viewed') {
+      item.viewed = true; item.viewedAt = this.now().toISOString();
+      this.state.lastReadVersion = this.options.currentVersion;
+    } else { item.dismissed = true; item.dismissedAt = this.now().toISOString(); }
     return this.persist();
   }
 
   /** Opening the updates page counts as seeing every announcement that applies here. */
   markUpdatesViewed(): boolean {
     if (!this.state) return false;
-    let changed = false;
+    this.state.lastReadVersion = this.options.currentVersion;
     for (const release of this.options.releases) {
       if (!release.majorAnnouncement || !release.announcementId) continue;
       if (compareVersions(release.version, this.options.currentVersion) > 0) continue;
       const item = this.state.announcements[release.announcementId] ?? defaultAnnouncement();
       this.state.announcements[release.announcementId] = item;
-      if (!item.viewed) { item.viewed = true; item.viewedAt = this.now().toISOString(); changed = true; }
+      if (!item.viewed) { item.viewed = true; item.viewedAt = this.now().toISOString(); }
     }
-    return changed ? this.persist() : true;
+    return this.persist();
   }
 
   unread(): boolean {
     if (!this.state) return false;
-    return this.options.releases.some((release) => {
-      if (!release.majorAnnouncement || !release.announcementId) return false;
-      if (compareVersions(release.version, this.options.currentVersion) > 0) return false;
-      const item = this.state!.announcements[release.announcementId];
-      return item?.prompted === true && !item.viewed;
-    });
+    return compareVersions(this.options.currentVersion, this.state.lastReadVersion) > 0;
   }
 
-  snapshot(): { lastSeenInstalledVersion: string; announcements: Record<string, StoredAnnouncement>; fresh: boolean; error?: string } {
+  snapshot(): { lastSeenInstalledVersion: string; lastReadVersion: string; announcements: Record<string, StoredAnnouncement>; fresh: boolean; error?: string } {
     return {
       lastSeenInstalledVersion: this.state?.lastSeenInstalledVersion ?? this.options.currentVersion,
+      lastReadVersion: this.state?.lastReadVersion ?? this.options.currentVersion,
       announcements: this.state ? structuredClone(this.state.announcements) : {},
       fresh: this.fresh,
       ...(this.stateError ? { error: this.stateError } : {}),

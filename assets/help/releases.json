@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "updatedAt": "2026-11-21",
-  "currentVersion": "0.64.2",
+  "currentVersion": "0.64.3",
   "releases": [
     {
-      "version": "0.64.2",
+      "version": "0.64.3",
       "releaseDate": "2026-11-21",
       "type": "minor",
       "majorAnnouncement": false,
@@ -22,6 +22,10 @@
         {
           "kind": "improvement",
           "text": "去掉帮助页内部的第二条滚动条，只保留宿主页面的一条；返回目录时恢复原位置。"
+        },
+        {
+          "kind": "feature",
+          "text": "普通小更新不弹窗；顶部「帮助与更新」页签显示小蓝点，打开「更新动态」后消失。"
         },
         {
           "kind": "feature",

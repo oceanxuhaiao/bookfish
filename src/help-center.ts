@@ -158,4 +158,8 @@ export class HelpCenter {
     return { ok, unread: this.store?.unread() ?? false, ...(ok ? {} : { warning: this.store?.snapshot().error ?? '更新状态未能保存' }) };
   }
 
+  unread(): boolean {
+    return this.store?.unread() ?? false;
+  }
+
 }

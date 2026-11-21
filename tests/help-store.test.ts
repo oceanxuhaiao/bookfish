@@ -50,6 +50,9 @@ describe('help announcement state', () => {
     next.open();
     expect(next.evaluate()).toBeUndefined();
     expect(next.snapshot().lastSeenInstalledVersion).toBe('1.1.0');
+    expect(next.unread()).toBe(true);
+    expect(next.markUpdatesViewed()).toBe(true);
+    expect(next.unread()).toBe(false);
   });
 
   it('persists prompted before handing out a banner, then never prompts again', () => {
@@ -80,6 +83,7 @@ describe('help announcement state', () => {
     expect(current.unread()).toBe(true);
     expect(current.mark('major-1.1.0', 'viewed')).toBe(true);
     expect(current.unread()).toBe(false);
+    expect(current.snapshot().lastReadVersion).toBe('1.1.0');
   });
 
   it('prompts only for the newest applicable major when several versions were skipped', () => {
