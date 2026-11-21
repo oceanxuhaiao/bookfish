@@ -1,0 +1,4 @@
+{"kind":"temporary-ETW-session","provider":"Microsoft-Windows-DNS-Client","globalOperationalChannelChanged":false}
+{"kind":"browser-DNS-exercise","domain":"bookfish-1795228735257-direct.example.com","mode":"OS-resolution-with-browser-WFP","browserPid":33376}
+{"kind":"browser-DNS-exercise","domain":"bookfish-1795228735257-blocked.example.com","mode":"fixed-proxy-and-browser-host-resolver-deny","browserPid":30148}
+{"kind":"cleanup","stdout":"filter 86164b09-41eb-4cfc-a994-e74a5e0983f1 result=0x80320003\r\nfilter 38b35fab-1f0a-4559-869e-f410e1e25860 result=0x80320003\r\nfilter 2a3938df-e44b-4543-9733-03df7094f9b0 result=0x80320003\r\nfound=0 expected=3\r\n"}

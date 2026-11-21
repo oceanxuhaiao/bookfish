@@ -1,0 +1,4 @@
+{"kind":"local-cert-scope","spkiOnly":true,"rootCertificateInstalled":false,"port":55454}
+{"kind":"actual-Chrome-HTTP3-positive","passed":true,"requests":1,"content":"BOOKFISH_REAL_HTTP3_OK"}
+{"kind":"actual-Chrome-HTTP3-WFP-negative","passed":true,"requestDelta":0}
+{"kind":"cleanup","stdout":"filter 51b1b185-9873-4d0e-aa51-4d8e8f6273b0 result=0x80320003\r\nfilter 7b8c061c-4206-42a1-9eb8-505c7c11b71b result=0x80320003\r\nfilter a0ff5e29-2586-44ca-a330-4cf1fb952e37 result=0x80320003\r\nfound=0 expected=3\r\n"}

@@ -1,0 +1,73 @@
+(node:23692) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"kind":"dual-exact-endpoint-rules","proxyPort":56877,"bridgePort":56874,"filters":4}
+{"kind":"browser-version","protocolVersion":"1.3","product":"Chrome/158.0.8127.36","revision":"@14d6f648e8cd7ad750a4044200ce94d3321be260","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36","jsVersion":"15.8.62.31"}
+{"kind":"isolated-profile-extension-inventory","disabled":[],"remaining":[{"id":"enkhhoeabkjcfipdhadhcnolmknhdcea","name":"BookFish Browser Bridge","type":"extension","installType":"development"}]}
+{"kind":"worker-network-observation","attached":true}
+{"kind":"pairing-and-exact-local-bypass","passed":true,"bridgeConnections":1,"bridgeProxyAttempts":0}
+{"kind":"bridge-receipt","action":"chunk","status":200,"bytes":4194304}
+{"kind":"bridge-receipt","action":"chunk","status":200,"bytes":3795632}
+{"kind":"large-fixture-first-check","passed":true,"bytes":7989936}
+{"kind":"bridge-receipt","action":"done","status":200,"bytes":95}
+{"kind":"actual-MV3-GBK-page","passed":true}
+{"kind":"bridge-receipt","action":"page","status":200,"bytes":237}
+{"kind":"runtime-diagnostic","state":{"at":1795228445206,"connected":true,"error":null,"job":null,"port":56874},"proxyRequests":14,"bridgeConnections":1,"heartbeats":0,"chunks":2,"pending":[{"kind":"file","claimed":true,"bytes":0,"busy":false,"leaseRemaining":29997}]}
+{"kind":"bridge-receipt","action":"chunk","status":200,"bytes":4194304}
+{"kind":"bridge-receipt","action":"chunk","status":200,"bytes":3795632}
+{"kind":"actual-MV3-4MiB-chunks","passed":true,"bytes":7989936,"chunks":[4194304,3795632,4194304,3795632]}
+{"kind":"bridge-receipt","action":"done","status":200,"bytes":95}
+{"kind":"runtime-diagnostic","state":{"at":1795228450048,"connected":true,"error":null,"job":"file","port":56874},"proxyRequests":17,"bridgeConnections":1,"heartbeats":0,"chunks":4,"pending":[{"kind":"file","claimed":true,"bytes":0,"busy":false,"leaseRemaining":29792}]}
+{"kind":"bridge-receipt","action":"chunk","status":200,"bytes":4194304}
+{"kind":"runtime-diagnostic","state":{"at":1795228450048,"connected":true,"error":null,"job":"file","port":56874},"proxyRequests":18,"bridgeConnections":1,"heartbeats":0,"chunks":5,"pending":[{"kind":"file","claimed":true,"bytes":4194304,"busy":false,"leaseRemaining":29811}]}
+{"kind":"actual-MV3-heartbeat-cancel","passed":true,"heartbeats":1}
+{"kind":"bridge-receipt","action":"fail","status":409,"bytes":20}
+{"kind":"actual-MV3-runtime-origin-revoke","passed":true}
+{"kind":"bridge-receipt","action":"fail","status":200,"bytes":20}
+{"kind":"actual-MV3-browser-permission-remove-cancels","passed":true}
+{"kind":"bridge-receipt","action":"fail","status":200,"bytes":20}
+{"kind":"runtime-diagnostic","state":{"at":1795228460259,"connected":true,"error":null,"job":null,"port":56874},"proxyRequests":20,"bridgeConnections":1,"heartbeats":2,"chunks":5,"pending":[{"kind":"file","claimed":true,"bytes":0,"busy":false,"leaseRemaining":29999}]}
+{"kind":"bridge-receipt","action":"fail","status":200,"bytes":20}
+{"kind":"actual-MV3-token-change-cancels","passed":true}
+{"kind":"bridge-receipt","action":"chunk","status":200,"bytes":4194304}
+{"kind":"bridge-receipt","action":"chunk","status":200,"bytes":3795632}
+{"kind":"actual-MV3-extension-restart","passed":true,"newConsumerObserved":true,"scope":"disabled/enabled via this isolated profile management page; runtime.reload of temporary debug-installed extension is a separately recorded incompatibility"}
+{"kind":"bridge-receipt","action":"done","status":200,"bytes":95}
+{"kind":"bridge-receipt","action":"fail","status":200,"bytes":21}
+{"kind":"bridge-receipt","action":"chunk","status":200,"bytes":4194304}
+{"kind":"bridge-receipt","action":"chunk","status":200,"bytes":3795632}
+{"kind":"actual-MV3-failed-transfer-then-retry","passed":true}
+{"kind":"bridge-receipt","action":"done","status":200,"bytes":95}
+{"kind":"runtime-diagnostic","state":{"at":1795228460995,"connected":true,"error":null,"job":"file","port":56874},"proxyRequests":27,"bridgeConnections":1,"heartbeats":2,"chunks":9,"pending":[{"kind":"file","claimed":true,"bytes":0,"busy":false,"leaseRemaining":25646}]}
+{"kind":"bridge-receipt","action":"chunk","status":200,"bytes":4194304}
+{"kind":"runtime-diagnostic","state":{"at":1795228460995,"connected":true,"error":null,"job":"file","port":56874},"proxyRequests":27,"bridgeConnections":1,"heartbeats":3,"chunks":10,"pending":[{"kind":"file","claimed":true,"bytes":4194304,"busy":false,"leaseRemaining":25647}]}
+{"kind":"runtime-diagnostic","state":{"at":1795228460995,"connected":true,"error":null,"job":"file","port":56874},"proxyRequests":27,"bridgeConnections":1,"heartbeats":3,"chunks":10,"pending":[{"kind":"file","claimed":true,"bytes":4194304,"busy":false,"leaseRemaining":20634}]}
+{"kind":"runtime-diagnostic","state":{"at":1795228460995,"connected":true,"error":null,"job":"file","port":56874},"proxyRequests":28,"bridgeConnections":1,"heartbeats":3,"chunks":10,"pending":[{"kind":"file","claimed":true,"bytes":4194304,"busy":false,"leaseRemaining":15631}]}
+{"kind":"runtime-diagnostic","state":{"at":1795228460995,"connected":true,"error":null,"job":"file","port":56874},"proxyRequests":28,"bridgeConnections":1,"heartbeats":3,"chunks":10,"pending":[{"kind":"file","claimed":true,"bytes":4194304,"busy":false,"leaseRemaining":10617}]}
+{"kind":"runtime-diagnostic","state":{"at":1795228460995,"connected":true,"error":null,"job":"file","port":56874},"proxyRequests":28,"bridgeConnections":1,"heartbeats":3,"chunks":10,"pending":[{"kind":"file","claimed":true,"bytes":4194304,"busy":false,"leaseRemaining":5605}]}
+{"kind":"runtime-diagnostic","state":{"at":1795228460995,"connected":true,"error":null,"job":"file","port":56874},"proxyRequests":28,"bridgeConnections":1,"heartbeats":3,"chunks":10,"pending":[{"kind":"file","claimed":true,"bytes":4194304,"busy":false,"leaseRemaining":595}]}
+{"kind":"actual-MV3-wall-clock-lease-expiry","passed":true,"leaseMs":30000,"oldPartRemoved":true}
+{"kind":"browser-version","protocolVersion":"1.3","product":"Chrome/158.0.8127.36","revision":"@14d6f648e8cd7ad750a4044200ce94d3321be260","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36","jsVersion":"15.8.62.31"}
+{"kind":"isolated-profile-extension-inventory","disabled":[],"remaining":[{"id":"enkhhoeabkjcfipdhadhcnolmknhdcea","name":"BookFish Browser Bridge","type":"extension","installType":"development"}]}
+{"kind":"worker-network-observation","attached":true}
+{"kind":"runtime-diagnostic","state":{"at":1795228499933,"connected":true,"error":null,"job":"file","port":56874},"proxyRequests":41,"bridgeConnections":2,"heartbeats":3,"chunks":10,"pending":[{"kind":"file","claimed":true,"bytes":0,"busy":false,"leaseRemaining":29517}]}
+{"kind":"bridge-receipt","action":"chunk","status":200,"bytes":4194304}
+{"kind":"runtime-diagnostic","state":{"at":1795228499933,"connected":true,"error":null,"job":"file","port":56874},"proxyRequests":42,"bridgeConnections":2,"heartbeats":4,"chunks":11,"pending":[{"kind":"file","claimed":true,"bytes":4194304,"busy":false,"leaseRemaining":27409}]}
+{"kind":"runtime-diagnostic","state":{"at":1795228499933,"connected":true,"error":null,"job":"file","port":56874},"proxyRequests":44,"bridgeConnections":2,"heartbeats":5,"chunks":11,"pending":[{"kind":"file","claimed":true,"bytes":4194304,"busy":false,"leaseRemaining":29512}]}
+{"kind":"bridge-receipt","action":"chunk","status":200,"bytes":3795632}
+{"kind":"bridge-receipt","action":"done","status":200,"bytes":94}
+{"kind":"bridge-receipt","action":"chunk","status":409,"bytes":3795632}
+{"kind":"bridge-receipt","action":"fail","status":409,"bytes":20}
+{"kind":"actual-MV3-two-consumer-late-upload","passed":true,"newAttemptWon":true,"lateUpload409":true,"finalHashUnchanged":true}
+{"kind":"wrong-token-denied","passed":true}
+{"kind":"other-loopback-blocked","passed":true,"response":{"blocked":true,"status":403},"delta":0}
+{"kind":"browser-version","protocolVersion":"1.3","product":"Chrome/158.0.8127.36","revision":"@14d6f648e8cd7ad750a4044200ce94d3321be260","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36","jsVersion":"15.8.62.31"}
+{"kind":"runtime-diagnostic","state":{"at":1795228512116,"connected":true,"error":null,"job":null,"port":56874},"proxyRequests":56,"bridgeConnections":6,"heartbeats":6,"chunks":13,"pending":[]}
+{"kind":"isolated-profile-extension-inventory","disabled":[],"remaining":[{"id":"enkhhoeabkjcfipdhadhcnolmknhdcea","name":"BookFish Browser Bridge","type":"extension","installType":"development"}]}
+{"kind":"worker-network-observation","attached":true}
+{"kind":"bridge-receipt","action":"chunk","status":200,"bytes":4194304}
+{"kind":"bridge-receipt","action":"chunk","status":200,"bytes":3795632}
+{"kind":"actual-MV3-browser-restart","passed":true}
+{"kind":"bridge-receipt","action":"done","status":200,"bytes":95}
+{"kind":"proxy-stopped-no-DIRECT-fallback","passed":true}
+{"kind":"result","passed":true,"scope":"Chrome MV3 dual WFP/public novel pipeline and listed cases only; Edge/QUIC/shared-DNS/Coopanion not yet accepted"}
+{"kind":"cleanup","passed":true,"stdout":"filter ce7ef5c6-743f-4c8a-b28b-1dbfb2323925 result=0x80320003\r\nfilter 60379168-a8cf-4202-a87d-30f6a94948ca result=0x80320003\r\nfilter 224cece7-0a5b-4b55-84d7-4ef84f9105f9 result=0x80320003\r\nfilter 28d262e9-ada3-48b4-be0b-13e2fff7e22c result=0x80320003\r\nfound=0 expected=4\r\n"}

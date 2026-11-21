@@ -1,0 +1,4 @@
+$ tsx scripts/extension-describe.ts ../packages/bookfish-txt-acquisition-hardening
+Wrote E:\项目\桌面宠物\扩展\cortina\state\packages\bookfish-txt-acquisition-hardening\describe.json: tools 16, events 10, prompts 1.
+(node:30788) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)

@@ -1,0 +1,50 @@
+$ tsx scripts/extension-check.ts '..\packages\bookfish-txt-acquisition-hardening'
+Directory: E:\项目\桌面宠物\扩展\cortina\state\packages\bookfish-txt-acquisition-hardening
+Package:   cortico-world-bookfish@0.63.0
+Contracts: world v6 / provider v6 / bot v7
+
+  ✓ manifest: kind=world, api=6
+  ✓ Entry: E:\项目\桌面宠物\扩展\cortina\state\packages\bookfish-txt-acquisition-hardening\src\index.ts
+  ✓ Default export has the world shape; id = bookfish
+    The World id must be unique in the deployment; an id that matches a built-in or another extension does not load.
+  ✓ Browser bundle: lib/webui.js
+    WebUI page id: world:bookfish
+    Published URL: /assets/extensions/cortico-world-bookfish/0.63.0/webui.js
+
+Construction check (temporary deployment, default config, no secrets, start() not called):
+  ✓ defaults() returns a config section.
+  ✓ create() returns a World instance, id = bookfish.
+  ✓ tools(): bookfish_get_status, bookfish_list_books, bookfish_select_book, bookfish_read_next, bookfish_finish_reading, bookfish_set_paused, bookfish_lookup, bookfish_record_reflection, bookfish_defer_reading, bookfish_acquire, bookfish_share, bookfish_claim_share, bookfish_review, bookfish_discussion, bookfish_import_txt, bookfish_help
+  ✓ envPromptVars(): placeholder values: 0.
+  ✓ webUi(): panels: 5, config groups: 0, prompt docs: 1.
+
+Self-description check (describe in the code against the file cortico.describe points to):
+  ✓ tools(): every tool is declared in describe.tools.
+  ✓ tools(): descriptions and parameters match describe.tools under the default config.
+  ✓ describe.json matches the self-description in the code.
+(node:30464) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+Tags (vocabulary: https://github.com/Pal-AI-Lab/cortico-extensions/blob/main/TAGS.md):
+  ⚠ Tag check skipped: could not read the tag vocabulary (raw.githubusercontent.com: The operation was aborted due to timeout; api.github.com: 403 rate limit exceeded (x-ratelimit-remaining: 0)). CORTICO_MARKET_INDEX_BASE=<mirror URL> reads it from a mirror with the same layout.
+
+Before publishing:
+  Tags: companion, creative, memory
+  ✓ CHANGELOG.md has a "## 0.63.0" section.
+  No "os" field: the market lists the package for every platform. If it runs only on some, set it, e.g. "os": ["win32"] or "os": ["!darwin"].
+  ✓ cortico.describe: describe.json
+  Requests to the maintainers are issues in https://github.com/Pal-AI-Lab/cortico-extensions:
+    tags (change tags the maintainers set, withdraw a declared warning tag), certify, supersede,
+    appeal (blocked), report, new-tag, other.
+    Title: [<type>] <package name>  (new-tag: [new-tag] <tag id>)
+    Body: one "key: value" per line; leave out keys that do not apply.
+      package: cortico-world-bookfish
+      add: <tag>, <tag>
+      remove: <tag>
+      by: <new package name>  (supersede; deprecate the old package on npm first)
+      reason: <one or two sentences>
+      evidence: <links>
+    Example, with the body saved in request.txt: gh issue create --repo Pal-AI-Lab/cortico-extensions --title "[tags] cortico-world-bookfish" --body-file request.txt
+  Market index and request rules: https://github.com/Pal-AI-Lab/cortico-extensions
+
+Extension check passed.
