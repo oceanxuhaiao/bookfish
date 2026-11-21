@@ -18,7 +18,7 @@ afterEach(() => {
 function center(): HelpCenter {
   const dir = mkdtempSync(join(tmpdir(), 'bookfish-help-ui-'));
   dirs.push(dir);
-  const value = new HelpCenter({ dataDir: dir, currentVersion: '0.64.4', now: () => new Date('2026-11-21T12:00:00Z') });
+  const value = new HelpCenter({ dataDir: dir, currentVersion: '0.64.7', now: () => new Date('2026-11-21T12:00:00Z') });
   value.open();
   return value;
 }
@@ -115,6 +115,12 @@ describe('help center view', () => {
     await flush();
     expect(host.querySelector('.bf-help-error')?.textContent).toContain('暂时打不开');
     expect([...host.querySelectorAll('button')].some((button) => button.textContent === '重试')).toBe(true);
+  });
+
+  it('highlights changed guide paragraphs by exact snippet', () => {
+    const snippet = '配置项旁的「?」会直接打开对应说明，不会触发阅读、下载或保存。';
+    const node = renderMarkdown(`# 配置\n\n- ${snippet}\n\n普通段落。`, undefined, [snippet]);
+    expect(node.querySelector('.bf-help-changed-block')?.textContent).toContain(snippet);
   });
 
   it('renders a one-time banner with view and dismiss actions', () => {

@@ -4,6 +4,7 @@ import {
   readGuide,
   releaseFor,
   releaseSummaries,
+  type FeatureChange,
   type HelpCatalog,
   type HelpCategory,
   type ProgressItem,
@@ -11,7 +12,13 @@ import {
 } from './help-content.ts';
 import { HelpStore, type AnnouncementView } from './help-store.ts';
 
-export type ReleaseSummary = Pick<ReleaseRecord, 'version' | 'releaseDate' | 'type' | 'majorAnnouncement' | 'title' | 'summary'>;
+export type ReleaseSummary = Pick<ReleaseRecord, 'version' | 'releaseDate' | 'type' | 'majorAnnouncement' | 'title' | 'summary'> & { isNew: boolean };
+
+export interface ChangedFeatureView {
+  featureId: string;
+  summary?: string;
+  snippets: string[];
+}
 
 export interface HelpIndexView {
   currentVersion: string;
@@ -21,6 +28,9 @@ export interface HelpIndexView {
   history: ReleaseSummary[];
   progressUpdatedAt: string;
   unread: boolean;
+  /** Version the user had read before opening this help session. */
+  lastReadVersion: string;
+  changedFeatures: ChangedFeatureView[];
   announcement?: AnnouncementView;
   warning?: string;
 }
@@ -31,10 +41,12 @@ export interface HelpGuideView {
   summary: string;
   markdown: string;
   experimental: boolean;
+  changed?: { summary?: string; snippets: string[] };
 }
 
 export interface HelpReleaseView extends ReleaseRecord {
   isCurrent: boolean;
+  isNew: boolean;
 }
 
 export interface HelpProgressView {
@@ -60,6 +72,7 @@ export class HelpCenter {
   private catalog: HelpCatalog | undefined;
   private store: HelpStore | undefined;
   private contentError: string | undefined;
+  private changeBaseline: string | undefined;
 
   constructor(private readonly options: HelpCenterOptions) {}
 
@@ -86,6 +99,30 @@ export class HelpCenter {
     return releaseFor(this.requireCatalog(), this.options.currentVersion);
   }
 
+  private baseline(): string {
+    if (this.changeBaseline === undefined) this.changeBaseline = this.store?.snapshot().lastReadVersion ?? this.options.currentVersion;
+    return this.changeBaseline;
+  }
+
+  private changesSince(): FeatureChange[] {
+    const catalog = this.requireCatalog();
+    const baseline = this.baseline();
+    const merged = new Map<string, FeatureChange>();
+    for (const release of catalog.releases) {
+      if (compareVersions(release.version, baseline) <= 0) continue;
+      if (compareVersions(release.version, this.options.currentVersion) > 0) continue;
+      for (const change of release.featureChanges ?? []) {
+        const previous = merged.get(change.featureId);
+        merged.set(change.featureId, {
+          featureId: change.featureId,
+          ...(change.summary ?? previous?.summary ? { summary: change.summary ?? previous?.summary } : {}),
+          snippets: [...(previous?.snippets ?? []), ...change.snippets],
+        });
+      }
+    }
+    return [...merged.values()];
+  }
+
   index(claimAnnouncement = false): HelpIndexView {
     let catalog: HelpCatalog;
     try {
@@ -99,11 +136,14 @@ export class HelpCenter {
         history: [],
         progressUpdatedAt: '',
         unread: false,
+        lastReadVersion: this.options.currentVersion,
+        changedFeatures: [],
         warning: String(error).replace(/^Error:\s*/u, ''),
       };
     }
     const latest = this.currentRelease;
-    const all = releaseSummaries(catalog);
+    const baseline = this.baseline();
+    const all = releaseSummaries(catalog).map((entry) => ({ ...entry, isNew: compareVersions(entry.version, baseline) > 0 }));
     const history = all.filter((entry) => entry.version !== latest.version);
     const state = this.store?.snapshot();
     const announcement = claimAnnouncement ? this.store?.claim() : undefined;
@@ -113,10 +153,12 @@ export class HelpCenter {
       features: catalog.categories
         .map((category) => ({ ...category, features: category.features.filter((feature) => feature.enabled && (!feature.minVersion || compareVersions(feature.minVersion, this.options.currentVersion) <= 0)) }))
         .filter((category) => category.features.length > 0),
-      latest: { version: latest.version, releaseDate: latest.releaseDate, type: latest.type, majorAnnouncement: latest.majorAnnouncement, title: latest.title, summary: latest.summary },
+      latest: { version: latest.version, releaseDate: latest.releaseDate, type: latest.type, majorAnnouncement: latest.majorAnnouncement, title: latest.title, summary: latest.summary, isNew: compareVersions(latest.version, baseline) > 0 },
       history,
       progressUpdatedAt: catalog.progress.updatedAt,
       unread: this.store?.unread() ?? false,
+      lastReadVersion: baseline,
+      changedFeatures: this.changesSince(),
       ...(announcement ? { announcement } : {}),
       ...(state?.error ? { warning: state.error } : {}),
     };
@@ -125,13 +167,17 @@ export class HelpCenter {
   guide(id: string): HelpGuideView {
     const catalog = this.requireCatalog();
     const guide = readGuide(catalog, id);
-    return { id: guide.feature.id, title: guide.feature.title, summary: guide.feature.summary, markdown: guide.markdown, experimental: guide.feature.experimental === true };
+    const change = this.changesSince().find((entry) => entry.featureId === id);
+    return {
+      id: guide.feature.id, title: guide.feature.title, summary: guide.feature.summary, markdown: guide.markdown, experimental: guide.feature.experimental === true,
+      ...(change ? { changed: { ...(change.summary ? { summary: change.summary } : {}), snippets: change.snippets } } : {}),
+    };
   }
 
   release(version?: string): HelpReleaseView {
     const catalog = this.requireCatalog();
     const record = releaseFor(catalog, version);
-    return { ...record, isCurrent: record.version === this.options.currentVersion };
+    return { ...record, isCurrent: record.version === this.options.currentVersion, isNew: compareVersions(record.version, this.baseline()) > 0 };
   }
 
   progress(): HelpProgressView {

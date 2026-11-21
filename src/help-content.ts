@@ -33,6 +33,13 @@ export interface ReleaseItem {
   text: string;
 }
 
+/** A guide changed in this release; snippets must exist in the guide body. */
+export interface FeatureChange {
+  featureId: string;
+  summary?: string;
+  snippets: string[];
+}
+
 export interface ReleaseRecord {
   version: string;
   releaseDate: string;
@@ -42,6 +49,7 @@ export interface ReleaseRecord {
   title: string;
   summary: string;
   items: ReleaseItem[];
+  featureChanges?: FeatureChange[];
   compatibility?: string[];
   technical?: string[];
 }
@@ -219,6 +227,19 @@ function parseReleases(raw: unknown): { updatedAt: string; currentVersion: strin
     };
     const type = text(release.type, `${version}.type`, 20) as ReleaseRecord['type'];
     if (!['major', 'minor', 'patch'].includes(type)) throw new HelpContentError(`${version}.type must be major, minor or patch`);
+    const featureChanges: FeatureChange[] | undefined = release.featureChanges === undefined || release.featureChanges === null
+      ? undefined
+      : (() => {
+          if (!Array.isArray(release.featureChanges)) throw new HelpContentError(`${version}.featureChanges must be an array`);
+          return release.featureChanges.map((entry, index) => {
+            const change = object(entry, `${version}.featureChanges[${index}]`);
+            return {
+              featureId: text(change.featureId, `${version}.featureChanges[${index}].featureId`, 80),
+              ...(optionalText(change.summary, `${version}.featureChanges[${index}].summary`, 300) ? { summary: optionalText(change.summary, `${version}.featureChanges[${index}].summary`, 300)! } : {}),
+              snippets: list(change.snippets, `${version}.featureChanges[${index}].snippets`) ?? [],
+            };
+          });
+        })();
     return {
       version,
       releaseDate: date(release.releaseDate, `${version}.releaseDate`),
@@ -228,6 +249,7 @@ function parseReleases(raw: unknown): { updatedAt: string; currentVersion: strin
       title: text(release.title, `${version}.title`, 120),
       summary: text(release.summary, `${version}.summary`, 300),
       items,
+      ...(featureChanges ? { featureChanges } : {}),
       ...(list(release.compatibility, `${version}.compatibility`) ? { compatibility: list(release.compatibility, `${version}.compatibility`)! } : {}),
       ...(list(release.technical, `${version}.technical`) ? { technical: list(release.technical, `${version}.technical`)! } : {}),
     };
@@ -282,6 +304,7 @@ export function loadHelpCatalog(options: { root?: string } = {}): HelpCatalog {
 /** Content checks that need the whole catalog: paths, versions and internal links. */
 export function validateHelpCatalog(catalog: HelpCatalog, packageVersion?: string): void {
   const seen = new Set<string>();
+  const featureIds = new Set(allFeatures(catalog).map((feature) => feature.id));
   for (const category of catalog.categories) {
     for (const feature of category.features) {
       if (seen.has(feature.id)) throw new HelpContentError(`Duplicate feature id: ${feature.id}`);
@@ -290,6 +313,11 @@ export function validateHelpCatalog(catalog: HelpCatalog, packageVersion?: strin
       const file = join(catalog.root, ...feature.contentPath.split('/'));
       if (!existsSync(file) || !statSync(file).isFile()) throw new HelpContentError(`${feature.id} content is missing: ${feature.contentPath}`);
       if (statSync(file).size === 0) throw new HelpContentError(`${feature.id} content is empty`);
+    }
+  }
+  for (const release of catalog.releases) {
+    for (const change of release.featureChanges ?? []) {
+      if (!featureIds.has(change.featureId)) throw new HelpContentError(`${release.version} featureChanges references unknown feature ${change.featureId}`);
     }
   }
   if (packageVersion !== undefined && packageVersion !== catalog.currentVersion) throw new HelpContentError(`Help content is for ${catalog.currentVersion}, package is ${packageVersion}`);
@@ -308,6 +336,16 @@ export function validateHelpLinks(catalog: HelpCatalog): void {
     if (!body.trim()) throw new HelpContentError(`${feature.id} content is empty`);
     for (const match of body.matchAll(/\]\(help:([a-z0-9][a-z0-9-]*)\)/gu)) {
       if (!featureIds.has(match[1]!)) throw new HelpContentError(`${feature.contentPath} links to unknown help id ${match[1]}`);
+    }
+  }
+  for (const release of catalog.releases) {
+    for (const change of release.featureChanges ?? []) {
+      const feature = allFeatures(catalog).find((entry) => entry.id === change.featureId);
+      if (!feature) throw new HelpContentError(`${release.version} references unknown feature ${change.featureId}`);
+      const body = readFileSync(join(catalog.root, ...feature.contentPath.split('/')), 'utf8');
+      for (const snippet of change.snippets) {
+        if (!body.includes(snippet)) throw new HelpContentError(`${release.version} snippet is missing from ${change.featureId}: ${snippet}`);
+      }
     }
   }
 }

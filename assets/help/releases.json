@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "updatedAt": "2026-11-21",
-  "currentVersion": "0.64.4",
+  "currentVersion": "0.64.7",
   "releases": [
     {
-      "version": "0.64.4",
+      "version": "0.64.7",
       "releaseDate": "2026-11-21",
       "type": "minor",
       "majorAnnouncement": false,
@@ -29,6 +29,10 @@
         },
         {
           "kind": "feature",
+          "text": "进入帮助页后标出本次变化：功能卡显示「有更新」并自动展开分类，详情高亮改动段落；更新动态条目显示「新」，详情高亮该条。"
+        },
+        {
+          "kind": "feature",
           "text": "指南只在点开时加载正文；首页只保留目录和一句话简介，不把全部说明塞进页面。"
         },
         {
@@ -46,6 +50,15 @@
         {
           "kind": "note",
           "text": "重要更新提醒只在发布方明确标记时出现，同一公告最多自动提醒一次；普通更新不弹窗。"
+        }
+      ],
+      "featureChanges": [
+        {
+          "featureId": "settings",
+          "summary": "配置项增加了「?」快捷说明",
+          "snippets": [
+            "配置项旁的「?」会直接打开对应说明，不会触发阅读、下载或保存。"
+          ]
         }
       ],
       "technical": [

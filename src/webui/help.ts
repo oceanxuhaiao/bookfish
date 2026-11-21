@@ -39,6 +39,12 @@ export const helpStyle = `
 .bf-help-item:hover{background:#eef3e7;border-color:#cbd8c3}
 .bf-help-item-icon{font-size:20px;line-height:1.3}.bf-help-item strong{display:block;font-size:15px}.bf-help-item small{display:block;color:#6e7b70;line-height:1.55}
 .bf-help-badge{display:inline-block;font-size:11px;font-weight:500;border-radius:999px;padding:1px 8px;margin-left:6px;background:#f4ecd7;color:#7c5c1c;vertical-align:1px}
+.bf-help-badge.update{background:#e7f0fb;color:#2e5f8a}.bf-help-badge.new{background:#2f6fb3;color:#fff;font-weight:600}
+.bf-help-changed-block{background:#fff3c4;border-left:3px solid #d4a22f;border-radius:5px;padding:7px 11px;margin-left:-2px}
+.bf-help-changed-note{display:flex;flex-wrap:wrap;gap:5px 8px;align-items:center;background:#e7f0fb;color:#2e5f8a;border-radius:7px;padding:6px 10px;font-size:13px;margin:8px 0}
+.bf-help-jump{border:1px solid #a9c5df;background:#f7fbff;color:#2e5f8a;border-radius:999px;padding:1px 9px;font-size:12px}
+.bf-help-jump:hover{background:#e3f0fb}
+.bf-help-release-item.is-new{background:#eef5ff;border-left:3px solid #3b78b5;border-radius:6px;padding:6px 9px}
 .bf-help-detail-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px}.bf-help-detail-head h2,.bf-help-detail-head h3{margin:0}
 .bf-help-body{overflow-wrap:anywhere}.bf-help-body h2{font-size:22px;margin:6px 0 8px}.bf-help-body h3{font-size:17px;margin:20px 0 6px}.bf-help-body h4{font-size:15px;margin:16px 0 4px}
 .bf-help-body p{margin:7px 0}.bf-help-body ul,.bf-help-body ol{margin:4px 0 10px;padding-left:24px}.bf-help-body ul{list-style:disc}.bf-help-body ol{list-style:decimal}.bf-help-body li{margin:3px 0;display:list-item}
@@ -102,7 +108,7 @@ function appendInline(parent: HTMLElement, text: string, onHelpLink?: (id: strin
 }
 
 /** Minimal, deliberately safe Markdown renderer. It never assigns innerHTML. */
-export function renderMarkdown(markdown: string, onHelpLink?: (id: string) => void): HTMLElement {
+export function renderMarkdown(markdown: string, onHelpLink?: (id: string) => void, highlights: string[] = []): HTMLElement {
   const root = document.createElement('div');
   root.className = 'bf-help-body';
   let container: HTMLElement = root;
@@ -167,6 +173,12 @@ export function renderMarkdown(markdown: string, onHelpLink?: (id: string) => vo
     paragraph.push(line);
   }
   closeBlocks();
+  if (highlights.length) {
+    for (const block of root.querySelectorAll<HTMLElement>('p, li, blockquote')) {
+      const text = block.textContent ?? '';
+      if (highlights.some((snippet) => text.includes(snippet))) block.classList.add('bf-help-changed-block');
+    }
+  }
   return root;
 }
 
@@ -283,6 +295,17 @@ export class HelpCenterView {
     el('p', this.say('想知道大肥鱼会什么？点开看看吧！', 'Want to know what she can do? Open a card below.'), copy).className = 'bf-help-tagline';
     const version = el('span', '', header); version.className = 'bf-help-version';
     version.textContent = this.say('当前版本 ', 'Installed ') + (this.index?.currentVersion ?? '…');
+    const changed = this.index?.changedFeatures ?? [];
+    if (changed.length) {
+      const note = document.createElement('div'); note.className = 'bf-help-changed-note'; root.append(note);
+      note.append(document.createTextNode(this.say(`本次有 ${changed.length} 项功能说明更新：`, `${changed.length} guide${changed.length === 1 ? '' : 's'} changed: `)));
+      for (const change of changed) {
+        const title = this.index?.features.flatMap((category) => category.features).find((feature) => feature.id === change.featureId)?.title ?? change.featureId;
+        const jump = document.createElement('button'); jump.type = 'button'; jump.className = 'bf-help-jump'; jump.textContent = title;
+        jump.addEventListener('click', () => void this.openGuide(change.featureId));
+        note.append(jump);
+      }
+    }
     const scroll = document.createElement('div'); scroll.className = 'bf-help-scroll'; root.append(scroll); this.scroll = scroll;
     const catalog = document.createElement('div'); scroll.append(catalog); this.catalog = catalog;
     const detail = document.createElement('div'); detail.hidden = true; scroll.append(detail); this.detail = detail;
@@ -318,9 +341,11 @@ export class HelpCenterView {
       const box = el('div', this.say('提示：', 'Note: ') + index.warning, this.catalog);
       box.className = 'bf-help-error';
     }
+    const changed = new Set((index.changedFeatures ?? []).map((change) => change.featureId));
     let first = true;
     for (const category of index.features) {
-      const details = document.createElement('details'); details.className = 'bf-help-category'; details.open = first; first = false;
+      const categoryChanged = category.features.some((feature) => changed.has(feature.id));
+      const details = document.createElement('details'); details.className = 'bf-help-category'; details.open = first || categoryChanged; first = false;
       const summary = document.createElement('summary');
       el('strong', `${category.icon} ${category.title}`, summary);
       el('small', category.summary, summary);
@@ -332,6 +357,7 @@ export class HelpCenterView {
         const text = el('span', '', button);
         const title = el('strong', feature.title, text);
         if (feature.experimental) { const badge = el('span', this.say('实验功能', 'Experimental'), title); badge.className = 'bf-help-badge'; }
+        if (changed.has(feature.id)) { const badge = el('span', this.say('有更新', 'Updated'), title); badge.className = 'bf-help-badge update'; }
         el('small', feature.summary, text);
         button.addEventListener('click', () => void this.openGuide(feature.id));
         list.append(button);
@@ -383,7 +409,8 @@ export class HelpCenterView {
     const title = el('h2', guide.title, head); title.tabIndex = -1;
     if (guide.experimental) { const badge = el('span', this.say('实验功能', 'Experimental'), head); badge.className = 'bf-help-badge'; }
     el('p', guide.summary, this.detail).className = 'bf-help-tagline';
-    const body = renderMarkdown(guide.markdown, (next) => void this.openGuide(next));
+    if (guide.changed?.summary) el('p', this.say('本次更新：', 'Updated: ') + guide.changed.summary, this.detail).className = 'bf-help-changed-note';
+    const body = renderMarkdown(guide.markdown, (next) => void this.openGuide(next), guide.changed?.snippets ?? []);
     const duplicate = body.querySelector('h2');
     if (duplicate?.textContent === guide.title) duplicate.remove();
     this.detail.append(body);
@@ -439,8 +466,9 @@ export class HelpCenterView {
   }
 
   private releaseCard(release: HelpReleaseView, compact = false): HTMLElement {
-    const card = document.createElement('article'); card.className = 'bf-help-release';
+    const card = document.createElement('article'); card.className = 'bf-help-release' + (release.isNew ? ' is-new' : '');
     const title = el('h3', release.title, card);
+    if (release.isNew) { const badge = el('span', this.say('新', 'New'), title); badge.className = 'bf-help-badge new'; }
     if (release.majorAnnouncement) { const badge = el('span', this.say('重要更新', 'Important'), title); badge.className = 'bf-help-badge'; }
     const meta = el('p', '', card); meta.className = 'bf-help-release-meta';
     el('span', 'v' + release.version, meta); el('span', formatDate(release.releaseDate), meta);
@@ -451,7 +479,8 @@ export class HelpCenterView {
         const items = release.items.filter((item) => item.kind === kind);
         if (!items.length) continue;
         for (const item of items) {
-          const row = el('p', '', card); row.className = 'bf-help-release-item';
+          const row = el('p', '', card); row.className = 'bf-help-release-item' + (release.isNew ? ' is-new' : '');
+          if (release.isNew) { const badge = el('span', this.say('新', 'New'), row); badge.className = 'bf-help-badge new'; }
           const labels = KIND_LABEL[kind] ?? [kind, kind];
           el('b', this.say(labels[0], labels[1]) + '：', row);
           row.append(document.createTextNode(item.text));
@@ -490,7 +519,8 @@ export class HelpCenterView {
     const detail = el('div', '', host);
     for (const entry of history) {
       const button = document.createElement('button'); button.type = 'button';
-      el('span', 'v' + entry.version + ' · ' + entry.title, button);
+      const heading = el('span', 'v' + entry.version + ' · ' + entry.title, button);
+      if (entry.isNew) { const badge = el('span', this.say('新', 'New'), heading); badge.className = 'bf-help-badge new'; }
       el('small', formatDate(entry.releaseDate) + ' · ' + entry.summary, button);
       button.addEventListener('click', () => {
         void (async () => {
@@ -554,7 +584,7 @@ export async function openGuideDrawer(ctx: WebUiPanelContext, say: Say, id: stri
       el('h2', guide.title, head);
       if (guide.experimental) { const badge = el('span', say('实验功能', 'Experimental'), head); badge.className = 'bf-help-badge'; }
       el('p', guide.summary, content);
-      const body = renderMarkdown(guide.markdown, (next) => void show(next));
+      const body = renderMarkdown(guide.markdown, (next) => void show(next), guide.changed?.snippets ?? []);
       const duplicate = body.querySelector('h2');
       if (duplicate?.textContent === guide.title) duplicate.remove();
       content.append(body);
