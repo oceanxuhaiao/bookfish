@@ -1,3 +1,5 @@
+> 第四阶段更正：历史阶段标识13b6149不代表第三轮最终审核对象。第三轮审核对象35e364a，此前生产代码修复8587756，宿主辅助c74aa66；本轮修复候选及重新验证以 ../round4/00-审核入口.md 为准。本文旧结论不得替代本轮实测。
+
 # Node 网络安全与固定 socket
 
 状态：PARTIAL；生产代码单测与一次真实 IPv6/TLS socket 观察通过，完整攻击环境矩阵尚未全部实网验证。不是浏览器隔离验收。
@@ -17,6 +19,6 @@
 |HTTP↔HTTPS|两协议仅标准端口；双向实网重定向 NOT_TESTED|
 |取消/超时/写盘错误|下载及桥接回归 PASS；ENOSPC 为注入，未填满真实磁盘|
 
-命令：`node --import tsx scripts/round3-live-socket.mts`；`vitest run tests/txt-acquisition-pinned-round3.test.ts tests/txt-acquisition-url.test.ts tests/txt-acquisition-download.test.ts`，3文件26项通过，日志 `r3-pinned-matrix.log`。旧下载/URL测试同时重新运行，并非继承上一轮通过结论。
+命令：`node --import tsx scripts/round3-live-socket.mts`；`vitest run tests/txt-acquisition-pinned-round3.test.ts tests/txt-acquisition-url.test.ts tests/txt-acquisition-download.test.ts`，3文件26项通过，日志 `evidence/r3-pinned-matrix.txt`。旧下载/URL测试同时重新运行，并非继承上一轮通过结论。
 
 HTML 发现统一 decodeHtml 优先级，TXT 原始下载字节不经文本解码。下载与导入原件完整性见 02/03/04。此处没有管理员网络修改，也没有将 URL 校验结果替代真实 socket 地址证据。

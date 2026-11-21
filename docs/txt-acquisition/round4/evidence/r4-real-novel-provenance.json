@@ -1,0 +1,22 @@
+{
+  "source": "https://ftp.gwdg.de/pub/misc/gutenberg/2/4/2/6/24264/24264-0.txt",
+  "realOriginals": 1,
+  "derivedVariants": 11,
+  "historicalUserRejectedFiles": 0,
+  "chapterHeadings": 123,
+  "humanReadingReview": false,
+  "cases": [
+    "utf8-original",
+    "gb18030-full",
+    "utf16-full",
+    "minor-damage",
+    "mixed-utf8-gb",
+    "mixed-gb-utf8",
+    "irregular-titles",
+    "missing-chapter",
+    "duplicate-chapter",
+    "ad-lines",
+    "truncated-tail",
+    "partial-prose"
+  ]
+}

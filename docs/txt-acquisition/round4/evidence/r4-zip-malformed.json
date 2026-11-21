@@ -1,0 +1,17 @@
+[
+  {
+    "malformedNtfsBytes": 4,
+    "passed": true,
+    "worker": "done"
+  },
+  {
+    "malformedNtfsBytes": 7,
+    "passed": true,
+    "worker": "done"
+  },
+  {
+    "malformedNtfsBytes": 9,
+    "passed": true,
+    "worker": "done"
+  }
+]

@@ -1,0 +1,33 @@
+## codex/txt-acquisition-round4
+ M src/novel-fetch.ts
+ M src/novel-match.ts
+ M src/selection-types.ts
+ M src/selection.ts
+ M src/stream-import.ts
+ M src/txt-acquisition/acquisition.ts
+ M src/txt-acquisition/download.ts
+ M src/txt-acquisition/quality.ts
+ M src/txt-acquisition/records.ts
+ M src/txt-acquisition/staging.ts
+ M src/world.ts
+ M tests/novel-match.test.ts
+ M tests/txt-acquisition-round3.test.ts
+ M tests/txt-acquisition-selection.test.ts
+ M tests/txt-acquisition-worker.test.ts
+?? docs/txt-acquisition/round4/
+?? tests/txt-acquisition-round4-integration.test.ts
+?? tests/txt-acquisition-round4.test.ts
++ codex/help-updates              07d759b (E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-help-updates) docs: record 0.64.9 progress correction release
+  codex/issue-2-writer-lock       93c8aec [origin/codex/issue-2-writer-lock] docs: record writer lock validation evidence and pending Windows 11 acceptance
++ codex/release-0.63.1            c59bdbc (E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-issue-2-writer-lock) docs: record verified npm GitHub and market 0.63.1 release
++ codex/txt-acquisition-hardening d5878f9 (E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-hardening) [origin/codex/txt-acquisition-hardening] docs(txt): preserve follow-up verification logs for independent review
+  codex/txt-acquisition-round3    c74aa66 fix(verification): check enabled Windows admin token without localized text
+* codex/txt-acquisition-round4    c74aa66 fix(verification): check enabled Windows admin token without localized text
++ main                            ea9b45b (E:/项目/桌面宠物/扩展/cortina/state/packages/cortico-world-bookfish/output/github-bookfish) [origin/main: behind 26] release: Bookfish 0.62.1 (prompt optimization 0.62.0 + version bump)
+origin	https://github.com/oceanxuhaiao/bookfish.git (fetch)
+origin	https://github.com/oceanxuhaiao/bookfish.git (push)
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/cortico-world-bookfish/output/github-bookfish" ea9b45b [main]
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/bookfish-help-updates"                         07d759b [codex/help-updates]
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/bookfish-issue-2-writer-lock"                  c59bdbc [codex/release-0.63.1]
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/bookfish-txt-acquisition-hardening"            d5878f9 [codex/txt-acquisition-hardening]
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/bookfish-txt-acquisition-round3"               c74aa66 [codex/txt-acquisition-round4]
