@@ -1,0 +1,11 @@
+{
+  "issue": 1061,
+  "url": "https://github.com/Pal-AI-Lab/cortico-extensions/issues/1061",
+  "workflow": "https://github.com/Pal-AI-Lab/cortico-extensions/actions/runs/44867790692",
+  "workflowConclusion": "success",
+  "listedVersion": "0.63.1",
+  "detailError": "tarball 404 during npm CDN propagation",
+  "canonicalTarballNowVerified": true,
+  "reopenAttempt": "GitHub connector returned HTTP 422 with and without state_reason; original issue left closed",
+  "next": "Submit one follow-up sync after the old 300-second negative cache has expired."
+}

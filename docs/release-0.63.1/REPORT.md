@@ -47,7 +47,18 @@ npm pack 清单确认无开发中的 TXT 获取代码、测试、证据、数据
 
 用户已明确回复“显示正常”，桌面目击通过。npm 0.63.1 已发布，latest=0.63.1；线上元数据 shasum / integrity 与候选一致，下载包 SHA-256 与实机安装包完全相同。发布时间为 2026-11-21 12:45:35（Asia/Shanghai）。发布后初期 CDN 曾缓存旧元数据与 tarball 404，使用新查询核对源站和实际下载成功，未重复发布。
 
-正在同步 GitHub main / v0.63.1 与 Release，随后请求扩展市场同步。npm 发布证据：evidence/release-0.63.1/npm-published.json。
+GitHub main 与发布分支已快进到 5a83f700f5470ef8a7de43b401b4bf3970fbc9d8，版本标签 v0.63.1 指向该提交。GitHub Release 已公开，附带同一 tgz 和 SHA256SUMS，GitHub 资产 digest 与候选一致。
+
+- npm：https://www.npmjs.com/package/cortico-world-bookfish/v/0.63.1
+- Release：https://github.com/oceanxuhaiao/bookfish/releases/tag/v0.63.1
+- 市场同步：https://github.com/Pal-AI-Lab/cortico-extensions/issues/1062#issuecomment-7057578739（官方回执已收录 0.63.1，无详情下载错误）
+- 市场详情 JSON 已实读核验 version=0.63.1，更新日志同时包含 0.63.1 和此前未同步的 0.63.0。
+
+首次同步 #1061 已更新版本目录，但负缓存造成详情 tarball 404；缓存过期、默认 tarball 下载恢复并验 hash 后补发 #1062，完整详情同步成功。原请求重新打开两次均返回 GitHub 422，未修改其关闭状态。市场 WebUI 可能因索引与宿主缓存最多约 10 分钟后显示。
+
+本次顺序发布全部完成。正式版本标签仍指向 5a83f70；后续提交仅保存发布证据，不改动已发布代码。
+
+发布证据：evidence/release-0.63.1/npm-published.json、npm-download-verified.json、github-release.json。
 
 ## 升降级说明
 
