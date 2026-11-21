@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
-import { webcrypto, randomUUID } from 'node:crypto';
+import { webcrypto, randomUUID, createHash } from 'node:crypto';
 const SOURCE = 'https://files.example.com/book.txt';
-async function worker(responseFactory: () => Response, allowedOrigins = ['https://files.example.com'], revokeDuringFetch = false) {
+async function worker(responseFactory: () => Response, allowedOrigins = ['https://files.example.com'], revokeDuringFetch = false, bridgeStatus=200) {
   const replies: Response[] = [];
   const calls: Array<{ url: string; init?: RequestInit }> = []; let upstreamCalls = 0;
   const listeners = new Set<(...args: any[]) => void>();
@@ -16,8 +16,8 @@ async function worker(responseFactory: () => Response, allowedOrigins = ['https:
     btoa: (text: string) => Buffer.from(text, 'latin1').toString('base64'), chrome, crypto: { randomUUID, subtle: webcrypto.subtle }, AbortController, AbortSignal, URL, Uint8Array, TextDecoder,
     setTimeout: () => 1, clearTimeout() {}, setInterval: () => 1, clearInterval() {},
     fetch: async (value: string, init?: RequestInit) => {
-      const url = String(value); calls.push({ url, init });
-      if (url.startsWith('http://127.0.0.1:')) { const reply = new Response('{}', { status: 200 }); replies.push(reply); return reply; }
+      const url = String(value); calls.push({ url, init: init?.body instanceof Uint8Array ? {...init,body:Uint8Array.from(init.body)} : init });
+      if (url.startsWith('http://127.0.0.1:')) { const reply = new Response('{}', { status: bridgeStatus }); replies.push(reply); return reply; }
       upstreamCalls++; if (revokeDuringFetch) for (const listener of listeners) listener({ allowedOrigins: { newValue: [] } }, 'local'); const response = responseFactory(); Object.defineProperty(response, 'url', { value: SOURCE }); return response;
     },
   } as Record<string, unknown>;
@@ -26,6 +26,19 @@ async function worker(responseFactory: () => Response, allowedOrigins = ['https:
   return { calls, replies, run: async (kind = 'file', url = SOURCE) => api.handle({ id: randomUUID(), kind, url, lease: randomUUID(), leaseMs: 30000, maxBytes: kind === 'file' ? 100 * 1024 * 1024 : 8 * 1024 * 1024 }, { port: 47823, token: 'paired', allowedOrigins }), get upstreamCalls() { return upstreamCalls; } };
 }
 describe('actual extension worker streaming policy', () => {
+  it('sends exact 4MiB chunks and the final tail without decoding bytes', async () => {
+    const bytes=new Uint8Array(4*1024*1024+137);for(let i=0;i<bytes.length;i++)bytes[i]=i%251;
+    const env=await worker(()=>new Response(bytes,{headers:{'content-type':'text/plain'}}));await env.run();
+    const chunks=env.calls.filter(c=>c.url.endsWith('/chunk'));
+    expect(chunks.map(c=>(c.init!.body as Uint8Array).byteLength)).toEqual([4*1024*1024,137]);
+    expect(chunks.map(c=>(c.init!.headers as Record<string,string>)['x-bookfish-sequence'])).toEqual(['0','1']);
+    const sha=(value:Uint8Array)=>createHash('sha256').update(value).digest('hex');
+    expect(sha(Buffer.concat(chunks.map(c=>Buffer.from(c.init!.body as Uint8Array))))).toBe(sha(bytes));
+  });
+  it('does not send completed after a server rejects a chunk ACK', async () => {
+    const env=await worker(()=>new Response('raw bytes',{headers:{'content-type':'text/plain'}}),['https://files.example.com'],false,503);await env.run();
+    expect(env.calls.some(c=>c.url.endsWith('/chunk'))).toBe(true);expect(env.calls.some(c=>c.url.endsWith('/done'))).toBe(false);
+  });
   it('transfers original non-UTF8 bytes with ordered chunks and final byte count', async () => {
     const bytes = new Uint8Array([0xd6, 0xd0, 0xce, 0xc4]); const env = await worker(() => new Response(bytes, { headers: { 'content-type': 'text/plain' } })); await env.run();
     const chunk = env.calls.find(call => call.url.endsWith('/chunk'))!; expect(Buffer.from(chunk.init!.body as Uint8Array)).toEqual(Buffer.from(bytes)); expect((chunk.init!.headers as Record<string, string>)['x-bookfish-sequence']).toBe('0');

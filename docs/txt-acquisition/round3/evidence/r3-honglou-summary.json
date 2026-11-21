@@ -1,0 +1,365 @@
+{
+  "source": {
+    "source": "https://ftp.gwdg.de/pub/misc/gutenberg/2/4/2/6/24264/24264-0.txt",
+    "realOriginals": 1,
+    "derivedVariants": 11,
+    "historicalUserRejectedFiles": 0,
+    "chapterHeadings": 123,
+    "humanReadingReview": false,
+    "cases": [
+      "utf8-original",
+      "gb18030-full",
+      "utf16-full",
+      "minor-damage",
+      "mixed-utf8-gb",
+      "mixed-gb-utf8",
+      "irregular-titles",
+      "missing-chapter",
+      "duplicate-chapter",
+      "ad-lines",
+      "truncated-tail",
+      "partial-prose"
+    ]
+  },
+  "independentOriginals": 1,
+  "derivedSamples": 11,
+  "results": [
+    {
+      "id": "ad-lines",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2663368,
+      "sha256": "00dbf6fd011181b7e7ecdf3d3ff1a84e237e0e188e7fda5ba5f9005dbaadbd2e",
+      "strictRejected": false,
+      "encoding": "utf-8",
+      "replacements": 0,
+      "quality": "warning",
+      "warnings": [
+        "duplicate_chapters",
+        "chapter_numbers_irregular",
+        "chapters_missing",
+        "ad_lines"
+      ],
+      "repairs": [
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 881313,
+      "totalSegments": 836,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probesChecked": 3,
+      "proseProbesChecked": 3
+    },
+    {
+      "id": "duplicate-chapter",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2689468,
+      "sha256": "91cf63832dced24e9e4a07410dd58eb7274b01f4e14b0719c46caf9296c728c7",
+      "strictRejected": false,
+      "encoding": "utf-8",
+      "replacements": 0,
+      "quality": "warning",
+      "warnings": [
+        "duplicate_chapters",
+        "chapter_numbers_irregular",
+        "chapters_missing",
+        "ad_lines"
+      ],
+      "repairs": [
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 889851,
+      "totalSegments": 843,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probesChecked": 3,
+      "proseProbesChecked": 3
+    },
+    {
+      "id": "gb18030-full",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 1808755,
+      "sha256": "e5cedeb881f0c129f4e7b252403e98d20f2d6aa29a5062031db26f232c6ef802",
+      "strictRejected": false,
+      "encoding": "gb18030",
+      "replacements": 0,
+      "quality": "warning",
+      "warnings": [
+        "duplicate_chapters",
+        "chapter_numbers_irregular",
+        "chapters_missing",
+        "ad_lines"
+      ],
+      "repairs": [
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 881285,
+      "totalSegments": 836,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probesChecked": 3,
+      "proseProbesChecked": 3
+    },
+    {
+      "id": "irregular-titles",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2663318,
+      "sha256": "58537c88b35881748930b39d4d109d1ad9b4e6d3c39f16cb1bd82461c5443731",
+      "strictRejected": false,
+      "encoding": "utf-8",
+      "replacements": 0,
+      "quality": "warning",
+      "warnings": [
+        "duplicate_chapters",
+        "chapter_numbers_irregular",
+        "chapters_missing",
+        "ad_lines"
+      ],
+      "repairs": [
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 881288,
+      "totalSegments": 835,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probesChecked": 3,
+      "proseProbesChecked": 3
+    },
+    {
+      "id": "minor-damage",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2663313,
+      "sha256": "88f427ba981df594c4c470ccdf5cf17427ab9c6065719cd1ccedba3cfb669e7b",
+      "strictRejected": false,
+      "encoding": "utf-8-bom",
+      "replacements": 1,
+      "quality": "warning",
+      "warnings": [
+        "replacement_characters",
+        "duplicate_chapters",
+        "chapter_numbers_irregular",
+        "chapters_missing",
+        "ad_lines"
+      ],
+      "repairs": [
+        "encoding_repaired",
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 881285,
+      "totalSegments": 836,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probesChecked": 3,
+      "proseProbesChecked": 3
+    },
+    {
+      "id": "missing-chapter",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2637150,
+      "sha256": "344bc143a89c644fa4700823eeae61948e5fea781dabd2f7758d65f64d6bc1de",
+      "strictRejected": false,
+      "encoding": "utf-8",
+      "replacements": 0,
+      "quality": "warning",
+      "warnings": [
+        "duplicate_chapters",
+        "chapter_numbers_irregular",
+        "chapters_missing",
+        "ad_lines"
+      ],
+      "repairs": [
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 872719,
+      "totalSegments": 828,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probesChecked": 3,
+      "proseProbesChecked": 3
+    },
+    {
+      "id": "mixed-gb-utf8",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2229248,
+      "sha256": "6ec98de4043c5f39bd27d349b18d08d953f9f47c38d3a9e288fccae78e60e72f",
+      "strictRejected": true,
+      "encoding": "gb18030",
+      "replacements": 9321,
+      "quality": "partial",
+      "warnings": [
+        "mixed_encoding_suspected",
+        "replacement_characters",
+        "localized_encoding_damage",
+        "duplicate_chapters",
+        "chapter_numbers_irregular",
+        "chapters_missing",
+        "ad_lines"
+      ],
+      "repairs": [
+        "encoding_repaired",
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 1100571,
+      "totalSegments": 996,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "notes": "Only the confidently detected global encoding is used. Opposite-encoding portions can remain damaged; no claim of automatic full mixed-encoding restoration.",
+      "probesChecked": 3,
+      "proseProbesChecked": 3
+    },
+    {
+      "id": "mixed-utf8-gb",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2242816,
+      "sha256": "34a8092371c1c917ca4e7389ba9236c45c42aa20ee1a7207a091022986177dce",
+      "strictRejected": true,
+      "encoding": "utf-8",
+      "replacements": 530447,
+      "quality": "partial",
+      "warnings": [
+        "mixed_encoding_suspected",
+        "encoding_damaged",
+        "replacement_characters",
+        "duplicate_chapters",
+        "chapter_numbers_irregular",
+        "chapters_missing",
+        "ad_lines"
+      ],
+      "repairs": [
+        "encoding_repaired",
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 627598,
+      "totalSegments": 1036,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "notes": "Only the confidently detected global encoding is used. Opposite-encoding portions can remain damaged; no claim of automatic full mixed-encoding restoration.",
+      "probesChecked": 3,
+      "proseProbesChecked": 3
+    },
+    {
+      "id": "partial-prose",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 67547,
+      "sha256": "0680c3463e491db409b38bd43983af0b87477635d5c669c7429d3590c5ac4d7e",
+      "strictRejected": false,
+      "encoding": "utf-8",
+      "replacements": 0,
+      "quality": "partial",
+      "warnings": [
+        "possible_truncation"
+      ],
+      "repairs": [
+        "newlines_normalized"
+      ],
+      "readableChars": 22111,
+      "totalSegments": 21,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probesChecked": 3,
+      "proseProbesChecked": 3
+    },
+    {
+      "id": "truncated-tail",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2643293,
+      "sha256": "bba91ce9db7e4c1305baa6c83b37e7ef5fd93928264542e0c5093d121848db23",
+      "strictRejected": true,
+      "encoding": "utf-8",
+      "replacements": 1,
+      "quality": "partial",
+      "warnings": [
+        "replacement_characters",
+        "duplicate_chapters",
+        "chapter_numbers_irregular",
+        "chapters_missing",
+        "ad_lines",
+        "tail_truncated",
+        "possible_truncation"
+      ],
+      "repairs": [
+        "encoding_repaired",
+        "tail_truncated",
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 865430,
+      "totalSegments": 820,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probesChecked": 3,
+      "proseProbesChecked": 3
+    },
+    {
+      "id": "utf16-full",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 1908402,
+      "sha256": "544fe6c6553897d0cc45d3fc459d7d06489df44b9b4ce6e520dce2674e7a9a04",
+      "strictRejected": false,
+      "encoding": "utf-16le",
+      "replacements": 0,
+      "quality": "warning",
+      "warnings": [
+        "duplicate_chapters",
+        "chapter_numbers_irregular",
+        "chapters_missing",
+        "ad_lines"
+      ],
+      "repairs": [
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 881285,
+      "totalSegments": 836,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probesChecked": 3,
+      "proseProbesChecked": 3
+    },
+    {
+      "id": "utf8-original",
+      "provenance": "real public-domain original",
+      "bytes": 2663312,
+      "sha256": "20c795971786fd8eb2a00d35a1194b6dd3074b2afb4f4cd5a82ba3e10fe5dfaa",
+      "strictRejected": false,
+      "encoding": "utf-8-bom",
+      "replacements": 0,
+      "quality": "warning",
+      "warnings": [
+        "duplicate_chapters",
+        "chapter_numbers_irregular",
+        "chapters_missing",
+        "ad_lines"
+      ],
+      "repairs": [
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 881285,
+      "totalSegments": 836,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probesChecked": 3,
+      "proseProbesChecked": 3
+    }
+  ]
+}

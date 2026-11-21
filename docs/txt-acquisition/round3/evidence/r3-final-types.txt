@@ -1,0 +1,4 @@
+
+> cortico-world-bookfish@0.63.0 typecheck
+> tsc --noEmit && tsc -p tsconfig.web.json --noEmit
+

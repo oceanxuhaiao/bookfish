@@ -1,0 +1,11 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/txt-acquisition-worker.test.ts (8 tests) 55ms
+ ✓ tests/txt-acquisition-hardening.test.ts (13 tests) 444ms
+
+ Test Files  2 passed (2)
+      Tests  21 passed (21)
+   Start at  16:19:46
+   Duration  2.39s (transform 189ms, setup 0ms, collect 312ms, tests 499ms, environment 0ms, prepare 323ms)
+

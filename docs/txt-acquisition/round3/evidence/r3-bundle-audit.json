@@ -1,0 +1,14 @@
+{
+  "node": "v24.15.0",
+  "sameAsShipped": true,
+  "sha256": "e7130b26ee5749ef65316ff6fe4cf327401eb89f7721b4e5bf45d752e95ae2ab",
+  "inputs": [
+    "node_modules/.pnpm/pend@1.2.0/node_modules/pend/index.js",
+    "node_modules/.pnpm/yauzl@3.2.1/node_modules/yauzl/fd-slicer.js",
+    "node_modules/.pnpm/buffer-crc32@0.2.13/node_modules/buffer-crc32/index.js",
+    "node_modules/.pnpm/yauzl@3.2.1/node_modules/yauzl/index.js",
+    "src/novel-runtime/zip-worker.ts"
+  ],
+  "containsYauzl321": true,
+  "containsAuditTestTools": []
+}

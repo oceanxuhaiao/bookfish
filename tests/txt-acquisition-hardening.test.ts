@@ -42,9 +42,9 @@ describe('bridge v2 ownership and file integrity', () => {
     expect((await env.post(first, 'chunk', Buffer.from('LATE'), 'consumer-one', 1)).status).toBe(409);
     await env.post(next, 'chunk', Buffer.from('NEW'), 'consumer-two', 0); await env.done(next, 3, 'consumer-two'); expect(readFileSync((await result).value!.partPath, 'utf8')).toBe('NEW');
   });
-  it('retries after a 30 percent interrupted transfer without old bytes', async () => {
-    const env = await setup(); const full = Buffer.from('0123456789'); const first = env.start(); const a = await env.waitJob();
-    await env.post(a, 'chunk', full.subarray(0, 3), 'consumer-one', 0); await env.post(a, 'fail', JSON.stringify({ code: 'network' })); expect((await first).error).toBeTruthy(); expect(readdirSync(env.staging.workDir)).toEqual([]);
+  it.each([30,99])('retries after a %i percent interrupted transfer without old bytes', async percent => {
+    const env = await setup(); const full = Buffer.from('0123456789'.repeat(1000)); const first = env.start(); const a = await env.waitJob();
+    await env.post(a, 'chunk', full.subarray(0, full.length*percent/100), 'consumer-one', 0); await env.post(a, 'fail', JSON.stringify({ code: 'network' })); expect((await first).error).toBeTruthy(); expect(readdirSync(env.staging.workDir)).toEqual([]);
     const second = env.start(); const b = await env.waitJob(); await env.post(b, 'chunk', full, 'consumer-one', 0); await env.done(b, full.length);
     const value = (await second).value!; expect(readFileSync(value.partPath)).toEqual(full); expect(value.sha256).toBe(createHash('sha256').update(full).digest('hex')); expect(value.bytes).toBe(full.length);
   });

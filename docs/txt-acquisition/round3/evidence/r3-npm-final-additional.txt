@@ -1,0 +1,12 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3/_verify/lock-alignment
+
+ ✓ tests/txt-acquisition-worker.test.ts (8 tests) 40ms
+ ✓ tests/txt-acquisition-pinned-round3.test.ts (4 tests) 11ms
+ ✓ tests/txt-acquisition-hardening.test.ts (13 tests) 364ms
+
+ Test Files  3 passed (3)
+      Tests  25 passed (25)
+   Start at  16:23:33
+   Duration  1.56s (transform 191ms, setup 0ms, collect 325ms, tests 415ms, environment 0ms, prepare 253ms)
+

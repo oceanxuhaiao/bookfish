@@ -1,0 +1,20 @@
+[
+  {
+    "mode": "serial",
+    "n": 5,
+    "msMedian": 12915.806199999999,
+    "msP95": 16523.7107,
+    "peakRssMedianMiB": 256.28125,
+    "peakRssP95MiB": 271.3359375,
+    "allBooksTwoUnread": true
+  },
+  {
+    "mode": "parallel",
+    "n": 5,
+    "msMedian": 11243.4935,
+    "msP95": 13640.7123,
+    "peakRssMedianMiB": 231.75,
+    "peakRssP95MiB": 239.26171875,
+    "allBooksTwoUnread": true
+  }
+]

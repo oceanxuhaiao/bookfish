@@ -1,0 +1,12 @@
+[
+  {
+    "Algorithm": "SHA256",
+    "Hash": "9FDC30AB0F20705F06CCDAFEAB6BE44EA19088655E545DEB751DF40FAE987548",
+    "Path": "E:\\项目\\桌面宠物\\扩展\\cortina\\state\\packages\\bookfish-txt-acquisition-round3\\pnpm-lock.yaml"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "06B8D125A7F89043DF287D768C6B0FA058DF649BE93FA4CA420CE632CADA1DDE",
+    "Path": "E:\\项目\\桌面宠物\\扩展\\cortina\\state\\packages\\bookfish-txt-acquisition-round3\\package-lock.json"
+  }
+]
