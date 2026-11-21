@@ -37,7 +37,7 @@ describe('acquisition privacy and original retention', () => {
   it('counts protected originals in quota pressure while deleting only unreferenced files', async () => {
     const staging = new AcquisitionStaging(scratch()); await staging.init(); const protectedHash = 'a'.repeat(64); const orphan = 'b'.repeat(64) + '.txt';
     writeFileSync(join(staging.rawDir, protectedHash + '.txt'), 'protected'.repeat(100)); writeFileSync(join(staging.rawDir, orphan), 'orphan');
-    expect(await staging.enforceQuota(100, new Set([protectedHash]))).toEqual([orphan]); expect(existsSync(join(staging.rawDir, protectedHash + '.txt'))).toBe(true);
+    expect(await staging.enforceQuota(100, new Set([protectedHash]))).toMatchObject({ status: 'over_quota_referenced', removed: [orphan] }); expect(existsSync(join(staging.rawDir, protectedHash + '.txt'))).toBe(true);
     expect(JSON.parse(readFileSync(join(staging.root, 'quota.json'), 'utf8')).reason).toContain('Referenced');
   });
   it('expires incomplete parts without deleting active attempts or committed originals', async () => {

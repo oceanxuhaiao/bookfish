@@ -1,7 +1,7 @@
 import { TextQualityAccumulator, type TextQualityMetrics } from './txt-acquisition/quality.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { TextDecoder } from 'node:util';
-import { openSync, closeSync, readSync, writeSync, ftruncateSync, fsyncSync, statSync, unlinkSync, existsSync, writeFileSync } from 'node:fs';
+import { openSync, closeSync, readSync, writeSync, ftruncateSync, fsyncSync, statSync, fstatSync, unlinkSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildBook, MAX_BOOK_BYTES, type Segment } from './books.ts';
 import { streamIndex } from './stream-index.ts';
@@ -196,13 +196,16 @@ export function prepareFileBestEffort(file: string, chunkBytes = 16 * 1024, prog
   if (size > MAX_BOOK_BYTES) throw new BestEffortRejected('too_large', 'The downloaded file exceeds 100 MiB');
   const canonicalFile = file + '.' + randomUUID() + '.prepared.txt';
   const input = openSync(file, 'r'); let output: number | undefined;
+  const sourceIdentity = fstatSync(input, { bigint: true });
   const warnings: QualityIssue[] = [];
   const repairs: QualityIssue[] = []; let replacements = 0, controls = 0, newlines = false, blanks = 0, bytes = 0;
   let offset = 0, lastGood = 0, leading = true, pendingCR = false, lfRun = 0, trailingReplacements = 0;
   let encoding: DetectedEncoding;
   try {
     output = openSync(canonicalFile, 'wx');
-    const prefix = Buffer.alloc(Math.min(64 * 1024, size)); const first = readSync(input, prefix, 0, prefix.length, null);
+    // Small lookahead beyond the detection window avoids classifying an isolated
+    // leading byte when the first non-ASCII character straddles 64KiB.
+    const prefix = Buffer.alloc(Math.min(64 * 1024 + 256, size)); const first = readSync(input, prefix, 0, prefix.length, null);
     encoding = forced ?? detectEncodingLoosely(prefix.subarray(0, first));
     if (looksBinary(prefix.subarray(0, first), encoding)) throw new BestEffortRejected('binary_file', 'The downloaded file looks binary, not text');
     if (!forced && size > 128 * 1024 && ['utf-8', 'utf-8-bom', 'gb18030'].includes(encoding)) {
@@ -236,7 +239,9 @@ export function prepareFileBestEffort(file: string, chunkBytes = 16 * 1024, prog
     const buffer = Buffer.alloc(chunkBytes); let n: number;
     while ((n = readSync(input, buffer, 0, buffer.length, null))) { bytes += n; if (bytes > MAX_BOOK_BYTES) throw new BestEffortRejected('too_large', 'The file grew beyond 100 MiB'); emit(decoder.decode(buffer.subarray(0, n), { stream: true })); progress?.(bytes, size); }
     emit(decoder.decode(), true); if (pendingCR) emit('', true);
-    if (bytes !== size) throw Error('Source file changed while importing');
+    const after = fstatSync(input, { bigint: true });
+    const pathAfter = statSync(file, { bigint: true });
+    if (bytes !== size || after.size !== sourceIdentity.size || after.mtimeNs !== sourceIdentity.mtimeNs || after.ctimeNs !== sourceIdentity.ctimeNs || pathAfter.ino !== sourceIdentity.ino || pathAfter.dev !== sourceIdentity.dev) throw Error('Source file changed while importing');
     const truncatedTail = trailingReplacements > 0 && trailingReplacements <= 4;
     if (truncatedTail) { offset -= trailingReplacements * 3; lastGood = Math.min(lastGood, offset); repairs.push({ code: 'tail_truncated', message: 'Dropped an incomplete character at the end of the file' }); }
     ftruncateSync(output, lastGood); fsyncSync(output); closeSync(output); output = undefined;

@@ -6,7 +6,7 @@
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import type { BookfishConfigSection } from '../config.ts';
 import type { Library } from '../library.ts';
 import { BestEffortRejected, prepareFileBestEffort, type BestEffortDecoded } from '../stream-import.ts';
@@ -16,7 +16,7 @@ import { DownloadError, downloadFile } from './download.ts';
 import { discoverLinks, extractIdentity } from './link-discovery.ts';
 import { assessText, type Assessment, type IdentityMatch } from './quality.ts';
 import { AcquisitionRecords } from './records.ts';
-import { AcquisitionStaging } from './staging.ts';
+import { AcquisitionStaging, OriginalFileError, maintenanceFailure, type MaintenanceResult } from './staging.ts';
 import {
   CANDIDATE_TTL_MS, MAX_CANDIDATES, MAX_TASKS, assertTransition, failureRecoverable, isTerminal,
   type AcquisitionOrigin, type AcquisitionStatus, type AcquisitionTask, type CandidateRecord,
@@ -79,7 +79,7 @@ const defaultPageLoader = (fetchImpl?: typeof fetch): PageLoader => async (url, 
     await page.protectNavigation(url);
     await page.navigate(url);
     await verifyLandedUrl(await page.evaluate<string>('location.href'), { allowNetwork: options.allowNetwork, ...(options.resolve ? { resolve: options.resolve } : {}) });
-    const html = await page.evaluate<string>("document.documentElement.outerHTML");
+    const html = page.html();
     return { html, close: async () => { await page.close(); await client.disconnect(); } };
   } catch (error) {
     await page.close().catch(() => undefined);
@@ -106,7 +106,10 @@ export class TxtAcquisition {
   private readonly controllerReady: () => boolean;
   private readonly browserGuard?: (url: string) => Promise<void>;
   private readonly pageUrls = new Map<string, string>();
-  private readonly onImported?: (task: AcquisitionTask, identity: IdentityMatch) => void;
+  private readonly onImported?: (task: AcquisitionTask, identity: IdentityMatch) => void | Promise<void>;
+  private stopped = false;
+  selectionPersistenceError: string | undefined;
+  initializationError: string | undefined;
   /** Candidate URLs stay in memory only; records carry their digest. */
   private readonly urls = new Map<string, { taskId: string; url: string }>();
   private readonly aborts = new Map<string, AbortController>();
@@ -136,10 +139,18 @@ export class TxtAcquisition {
   private maintenance: Promise<unknown> = Promise.resolve();
 
   async init(): Promise<void> {
+    this.stopped = false;
+    try {
     await this.staging.init();
-    this.records.load(this.now());
+    this.records.load(this.now()); this.initializationError = undefined;
+    await this.recoverRawCommits();
+    await this.staging.clearAbandonedPrepared();
     this.recover();
     await this.prune();
+    } catch {
+      this.initializationError = 'Acquisition storage unavailable; original files preserved and acquisition disabled';
+      throw new OriginalFileError('storage_unavailable', this.initializationError);
+    }
     // A busy port must not stop reading; the failure surfaces on the first task.
     try { await this.ensureBridge(); } catch { /* reported by discover or import */ }
   }
@@ -174,7 +185,7 @@ export class TxtAcquisition {
   private get readiness() {
     const transportConnected = this.bridge?.connected === true;
     const controllerReady = this.controllerReady();
-    const browserReady = this.cfg().allowNetwork && this.cfg().txtAcquisitionEnabled === true && this.cfg().browserBridgeEnabled === true && transportConnected && controllerReady;
+    const browserReady = !this.initializationError && this.cfg().allowNetwork && this.cfg().txtAcquisitionEnabled === true && this.cfg().browserBridgeEnabled === true && transportConnected && controllerReady;
     return { transportConnected, controllerReady, browserReady, unavailableReason: !controllerReady ? 'Protected isolated browser controller is not ready' : !transportConnected ? 'Extension transport is disconnected' : !browserReady ? 'Network or acquisition is disabled' : null };
   }
 
@@ -204,17 +215,22 @@ export class TxtAcquisition {
   }
 
   list(): TaskView[] {
+    if (this.initializationError) throw new OriginalFileError('storage_unavailable', this.initializationError);
     return this.records.list().map((task) => this.view(task));
   }
 
   /** Small status block for the model; full task detail stays behind `status`. */
   summary() {
-    const tasks = this.records.list();
+    const tasks = this.initializationError ? [] : this.records.list();
     return {
       enabled: this.cfg().txtAcquisitionEnabled === true,
       ...this.readiness,
       browserConfigured: this.readiness.browserReady,
+      maintenance: this.lastMaintenance ?? null,
+      selectionPersistenceError: this.selectionPersistenceError ?? null,
+      initializationError: this.initializationError ?? null,
       active: tasks.filter((task) => !isTerminal(task.status)).length,
+      history: { records: tasks.length, softLimit: MAX_TASKS, retainedOriginals: tasks.filter(task => task.file?.retained).length, protectedOverflow: Math.max(0, tasks.length - MAX_TASKS) },
       tasks: tasks.slice(-5).map((task) => ({
         taskId: task.id, status: task.status, title: task.target.title, updatedAt: task.updatedAt,
         ...(task.bookKey ? { bookKey: task.bookKey } : {}),
@@ -223,6 +239,7 @@ export class TxtAcquisition {
   }
 
   status(taskId?: string): TaskView | TaskView[] {
+    if (this.initializationError) throw new OriginalFileError('storage_unavailable', this.initializationError);
     if (!taskId) return this.list();
     const task = this.records.get(taskId);
     if (!task) throw new Error(`Unknown acquisition task ${taskId}`);
@@ -286,6 +303,7 @@ export class TxtAcquisition {
   }
 
   private requireEnabled(): void {
+    if (this.initializationError) throw new OriginalFileError('storage_unavailable', this.initializationError);
     const cfg = this.cfg();
     if (!cfg.txtAcquisitionEnabled) throw new AcquisitionFailure('disabled', 'Browser-assisted TXT acquisition is disabled in settings');
   }
@@ -293,6 +311,7 @@ export class TxtAcquisition {
   private setStatus(taskId: string, status: AcquisitionStatus, note?: string): AcquisitionTask {
     const task = this.records.get(taskId);
     if (!task) throw new Error(`Unknown acquisition task ${taskId}`);
+    if (isTerminal(task.status) && !isTerminal(status) && this.records.list().filter(entry => !isTerminal(entry.status)).length >= MAX_TASKS) throw new AcquisitionFailure('busy', 'Active acquisition task limit reached');
     assertTransition(task.status, status);
     return this.records.update(taskId, () => undefined, { status, ...(note ? { note } : {}) });
   }
@@ -409,6 +428,7 @@ export class TxtAcquisition {
 
   /** Import a candidate found by `discover`, or a direct file address. */
   async importFile(input: { taskId?: string; candidateId?: string; url?: string; title?: string; author?: string; origin?: AcquisitionOrigin; intentId?: string }): Promise<TaskView> {
+    await this.maintenance;
     this.requireEnabled();
     const cfg = this.cfg();
     if (!cfg.allowNetwork) throw new AcquisitionFailure('network_disabled', 'Network access is disabled for this world');
@@ -490,6 +510,13 @@ export class TxtAcquisition {
           });
       downloadedPart = downloaded.partPath;
       controller.signal.throwIfAborted();
+      // Write intent before moving bytes. A crash on either side of commitRaw is recoverable.
+      this.records.update(taskId, draft => { draft.file = {
+        sha256: downloaded.sha256, bytes: downloaded.bytes, filename,
+        path: join('raw', downloaded.sha256 + (/\.md$|\.markdown$/iu.test(filename) ? '.md' : '.txt')),
+        pendingPart: relative(this.root, downloaded.partPath), retained: true,
+        ...(downloaded.contentType ? { contentType: downloaded.contentType } : {}),
+      }; });
       rawRelative = await this.staging.commitRaw(downloaded.partPath, downloaded.sha256, /\.md$|\.markdown$/iu.test(filename) ? 'md' : 'txt');
       this.records.update(taskId, (draft) => {
         draft.file = {
@@ -509,7 +536,7 @@ export class TxtAcquisition {
       else this.classifyFailure(taskId, error);
       return this.status(taskId) as TaskView;
     } finally {
-      if (downloadedPart && !rawRelative) await this.staging.removeIfPresent(downloadedPart);
+      if (downloadedPart && !rawRelative && !this.records.get(taskId)?.file?.pendingPart) await this.staging.removeIfPresent(downloadedPart);
       this.aborts.delete(taskId);
       await this.prune();
     }
@@ -527,7 +554,7 @@ export class TxtAcquisition {
   private async finishImport(taskId: string, rawRelative: string, filename: string, declared: { title?: string; author?: string }, forced?: DetectedEncoding): Promise<TaskView> {
     return this.withImportSlot(taskId, async () => {
     const task = this.records.get(taskId)!;
-    const absolute = this.staging.resolveInside(rawRelative);
+    const absolute = await this.staging.verifiedOriginal({ ...task.file!, path: rawRelative });
     let decoded: BestEffortDecoded;
     try {
       decoded = prepareFileBestEffort(absolute, 16 * 1024, undefined, forced);
@@ -538,7 +565,7 @@ export class TxtAcquisition {
         return this.status(taskId) as TaskView;
       }
       throw error;
-    }
+    } finally { await this.staging.removeIfPresent(absolute); }
     return await this.importDecoded(taskId, rawRelative, filename, decoded, declared);
     });
   }
@@ -592,6 +619,11 @@ export class TxtAcquisition {
     }
 
     const quality = result.quality;
+    if (this.aborts.get(taskId)?.signal.aborted) {
+      this.records.update(taskId, draft => { draft.bookKey = result.book.key; draft.quality = quality; draft.duplicate = result.duplicate; });
+      this.fail(taskId, 'cancelled', 'Acquisition cancelled during shelf commit; the unread shelf item is retained, queue integration was not started');
+      return this.view(this.records.get(taskId)!);
+    }
     const clean = quality.quality === 'clean';
     const updated = this.records.update(taskId, (draft) => {
       draft.quality = quality;
@@ -599,16 +631,14 @@ export class TxtAcquisition {
       draft.duplicate = result.duplicate;
       if (draft.file) draft.file.retained = !clean;
       draft.failure = undefined;
+      if (this.onImported) draft.selection = { status: 'pending', identity: result.identity };
     }, {
       status: clean ? 'completed' : 'completed_with_warning',
       note: `${quality.quality}${result.duplicate ? ', duplicate' : ''}`,
     });
     this.urls.delete(task.selectedCandidateId ?? '');
     if (clean && updated.file) await this.dropRaw(updated.file.path);
-    if (this.onImported) {
-      try { await this.onImported(updated, result.identity); this.records.update(taskId, draft => { draft.selection = { status: 'completed' }; }); }
-      catch (error) { this.records.update(taskId, draft => { draft.selection = { status: 'failed', message: redactMessage((error as Error)?.message ?? 'Queue integration failed') }; }); }
-    }
+    await this.integrateSelection(updated);
     return this.view(this.records.get(taskId)!);
     } finally { if (decoded.canonicalFile) await this.staging.removeIfPresent(decoded.canonicalFile); }
   }
@@ -621,13 +651,18 @@ export class TxtAcquisition {
 
   /** Re-run the import from the retained original file; a new revision is a new book version. */
   async retry(taskId: string): Promise<TaskView> {
+    await this.maintenance;
     this.requireEnabled();
     const task = this.records.get(taskId);
     if (!task) throw new Error(`Unknown acquisition task ${taskId}`);
+    if (task.status === 'completed' || task.status === 'completed_with_warning') {
+      if (task.selection?.status !== 'completed') await this.integrateSelection(task);
+      return this.view(this.records.get(taskId)!);
+    }
     if (task.status !== 'failed_recoverable' && task.status !== 'failed_terminal' && task.status !== 'needs_repair') {
       throw new AcquisitionFailure('invalid_input', `Task ${taskId} is ${task.status}; retry only applies to a failed task`);
     }
-    if (!task.file?.path || !existsSync(this.staging.resolveInside(task.file.path))) {
+    if (!task.file?.path) {
       // Nothing was downloaded yet: retry the same address while it is still known,
       // so a network hiccup does not turn into a second task or a second download.
       const known = task.selectedCandidateId ? this.urls.get(task.selectedCandidateId) : undefined;
@@ -646,6 +681,7 @@ export class TxtAcquisition {
     if (this.aborts.has(taskId)) throw new AcquisitionFailure('busy', 'This task is active');
     this.aborts.set(taskId, new AbortController());
     try {
+    await this.recoverRawCommits(taskId);
     this.records.update(taskId, (draft) => { draft.failure = undefined; draft.rejection = undefined; });
     this.setStatus(taskId, 'validating', 'retry from retained file');
     const declared = { title: task.candidates[0]?.title, author: task.candidates[0]?.author };
@@ -659,15 +695,17 @@ export class TxtAcquisition {
    * as a new revision. The old shelf entry and its reading progress are untouched.
    */
   async repair(taskId: string, encoding?: DetectedEncoding): Promise<TaskView> {
+    await this.maintenance;
     this.requireEnabled();
     const task = this.records.get(taskId);
     if (!task) throw new Error(`Unknown acquisition task ${taskId}`);
-    if (!task.file?.path || !existsSync(this.staging.resolveInside(task.file.path))) {
+    if (!task.file?.path) {
       throw new AcquisitionFailure('invalid_input', 'No retained original file for this task');
     }
     if (this.aborts.has(taskId)) throw new AcquisitionFailure('busy', 'This task is active');
     this.aborts.set(taskId, new AbortController());
     try {
+    await this.recoverRawCommits(taskId);
     this.records.update(taskId, (draft) => { draft.failure = undefined; draft.rejection = undefined; });
     const from = task.status;
     if (from === 'failed_recoverable' || from === 'failed_terminal') {
@@ -682,6 +720,7 @@ export class TxtAcquisition {
   }
 
   private classifyFailure(taskId: string, error: unknown): void {
+    if (error instanceof OriginalFileError) { this.fail(taskId, error.code, error.message); return; }
     if (error instanceof AcquisitionFailure) { this.fail(taskId, error.code, error.message); return; }
     if (error instanceof BestEffortRejected) { this.fail(taskId, error.code, error.message); return; }
     if (error instanceof DownloadError) { this.fail(taskId, error.code, error.message); return; }
@@ -694,32 +733,70 @@ export class TxtAcquisition {
       return;
     }
     if (isPolicyError(error)) { this.fail(taskId, 'policy_blocked', error.message); return; }
+    if (['EACCES', 'EPERM', 'EIO', 'ENOSPC', 'EROFS', 'ENOENT', 'EBUSY'].includes((error as NodeJS.ErrnoException).code ?? '')) { this.fail(taskId, 'storage_unavailable', 'Storage operation failed (' + (error as NodeJS.ErrnoException).code + ')'); return; }
     const message = (error as Error)?.message ?? 'Acquisition failed';
     if (/library is full/iu.test(message)) { this.fail(taskId, 'library_full', message); return; }
     if (/Book must be between|exceeds 100 MiB/iu.test(message)) { this.fail(taskId, 'too_large', message); return; }
     this.fail(taskId, 'import_failed', message);
   }
 
+  private async recoverRawCommits(taskId?: string): Promise<void> {
+    for (const task of this.records.list()) {
+      if (taskId && task.id !== taskId) continue;
+      if (!task.file?.pendingPart) continue;
+      try {
+        const pending = task.file.pendingPart;
+        if (!/^work[\\/][a-f0-9-]+\.part$/u.test(pending)) throw new OriginalFileError('original_integrity', 'Invalid pending original path');
+        if (existsSync(this.staging.resolveInside(pending))) await this.staging.commitRaw(this.staging.resolveInside(pending), task.file.sha256, task.file.path?.endsWith('.md') ? 'md' : 'txt');
+        const verified = await this.staging.verifiedOriginal(task.file);
+        await this.staging.removeIfPresent(verified);
+        this.records.update(task.id, draft => { delete draft.file!.pendingPart; });
+      } catch (error) { if (taskId) throw error; this.classifyFailure(task.id, error); }
+    }
+  }
+
   /** Keep the staging area under the configured bound; refuses while a task runs. */
-  async prune(): Promise<string[]> {
+  lastMaintenance: MaintenanceResult | undefined;
+  async prune(): Promise<MaintenanceResult> {
     const run = this.maintenance.then(async () => {
-      if (this.records.hasActive() || this.aborts.size) return [];
+      if (this.records.hasActive() || this.aborts.size) return { status: 'skipped_active_tasks', removed: [] } as MaintenanceResult;
       const limit = (this.cfg().txtAcquisitionRetentionMb ?? 512) * 1024 * 1024;
       const referenced = new Set<string>();
-      for (const task of this.records.list()) if (task.file?.path && task.file.retained) referenced.add(task.file.sha256);
-      await this.staging.clearExpiredParts(this.now());
-      return this.staging.enforceQuota(limit, referenced);
+      for (const task of this.records.list()) if (task.file?.retained) referenced.add(task.file.sha256);
+      await this.staging.clearExpiredParts(this.now(), this.records.list().filter(task => task.file?.pendingPart).map(task => task.id));
+      return this.staging.enforceQuota(limit, referenced, sha => !this.records.hasActive() && !this.aborts.size && !this.records.list().some(task => task.file?.retained && task.file.sha256 === sha));
     });
     this.maintenance = run.catch(() => undefined);
-    return run.catch(() => []); // storage maintenance must not reverse a committed import
+    const result = await run.catch(error => maintenanceFailure(error));
+    this.lastMaintenance = result;
+    return result; // maintenance failure is observable without reversing a committed shelf insert
   }
 
   /** Release the loopback port when the world stops. */
   async stop(): Promise<void> {
+    this.stopped = true;
     for (const abort of this.aborts.values()) abort.abort();
     const bridge = this.bridge;
     this.bridge = undefined;
     if (bridge?.running) await bridge.stop().catch(() => undefined);
+  }
+
+  /** Called only after SelectionCoordinator is started; never downloads or imports again. */
+  async resumeSelection(): Promise<void> {
+    if (this.initializationError) return;
+    for (const task of this.records.list()) if (task.bookKey && ['completed', 'completed_with_warning'].includes(task.status) && task.selection?.status !== 'completed') await this.integrateSelection(task);
+  }
+
+  private async integrateSelection(task: AcquisitionTask): Promise<void> {
+    if (!this.onImported || this.stopped) return;
+    let result: NonNullable<AcquisitionTask['selection']>;
+    try {
+      await this.onImported(task, task.selection?.identity ?? 'unknown');
+      if (this.stopped) return; // persistent pending receipt is replayed after the next mount
+      result = { status: 'completed', identity: task.selection?.identity ?? 'unknown' };
+    } catch (error) { result = { status: 'failed', identity: task.selection?.identity ?? 'unknown', message: redactMessage((error as Error)?.message ?? 'Queue integration failed') }; }
+    try { this.records.update(task.id, draft => { draft.selection = result; }); }
+    catch { this.selectionPersistenceError = 'Queue integration receipt could not be persisted; pending shelf success will be reconciled after restart'; }
   }
 
   /** Apply a changed bridge setting without restarting the world. */

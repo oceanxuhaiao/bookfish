@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -60,12 +60,23 @@ beforeEach(() => {
   coordinator.start(host);
 });
 afterEach(async () => {
+  vi.restoreAllMocks();
   await coordinator.stop();
   library.close();
   rmSync(dir, { recursive: true, force: true });
 });
 
 describe('acquisition results entering autonomous selection', () => {
+  it.each(['persistence','queue_append'] as const)('can retry %s failure without a second commitment or progress', stage => {
+    const intent=seedIntent(),bookKey=importBook(); const original=library.updateSelection.bind(library);
+    const fault=vi.spyOn(library,'updateSelection').mockImplementationOnce(fn=>{if(stage==='persistence')throw Error('state write failed');return original(draft=>{fn(draft);if(draft.queue.length)throw Error('queue append interrupted');});});
+    expect(()=>coordinator.onExternalImport({id:'fault',intentId:intent.id,bookKey},'exact')).toThrow();expect(library.list()).toHaveLength(1);expect(library.list()[0].confirmedChars).toBe(0);fault.mockRestore();
+    coordinator.onExternalImport({id:'fault',intentId:intent.id,bookKey},'exact');coordinator.onExternalImport({id:'fault',intentId:intent.id,bookKey},'exact');expect(library.selection().queue.filter(q=>q.intentId===intent.id)).toHaveLength(1);
+  });
+  it('keeps the queued fact if announcement fails, and replay does not create a second queue item', () => {
+    const intent=seedIntent(),bookKey=importBook(); const fault=vi.spyOn(host,'pushEvent').mockImplementationOnce(()=>{throw Error('announce unavailable');});
+    expect(()=>coordinator.onExternalImport({id:'announce',intentId:intent.id,bookKey},'exact')).toThrow();fault.mockRestore();coordinator.onExternalImport({id:'announce',intentId:intent.id,bookKey},'exact');expect(library.selection().queue.filter(q=>q.intentId===intent.id)).toHaveLength(1);expect(library.list()[0].confirmedChars).toBe(0);
+  });
   it('queues a matching book exactly once and never claims reading progress', () => {
     const intent = seedIntent();
     const bookKey = importBook();

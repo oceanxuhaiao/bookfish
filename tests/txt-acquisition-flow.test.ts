@@ -121,7 +121,7 @@ describe('browser-assisted acquisition flow', () => {
     expect(done.file?.retained).toBe(true);
     expect(rawFiles()).toHaveLength(1);
     expect(textOf(done.bookKey!)).toContain('第5章');
-    expect(await acquisition.prune()).toEqual([]);
+    expect(await acquisition.prune()).toMatchObject({ status: 'success', removed: [] });
     expect(rawFiles()).toHaveLength(1);
   });
 

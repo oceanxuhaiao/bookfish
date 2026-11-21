@@ -528,6 +528,7 @@ export class BookfishWorld implements World {
       this.sharing.start(host);
       this.reviewFlow.start(host);
       this.selection.start(host);
+      await this.txtAcquisition.resumeSelection();
       this.serialSync.start();
       this.serialScheduler.start();
       await host.pushEvent({ type: 'bookfish.started', ts: nowIso(this.opts.timezone), source: this.id,

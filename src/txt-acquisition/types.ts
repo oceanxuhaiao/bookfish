@@ -99,6 +99,8 @@ export interface FileRecord {
   filename: string;
   /** Relative to the acquisition root, e.g. files/<sha256>.txt */
   path?: string;
+  /** Durable handoff receipt until the raw hard link and task update both commit. */
+  pendingPart?: string;
   retained: boolean;
   contentType?: string;
 }
@@ -125,7 +127,7 @@ export interface AcquisitionTask {
   quality?: QualityReport;
   bookKey?: string;
   duplicate?: boolean;
-  selection?: { status: 'completed' | 'failed'; message?: string };
+  selection?: { status: 'pending' | 'completed' | 'failed'; identity?: 'exact' | 'partial' | 'unknown'; message?: string };
   rejection?: { code: string; message: string };
   failure?: FailureRecord;
   attempts: { downloads: number; imports: number; repairs: number };
@@ -177,7 +179,7 @@ export interface TaskView {
   requiresRediscovery?: boolean;
   sourceHost: string;
   bookKey?: string;
-  selection?: { status: 'completed' | 'failed'; message?: string };
+  selection?: { status: 'pending' | 'completed' | 'failed'; identity?: 'exact' | 'partial' | 'unknown'; message?: string };
   duplicate?: boolean;
   quality?: QualityReport;
   file?: { filename: string; bytes: number; sha256: string; retained: boolean; contentType?: string };
@@ -194,6 +196,7 @@ export function validateAcquisitionState(raw: unknown): AcquisitionState {
   const state = raw as AcquisitionState;
   if (state.schema !== 1 || !Array.isArray(state.tasks)) throw new Error('Invalid acquisition records');
   if (state.tasks.length > MAX_TASKS && state.tasks.filter(task => !task.file?.retained).length > MAX_TASKS) throw new Error('Acquisition unprotected record count exceeds limit');
+  if (state.tasks.filter(task => !isTerminal(task.status)).length > MAX_TASKS) throw new Error('Active acquisition task count exceeds limit');
   const ids = new Set<string>();
   for (const task of state.tasks) {
     if (!task || typeof task !== 'object') throw new Error('Invalid acquisition task');
@@ -209,6 +212,12 @@ export function validateAcquisitionState(raw: unknown): AcquisitionState {
       if (typeof candidate.urlHash !== 'string' || !/^[a-f0-9]{64}$/.test(candidate.urlHash)) throw new Error('Invalid candidate digest');
     }
     if (task.file && (typeof task.file.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(task.file.sha256) || !Number.isSafeInteger(task.file.bytes) || task.file.bytes < 0)) throw new Error('Invalid acquisition file record');
+    if (task.file) {
+      if (typeof task.file.retained !== 'boolean' || typeof task.file.filename !== 'string') throw new Error('Invalid original metadata');
+      if (task.file.retained && !task.file.path) throw new Error('Retained original path missing');
+      if (task.file.path !== undefined && (typeof task.file.path !== 'string' || !/^raw[\\/][a-f0-9]{64}\.(txt|md)$/u.test(task.file.path) || !task.file.path.includes(task.file.sha256+'.'))) throw new Error('Invalid original path');
+      if (task.file.pendingPart !== undefined && (typeof task.file.pendingPart !== 'string' || !/^work[\\/][a-f0-9-]+\.part$/u.test(task.file.pendingPart))) throw new Error('Invalid pending original');
+    }
     if (!Array.isArray(task.history) || task.history.length > MAX_HISTORY) throw new Error('Invalid acquisition history');
     for (const entry of task.history) if (!entry || typeof entry.at !== 'number' || !(entry.status in TRANSITIONS)) throw new Error('Invalid acquisition history entry');
     if (!task.attempts || !Number.isSafeInteger(task.attempts.downloads)) throw new Error('Invalid acquisition attempts');

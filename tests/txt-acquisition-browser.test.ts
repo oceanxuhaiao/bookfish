@@ -179,6 +179,12 @@ describe('browser navigation stays inside the URL policy', () => {
 });
 
 describe('CDP request-before-dispatch policy', () => {
+  it('uses the shared raw HTML charset decoder instead of browser default charset guesses', async () => {
+    const bytes=Buffer.concat([Buffer.from('<title>'),Buffer.from('b4bacffe','hex'),Buffer.from('</title>')]);
+    const {client:instance,socket}=client((message,fake)=>{if(message.method==='Target.createTarget')fake.reply(message.id!,{targetId:'t1'});else if(message.method==='Target.attachToTarget')fake.reply(message.id!,{sessionId:'s1'});else if(message.method==='Fetch.takeResponseBodyAsStream')fake.reply(message.id!,{stream:'body'});else if(message.method==='IO.read')fake.reply(message.id!,{data:bytes.toString('base64'),base64Encoded:true,eof:true});else fake.reply(message.id!,{});});
+    const page=await instance.createPage();await page.protectNavigation('https://example.com/book');socket().event('Fetch.requestPaused',{requestId:'gbk',request:{url:'https://example.com/book'},resourceType:'Document',responseStatusCode:200,responseHeaders:[]},'s1');
+    await new Promise(ok=>setTimeout(ok,10));expect(page.html()).toBe('<title>春晓</title>');await instance.disconnect();
+  });
   it('refuses redirects and child resources before continuing their requests', async () => {
     const approved = 'https://example.com/book';
     const { client: instance, socket } = client((message, fake) => {

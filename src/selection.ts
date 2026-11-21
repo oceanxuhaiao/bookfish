@@ -474,7 +474,8 @@ export class SelectionCoordinator {
    * imports never reach here: they carry no intentId and change no selection state.
    */
   onExternalImport(task: { id: string; intentId?: string; bookKey?: string }, identity: 'exact' | 'partial' | 'unknown'): void {
-    if (this.stopped || !task.intentId || !task.bookKey) return;
+    if (!task.intentId || !task.bookKey) return;
+    if (this.stopped) throw new Error('Selection coordinator is stopped; shelf import remains pending for reconciliation');
     const bookKey = task.bookKey;
     const state = this.refresh();
     const intent = state.intents.find((entry) => entry.id === task.intentId);

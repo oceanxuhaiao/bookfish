@@ -50,7 +50,7 @@ export function detectEncoding(bytes: Buffer): DetectedEncoding {
   if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return 'utf-8-bom';
   if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) return 'utf-16le';
   if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) return 'utf-16be';
-  const sample = bytes.subarray(0, Math.min(bytes.length, 1 << 20) - (Math.min(bytes.length, 1 << 20) % 2));
+  let sample = bytes.subarray(0, Math.min(bytes.length, 1 << 20) - (Math.min(bytes.length, 1 << 20) % 2));
   // UTF-16 without a BOM: one byte of every pair is a NUL in ASCII-heavy text.
   if (sample.length >= 4) {
     let evenZero = 0;
@@ -63,6 +63,11 @@ export function detectEncoding(bytes: Buffer): DetectedEncoding {
     if (pairs > 0 && oddZero / pairs > 0.3 && evenZero / pairs < 0.05) return 'utf-16le';
     if (pairs > 0 && evenZero / pairs > 0.3 && oddZero / pairs < 0.05) return 'utf-16be';
   }
+  // A long ASCII preamble is valid in both encodings and must not dilute evidence
+  // from the first non-ASCII text into the isolated-damage allowance.
+  let ascii = 0;
+  while (ascii < sample.length && sample[ascii]! < 128) ascii++;
+  if (ascii >= 256 && ascii < sample.length) sample = sample.subarray(ascii);
   // A damaged tail must not reinterpret a clearly UTF-8 opening as UTF-16 gibberish.
   try {
     const opening = new TextDecoder('utf-8', { fatal: true }).decode(sample.subarray(0, 256), { stream: true });

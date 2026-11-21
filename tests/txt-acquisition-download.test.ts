@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -28,6 +28,10 @@ async function failure(promise: Promise<unknown>): Promise<DownloadError> {
 }
 
 describe('raw byte download', () => {
+  it('reports a write failure during backpressure and cleans the partial instead of hanging', async () => {
+    const original=staging.beginDownload.bind(staging);vi.spyOn(staging,'beginDownload').mockImplementation(async id=>{const result=await original(id);result.stream.write=(()=>{queueMicrotask(()=>result.stream.destroy(Object.assign(Error('full disk'),{code:'ENOSPC'})));return false;}) as typeof result.stream.write;return result;});
+    const result=await failure(downloadFile(request({fetchImpl:(async()=>new Response(Buffer.alloc(64*1024))) as typeof fetch})));expect(result.code).toBe('storage_unavailable');expect(readdirSync(staging.workDir)).toEqual([]);
+  });
   it('keeps GBK bytes exactly as sent and reports progress', async () => {
     // "中文测试。" in GBK: decoding here would destroy these bytes.
     const gbk = Buffer.from([0xd6, 0xd0, 0xce, 0xc4, 0xb2, 0xe2, 0xca, 0xd4, 0xa1, 0xa3]);

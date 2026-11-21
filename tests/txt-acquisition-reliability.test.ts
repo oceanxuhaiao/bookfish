@@ -10,6 +10,7 @@ import { decodeHtml } from '../src/txt-acquisition/html-encoding.ts';
 import { discoverLinks } from '../src/txt-acquisition/link-discovery.ts';
 import { decodeFileBestEffort, prepareFileBestEffort } from '../src/stream-import.ts';
 import { AcquisitionRecords } from '../src/txt-acquisition/records.ts';
+import { BrowserBridge } from '../src/txt-acquisition/bridge.ts';
 import { TextQualityAccumulator, assessText } from '../src/txt-acquisition/quality.ts';
 const prose = '她把信折好放进抽屉，海风从窗口吹进来。';
 const gb = Buffer.from('cbfdb0d1d0c5d5dbbac3b7c5bdf8b3e9cceba3acbaa3b7e7b4d3b4b0bfdab4b5bdf8c0b4a1a3', 'hex');
@@ -50,7 +51,8 @@ describe('second-round reliability regressions', () => {
     const restored=new AcquisitionRecords(acq.root);restored.load();expect(restored.list()).toHaveLength(101);expect(restored.get(done.taskId)?.file?.retained).toBe(true);
   });
   it('does not advertise a merely running transport as a ready protected browser', async () => {
-    const acq = new TxtAcquisition({ dataDir:dir, library, cfg:()=>({...BOOKFISH_DEFAULTS,txtAcquisitionEnabled:true,browserBridgeEnabled:true}), browserGuard:async()=>undefined }); await acq.init();
+    const bridge=new BrowserBridge({dataDir:join(dir,'readiness-bridge'),port:0});
+    const acq = new TxtAcquisition({ dataDir:dir, library, bridge, cfg:()=>({...BOOKFISH_DEFAULTS,txtAcquisitionEnabled:true,browserBridgeEnabled:true}), browserGuard:async()=>undefined }); await acq.init();
     try { expect(acq.bridgeInfo.running).toBe(true); expect(acq.summary()).toMatchObject({ transportConnected:false,controllerReady:false,browserReady:false,browserConfigured:false }); } finally { await acq.stop(); }
   });
   it.each(['utf8-first','gb-first','utf8-damage','gb','utf16'] as const)('preserves the confidently decoded opening when processing %s', kind => {

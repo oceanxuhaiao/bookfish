@@ -9,6 +9,7 @@
  *  - page readiness is an event plus a readyState probe, not a fixed sleep.
  */
 import { isLoopbackWs } from './url-policy.ts';
+import { decodeHtml } from './html-encoding.ts';
 
 export class BrowserError extends Error {
   constructor(readonly code: string, message: string) {
@@ -181,6 +182,7 @@ export class BrowserClient {
 }
 
 export class PageSession {
+  private documentHtml: string | undefined;
   private removeProtection?: () => void;
   private protectionFailure = false;
   constructor(private readonly client: BrowserClient, readonly targetId: string, private readonly sessionId: string) {}
@@ -199,6 +201,7 @@ export class PageSession {
 
   /** Pause every request before dispatch, reject redirects/subresources, and cap the document body before rendering. */
   async protectNavigation(allowedUrl: string): Promise<void> {
+    this.documentHtml = undefined;
     this.removeProtection?.();
     this.protectionFailure = false;
     this.removeProtection = this.client.onEvent((method, raw, session) => {
@@ -222,6 +225,7 @@ export class PageSession {
             if (bytes > 8 * 1024 * 1024) throw new Error('document too large'); chunks.push(chunk); if (part.eof) break;
           }
           await this.send('IO.close', { handle }); handle = undefined;
+          this.documentHtml = decodeHtml(Buffer.concat(chunks), headers.find(header => header.name.toLowerCase() === 'content-type')?.value).html;
           await this.send('Fetch.fulfillRequest', { requestId: event.requestId, responseCode: event.responseStatusCode, responseHeaders: headers.filter(header => !['content-length', 'content-encoding', 'transfer-encoding'].includes(header.name.toLowerCase())), body: Buffer.concat(chunks).toString('base64') });
         } catch { if (event.resourceType === 'Document' && (event.request.url === allowedUrl || event.redirectedRequestId)) this.protectionFailure = true; await this.send('Fetch.failRequest', { requestId: event.requestId, errorReason: 'BlockedByClient' }).catch(() => undefined); }
         finally { if (handle) await this.send('IO.close', { handle }).catch(() => undefined); }
@@ -230,6 +234,11 @@ export class PageSession {
     await this.send('Emulation.setScriptExecutionDisabled', { value: true });
     await this.send('Network.setBypassServiceWorker', { bypass: true });
     await this.send('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }, { urlPattern: '*', requestStage: 'Response' }] });
+  }
+
+  html(): string {
+    if (this.protectionFailure || this.documentHtml === undefined) throw new BrowserError('policy_blocked', 'No validated HTML document was received');
+    return this.documentHtml;
   }
 
   /** Navigate and wait for load, with a readyState probe as the authority. */

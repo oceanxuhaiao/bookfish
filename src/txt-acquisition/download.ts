@@ -68,6 +68,10 @@ export async function downloadFile(request: DownloadRequest): Promise<DownloadRe
   const limit = abortable(request.signal, timeoutMs);
   const attempt = await request.staging.beginDownload(request.taskId).catch(error => { limit.done(); throw error; });
   const { path: partPath, stream } = attempt;
+  let rejectStorage!: (error: Error) => void;
+  const storageFailure = new Promise<never>((_, reject) => { rejectStorage = reject; });
+  void storageFailure.catch(() => undefined);
+  stream.on('error', rejectStorage);
 
   let response: Response | undefined;
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
@@ -138,7 +142,7 @@ export async function downloadFile(request: DownloadRequest): Promise<DownloadRe
     if (!body) throw new DownloadError('download_failed', 'The server sent no body', true);
     reader = body.getReader();
     for (;;) {
-      const { done, value } = await reader.read();
+      const { done, value } = await Promise.race([reader.read(), storageFailure]);
       if (done) break;
       if (limit.signal.aborted) throw new DownloadError(request.signal?.aborted ? 'cancelled' : 'timeout', 'Download was interrupted', true);
       if (request.networkAllowed?.() === false) throw new DownloadError('policy_blocked', 'Network access is disabled', false);
@@ -149,7 +153,7 @@ export async function downloadFile(request: DownloadRequest): Promise<DownloadRe
         throw new DownloadError('too_large', `Download exceeded the ${maxBytes} byte limit`, false);
       }
       hash.update(value);
-      if (!stream.write(Buffer.from(value))) await new Promise<void>((resolve) => stream.once('drain', resolve));
+      if (!stream.write(Buffer.from(value))) await Promise.race([new Promise<void>((resolve) => stream.once('drain', resolve)), storageFailure]);
       request.onProgress?.(bytes, contentLength);
     }
     await new Promise<void>((resolve, reject) => {
@@ -171,6 +175,8 @@ export async function downloadFile(request: DownloadRequest): Promise<DownloadRe
     if (error instanceof DownloadError) throw error;
     if (limit.signal.aborted) throw new DownloadError(request.signal?.aborted ? 'cancelled' : 'timeout', 'Download was interrupted', true);
     if (isPolicyError(error)) throw new DownloadError('policy_blocked', error.message, false);
+    const storageCode = (error as NodeJS.ErrnoException).code;
+    if (storageCode && ['ENOSPC', 'EIO', 'EACCES', 'EPERM', 'EBUSY', 'EROFS'].includes(storageCode)) throw new DownloadError('storage_unavailable', 'Cannot write downloaded bytes (' + storageCode + ')', true);
     throw new DownloadError('download_failed', redactMessage((error as Error).message), true);
   } finally {
     limit.done();

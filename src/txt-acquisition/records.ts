@@ -1,5 +1,5 @@
 /** Durable acquisition task records, kept apart from the library and its book bodies. */
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, copyFileSync, openSync, fsyncSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
 import { redactMessage, sourceReference } from './privacy.ts';
 import {
@@ -21,10 +21,10 @@ export class AcquisitionRecords {
     if (existsSync(this.file)) {
       try {
         this.state = validateAcquisitionState(JSON.parse(readFileSync(this.file, 'utf8')));
-      } catch {
-        // Keep the damaged file for inspection instead of silently discarding tasks.
-        try { renameSync(this.file, `${this.file}.corrupt-${now}`); } catch { /* best effort */ }
-        this.state = { schema: 1, tasks: [] };
+      } catch (error) {
+        // Unknown references prohibit quota cleanup. Never replace the authoritative file with an empty shelf.
+        try { copyFileSync(this.file, `${this.file}.corrupt-${now}`, 1); } catch { /* authoritative file remains intact */ }
+        throw new Error('Acquisition records unavailable; originals preserved', { cause: error });
       }
     }
     this.loaded = true;
@@ -49,6 +49,7 @@ export class AcquisitionRecords {
     mkdirSync(this.dir, { recursive: true });
     const temporary = `${this.file}.${process.pid}.tmp`;
     writeFileSync(temporary, `${JSON.stringify(this.state)}\n`, 'utf8');
+    const fd = openSync(temporary, 'r+'); try { fsyncSync(fd); } finally { closeSync(fd); }
     renameSync(temporary, this.file);
   }
 
@@ -71,17 +72,23 @@ export class AcquisitionRecords {
 
   put(task: AcquisitionTask): AcquisitionTask {
     this.ensureLoaded();
+    const previous = structuredClone(this.state);
+    try {
     const next = structuredClone(task);
     const index = this.state.tasks.findIndex((entry) => entry.id === next.id);
     if (index >= 0) this.state.tasks[index] = next; else this.state.tasks.push(next);
     this.trim(next.id);
+    if (this.state.tasks.filter(entry => !isTerminal(entry.status)).length > MAX_TASKS) throw new Error('Active acquisition task limit reached');
     this.save();
     return this.get(next.id)!;
+    } catch (error) { this.state = previous; throw error; }
   }
 
   /** Mutate a task, recording history and the update time, then persist once. */
   update(id: string, mutate: (task: AcquisitionTask) => void, options: { status?: AcquisitionStatus; note?: string; now?: number } = {}): AcquisitionTask {
     this.ensureLoaded();
+    const previous = structuredClone(this.state);
+    try {
     const task = this.state.tasks.find((entry) => entry.id === id);
     if (!task) throw new Error(`Unknown acquisition task ${id}`);
     const now = options.now ?? Date.now();
@@ -91,9 +98,11 @@ export class AcquisitionRecords {
       task.history = [...task.history, { at: now, status: options.status, ...(options.note ? { note: options.note } : {}) }].slice(-MAX_HISTORY);
     }
     task.updatedAt = now;
+    if (this.state.tasks.filter(entry => !isTerminal(entry.status)).length > MAX_TASKS) throw new Error('Active acquisition task limit reached');
     this.trim(id);
     this.save();
     return structuredClone(task);
+    } catch (error) { this.state = previous; throw error; }
   }
 
   /** Drop the oldest finished tasks once the cap is exceeded; never drop a running one. */

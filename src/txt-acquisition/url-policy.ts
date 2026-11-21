@@ -84,6 +84,7 @@ export async function checkUrl(raw: string, options: UrlPolicyOptions): Promise<
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new UrlPolicyError(`Only http and https are allowed, not ${url.protocol.replace(':', '')}`);
   }
+  if (url.port) throw new UrlPolicyError('Refusing unauthorized port; only standard HTTP/HTTPS ports are allowed');
   url.username = '';
   url.password = '';
   // WHATWG keeps IPv6 brackets in `hostname`; strip them for literal checks.

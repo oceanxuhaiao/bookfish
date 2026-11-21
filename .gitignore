@@ -39,3 +39,4 @@ scripts/novel-adapter/bridge/classes/
 
 # Local verification caches, browser profiles, pairing tokens and disposable binaries.
 _verify/
+node_modules.pre-round3-junction/

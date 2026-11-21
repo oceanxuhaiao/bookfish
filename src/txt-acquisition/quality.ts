@@ -13,6 +13,19 @@ export const MAX_REPLACEMENT_RATIO = 0.1;
 
 const CHAPTER_LINE = /^\s*(?:第[零〇一二三四五六七八九十百千万两0-9０-９]{1,12}[章节卷回部篇集]|#{1,6}\s+\S|[0-9]{1,4}[、.．]\s*\S)/u;
 const ARABIC_CHAPTER = /^\s*第\s*([0-9０-９]{1,6})\s*[章节回]/u;
+function chapterNumber(heading: string): number | undefined {
+  const raw=/^\s*第\s*([零〇一二三四五六七八九十百千万两0-9０-９]{1,12})\s*[章节回]/u.exec(heading)?.[1];
+  if(!raw)return;
+  const normalized=raw.replace(/[０-９]/gu,d=>String('０１２３４５６７８９'.indexOf(d)));
+  if(/^\d+$/u.test(normalized))return Number(normalized);
+  const digits:Record<string,number>={零:0,〇:0,一:1,二:2,两:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9};
+  if(!/[十百千万]/u.test(raw))return Number([...raw].map(c=>digits[c]).join(''));
+  let result=0,section=0,digit=0,lastUnit=10000;
+  for(const c of raw){if(c in digits){digit=digits[c]!;continue;}const unit=({十:10,百:100,千:1000,万:10000} as Record<string,number>)[c];if(!unit)return;
+    if(unit===10000){result+=(section+digit)*unit;section=0;digit=0;lastUnit=10000;}
+    else{if(unit>=lastUnit)return;section+=(digit||1)*unit;digit=0;lastUnit=unit;}}
+  return result+section+digit;
+}
 const LOGIN_HINTS = ['请先登录', '登录后', '登陆后', '用户登录', '账号登录', '立即登录', '验证码', '人机验证', 'captcha', 'sign in to continue', 'please log in', 'access denied', '403 forbidden', '404 not found'];
 const AD_HINTS = ['www.', 'http://', 'https://', '最新章节', '请记住本站', '手机阅读', '手机版', '免费阅读', '加入书签', '一秒记住', '本章未完', '笔趣阁', '无弹窗'];
 
@@ -86,7 +99,12 @@ export class TextQualityAccumulator {
   private line = ''; private length = 0; private gate = false; private ad = false; private carry = '';
   push(text: string): void {
     const m = this.metrics; m.totalChars += text.length; m.head = (m.head + text).slice(0, 4000); m.tail = (m.tail + text).slice(-80);
-    for (const char of text) { m.codePoints++; if (isReadableChar(char)) m.readableChars++; if (/[\p{L}\p{N}\p{P}\p{M}\p{Z}\p{S}\s]/u.test(char) || char === '\ufffd') m.supported++; if (!m.hasLetter && /\p{L}/u.test(char)) m.hasLetter = true; }
+    const count = (pattern: RegExp): number => { let n=0; while(pattern.exec(text)) n++; return n; };
+    const points = text.length - count(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g);
+    m.codePoints += points;
+    m.readableChars += points - count(/[\n\r\t \u3000\ufffd]/gu);
+    m.supported += points - count(/[^\p{L}\p{N}\p{P}\p{M}\p{Z}\p{S}\s\ufffd]/gu);
+    m.hasLetter ||= /\p{L}/u.test(text);
     const parts = text.split('\n');
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]!; const window = this.carry + part; this.length += part.length;
@@ -154,16 +172,14 @@ export function assessText(input: AssessInput): Assessment {
     let irregular = 0;
     let previous = 0;
     for (const heading of headings) {
-      const match = ARABIC_CHAPTER.exec(heading);
-      if (!match) continue;
-      const value = Number(match[1]!.replace(/[０-９]/gu, (digit) => String('０１２３４５６７８９'.indexOf(digit))));
+      const value = chapterNumber(heading);
+      if (value === undefined) continue;
       if (Number.isFinite(value) && value <= previous) irregular += 1;
       if (Number.isFinite(value)) previous = value;
     }
     if (irregular) warnings.push({ code: 'chapter_numbers_irregular', message: `${irregular} chapter number(s) do not increase`, count: irregular });
-    const arabic = headings.filter((line) => ARABIC_CHAPTER.test(line));
-    if (arabic.length >= 2) {
-      const numbers = arabic.map((line) => Number(ARABIC_CHAPTER.exec(line)![1]!.replace(/[０-９]/gu, (digit) => String('０１２３４５６７８９'.indexOf(digit))))).filter((value) => Number.isFinite(value));
+    const numbers = headings.map(chapterNumber).filter((value):value is number => value !== undefined && Number.isFinite(value));
+    if (numbers.length >= 2) {
       for (let index = 1; index < numbers.length; index += 1) {
         if (numbers[index]! - numbers[index - 1]! > 1) {
           warnings.push({ code: 'chapters_missing', message: `Chapter ${numbers[index - 1]} is followed by ${numbers[index]}` });

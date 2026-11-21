@@ -16,6 +16,11 @@ async function policyError(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('outbound URL policy', () => {
+  it('rejects unapproved ports before DNS, including public literal addresses', async () => {
+    let calls=0;const resolve=async()=>{calls++;return ['93.184.216.34'];};
+    for(const url of ['https://public.example:8443/a.txt','http://93.184.216.34:8080/a.txt','https://[2606:4700:4700::1111]:53/a.txt']) await expect(checkUrl(url,{allowNetwork:true,resolve})).rejects.toThrow(/port/i);
+    expect(calls).toBe(0);
+  });
   it('accepts public http and https addresses and strips credentials', async () => {
     const url = await checkUrl('https://user:secret@example.com/books/a.txt?token=1#top', { allowNetwork: true, resolve: publicDns });
     expect(url.hostname).toBe('example.com');
