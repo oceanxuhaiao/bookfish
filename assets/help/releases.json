@@ -7,9 +7,10 @@
       "version": "0.64.8",
       "releaseDate": "2026-11-21",
       "type": "minor",
-      "majorAnnouncement": false,
-      "title": "帮助与更新中心",
-      "summary": "功能不用再靠猜。新增按需加载的功能指南、版本更新、开发进度和一次性重要更新提醒；入口在顶部页签。",
+      "majorAnnouncement": true,
+      "announcementId": "bookfish-help-center-0.64.8",
+      "title": "大肥鱼有新变化啦！",
+      "summary": "帮助与更新中心上线：功能指南、更新动态、变化提示和重大更新提醒，都能在顶部页签找到。",
       "items": [
         {
           "kind": "feature",
