@@ -17,12 +17,12 @@ function tempDir(): string {
 describe('help center data plane', () => {
   it('serves the packaged catalog and guide without touching a model', () => {
     const dir = tempDir();
-    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.64.1', now: () => new Date('2026-11-21T12:00:00Z') });
+    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.64.2', now: () => new Date('2026-11-21T12:00:00Z') });
     center.open();
     const index = center.index(false);
-    expect(index.currentVersion).toBe('0.64.1');
+    expect(index.currentVersion).toBe('0.64.2');
     expect(index.features).toHaveLength(7);
-    expect(index.latest?.version).toBe('0.64.1');
+    expect(index.latest?.version).toBe('0.64.2');
     expect(index.history.length).toBeGreaterThan(2);
     expect(index.announcement).toBeUndefined();
     expect(index.warning).toBeUndefined();
@@ -67,7 +67,7 @@ describe('help center data plane', () => {
 
   it('returns a friendly fallback when the content package is missing', () => {
     const dir = tempDir();
-    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.64.1', root: join(dir, 'missing') });
+    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.64.2', root: join(dir, 'missing') });
     center.open();
     const index = center.index(false);
     expect(index.features).toEqual([]);

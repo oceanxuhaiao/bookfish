@@ -30,7 +30,7 @@ export const helpStyle = `
 .bf-help-tabs,.bf-help-subtabs{display:flex;gap:6px;border-bottom:1px solid #dde5d8;margin:0 0 18px;flex-wrap:wrap}
 .bf-help-tabs button,.bf-help-subtabs button{border:0;border-radius:0;background:none;padding:9px 2px;margin-right:18px;color:#5b6d60}
 .bf-help-tabs button[aria-selected=true],.bf-help-subtabs button[aria-selected=true]{border-bottom:3px solid #386c58;color:#283d3a;font-weight:600}
-.bf-help-scroll{max-height:calc(100vh - 250px);min-height:260px;overflow:auto;overscroll-behavior:contain;padding:2px 6px 20px 2px}
+.bf-help-scroll{min-height:0;padding:2px 6px 20px 2px}
 .bf-help-category{border:1px solid #e0e6d9;border-radius:14px;background:#fffefa;margin:0 0 12px;padding:0 16px}
 .bf-help-category>summary{padding:14px 2px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
 .bf-help-category>summary strong{font-size:16px}.bf-help-category>summary small{color:#6e7b70}
@@ -64,7 +64,7 @@ export const helpStyle = `
 .bf-help-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#b2644c;margin-left:6px;vertical-align:2px}
 .bf-help-question{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;min-width:22px;padding:0;margin-left:6px;border-radius:50%;border:1px solid #c9d7c1;background:#f7f9f2;color:#386c58;font-size:13px;font-weight:700;line-height:1;vertical-align:1px}
 .bf-help-question:hover{background:#e5eedd}.bf-settings .bf-help-question{margin-left:8px}
-@media(max-width:620px){.bf-help-head h2{font-size:20px}.bf-help-scroll{max-height:calc(100vh - 300px)}.bf-help-banner{flex-direction:column}.bf-help-banner-actions{width:100%}.bf-help-banner-actions button{flex:1}.bf-help-category{padding:0 10px}}
+@media(max-width:620px){.bf-help-head h2{font-size:20px}.bf-help-banner{flex-direction:column}.bf-help-banner-actions{width:100%}.bf-help-banner-actions button{flex:1}.bf-help-category{padding:0 10px}}
 `;
 
 function appendInline(parent: HTMLElement, text: string, onHelpLink?: (id: string) => void): void {
@@ -168,6 +168,14 @@ export function renderMarkdown(markdown: string, onHelpLink?: (id: string) => vo
   }
   closeBlocks();
   return root;
+}
+
+function scrollWindowTo(top: number): void {
+  try {
+    if (typeof window === 'undefined' || typeof window.scrollTo !== 'function') return;
+    if (typeof navigator !== 'undefined' && /jsdom/iu.test(navigator.userAgent)) return;
+    window.scrollTo({ top, behavior: 'auto' });
+  } catch { /* scrolling is a progressive enhancement */ }
 }
 
 function formatDate(value: string): string {
@@ -274,7 +282,7 @@ export class HelpCenterView {
     el('p', this.say('想知道大肥鱼会什么？点开看看吧！', 'Want to know what she can do? Open a card below.'), copy).className = 'bf-help-tagline';
     const version = el('span', '', header); version.className = 'bf-help-version';
     version.textContent = this.say('当前版本 ', 'Installed ') + (this.index?.currentVersion ?? '…');
-    const scroll = document.createElement('div'); scroll.className = 'bf-help-scroll'; scroll.tabIndex = 0; scroll.setAttribute('role', 'region'); scroll.setAttribute('aria-label', this.say('帮助内容，可滚动', 'Help content, scrollable')); root.append(scroll); this.scroll = scroll;
+    const scroll = document.createElement('div'); scroll.className = 'bf-help-scroll'; root.append(scroll); this.scroll = scroll;
     const catalog = document.createElement('div'); scroll.append(catalog); this.catalog = catalog;
     const detail = document.createElement('div'); detail.hidden = true; scroll.append(detail); this.detail = detail;
     const updates = document.createElement('div'); updates.hidden = true; scroll.append(updates); this.updates = updates;
@@ -340,12 +348,12 @@ export class HelpCenterView {
   async openGuide(id: string): Promise<void> {
     if (!this.catalog || !this.detail || !this.scroll) return;
     this.activeGuide = id;
-    this.savedScroll = this.scroll.scrollTop;
+    this.savedScroll = window.scrollY;
     if (this.tabs) this.tabs.hidden = true;
     this.catalog.hidden = true;
     this.updates!.hidden = true;
     this.detail.hidden = false;
-    this.scroll.scrollTop = 0;
+    scrollWindowTo(0);
     this.detail.replaceChildren();
     const back = el('button', this.say('← 返回功能目录', '← Back to guide'), this.detail); back.type = 'button';
     back.addEventListener('click', () => this.backToCatalog());
@@ -387,7 +395,7 @@ export class HelpCenterView {
     this.catalog!.hidden = false;
     this.updates!.hidden = true;
     if (this.tabs) this.tabs.hidden = false;
-    if (this.scroll) this.scroll.scrollTop = this.savedScroll;
+    scrollWindowTo(this.savedScroll);
   }
 
   private async renderUpdates(): Promise<void> {
