@@ -1,8 +1,16 @@
 import type { WebUiPanelContext } from 'cortico/web/shared/client-panel.ts';
 import type { HelpGuideView, HelpIndexView, HelpProgressView, HelpReleaseView } from '../help-center.ts';
 import type { AnnouncementView } from '../help-store.ts';
+import { fetchAnnouncements, type OnlineAnnouncement, type OnlineAnnouncements } from './announcements.ts';
 
 type Say = (zh: string, english: string) => string;
+type OnlineLoader = (signal?: AbortSignal) => Promise<OnlineAnnouncements>;
+
+const ONLINE_CATEGORY_LABEL: Record<OnlineAnnouncement['category'], [string, string]> = {
+  development: ['开发进展', 'Development'],
+  feature: ['功能更新', 'Feature'],
+  notice: ['通知公告', 'Notice'],
+};
 
 const STATUS_LABEL: Record<string, [string, string]> = {
   planned: ['计划中', 'Planned'],
@@ -56,7 +64,16 @@ export const helpStyle = `
 .bf-help-body a{color:#386c58;text-decoration:underline;text-underline-offset:3px}
 .bf-help-error,.bf-help-empty{border:1px solid #e2c98f;background:#fbf5df;color:#6d551c;border-radius:10px;padding:12px 14px;margin:10px 0}
 .bf-help-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-.bf-help-release,.bf-help-progress{border:1px solid #e0e6d9;border-radius:14px;background:#fffefa;padding:16px 18px;margin:0 0 12px}
+.bf-help-release,.bf-help-progress,.bf-help-builtin,.bf-help-online-item{border:1px solid #e0e6d9;border-radius:14px;background:#fffefa;padding:16px 18px;margin:0 0 12px}
+.bf-help-builtin{background:#f7f9f2;border-style:dashed}
+.bf-help-builtin h3,.bf-help-online-item h3{margin:0 0 4px}
+.bf-help-builtin-meta,.bf-help-online-meta{font-size:12px;color:#6e7b70;display:flex;gap:10px;flex-wrap:wrap;margin:0 0 8px}
+.bf-help-online-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:18px 0 8px}
+.bf-help-online-head h4{margin:0;font-size:15px}
+.bf-help-online-content{white-space:pre-wrap;line-height:1.7;margin:6px 0}
+.bf-help-source{font-size:11px;border-radius:999px;padding:1px 8px;background:#eef3e7;color:#58705f}
+.bf-help-refresh{border:1px solid #c9d7c1;background:#f7f9f2;color:#386c58;border-radius:999px;padding:4px 10px;font-size:12px}
+.bf-help-refresh:disabled{opacity:.55}
 .bf-help-release h3,.bf-help-progress h3{margin:0 0 4px}.bf-help-release-meta,.bf-help-progress-meta{font-size:12px;color:#6e7b70;display:flex;gap:10px;flex-wrap:wrap;margin:0 0 8px}
 .bf-help-release-item{margin:6px 0;padding-left:2px}.bf-help-release-item b{color:#386c58;font-weight:600}
 .bf-help-history{display:grid;gap:6px;margin:8px 0 0}.bf-help-history button{text-align:left;background:#fbfcf7;border:1px solid #e3e9dd;border-radius:9px;padding:9px 11px}
@@ -194,6 +211,10 @@ function formatDate(value: string): string {
   return /^\d{4}-\d{2}-\d{2}$/u.test(value) ? value : value;
 }
 
+function formatTimestamp(value: string): string {
+  return value.replace('T', ' ').replace(/(?:\.\d+)?Z$/u, ' UTC');
+}
+
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, text = '', parent?: HTMLElement): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag); node.textContent = text; parent?.append(node); return node;
 }
@@ -223,7 +244,7 @@ export class HelpCenterView {
   private updates: HTMLElement | undefined;
   private scroll: HTMLElement | undefined;
   private tab: 'guide' | 'updates' = 'guide';
-  private updateTab: 'releases' | 'progress' = 'releases';
+  private updateTab: 'announcements' | 'releases' | 'progress' = 'announcements';
   private activeGuide: string | undefined;
   private currentRelease: HelpReleaseView | undefined;
   private progress: HelpProgressView | undefined;
@@ -235,8 +256,15 @@ export class HelpCenterView {
   private viewedMarked = false;
   private savedScroll = 0;
   private disposed = false;
+  private onlineRequest = 0;
+  private onlineController: AbortController | undefined;
 
-  constructor(private readonly ctx: WebUiPanelContext, private readonly say: Say, private readonly onUnread: (unread: boolean) => void) {}
+  constructor(
+    private readonly ctx: WebUiPanelContext,
+    private readonly say: Say,
+    private readonly onUnread: (unread: boolean) => void,
+    private readonly loadOnline: OnlineLoader = (signal) => fetchAnnouncements({ signal }),
+  ) {}
 
   async prime(claim = true): Promise<{ unread: boolean; announcement?: AnnouncementView }> {
     try {
@@ -289,7 +317,10 @@ export class HelpCenterView {
     const tabs = el('div', '', root); tabs.className = 'bf-help-tabs'; tabs.setAttribute('role', 'tablist'); this.tabs = tabs;
     const guideTab = el('button', this.say('功能指南', 'Feature guide'), tabs); guideTab.type = 'button'; guideTab.setAttribute('role', 'tab');
     const updatesTab = el('button', this.say('更新动态', 'Updates'), tabs); updatesTab.type = 'button'; updatesTab.setAttribute('role', 'tab');
-    guideTab.addEventListener('click', () => { if (this.tab === 'updates') this.seenUpdates = true; this.tab = 'guide'; this.applyTab(); });
+    guideTab.addEventListener('click', () => {
+      if (this.tab === 'updates') { this.seenUpdates = true; this.onlineRequest += 1; this.onlineController?.abort(); }
+      this.tab = 'guide'; this.applyTab();
+    });
     updatesTab.addEventListener('click', () => { this.tab = 'updates'; this.applyTab(); void this.renderUpdates(); });
     const header = el('header', '', root); header.className = 'bf-help-head';
     const copy = el('div', '', header);
@@ -446,20 +477,107 @@ export class HelpCenterView {
       }).catch(() => undefined);
     }
     const tabs = el('div', '', this.updates); tabs.className = 'bf-help-subtabs'; tabs.setAttribute('role', 'tablist');
+    const announcements = el('button', this.say('开发动态', 'Development feed'), tabs); announcements.type = 'button'; announcements.setAttribute('role', 'tab');
     const releases = el('button', this.say('版本更新', 'Releases'), tabs); releases.type = 'button'; releases.setAttribute('role', 'tab');
     const progress = el('button', this.say('开发进度', 'Development'), tabs); progress.type = 'button'; progress.setAttribute('role', 'tab');
     const body = el('div', '', this.updates);
-    const apply = (which: 'releases' | 'progress'): void => {
+    const apply = (which: 'announcements' | 'releases' | 'progress'): void => {
       this.updateTab = which;
+      announcements.setAttribute('aria-selected', String(which === 'announcements'));
       releases.setAttribute('aria-selected', String(which === 'releases'));
       progress.setAttribute('aria-selected', String(which === 'progress'));
+      if (which !== 'announcements') { this.onlineRequest += 1; this.onlineController?.abort(); }
       body.replaceChildren();
-      if (which === 'releases') void this.renderReleases(body);
+      if (which === 'announcements') void this.renderAnnouncements(body, () => apply('releases'));
+      else if (which === 'releases') void this.renderReleases(body);
       else void this.renderProgress(body);
     };
+    announcements.addEventListener('click', () => apply('announcements'));
     releases.addEventListener('click', () => apply('releases'));
     progress.addEventListener('click', () => apply('progress'));
     apply(this.updateTab);
+  }
+
+  private builtInReleaseCard(openReleases: () => void): HTMLElement {
+    const card = document.createElement('article'); card.className = 'bf-help-builtin';
+    const title = el('h3', this.say('版本更新（内置）', 'Releases (built in)'), card);
+    const source = el('span', this.say('安装包内置', 'Bundled'), title); source.className = 'bf-help-source';
+    const latest = this.index?.latest;
+    if (!latest) {
+      el('p', this.say('版本记录暂时没有加载出来。', 'Release notes are unavailable.'), card).className = 'bf-help-empty';
+      return card;
+    }
+    const meta = el('p', '', card); meta.className = 'bf-help-builtin-meta';
+    el('span', 'v' + latest.version, meta); el('span', formatDate(latest.releaseDate), meta);
+    el('p', latest.summary, card);
+    const more = el('button', this.say('查看全部版本更新', 'View all releases'), card); more.type = 'button'; more.className = 'bf-help-jump';
+    more.addEventListener('click', openReleases);
+    return card;
+  }
+
+  private async renderAnnouncements(host: HTMLElement, openReleases: () => void): Promise<void> {
+    const request = ++this.onlineRequest;
+    this.onlineController?.abort();
+    const controller = new AbortController(); this.onlineController = controller;
+    host.replaceChildren();
+    const builtin = el('div', '', host); builtin.append(this.builtInReleaseCard(openReleases));
+    const online = el('div', '', host);
+    const head = el('div', '', online); head.className = 'bf-help-online-head';
+    el('h4', this.say('开发动态', 'Development feed'), head);
+    const actions = el('div', '', head);
+    const refresh = el('button', this.say('刷新', 'Refresh'), actions); refresh.type = 'button'; refresh.className = 'bf-help-refresh';
+    refresh.addEventListener('click', () => void this.renderAnnouncements(host, openReleases));
+    const loading = el('p', this.say('正在获取在线动态…', 'Loading online updates…'), online); loading.className = 'bf-help-empty';
+    refresh.disabled = true;
+    try {
+      const feed = await this.loadOnline(controller.signal);
+      if (this.disposed || request !== this.onlineRequest) return;
+      refresh.disabled = false;
+      if (!feed.announcements.length) {
+        loading.textContent = this.say('在线动态暂时没有新内容。', 'There are no online updates right now.');
+        builtin.replaceChildren();
+        await this.renderReleases(builtin);
+        return;
+      }
+      online.replaceChildren();
+      const listHead = el('div', '', online); listHead.className = 'bf-help-online-head';
+      const listTitle = el('h4', this.say('最新动态', 'Latest updates'), listHead);
+      const source = el('span', this.say('GitHub 在线动态', 'Online from GitHub'), listTitle); source.className = 'bf-help-source';
+      const meta = el('p', '', online); meta.className = 'bf-help-online-meta';
+      el('span', this.say('更新于 ', 'Updated ') + formatTimestamp(feed.updatedAt), meta);
+      el('span', this.say(`${feed.announcements.length} 条`, `${feed.announcements.length} item${feed.announcements.length === 1 ? '' : 's'}`), meta);
+      const refreshAgain = el('button', this.say('刷新', 'Refresh'), listHead); refreshAgain.type = 'button'; refreshAgain.className = 'bf-help-refresh';
+      refreshAgain.addEventListener('click', () => void this.renderAnnouncements(host, openReleases));
+      for (const item of feed.announcements) online.append(this.onlineItem(item));
+    } catch {
+      if (this.disposed || request !== this.onlineRequest) return;
+      refresh.disabled = false;
+      online.replaceChildren();
+      const box = el('div', this.say('在线动态暂不可用，当前显示内置版本更新。', 'Online updates are unavailable; showing bundled release notes instead.'), online);
+      box.className = 'bf-help-error';
+      el('small', this.say('可以稍后点「刷新」重试；版本更新和阅读功能不受影响。', 'Try Refresh later; release notes and reading are unaffected.'), box);
+      const retry = el('button', this.say('刷新', 'Refresh'), box); retry.type = 'button'; retry.className = 'bf-help-refresh';
+      retry.addEventListener('click', () => void this.renderAnnouncements(host, openReleases));
+      builtin.replaceChildren();
+      await this.renderReleases(builtin);
+    }
+  }
+
+  private onlineItem(item: OnlineAnnouncement): HTMLElement {
+    const card = document.createElement('article'); card.className = 'bf-help-online-item';
+    const title = el('h3', item.title, card);
+    const labels = ONLINE_CATEGORY_LABEL[item.category];
+    const category = el('span', this.say(labels[0], labels[1]), title); category.className = 'bf-help-badge';
+    const source = el('span', this.say('在线动态', 'Online'), title); source.className = 'bf-help-source';
+    const meta = el('p', '', card); meta.className = 'bf-help-online-meta';
+    el('span', formatTimestamp(item.publishedAt), meta);
+    el('p', item.content, card).className = 'bf-help-online-content';
+    if (item.link) {
+      const link = document.createElement('a');
+      link.href = item.link; link.target = '_blank'; link.rel = 'noreferrer noopener'; link.textContent = this.say('查看详情', 'Read more');
+      card.append(link);
+    }
+    return card;
   }
 
   private async loadRelease(version?: string): Promise<HelpReleaseView> {
@@ -571,6 +689,8 @@ export class HelpCenterView {
 
   dispose(): void {
     this.disposed = true;
+    this.onlineRequest += 1;
+    this.onlineController?.abort();
     this.releaseCache.clear();
     this.guideCache.clear();
   }

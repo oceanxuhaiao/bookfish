@@ -17,12 +17,12 @@ function tempDir(): string {
 describe('help center data plane', () => {
   it('serves the packaged catalog and guide without touching a model', () => {
     const dir = tempDir();
-    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.64.9', now: () => new Date('2026-11-21T12:00:00Z') });
+    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.65.0', now: () => new Date('2026-11-21T12:00:00Z') });
     center.open();
     const index = center.index(false);
-    expect(index.currentVersion).toBe('0.64.9');
+    expect(index.currentVersion).toBe('0.65.0');
     expect(index.features).toHaveLength(7);
-    expect(index.latest?.version).toBe('0.64.9');
+    expect(index.latest?.version).toBe('0.65.0');
     expect(index.history.length).toBeGreaterThan(2);
     expect(index.announcement).toBeUndefined();
     expect(index.warning).toBeUndefined();
@@ -69,9 +69,9 @@ describe('help center data plane', () => {
     const dir = tempDir();
     mkdirSync(join(dir, 'bookfish'), { recursive: true });
     writeFileSync(join(dir, 'bookfish', 'help-updates.json'), JSON.stringify({
-      schema: 1, lastSeenInstalledVersion: '0.64.9', lastReadVersion: '0.64.3', announcements: {}, updatedAt: '2026-11-21T12:00:00Z',
+      schema: 1, lastSeenInstalledVersion: '0.65.0', lastReadVersion: '0.64.3', announcements: {}, updatedAt: '2026-11-21T12:00:00Z',
     }), 'utf8');
-    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.64.9', now: () => new Date('2026-11-21T12:00:00Z') });
+    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.65.0', now: () => new Date('2026-11-21T12:00:00Z') });
     center.open();
     const index = center.index(false);
     expect(index.latest?.isNew).toBe(true);
@@ -87,7 +87,7 @@ describe('help center data plane', () => {
 
   it('returns a friendly fallback when the content package is missing', () => {
     const dir = tempDir();
-    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.64.9', root: join(dir, 'missing') });
+    const center = new HelpCenter({ dataDir: dir, currentVersion: '0.65.0', root: join(dir, 'missing') });
     center.open();
     const index = center.index(false);
     expect(index.features).toEqual([]);

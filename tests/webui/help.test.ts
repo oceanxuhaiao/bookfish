@@ -7,6 +7,15 @@ import type { WebUiPanelContext } from 'cortico/web/shared/client-panel.ts';
 import { HelpCenter } from '../../src/help-center.ts';
 import { HelpCenterView, renderHelpBanner, renderMarkdown } from '../../src/webui/help.ts';
 import type { AnnouncementView } from '../../src/help-store.ts';
+import type { OnlineAnnouncements } from '../../src/webui/announcements.ts';
+
+const onlineFeed: OnlineAnnouncements = {
+  schemaVersion: 1,
+  updatedAt: '2026-11-21T10:00:00Z',
+  announcements: [{
+    id: 'online-1', publishedAt: '2026-11-21T09:00:00Z', title: '在线动态标题', category: 'feature', content: '这是在线动态正文。', link: 'https://example.com/post',
+  }],
+};
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -18,7 +27,7 @@ afterEach(() => {
 function center(): HelpCenter {
   const dir = mkdtempSync(join(tmpdir(), 'bookfish-help-ui-'));
   dirs.push(dir);
-  const value = new HelpCenter({ dataDir: dir, currentVersion: '0.64.9', now: () => new Date('2026-11-21T12:00:00Z') });
+  const value = new HelpCenter({ dataDir: dir, currentVersion: '0.65.0', now: () => new Date('2026-11-21T12:00:00Z') });
   value.open();
   return value;
 }
@@ -70,12 +79,14 @@ describe('help center view', () => {
   it('loads releases and history lazily, then progress on its own tab', async () => {
     const data = center();
     const calls: Array<{ method: string; args: unknown[] }> = [];
-    const view = new HelpCenterView(context(data, calls), (zh) => zh, () => undefined);
+    const view = new HelpCenterView(context(data, calls), (zh) => zh, () => undefined, async () => onlineFeed);
     const host = document.createElement('div');
     await view.open(host, 'updates');
     await flush();
+    expect(host.textContent).toContain('在线动态标题');
+    [...host.querySelectorAll<HTMLButtonElement>('.bf-help-subtabs button')].find((button) => button.textContent === '版本更新')!.click();
+    await flush();
     expect(calls.filter((call) => call.method === 'help_release')).toHaveLength(1);
-    expect(host.textContent).toContain('版本更新');
     const history = [...host.querySelectorAll<HTMLButtonElement>('.bf-help-history button')];
     expect(history.length).toBeGreaterThan(0);
     history[0]!.click();
@@ -85,6 +96,30 @@ describe('help center view', () => {
     await flush();
     expect(calls.some((call) => call.method === 'help_progress')).toBe(true);
     expect(host.textContent).toContain('开发进度更新于');
+  });
+
+  it('shows online updates and keeps the built-in version visible', async () => {
+    const data = center();
+    const calls: Array<{ method: string; args: unknown[] }> = [];
+    const view = new HelpCenterView(context(data, calls), (zh) => zh, () => undefined, async () => onlineFeed);
+    const host = document.createElement('div');
+    await view.open(host, 'updates');
+    await flush();
+    expect(host.querySelector('.bf-help-online-item')?.textContent).toContain('在线动态标题');
+    expect(host.querySelector('.bf-help-builtin')?.textContent).toContain('版本更新（内置）');
+    expect(host.textContent).toContain('GitHub 在线动态');
+  });
+
+  it('falls back to the full built-in release list when the online feed fails', async () => {
+    const data = center();
+    const calls: Array<{ method: string; args: unknown[] }> = [];
+    const view = new HelpCenterView(context(data, calls), (zh) => zh, () => undefined, async () => { throw new Error('offline'); });
+    const host = document.createElement('div');
+    await view.open(host, 'updates');
+    await flush();
+    expect(host.textContent).toContain('在线动态暂不可用');
+    expect(host.querySelector('.bf-help-release')).not.toBeNull();
+    expect(host.querySelector('.bf-help-online-item')).toBeNull();
   });
 
   it('renders markdown without injecting HTML and resolves help links', () => {

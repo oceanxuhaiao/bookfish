@@ -1,8 +1,42 @@
 {
   "schema": 1,
   "updatedAt": "2026-11-21",
-  "currentVersion": "0.64.9",
+  "currentVersion": "0.65.0",
   "releases": [
+    {
+      "version": "0.65.0",
+      "releaseDate": "2026-11-21",
+      "type": "minor",
+      "majorAnnouncement": false,
+      "title": "在线开发动态",
+      "summary": "更新动态新增「开发动态」，从 GitHub 读取公开动态；无法联网时自动回到安装包内置的版本更新。",
+      "items": [
+        {
+          "kind": "feature",
+          "text": "「更新动态」新增「开发动态」页签，从 GitHub 的 announcements.json 读取最新开发动态，不需要更新扩展版本。"
+        },
+        {
+          "kind": "feature",
+          "text": "打开页面先显示安装包内置的版本更新；在线加载成功后再展示 GitHub 动态，两类来源分别标记。"
+        },
+        {
+          "kind": "improvement",
+          "text": "支持手动刷新、5 秒超时和取消；无网络、GitHub 不可达、HTTP 错误、JSON 错误或字段校验失败时，只显示内置版本更新。"
+        },
+        {
+          "kind": "note",
+          "text": "在线内容按纯文本展示，不执行 HTML/JavaScript，外链只接受 HTTPS；不会缓存失败前的旧在线内容。"
+        },
+        {
+          "kind": "note",
+          "text": "不改变阅读、SSM、Persona、书库、进度、手账或 Token 策略，不新增模型调用。"
+        }
+      ],
+      "technical": [
+        "在线地址：https://raw.githubusercontent.com/oceanxuhaiao/bookfish/main/announcements.json",
+        "内置版本记录仍为 assets/help/releases.json；在线动态文件为 announcements.json，两者独立维护。"
+      ]
+    },
     {
       "version": "0.64.9",
       "releaseDate": "2026-11-21",

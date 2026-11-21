@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { loadHelpCatalog, validateHelpCatalog, validateHelpLinks, allFeatures } from '../src/help-content.ts';
+import { parseAnnouncements } from '../src/webui/announcements.ts';
 
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version?: unknown };
 if (typeof packageJson.version !== 'string') throw new Error('package.json has no version');
@@ -12,4 +13,5 @@ for (const feature of allFeatures(catalog)) {
     console.log(`note: ${feature.id} needs ${feature.minVersion}`);
   }
 }
-console.log(`help content ok: package ${packageJson.version}, ${catalog.categories.length} categories, ${ids.size} guides, ${catalog.releases.length} releases, ${catalog.progress.items.length} progress items`);
+const feed = parseAnnouncements(readFileSync(new URL('../announcements.json', import.meta.url), 'utf8'));
+console.log(`help content ok: package ${packageJson.version}, ${catalog.categories.length} categories, ${ids.size} guides, ${catalog.releases.length} releases, ${catalog.progress.items.length} progress items, ${feed.announcements.length} online announcements`);
