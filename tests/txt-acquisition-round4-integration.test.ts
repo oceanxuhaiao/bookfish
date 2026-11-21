@@ -24,6 +24,17 @@ function fixture(fetchImpl?:typeof fetch,browser=false){
   return{dir,library,acq,selection,id,cfg,setCfg:(patch:any)=>{Object.assign(cfg,patch);selection.onConfigChanged();acq.onConfigChanged();}};
 }
 describe('round4 controlled raw races',()=>{
+  it.each(['EBUSY','ENOSPC'])('preserves the source after a real link-call %s failure and permits retry',async code=>{
+    const staging=new AcquisitionStaging(scratch());await staging.init();const bytes=Buffer.from('authenticated bytes'),digest=sha(bytes),part=staging.partialPath(randomUUID());writeFileSync(part,bytes);
+    const fault=vi.spyOn(disk,'link').mockRejectedValueOnce(Object.assign(Error('injected link failure'),{code}));
+    await expect(staging.commitRaw(part,digest,'txt')).rejects.toMatchObject({code});expect(readFileSync(part)).toEqual(bytes);fault.mockRestore();
+    const raw=await staging.commitRaw(part,digest,'txt');expect(readFileSync(staging.resolveInside(raw))).toEqual(bytes);
+  });
+  it('keeps a valid newly linked original if publication bookkeeping fails',async()=>{
+    const staging=new AcquisitionStaging(scratch());await staging.init();const bytes=Buffer.from('unique recoverable bytes'),digest=sha(bytes),part=staging.partialPath(randomUUID());writeFileSync(part,bytes);
+    await expect(staging.commitRaw(part,digest,'txt',(_p,phase)=>{if(phase==='committed')throw Object.assign(Error('record write full'),{code:'ENOSPC'});})).rejects.toMatchObject({code:'ENOSPC'});
+    expect(readFileSync(part)).toEqual(bytes);const raw=await staging.commitRaw(part,digest,'txt');expect(readFileSync(staging.resolveInside(raw))).toEqual(bytes);
+  });
   it('serializes quota enumeration with a new same-hash publication',async()=>{
     const staging=new AcquisitionStaging(scratch());await staging.init();const bytes=Buffer.from('same trusted original'),digest=sha(bytes),source=staging.partialPath(randomUUID());writeFileSync(source,bytes);const relative=await staging.commitRaw(source,digest,'txt');
     const entered=barrier(),resume=barrier(),usage=staging.usage.bind(staging);vi.spyOn(staging,'usage').mockImplementationOnce(async()=>{entered.release();await resume.promise;return usage();});
