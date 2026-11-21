@@ -1,0 +1,235 @@
+{
+  "schema": 1,
+  "updatedAt": "2026-11-21",
+  "categories": [
+    {
+      "id": "start",
+      "title": "开始使用",
+      "summary": "推荐一本书，让她开始阅读",
+      "icon": "📖",
+      "features": [
+        {
+          "id": "start-here",
+          "title": "第一次见面",
+          "summary": "先送她一本书，再按自己的兴趣慢慢了解。",
+          "icon": "🐟",
+          "contentPath": "guides/start-here.md",
+          "minVersion": null,
+          "enabled": true
+        },
+        {
+          "id": "import-book",
+          "title": "导入一本书",
+          "summary": "从本地文件或链接把小说交给她。",
+          "icon": "📥",
+          "contentPath": "guides/import-book.md",
+          "minVersion": null,
+          "enabled": true
+        },
+        {
+          "id": "fetch-book",
+          "title": "按书名或作者找书",
+          "summary": "先搜索候选，再获取通过校验的版本。",
+          "icon": "🔎",
+          "contentPath": "guides/fetch-book.md",
+          "minVersion": null,
+          "enabled": true
+        },
+        {
+          "id": "serial-follow",
+          "title": "连载追更",
+          "summary": "只追加新章，不清空已经读过的进度。",
+          "icon": "🔁",
+          "contentPath": "guides/serial-follow.md",
+          "minVersion": null,
+          "enabled": true,
+          "experimental": true
+        }
+      ]
+    },
+    {
+      "id": "reading",
+      "title": "自主阅读",
+      "summary": "她按照自己的节奏读书",
+      "icon": "📚",
+      "features": [
+        {
+          "id": "autonomous-reading",
+          "title": "自主阅读",
+          "summary": "她会按自己的节奏读你推荐的小说。",
+          "icon": "🌿",
+          "contentPath": "guides/autonomous-reading.md",
+          "minVersion": null,
+          "enabled": true
+        },
+        {
+          "id": "reading-pace",
+          "title": "阅读速度与限制",
+          "summary": "调整目标字速、每轮时长和每次提供的段数。",
+          "icon": "⏱️",
+          "contentPath": "guides/reading-pace.md",
+          "minVersion": null,
+          "enabled": true
+        },
+        {
+          "id": "routine-rest",
+          "title": "作息与休息",
+          "summary": "吃饭、睡觉和读书间歇会改变阅读机会。",
+          "icon": "🌙",
+          "contentPath": "guides/routine-rest.md",
+          "minVersion": null,
+          "enabled": true
+        },
+        {
+          "id": "pause-resume",
+          "title": "暂停与继续",
+          "summary": "暂停会取消在途任务，继续不会补读离线时间。",
+          "icon": "⏸️",
+          "contentPath": "guides/pause-resume.md",
+          "minVersion": null,
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "shelf",
+      "title": "书架与找书",
+      "summary": "管理书籍，看看她想读什么",
+      "icon": "🗂️",
+      "features": [
+        {
+          "id": "bookshelf",
+          "title": "书架",
+          "summary": "搜索、筛选、排序，并查看每一本书的详情。",
+          "icon": "📚",
+          "contentPath": "guides/bookshelf.md",
+          "minVersion": null,
+          "enabled": true
+        },
+        {
+          "id": "find-own-books",
+          "title": "让她自己找书",
+          "summary": "她可以提出想读的书，搜索并排队。",
+          "icon": "🧭",
+          "contentPath": "guides/find-own-books.md",
+          "minVersion": null,
+          "enabled": true,
+          "experimental": true
+        },
+        {
+          "id": "book-detail",
+          "title": "书籍详情与阅读起点",
+          "summary": "阅读原文、查看足迹，或声明从某一章开始。",
+          "icon": "🔖",
+          "contentPath": "guides/book-detail.md",
+          "minVersion": null,
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "trail",
+      "title": "阅读足迹",
+      "summary": "了解她留下的感受与想法",
+      "icon": "🐾",
+      "features": [
+        {
+          "id": "reading-trail",
+          "title": "阅读足迹",
+          "summary": "按现实时间看她读到哪里、当时想了什么。",
+          "icon": "🧾",
+          "contentPath": "guides/reading-trail.md",
+          "minVersion": null,
+          "enabled": true
+        },
+        {
+          "id": "discuss",
+          "title": "和她聊剧情",
+          "summary": "从一条足迹出发，讨论已经读过的内容。",
+          "icon": "💬",
+          "contentPath": "guides/discuss.md",
+          "minVersion": null,
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "sharing",
+      "title": "主动分享",
+      "summary": "她有时会主动告诉你读书感受",
+      "icon": "💭",
+      "features": [
+        {
+          "id": "sharing",
+          "title": "主动分享阅读感想",
+          "summary": "有值得说的感受时才分享，并受间隔和安静时段约束。",
+          "icon": "💭",
+          "contentPath": "guides/sharing.md",
+          "minVersion": null,
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "review",
+      "title": "读后感",
+      "summary": "看看她读完后如何评价",
+      "icon": "✍️",
+      "features": [
+        {
+          "id": "review",
+          "title": "全书读后感",
+          "summary": "读完后留下自己的文章，旧版本不会被覆盖。",
+          "icon": "✍️",
+          "contentPath": "guides/review.md",
+          "minVersion": null,
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "settings",
+      "title": "配置与数据",
+      "summary": "调整阅读设置，管理资料",
+      "icon": "⚙️",
+      "features": [
+        {
+          "id": "settings",
+          "title": "配置项怎么找",
+          "summary": "阅读、分享、高级限制分别在哪里。",
+          "icon": "⚙️",
+          "contentPath": "guides/settings.md",
+          "minVersion": null,
+          "enabled": true
+        },
+        {
+          "id": "novel-engine",
+          "title": "小说获取引擎",
+          "summary": "按书名或作者获取前，需要先安装或导入运行时。",
+          "icon": "🧩",
+          "contentPath": "guides/novel-engine.md",
+          "minVersion": null,
+          "enabled": true
+        },
+        {
+          "id": "backup-restore",
+          "title": "备份与恢复",
+          "summary": "备份包含正文，恢复只允许空书架。",
+          "icon": "💾",
+          "contentPath": "guides/backup-restore.md",
+          "minVersion": null,
+          "enabled": true
+        },
+        {
+          "id": "data-cleanup",
+          "title": "删除与清理",
+          "summary": "移除书籍或清空书架会删除哪些内容。",
+          "icon": "🧹",
+          "contentPath": "guides/data-cleanup.md",
+          "minVersion": null,
+          "enabled": true
+        }
+      ]
+    }
+  ]
+}

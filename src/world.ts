@@ -26,6 +26,8 @@ import { SelectionCoordinator } from './selection.ts';
 import { BOOKFISH_TOOL_DECLS } from './tool-schemas.ts';
 import { HELP_TOPICS } from './protocols.ts';
 import { assertWritableTextStoreDir } from './text-store.ts';
+import { HelpCenter } from './help-center.ts';
+import { BOOKFISH_VERSION } from './version.ts';
 
 const ENV_PROMPT_FILE = join(dirname(fileURLToPath(import.meta.url)), 'ENV_PROMPT.md');
 const PROTOCOL_DIR = join(dirname(fileURLToPath(import.meta.url)), 'protocol');
@@ -53,6 +55,7 @@ export class BookfishWorld implements World {
   private readonly runtime: NovelRuntimeManager;
   private readonly serialSync: SerialSync;
   private readonly serialScheduler: SerialScheduler;
+  private readonly helpCenter: HelpCenter;
   private selection!: SelectionCoordinator;
   private lifetime = new AbortController();
   constructor(private readonly opts: BookfishWorldOptions) {
@@ -80,6 +83,7 @@ export class BookfishWorld implements World {
     });
     this.selection = new SelectionCoordinator({ library: this.library, novelFetches: this.novelFetches,
       scheduler: this.scheduler, cfg: () => this.opts.cfg, timezone: opts.timezone });
+    this.helpCenter = new HelpCenter({ dataDir: opts.dataDir, currentVersion: BOOKFISH_VERSION });
   }
   private sourceSignal(signal?: AbortSignal): AbortSignal {
     if (!this.host) throw new SourceError('cancelled', 'Bookfish is not mounted');
@@ -307,6 +311,18 @@ export class BookfishWorld implements World {
       lamps: [this.readingLamp(en)],
       panels: [{id:'status',title:en?'Reading now':'正在读',getMethods:['runtime_status']},{id:'shelf',title:en?'Bookshelf':'书架',getMethods:['runtime_status']},{id:'trail',title:en?'Reading journal':'阅读足迹'},{id:'support',title:en?'Feedback':'反馈'},{id:'settings',title:en?'Settings':'配置',getMethods:['runtime_status']}],
       invoke: async (panel, method, args) => {
+        if (['status','shelf','trail','support','settings'].includes(panel)) {
+          if (method==='help_index'&&args.length<=1) return this.helpCenter.index(args[0]===true);
+          if (method==='help_guide'&&args.length===1) return this.helpCenter.guide(requiredText(args[0],'helpId',80));
+          if (method==='help_release'&&args.length<=1) return this.helpCenter.release(args.length===0?undefined:requiredText(args[0],'version',20));
+          if (method==='help_progress'&&args.length===0) return this.helpCenter.progress();
+          if (method==='help_mark'&&args.length===2) {
+            const action=args[1];
+            if (action!=='viewed'&&action!=='dismissed') throw new Error('Invalid help announcement action');
+            return this.helpCenter.mark(requiredText(args[0],'announcementId',100),action);
+          }
+          if (method==='help_updates_viewed'&&args.length===0) return this.helpCenter.markUpdatesViewed();
+        }
         if (panel==='settings'||panel==='shelf'||panel==='status') {
           if (method==='runtime_status'&&args.length===0) return this.runtime.status();
           if (method==='runtime_install'&&args.length<=1) return this.runtime.installOnline(args[0]);
@@ -486,6 +502,7 @@ export class BookfishWorld implements World {
     this.lifetime = new AbortController();
     try {
       this.transfers.recover(); this.host = host;
+      try { this.helpCenter.open(); } catch (error) { host.log.warn('Bookfish help center unavailable', { error: String(error) }); }
       try { await this.runtime.start(); } catch { /* runtime faults stay inside the runtime card, not the whole World */ }
       this.scheduler.start(host);
       this.sharing.start(host);

@@ -10,6 +10,7 @@ import type { RuntimeDownloadInfo, RuntimeStatusView, RuntimeUpdateInfo } from '
 interface RuntimeCardOptions {
   compact?: boolean;
   onReady?: () => void;
+  onHelp?: () => void;
 }
 
 const PHASE_LABEL: Record<string, [string, string]> = {
@@ -73,6 +74,12 @@ export function mountRuntimeCard(container: HTMLElement, ctx: WebUiPanelContext,
   root.append(css);
   const head = document.createElement('div'); head.className = 'runtime-head'; root.append(head);
   const title = document.createElement('h3'); title.textContent = say('小说获取引擎', 'Novel fetch engine'); head.append(title);
+  if (options.onHelp) {
+    const help = document.createElement('button'); help.type = 'button'; help.className = 'bf-help-question'; help.textContent = '?';
+    help.title = say('查看说明', 'Open guide'); help.setAttribute('aria-label', say('查看「小说获取引擎」的说明', 'Open help for “Novel fetch engine”'));
+    help.addEventListener('click', options.onHelp);
+    head.append(help);
+  }
   const badge = document.createElement('span'); badge.className = 'runtime-badge'; head.append(badge);
   const intro = document.createElement('p'); intro.style.margin = '0'; root.append(intro);
   const meta = document.createElement('div'); meta.className = 'runtime-meta'; root.append(meta);

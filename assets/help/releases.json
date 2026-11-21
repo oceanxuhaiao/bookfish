@@ -1,0 +1,129 @@
+{
+  "schema": 1,
+  "updatedAt": "2026-11-21",
+  "currentVersion": "0.64.0",
+  "releases": [
+    {
+      "version": "0.64.0",
+      "releaseDate": "2026-11-21",
+      "type": "minor",
+      "majorAnnouncement": false,
+      "title": "帮助与更新中心",
+      "summary": "功能不用再靠猜。新增按需加载的功能指南、版本更新、开发进度和一次性重要更新提醒。",
+      "items": [
+        {
+          "kind": "feature",
+          "text": "「? 帮助与更新」入口可以按分类查看大肥鱼会什么，以及每项功能怎么用。"
+        },
+        {
+          "kind": "feature",
+          "text": "指南只在点开时加载正文；首页只保留目录和一句话简介，不把全部说明塞进页面。"
+        },
+        {
+          "kind": "feature",
+          "text": "版本更新和开发进度页把当前版本、历史版本和仍在推进的工作分开显示。"
+        },
+        {
+          "kind": "improvement",
+          "text": "自主阅读、找书、分享、阅读限制、小说引擎和数据管理旁增加了「?」快捷说明。"
+        },
+        {
+          "kind": "note",
+          "text": "帮助与更新页面不调用模型，不读取小说正文或阅读历史，也不写入书架、手账或 Persona Memory。"
+        },
+        {
+          "kind": "note",
+          "text": "重要更新提醒只在发布方明确标记时出现，同一公告最多自动提醒一次；普通更新不弹窗。"
+        }
+      ],
+      "technical": [
+        "指南与版本记录随扩展包发布，运行时不访问网络；资源缺失时只影响帮助中心，不阻断书架与阅读。",
+        "更新提醒状态保存在独立的 help-updates.json，与书库、阅读记录、分享预算和备份格式解耦。"
+      ]
+    },
+    {
+      "version": "0.63.1",
+      "releaseDate": "2026-11-21",
+      "type": "patch",
+      "majorAnnouncement": false,
+      "title": "书库写锁修复",
+      "summary": "修复异常退出后残留锁可能让 World 一直提示书库已打开的问题。",
+      "items": [
+        {
+          "kind": "fix",
+          "text": "改用独立 SQLite 写事务管理书库写锁；进程终止后由系统释放，减少残留锁和 PID 复用造成的误判。"
+        },
+        {
+          "kind": "improvement",
+          "text": "旧 JSON 锁迁移会核验真实进程创建时间；无法确认身份时保留锁并显示恢复步骤，不静默删除。"
+        },
+        {
+          "kind": "compatibility",
+          "text": "升级前请退出所有旧 BookFish / Coopanion 实例；运行期间不要手动删除锁数据库。"
+        }
+      ]
+    },
+    {
+      "version": "0.63.0",
+      "releaseDate": "2026-11-20",
+      "type": "minor",
+      "majorAnnouncement": false,
+      "title": "TXT 导入与阅读起点",
+      "summary": "修复少量坏字节导致整本 TXT 无法导入，并新增「从某一章开始读」。",
+      "items": [
+        {
+          "kind": "fix",
+          "text": "整本基本是 UTF-8、只含少量孤立坏字节的 TXT 不再被整本拒绝；成片损坏和末尾截断仍按原规则拒绝。"
+        },
+        {
+          "kind": "improvement",
+          "text": "长连载按书名获取时扩大候选源预算，并允许同一卷内极少量的重复章节标题作为警告。"
+        },
+        {
+          "kind": "feature",
+          "text": "书籍详情新增「从某一章开始读」。前面的章节不会被记成已读，也不会进入手账或读后感。"
+        },
+        {
+          "kind": "compatibility",
+          "text": "声明过阅读起点的书不能直接用 0.62.1 及更早版本打开；降级前请先导出备份。"
+        }
+      ]
+    },
+    {
+      "version": "0.62.0",
+      "releaseDate": "2026-11-16",
+      "type": "minor",
+      "majorAnnouncement": false,
+      "title": "常驻提示词瘦身",
+      "summary": "把每轮都要发送的规则压到更短，把详细操作协议留给按需读取。",
+      "items": [
+        {
+          "kind": "improvement",
+          "text": "常驻环境提示词从约一万字符压到几百字符，只保留身份、真实性、进度和隐私边界。"
+        },
+        {
+          "kind": "improvement",
+          "text": "阅读、手账、检索、分享、书评、选书、讨论和故事记忆的细节改为按需读取。"
+        },
+        {
+          "kind": "fix",
+          "text": "修正书评请求参数和讨论参数说明，并让模型漏填 bookKey 时能从任务号恢复。"
+        }
+      ]
+    },
+    {
+      "version": "0.61.2",
+      "releaseDate": "2026-11-14",
+      "type": "patch",
+      "majorAnnouncement": false,
+      "title": "卸载后的面板轮询",
+      "summary": "修复停用扩展后，面板轮询反复记录「未挂载」错误的问题。",
+      "items": [
+        {
+          "kind": "fix",
+          "text": "未挂载时传输状态直接返回空结果，不再每轮写入一条错误日志；写操作仍然拒绝。"
+        }
+      ]
+    }
+  ]
+}
