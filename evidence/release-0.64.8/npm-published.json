@@ -1,0 +1,12 @@
+{
+  "package": "cortico-world-bookfish",
+  "version": "0.64.8",
+  "publishedAt": "2026-11-21T08:40:02.428Z",
+  "latest": "0.64.8",
+  "shasum": "29fda9f8da4c5bcfc3f79c2547556b6d81a576b6",
+  "integrity": "sha512-pgLPmPZpYjm32Djay9t1zUiGn1iqOAEnyQZEa8NigLQOszGqLwZ4Y9cb/lflojtMCkTQ+b2DNZsO01cH6pK9Bg==",
+  "tarball": "https://registry.npmjs.org/cortico-world-bookfish/-/cortico-world-bookfish-0.64.8.tgz",
+  "sha256": "6b3bc882419a824d69e557308971f463a393ed3e5bfc7496cdf22ce1918584ed",
+  "localTarball": "output/cortico-world-bookfish-0.64.8.tgz",
+  "size": 1587092
+}

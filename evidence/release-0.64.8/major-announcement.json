@@ -1,0 +1,15 @@
+{
+  "announcementId": "bookfish-help-center-0.64.8",
+  "version": "0.64.8",
+  "majorAnnouncement": true,
+  "title": "大肥鱼有新变化啦！",
+  "verifiedOnHost": true,
+  "bannerText": "大肥鱼有新变化啦！帮助与更新中心上线：功能指南、更新动态、变化提示和重大更新提醒，都能在顶部页签找到。",
+  "stateAfterPrompt": {
+    "lastSeenInstalledVersion": "0.64.8",
+    "lastReadVersion": "0.64.3",
+    "prompted": true,
+    "viewed": false
+  },
+  "screenshot": "output/host-0.64.8/live-major-banner-0.64.8.png"
+}
