@@ -59,13 +59,13 @@ describe('round4 controlled raw races',()=>{
   });
 });
 describe('round4 authenticated consumed bytes',()=>{
-  it('preserves an already committed unread book when cancellation arrives before the shelf receipt',async()=>{
+  it.each(['cancel','abandon'] as const)('preserves an already committed unread book when %s arrives before the shelf receipt',async action=>{
     const f=fixture((async()=>new Response('她打开信封，读起那封迟来的信。'.repeat(100))) as typeof fetch);await f.acq.init();
     const original=f.library.importFileBestEffort.bind(f.library);
-    vi.spyOn(f.library,'importFileBestEffort').mockImplementationOnce((...args)=>{const result=original(...args);f.selection.cancel(f.id);return result;});
+    vi.spyOn(f.library,'importFileBestEffort').mockImplementationOnce((...args)=>{const result=original(...args);f.selection[action](f.id);return result;});
     const result=await f.acq.importFile({url:'https://books.example/a.txt',title:'海风',author:'小鱼',intentId:f.id,origin:'autonomous'});
     expect(result.status).not.toMatch(/^completed/);expect(f.library.list()).toHaveLength(1);expect(f.library.list()[0].confirmedChars).toBe(0);
-    expect(f.library.selection().intents[0].status).toBe('cancelled');expect(f.library.selection().queue).toHaveLength(0);
+    expect(f.library.selection().intents[0].status).toBe(action==='cancel'?'cancelled':'abandoned');expect(f.library.selection().queue).toHaveLength(0);
   });
   it('refuses a canonical-file replacement before the actual index consumes it',async()=>{
     const f=fixture((async()=>new Response('她打开信封，读起那封迟来的信。'.repeat(100))) as typeof fetch);await f.acq.init();const original=f.library.importFileBestEffort.bind(f.library);
