@@ -24,5 +24,7 @@
   "downloadVerified": true,
   "downloadBytes": 1544404,
   "sha256": "96d90802601e472109bfec4a598c13d3fdbb35686862172bf7c0bd31b11af588",
-  "cacheNote": "Fresh query verifies origin metadata and tarball while bare CDN URLs propagate."
+  "cacheNote": "Fresh query verifies origin metadata and tarball while bare CDN URLs propagate.",
+  "canonicalDownloadVerified": true,
+  "canonicalDownloadBytes": 1544404
 }

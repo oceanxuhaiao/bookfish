@@ -1,0 +1,22 @@
+{
+  "id": 453445957,
+  "url": "https://github.com/oceanxuhaiao/bookfish/releases/tag/v0.63.1",
+  "tag": "v0.63.1",
+  "draft": false,
+  "prerelease": false,
+  "publishedAt": "2026-11-21T04:47:08Z",
+  "assets": [
+    {
+      "name": "cortico-world-bookfish-0.63.1.tgz",
+      "bytes": 1544404,
+      "url": "https://github.com/oceanxuhaiao/bookfish/releases/download/v0.63.1/cortico-world-bookfish-0.63.1.tgz",
+      "digest": "sha256:96d90802601e472109bfec4a598c13d3fdbb35686862172bf7c0bd31b11af588"
+    },
+    {
+      "name": "SHA256SUMS",
+      "bytes": 100,
+      "url": "https://github.com/oceanxuhaiao/bookfish/releases/download/v0.63.1/SHA256SUMS",
+      "digest": "sha256:7227f9d3f1cef29f0c06d409947232a6d142de21ce43067097f0b6e9ae2aad16"
+    }
+  ]
+}
