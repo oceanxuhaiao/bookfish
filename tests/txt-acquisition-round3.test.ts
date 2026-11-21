@@ -20,6 +20,11 @@ async function failedOriginal() {
   expect(failed.status).toBe('failed_recoverable'); const task = acq.records.get(failed.taskId)!; return { acq, failed, path: acq.staging.resolveInside(task.file!.path!) };
 }
 describe('third-round original integrity', () => {
+  it('preserves the retained original and existing shelf entry when repair fails', async () => {
+    const acq=acquisition();await acq.init();const done=await acq.importFile({url:'https://books.example/a.txt',title:'海风'});const originalPath=acq.staging.resolveInside(acq.records.get(done.taskId)!.file!.path!);const originalBytes=readFileSync(originalPath);const shelfBefore=library.list();
+    const fault=vi.spyOn(library,'importFileBestEffort').mockImplementationOnce(()=>{throw Object.assign(Error('full disk during repair'),{code:'ENOSPC'});});const failed=await acq.repair(done.taskId);fault.mockRestore();
+    expect(failed.failure?.code).toBe('storage_unavailable');expect(readFileSync(originalPath)).toEqual(originalBytes);expect(library.list()).toEqual(shelfBefore);expect((await acq.repair(done.taskId)).duplicate).toBe(true);expect(library.list()).toHaveLength(1);
+  });
   it('finishes a pending raw commit on retry without requiring a World restart', async () => {
     const acq=acquisition();await acq.init();const fault=vi.spyOn(acq.staging,'commitRaw').mockRejectedValueOnce(Object.assign(Error('busy'),{code:'EBUSY'}));
     const failed=await acq.importFile({url:'https://books.example/a.txt',title:'海风'});fault.mockRestore();const done=await acq.retry(failed.taskId);expect(done.status).toMatch(/^completed/);expect((await acq.retry(done.taskId)).bookKey).toBe(done.bookKey);expect(acq.records.get(done.taskId)?.attempts.downloads).toBe(1);expect(library.list()).toHaveLength(1);

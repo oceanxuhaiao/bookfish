@@ -151,6 +151,8 @@ export function assessText(input: AssessInput): Assessment {
   if (input.replacements > 0) {
     warnings.push({ code: 'replacement_characters', message: `${input.replacements} undecodable character(s) kept as replacement marks`, count: input.replacements });
   }
+  const localizedDamage = input.replacements >= 8;
+  if (localizedDamage && replacementRatio <= MAX_REPLACEMENT_RATIO) warnings.push({ code: 'localized_encoding_damage', message: 'Multiple undecodable characters remain in otherwise readable text; affected portions require review of the retained original', count: input.replacements });
 
   const lowerHead = metrics.head.toLowerCase();
   const loginHits = LOGIN_HINTS.filter((hint) => lowerHead.includes(hint)).length;
@@ -192,7 +194,7 @@ export function assessText(input: AssessInput): Assessment {
   const adLines = metrics.adLines;
   if (adLines) warnings.push({ code: 'ad_lines', message: `${adLines} line(s) look like site advertising or navigation; kept as-is`, count: adLines });
 
-  let suspectedPartial = warnings.some(issue => issue.code === 'mixed_encoding_suspected') || replacementRatio > MAX_REPLACEMENT_RATIO || readableChars < MIN_READABLE_CHARS;
+  let suspectedPartial = warnings.some(issue => issue.code === 'mixed_encoding_suspected') || localizedDamage || replacementRatio > MAX_REPLACEMENT_RATIO || readableChars < MIN_READABLE_CHARS;
   if (input.truncatedTail) {
     suspectedPartial = true;
     warnings.push({ code: 'tail_truncated', message: 'The file ended with an incomplete character' });

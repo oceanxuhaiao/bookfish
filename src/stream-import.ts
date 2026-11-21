@@ -205,7 +205,9 @@ export function prepareFileBestEffort(file: string, chunkBytes = 16 * 1024, prog
     output = openSync(canonicalFile, 'wx');
     // Small lookahead beyond the detection window avoids classifying an isolated
     // leading byte when the first non-ASCII character straddles 64KiB.
-    const prefix = Buffer.alloc(Math.min(64 * 1024 + 256, size)); const first = readSync(input, prefix, 0, prefix.length, null);
+    const prefix = Buffer.alloc(Math.min(64 * 1024 + 264, size));
+    let first = readSync(input, prefix, 0, Math.min(64 * 1024 + 256, prefix.length), null);
+    if (first < prefix.length && prefix.subarray(Math.max(0, first - 4), first).some(byte => byte >= 128)) first += readSync(input, prefix, first, prefix.length - first, null);
     encoding = forced ?? detectEncodingLoosely(prefix.subarray(0, first));
     if (looksBinary(prefix.subarray(0, first), encoding)) throw new BestEffortRejected('binary_file', 'The downloaded file looks binary, not text');
     if (!forced && size > 128 * 1024 && ['utf-8', 'utf-8-bom', 'gb18030'].includes(encoding)) {

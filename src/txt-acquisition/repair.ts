@@ -68,6 +68,10 @@ export function detectEncoding(bytes: Buffer): DetectedEncoding {
   let ascii = 0;
   while (ascii < sample.length && sample[ascii]! < 128) ascii++;
   if (ascii >= 256 && ascii < sample.length) sample = sample.subarray(ascii);
+  try {
+    const complete = new TextDecoder('utf-8', { fatal: true }).decode(sample, { stream: true });
+    if (/[^\x00-\x7f]/u.test(complete)) return 'utf-8';
+  } catch { /* invalid interior bytes need another codec */ }
   // A damaged tail must not reinterpret a clearly UTF-8 opening as UTF-16 gibberish.
   try {
     const opening = new TextDecoder('utf-8', { fatal: true }).decode(sample.subarray(0, 256), { stream: true });

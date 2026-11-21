@@ -10,6 +10,15 @@ beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'bf-r3-stream-')); });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 function prepare(bytes: Buffer, chunk = 1) { const file = join(dir, 'original.txt'); writeFileSync(file, bytes); const decoded = prepareFileBestEffort(file, chunk); return { text: readFileSync(decoded.canonicalFile!, 'utf8'), decoded }; }
 describe('third-round decoding boundaries', () => {
+  it.each(['near-head','near-tail','alternating'] as const)('preserves the correct opening and reports partial for known mixed bytes %s', kind => {
+    const prose='她把信折好放进抽屉，海风从窗口吹进来。';const utf=Buffer.from(prose),gb=Buffer.from('cbfdb0d1d0c5d5dbbac3b7c5bdf8b3e9cceba3acbaa3b7e7b4d3b4b0bfdab4b5bdf8c0b4a1a3','hex');const opening=prose.repeat(20);
+    const parts=kind==='near-head'?[Buffer.from(opening),...Array(2000).fill(gb)]:kind==='near-tail'?[Buffer.from(prose.repeat(2000)),...Array(40).fill(gb)]:[Buffer.from(opening),...Array.from({length:200},(_,i)=>i%2?gb:utf)];
+    const result=prepare(Buffer.concat([...parts,Buffer.from('。')]));expect(result.text.startsWith(opening)).toBe(true);expect(assessText(result.decoded).report.quality).toBe('partial');
+  });
+  it('drops only an incomplete final character and warns while preserving preceding prose', () => {
+    const prefix='她把信折好，回到窗边。'.repeat(100);const bytes=Buffer.concat([Buffer.from(prefix),Buffer.from('春晓').subarray(0,-1)]);const result=prepare(bytes);
+    expect(result.text).toBe(prefix+'春');expect(result.decoded.truncatedTail).toBe(true);expect(assessText(result.decoded).report.warnings.map(w=>w.code)).toContain('tail_truncated');
+  });
   it('reports Chinese-number gaps without asserting whole-book completeness', () => {
     const result=assessText({text:'第九章\n她在海边等船。\n第十一章\n她终于看见白帆。',encoding:'utf-8',replacements:0,truncatedTail:false,repairs:[]});
     expect(result.report.warnings.map(w=>w.code)).toContain('chapters_missing');expect(result.verdict).toBe('accept');
@@ -18,7 +27,7 @@ describe('third-round decoding boundaries', () => {
     const text='汉字 abc\n\t　🌊𠀀é\ufffd\u0000!';const q=new TextQualityAccumulator();q.push(text);const m=q.finish();const points=[...text];expect(m.codePoints).toBe(points.length);expect(m.readableChars).toBe(points.filter(c=>!['\n','\r','\t',' ','　','\ufffd'].includes(c)).length);expect(m.supported).toBe(points.filter(c=>/[\p{L}\p{N}\p{P}\p{M}\p{Z}\p{S}\s]/u.test(c)||c==='\ufffd').length);
   });
   it.each(['utf8','gb18030','utf16le','utf16be'] as const)('preserves %s across the prefix and one-byte read boundaries', kind => {
-    const prefix = 'a'.repeat(65535); const tail = '春晓🌊\r\n尾声'; const expected = prefix + tail.replace('\r\n','\n');
+    const prefix = 'a'.repeat(65791); const tail = '春晓🌊\r\n尾声'; const expected = prefix + tail.replace('\r\n','\n');
     let bytes: Buffer;
     if (kind === 'utf8') bytes = Buffer.from(prefix + tail);
     else if (kind === 'gb18030') bytes = Buffer.concat([Buffer.from(prefix),Buffer.from('b4bacffe','hex'),Buffer.from('\r\n'),Buffer.from('ceb2c9f9','hex')]);
