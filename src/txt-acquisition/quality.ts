@@ -18,6 +18,8 @@ const AD_HINTS = ['www.', 'http://', 'https://', '最新章节', '请记住本�
 
 export interface AssessInput {
   text: string;
+  metrics?: TextQualityMetrics;
+  warnings?: QualityIssue[];
   encoding: DetectedEncoding;
   replacements: number;
   truncatedTail: boolean;
@@ -74,13 +76,43 @@ function identityMatch(wanted?: { title?: string; author?: string }, declared?: 
   return titleOk && authorOk ? 'exact' : 'partial';
 }
 
+export interface TextQualityMetrics {
+  totalChars: number; readableChars: number; supported: number; codePoints: number; hasLetter: boolean;
+  head: string; tail: string; headings: string[]; headingsCapped: boolean; adLines: number; gateChars: number;
+}
+/** Bounded line/head/tail summaries; never retains a whole book or an unbounded line. */
+export class TextQualityAccumulator {
+  readonly metrics: TextQualityMetrics = { totalChars: 0, readableChars: 0, supported: 0, codePoints: 0, hasLetter: false, head: '', tail: '', headings: [], headingsCapped: false, adLines: 0, gateChars: 0 };
+  private line = ''; private length = 0; private gate = false; private ad = false; private carry = '';
+  push(text: string): void {
+    const m = this.metrics; m.totalChars += text.length; m.head = (m.head + text).slice(0, 4000); m.tail = (m.tail + text).slice(-80);
+    for (const char of text) { m.codePoints++; if (isReadableChar(char)) m.readableChars++; if (/[\p{L}\p{N}\p{P}\p{M}\p{Z}\p{S}\s]/u.test(char) || char === '\ufffd') m.supported++; if (!m.hasLetter && /\p{L}/u.test(char)) m.hasLetter = true; }
+    const parts = text.split('\n');
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i]!; const window = this.carry + part; this.length += part.length;
+      if (this.line.length < 8192) this.line = (this.line + part).slice(0, 8192);
+      this.gate ||= LOGIN_HINTS.some(hint => window.toLowerCase().includes(hint)); this.ad ||= AD_HINTS.some(hint => window.includes(hint)); this.carry = window.slice(-64);
+      if (i < parts.length - 1) this.endLine();
+    }
+  }
+  private endLine(): void {
+    const trimmed = this.line.trim(); const m = this.metrics;
+    if (this.gate) m.gateChars += this.length <= 8192 ? trimmed.length : this.length;
+    if (this.ad) m.adLines++;
+    if (this.length <= 60 && CHAPTER_LINE.test(trimmed)) { if (m.headings.length < 10000) m.headings.push(trimmed); else m.headingsCapped = true; }
+    this.line = ''; this.length = 0; this.gate = false; this.ad = false; this.carry = '';
+  }
+  finish(): TextQualityMetrics { this.endLine(); return this.metrics; }
+}
+
 export function assessText(input: AssessInput): Assessment {
-  const warnings: QualityIssue[] = [];
+  const warnings: QualityIssue[] = [...(input.warnings ?? [])];
   const repairs = [...input.repairs];
   const text = input.text;
-  let readableChars = 0;
-  for (const char of text) if (isReadableChar(char)) readableChars += 1;
-  const totalChars = text.length;
+  const accumulator = new TextQualityAccumulator();
+  if (!input.metrics) accumulator.push(text);
+  const metrics = input.metrics ?? accumulator.finish();
+  const { readableChars, totalChars } = metrics;
 
   const fail = (code: string, message: string): Assessment => ({
     report: { quality: 'partial', encoding: input.encoding, readableChars, totalChars, warnings, repairs, truncated: input.truncatedTail, suspectedPartial: true },
@@ -89,10 +121,10 @@ export function assessText(input: AssessInput): Assessment {
     identity: 'unknown',
   });
 
-  if (!text.trim()) return fail('empty_file', 'The file has no text content');
-  if (!/\p{L}/u.test(text)) return fail('not_a_book', 'The file has no readable prose');
+  if (!readableChars && !metrics.hasLetter) return fail('empty_file', 'The file has no text content');
+  if (!metrics.hasLetter) return fail('not_a_book', 'The file has no readable prose');
   if (readableChars < MIN_READABLE_CHARS) warnings.push({ code: 'short_text', message: 'Short text retained for reading; completeness is uncertain' });
-  if (textishRatio(text) < 0.6) return fail('binary_file', 'Content is mostly non-text data');
+  if (metrics.supported / Math.max(1, metrics.codePoints) < 0.6) return fail('binary_file', 'Content is mostly non-text data');
 
   const replacementRatio = input.replacements / Math.max(1, totalChars);
   if (replacementRatio > MAX_REPLACEMENT_RATIO) {
@@ -102,14 +134,14 @@ export function assessText(input: AssessInput): Assessment {
     warnings.push({ code: 'replacement_characters', message: `${input.replacements} undecodable character(s) kept as replacement marks`, count: input.replacements });
   }
 
-  const lowerHead = text.slice(0, 4000).toLowerCase();
+  const lowerHead = metrics.head.toLowerCase();
   const loginHits = LOGIN_HINTS.filter((hint) => lowerHead.includes(hint)).length;
-  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
-  const gateChars = lines.filter(line => LOGIN_HINTS.some(hint => line.toLowerCase().includes(hint))).reduce((sum, line) => sum + line.length, 0);
-  if (loginHits >= 2 && readableChars < 6000 && gateChars / Math.max(1, text.trim().length) > 0.7) return fail('not_a_book', 'Looks like a login, captcha or error page rather than a book');
+  const gateChars = metrics.gateChars;
+  if (loginHits >= 2 && readableChars < 6000 && gateChars / Math.max(1, totalChars) > 0.7) return fail('not_a_book', 'Looks like a login, captcha or error page rather than a book');
   if (loginHits >= 2) warnings.push({ code: 'possible_gate_text', message: 'Login or error wording occurs alongside readable text; content retained' });
 
-  const headings = chapterLines(text);
+  const headings = metrics.headings;
+  if (metrics.headingsCapped) warnings.push({ code: 'heading_analysis_capped', message: 'Heading detail analysis is capped at 10000; all prose is retained' });
   if (!headings.length) {
     warnings.push({ code: 'no_chapters', message: 'No chapter headings were detected; importing as continuous prose' });
   } else {
@@ -141,15 +173,15 @@ export function assessText(input: AssessInput): Assessment {
     }
   }
 
-  const adLines = text.split('\n').filter((line) => AD_HINTS.some((hint) => line.includes(hint))).length;
+  const adLines = metrics.adLines;
   if (adLines) warnings.push({ code: 'ad_lines', message: `${adLines} line(s) look like site advertising or navigation; kept as-is`, count: adLines });
 
-  let suspectedPartial = replacementRatio > MAX_REPLACEMENT_RATIO || readableChars < MIN_READABLE_CHARS;
+  let suspectedPartial = warnings.some(issue => issue.code === 'mixed_encoding_suspected') || replacementRatio > MAX_REPLACEMENT_RATIO || readableChars < MIN_READABLE_CHARS;
   if (input.truncatedTail) {
     suspectedPartial = true;
     warnings.push({ code: 'tail_truncated', message: 'The file ended with an incomplete character' });
   }
-  const tail = text.slice(-80).trimEnd();
+  const tail = metrics.tail.trimEnd();
   if (tail.length > 40 && !/[。！？…”』」】)\]!?."'~～]$/u.test(tail)) {
     suspectedPartial = true;
     warnings.push({ code: 'possible_truncation', message: 'The text stops without an ending sentence mark; the copy may be incomplete' });

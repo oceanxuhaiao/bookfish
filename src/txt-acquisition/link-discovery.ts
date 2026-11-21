@@ -44,7 +44,7 @@ export function extractIdentity(raw: string): { title?: string; author?: string;
   return out;
 }
 
-export interface DiscoveryResult { links: DiscoveredLink[]; truncated: boolean; total: number }
+export interface DiscoveryResult { pageTitle: string; links: DiscoveredLink[]; truncated: boolean; total: number }
 
 export function discoverLinks(html: string, baseUrl: string, maxLinks = MAX_DISCOVERY_LINKS): DiscoveryResult {
   const $ = cheerio.load(html);
@@ -81,5 +81,5 @@ export function discoverLinks(html: string, baseUrl: string, maxLinks = MAX_DISC
       ...(anchorText ? { label: anchorText.slice(0, 120) } : {}),
     });
   });
-  return { links, truncated: total > links.length, total };
+  return { pageTitle: $('title').text().trim(), links, truncated: total > links.length, total };
 }

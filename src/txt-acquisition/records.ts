@@ -41,6 +41,7 @@ export class AcquisitionRecords {
         try { const source = sourceReference(task.pageUrl); task.pageUrlHash ??= source.sha256; task.requiresRediscovery ||= source.requiresRediscovery; task.pageUrl = source.url; }
         catch { delete task.pageUrl; task.requiresRediscovery = true; }
       }
+      if (task.selection?.message) task.selection.message = redactMessage(task.selection.message);
       if (task.failure) task.failure.message = redactMessage(task.failure.message);
       if (task.rejection) task.rejection.message = redactMessage(task.rejection.message);
       for (const entry of task.history) if (entry.note) entry.note = redactMessage(entry.note);
@@ -73,7 +74,7 @@ export class AcquisitionRecords {
     const next = structuredClone(task);
     const index = this.state.tasks.findIndex((entry) => entry.id === next.id);
     if (index >= 0) this.state.tasks[index] = next; else this.state.tasks.push(next);
-    this.trim();
+    this.trim(next.id);
     this.save();
     return this.get(next.id)!;
   }
@@ -90,21 +91,21 @@ export class AcquisitionRecords {
       task.history = [...task.history, { at: now, status: options.status, ...(options.note ? { note: options.note } : {}) }].slice(-MAX_HISTORY);
     }
     task.updatedAt = now;
-    this.trim();
+    this.trim(id);
     this.save();
     return structuredClone(task);
   }
 
   /** Drop the oldest finished tasks once the cap is exceeded; never drop a running one. */
-  private trim(): void {
+  private trim(preserveId?: string): void {
     if (this.state.tasks.length <= MAX_TASKS) return;
     const overflow = this.state.tasks.length - MAX_TASKS;
     const removable = this.state.tasks
       .map((task, index) => ({ task, index }))
-      .filter((entry) => isTerminal(entry.task.status))
+      .filter((entry) => isTerminal(entry.task.status) && !entry.task.file?.retained && entry.task.id !== preserveId)
       .sort((left, right) => left.task.updatedAt - right.task.updatedAt)
       .slice(0, overflow);
-    for (const entry of removable.reverse()) this.state.tasks.splice(entry.index, 1);
+    for (const entry of removable.sort((a, b) => b.index - a.index)) this.state.tasks.splice(entry.index, 1);
   }
 
   /** True while any task still owns staged bytes that must not be deleted. */

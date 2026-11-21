@@ -1,0 +1,430 @@
+{
+  "status": "confirmed shared-service DNS bypass; release blocked",
+  "service": {
+    "name": "Dnscache",
+    "process": "svchost",
+    "pid": 3968
+  },
+  "directEventCount": 52,
+  "blockedProbeEventCount": 0,
+  "events": [
+    {
+      "id": 3006,
+      "pid": 29092,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com.",
+        "QueryType": "1",
+        "IsNetworkQuery": "0"
+      }
+    },
+    {
+      "id": 3009,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com."
+      }
+    },
+    {
+      "id": 3016,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com.",
+        "QueryType": "1"
+      }
+    },
+    {
+      "id": 3018,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com.",
+        "QueryType": "1"
+      }
+    },
+    {
+      "id": 3019,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com.",
+        "QueryType": "1"
+      }
+    },
+    {
+      "id": 3010,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "1"
+      }
+    },
+    {
+      "id": 3006,
+      "pid": 29092,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com.",
+        "QueryType": "28",
+        "IsNetworkQuery": "0"
+      }
+    },
+    {
+      "id": 3009,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com."
+      }
+    },
+    {
+      "id": 3016,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com.",
+        "QueryType": "28"
+      }
+    },
+    {
+      "id": 3018,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com.",
+        "QueryType": "28"
+      }
+    },
+    {
+      "id": 3019,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com.",
+        "QueryType": "28"
+      }
+    },
+    {
+      "id": 3010,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "28"
+      }
+    },
+    {
+      "id": 1015,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com"
+      }
+    },
+    {
+      "id": 1015,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com"
+      }
+    },
+    {
+      "id": 3010,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "1"
+      }
+    },
+    {
+      "id": 3010,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "28"
+      }
+    },
+    {
+      "id": 1017,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com"
+      }
+    },
+    {
+      "id": 3011,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "28"
+      }
+    },
+    {
+      "id": 3020,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com.",
+        "QueryType": "28"
+      }
+    },
+    {
+      "id": 3008,
+      "pid": 29092,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com.",
+        "QueryType": "28",
+        "QueryStatus": "9501"
+      }
+    },
+    {
+      "id": 1017,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com"
+      }
+    },
+    {
+      "id": 3011,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "1"
+      }
+    },
+    {
+      "id": 3020,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com.",
+        "QueryType": "1"
+      }
+    },
+    {
+      "id": 3008,
+      "pid": 29092,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com.",
+        "QueryType": "1",
+        "QueryStatus": "9501"
+      }
+    },
+    {
+      "id": 3006,
+      "pid": 29092,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "1",
+        "IsNetworkQuery": "0"
+      }
+    },
+    {
+      "id": 3008,
+      "pid": 29092,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "1",
+        "QueryStatus": "87"
+      }
+    },
+    {
+      "id": 3006,
+      "pid": 29092,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "28",
+        "IsNetworkQuery": "0"
+      }
+    },
+    {
+      "id": 3009,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com"
+      }
+    },
+    {
+      "id": 3016,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "1"
+      }
+    },
+    {
+      "id": 3018,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "1"
+      }
+    },
+    {
+      "id": 3019,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "1"
+      }
+    },
+    {
+      "id": 3010,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "1"
+      }
+    },
+    {
+      "id": 3016,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "28"
+      }
+    },
+    {
+      "id": 3018,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "28"
+      }
+    },
+    {
+      "id": 3019,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "28"
+      }
+    },
+    {
+      "id": 3010,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "28"
+      }
+    },
+    {
+      "id": 1017,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com"
+      }
+    },
+    {
+      "id": 3011,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "1"
+      }
+    },
+    {
+      "id": 1017,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com"
+      }
+    },
+    {
+      "id": 3011,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "28"
+      }
+    },
+    {
+      "id": 3020,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "1"
+      }
+    },
+    {
+      "id": 3020,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "28"
+      }
+    },
+    {
+      "id": 3008,
+      "pid": 29092,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "28",
+        "QueryStatus": "9501"
+      }
+    },
+    {
+      "id": 3006,
+      "pid": 29092,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "1",
+        "IsNetworkQuery": "0"
+      }
+    },
+    {
+      "id": 3008,
+      "pid": 29092,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "1",
+        "QueryStatus": "87"
+      }
+    },
+    {
+      "id": 3006,
+      "pid": 29092,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "28",
+        "IsNetworkQuery": "0"
+      }
+    },
+    {
+      "id": 3009,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com"
+      }
+    },
+    {
+      "id": 3016,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "1"
+      }
+    },
+    {
+      "id": 3018,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "1"
+      }
+    },
+    {
+      "id": 3016,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "28"
+      }
+    },
+    {
+      "id": 3018,
+      "pid": 3968,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "28"
+      }
+    },
+    {
+      "id": 3008,
+      "pid": 29092,
+      "data": {
+        "QueryName": "bookfish-1795228735257-direct.example.com",
+        "QueryType": "28",
+        "QueryStatus": "9501"
+      }
+    }
+  ]
+}

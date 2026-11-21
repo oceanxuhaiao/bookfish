@@ -251,13 +251,14 @@ describe('browser-assisted acquisition flow', () => {
       cfg: () => cfg,
       resolve,
       browserGuard: async () => undefined,
+      controllerReady: () => true,
       pageLoader: async () => { throw new Error('the debug port must not be used when the extension is connected'); },
       fetchImpl: (async () => { throw new Error('the world must not fetch directly when the extension is connected'); }) as typeof fetch,
     });
     await acquisition.init();
     const { port, token } = acquisition.bridgeInfo;
     expect(port).toBeGreaterThan(1024);
-    expect(acquisition.summary().browserConfigured).toBe(true);
+    expect(acquisition.summary().browserConfigured).toBe(false); // listening is not a connected consumer
 
     const bytes = Buffer.from(novel(), 'utf8');
     const html = '<a href="/dl/hai.txt">《海风》 作者：小鱼</a>';

@@ -38,7 +38,8 @@ it('persists the ready-made TXT switches and shows the extension pairing code',a
   expect(field('browserDebugPort').value).toBe('0');
   const pairing=await vi.waitFor(()=>{const input=[...root.querySelectorAll<HTMLInputElement>('input[readonly]')].find(candidate=>candidate.value.startsWith('47899 / '));expect(input).toBeTruthy();return input!;});
   expect(pairing.value.split(' / ')[1]!.length).toBeGreaterThan(20);
-  expect(root.textContent).toContain('等待扩展连接');
+  expect(root.textContent).toContain('安全控制器未就绪');
+  expect(root.textContent).toContain('浏览器获取不可用');
   await (world as unknown as {txtAcquisition:{stop():Promise<void>}}).txtAcquisition.stop();
 });
 it('saves the extension switches through host persistence',async()=>{

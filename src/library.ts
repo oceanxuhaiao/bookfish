@@ -654,6 +654,8 @@ export class Library {
       const {book,decoded}=this.bookStorage.importFileBestEffort(file,metadata,options?.decoded);
       const assessment=assessText({
         text:decoded.text,
+        metrics:decoded.metrics,
+        warnings:decoded.warnings,
         encoding:decoded.encoding,
         replacements:decoded.replacements,
         truncatedTail:decoded.truncatedTail,

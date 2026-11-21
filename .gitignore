@@ -36,3 +36,6 @@ output/coopanion-launch*.txt
 output/live-backup-0.25.0.bfbak
 output/restore-0.25.0/
 scripts/novel-adapter/bridge/classes/
+
+# Local verification caches, browser profiles, pairing tokens and disposable binaries.
+_verify/

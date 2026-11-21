@@ -1,3 +1,4 @@
+import { decodeHtml } from './html-encoding.ts';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { appendFileSync, closeSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, rmSync, writeFileSync } from 'node:fs';
@@ -28,7 +29,7 @@ export interface BridgeFileRequest {
   url: string; taskId: string; staging: AcquisitionStaging; filename: string; allowNetwork: boolean; signal?: AbortSignal; timeoutMs?: number;
 }
 export interface BridgeFileResult { partPath: string; bytes: number; sha256: string; contentType?: string; finalUrl: string }
-interface BridgeJob { id: string; kind: 'page' | 'file'; url: string; maxBytes: number; filename?: string }
+interface BridgeJob { id: string; kind: 'page' | 'file'; url: string; maxBytes: number; filename?: string; timeoutMs?: number }
 interface Lease { consumer: string; token: string; expiresAt: number; attempt: string }
 interface Pending {
   job: BridgeJob; allowNetwork: boolean; timer: NodeJS.Timeout; settled: boolean; busy: boolean;
@@ -174,9 +175,19 @@ export class BrowserBridge {
         const finalUrl = await this.preflight(typeof body.finalUrl === 'string' ? body.finalUrl : entry.job.url, entry.allowNetwork); this.assertLease(entry, req);
         if (finalUrl !== entry.job.url) throw new BridgeError('policy_blocked', 'Automatic browser redirects are not allowed; discover the final address again', false);
         if (action === 'page') {
-          if (entry.job.kind !== 'page' || typeof body.html !== 'string') throw new BridgeError('invalid_input', 'Expected a page result', false);
-          if (Buffer.byteLength(body.html, 'utf8') > MAX_PAGE_BYTES) throw new BridgeError('too_large', 'The page is too large', false);
-          this.finish(entry, { ok: true, value: { html: body.html, finalUrl } }); sendJson(res, 200, { ok: true }); return;
+          if (entry.job.kind !== 'page') throw new BridgeError('invalid_input', 'Expected a page result', false);
+            let html: string;
+            if (typeof body.htmlBytes === 'string') {
+              if (!/^[A-Za-z0-9+/]*={0,2}$/u.test(body.htmlBytes) || body.htmlBytes.length % 4 !== 0) throw new BridgeError('invalid_input', 'Invalid page bytes', false);
+              const bytes = Buffer.from(body.htmlBytes, 'base64');
+              if (bytes.length > MAX_PAGE_BYTES) throw new BridgeError('too_large', 'The page is too large', false);
+              html = decodeHtml(bytes, typeof body.contentType === 'string' ? body.contentType : '').html;
+            } else {
+              if (typeof body.html !== 'string') throw new BridgeError('invalid_input', 'Expected page bytes', false);
+              html = body.html;
+              if (Buffer.byteLength(html, 'utf8') > MAX_PAGE_BYTES) throw new BridgeError('too_large', 'The page is too large', false);
+            }
+            this.finish(entry, { ok: true, value: { html, finalUrl } }); sendJson(res, 200, { ok: true }); return;
         }
         if (entry.job.kind !== 'file') throw new BridgeError('invalid_input', 'Expected a file result', false);
         const contentType = typeof body.contentType === 'string' ? body.contentType : undefined;
@@ -206,7 +217,7 @@ export class BrowserBridge {
   async fetchPage(url: string, options: { allowNetwork: boolean; timeoutMs?: number; signal?: AbortSignal }): Promise<{ html: string; finalUrl: string }> {
     if (!this.running) throw new BridgeError('bridge_offline', 'The browser bridge is not running');
     options.signal?.throwIfAborted(); const checked = await this.preflight(url, options.allowNetwork); options.signal?.throwIfAborted(); if (!this.running) throw new BridgeError('bridge_offline', 'The browser bridge stopped');
-    const entry = this.create({ id: randomUUID(), kind: 'page', url: checked, maxBytes: MAX_PAGE_BYTES }, options.allowNetwork, options.timeoutMs ?? DEFAULT_JOB_TIMEOUT_MS);
+    const entry = this.create({ id: randomUUID(), kind: 'page', url: checked, maxBytes: MAX_PAGE_BYTES, timeoutMs: options.timeoutMs ?? DEFAULT_JOB_TIMEOUT_MS }, options.allowNetwork, options.timeoutMs ?? DEFAULT_JOB_TIMEOUT_MS);
     const abort = (): void => this.finish(entry, { ok: false, error: new BridgeError('cancelled', 'Page request cancelled') });
     options.signal?.addEventListener('abort', abort, { once: true }); if (options.signal?.aborted) abort();
     try { const outcome = await entry.promise; if (!outcome.ok) throw outcome.error; return outcome.value as { html: string; finalUrl: string }; }
@@ -216,7 +227,7 @@ export class BrowserBridge {
     if (!this.running) throw new BridgeError('bridge_offline', 'The browser bridge is not running');
     request.signal?.throwIfAborted(); const checked = await this.preflight(request.url, request.allowNetwork); request.signal?.throwIfAborted();
     if (!this.running) throw new BridgeError('bridge_offline', 'The browser bridge stopped');
-    const entry = this.create({ id: randomUUID(), kind: 'file', url: checked, maxBytes: MAX_BOOK_BYTES, filename: request.filename }, request.allowNetwork, request.timeoutMs ?? DEFAULT_JOB_TIMEOUT_MS, { staging: request.staging, taskId: request.taskId });
+    const entry = this.create({ id: randomUUID(), kind: 'file', url: checked, maxBytes: MAX_BOOK_BYTES, timeoutMs: request.timeoutMs ?? 300_000, filename: request.filename }, request.allowNetwork, request.timeoutMs ?? 300_000, { staging: request.staging, taskId: request.taskId });
     const abort = (): void => this.finish(entry, { ok: false, error: new DownloadError('cancelled', 'Download cancelled', true) });
     request.signal?.addEventListener('abort', abort, { once: true }); if (request.signal?.aborted) abort();
     try { const outcome = await entry.promise; if (!outcome.ok) throw outcome.error; return outcome.value as BridgeFileResult; }

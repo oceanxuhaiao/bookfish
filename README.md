@@ -522,3 +522,6 @@ World 侧栏新增一颗「阅读」灯：未挂载或已暂停为 offline，全
 
 
 
+
+
+实验性TXT获取后续状态（2026-11-21）：799测试及独立Chrome／Edge MV3实验通过；共享DNS隔离缺口尚未解决，产品控制器未交付，不可发布。详见[审核报告](docs/txt-acquisition/ROUND2-FOLLOWUP-REVIEW.md)。

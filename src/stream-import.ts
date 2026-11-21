@@ -1,3 +1,4 @@
+import { TextQualityAccumulator, type TextQualityMetrics } from './txt-acquisition/quality.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { TextDecoder } from 'node:util';
 import { openSync, closeSync, readSync, writeSync, ftruncateSync, fsyncSync, statSync, unlinkSync, existsSync, writeFileSync } from 'node:fs';
@@ -96,7 +97,11 @@ export class BestEffortRejected extends Error {
 }
 
 export interface BestEffortDecoded {
+  /** Empty when canonicalFile owns the normalized text; metrics describe the complete file. */
   text: string;
+  canonicalFile?: string;
+  metrics?: TextQualityMetrics;
+  warnings?: QualityIssue[];
   encoding: DetectedEncoding;
   repairs: QualityIssue[];
   replacements: number;
@@ -105,7 +110,7 @@ export interface BestEffortDecoded {
 }
 
 /** Read the staged file, detect the encoding from content, decode and normalize. */
-export function decodeFileBestEffort(file: string, chunkBytes = 16 * 1024, progress?: (done: number, total: number) => void): BestEffortDecoded {
+export function decodeFileBestEffort(file: string, chunkBytes = 16 * 1024, progress?: (done: number, total: number) => void, forced?: DetectedEncoding): BestEffortDecoded {
   if (!Number.isSafeInteger(chunkBytes) || chunkBytes < 1 || chunkBytes > 256 * 1024) throw Error('Invalid import buffer size');
   const size = statSync(file).size;
   if (!size) throw new BestEffortRejected('empty_file', 'The downloaded file is empty');
@@ -126,7 +131,7 @@ export function decodeFileBestEffort(file: string, chunkBytes = 16 * 1024, progr
   }
   const bytes = Buffer.concat(chunks, size);
   if (looksBinary(bytes)) throw new BestEffortRejected('binary_file', 'The downloaded file looks binary, not text');
-  const encoding = detectEncodingLoosely(bytes);
+  const encoding = forced ?? detectEncodingLoosely(bytes);
   const decoded = decodeBestEffort(bytes, encoding);
   const normalized = normalizeText(decoded.text);
   const text = normalized.text;
@@ -153,9 +158,9 @@ export function importFileBlobBestEffort(
   if (!Number.isSafeInteger(chunkBytes) || chunkBytes < 1 || chunkBytes > 256 * 1024) throw Error('Invalid import buffer size');
   const identity = buildBook(metadata.filename, metadata.title, metadata.author, 'x');
   const prepared = decoded ?? decodeFileBestEffort(file, chunkBytes, (n, total) => progress?.('normalize', n, total));
-  const canonical = join(dir, randomUUID() + '.canonical.tmp');
+  const canonical = prepared.canonicalFile ?? join(dir, randomUUID() + '.canonical.tmp');
   try {
-    writeFileSync(canonical, prepared.text, 'utf8');
+    if (!prepared.canonicalFile) writeFileSync(canonical, prepared.text, 'utf8');
     progress?.('index', 0, statSync(canonical).size);
     const sourceHash = createHash('sha256');
     const revision = createHash('sha256').update('1\n');
@@ -182,3 +187,66 @@ export function importFileBlobBestEffort(
   }
 }
 
+
+/** Disk-backed loose decoding; bounded buffers and summaries, independent of book size. */
+export function prepareFileBestEffort(file: string, chunkBytes = 16 * 1024, progress?: (done: number, total: number) => void, forced?: DetectedEncoding): BestEffortDecoded {
+  if (!Number.isSafeInteger(chunkBytes) || chunkBytes < 1 || chunkBytes > 256 * 1024) throw Error('Invalid import buffer size');
+  const size = statSync(file).size;
+  if (!size) throw new BestEffortRejected('empty_file', 'The downloaded file is empty');
+  if (size > MAX_BOOK_BYTES) throw new BestEffortRejected('too_large', 'The downloaded file exceeds 100 MiB');
+  const canonicalFile = file + '.' + randomUUID() + '.prepared.txt';
+  const input = openSync(file, 'r'); let output: number | undefined;
+  const warnings: QualityIssue[] = [];
+  const repairs: QualityIssue[] = []; let replacements = 0, controls = 0, newlines = false, blanks = 0, bytes = 0;
+  let offset = 0, lastGood = 0, leading = true, pendingCR = false, lfRun = 0, trailingReplacements = 0;
+  let encoding: DetectedEncoding;
+  try {
+    output = openSync(canonicalFile, 'wx');
+    const prefix = Buffer.alloc(Math.min(64 * 1024, size)); const first = readSync(input, prefix, 0, prefix.length, null);
+    encoding = forced ?? detectEncodingLoosely(prefix.subarray(0, first));
+    if (looksBinary(prefix.subarray(0, first), encoding)) throw new BestEffortRejected('binary_file', 'The downloaded file looks binary, not text');
+    if (!forced && size > 128 * 1024 && ['utf-8', 'utf-8-bom', 'gb18030'].includes(encoding)) {
+      const tail = Buffer.alloc(64 * 1024); readSync(input, tail, 0, tail.length, size - tail.length);
+      const tailEncoding = detectEncodingLoosely(tail);
+      const different = (encoding.startsWith('utf-8') ? 'utf-8' : encoding) !== (tailEncoding.startsWith('utf-8') ? 'utf-8' : tailEncoding);
+      const tailText = decodeBestEffort(tail, tailEncoding).text;
+      if (different && ['utf-8', 'gb18030'].includes(tailEncoding) && (tailText.match(/[^\x00-\x7f]/gu)?.length ?? 0) >= 16) warnings.push({ code: 'mixed_encoding_suspected', message: 'Opening and tail suggest different encodings; the original opening is preserved. Opposite-encoding portions require manual review.' });
+    }
+    const decoder = new TextDecoder(encoding === 'utf-8-bom' ? 'utf-8' : encoding);
+    const emit = (value: string, final = false): void => {
+      replacements += countReplacement(value);
+      if (pendingCR) { value = '\r' + value; pendingCR = false; }
+      if (!final && value.endsWith('\r')) { value = value.slice(0, -1); pendingCR = true; }
+      if (value.includes('\r')) newlines = true;
+      value = value.replace(/\r\n?/gu, '\n').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/gu, () => { controls++; return ''; });
+      if (leading) { value = value.replace(/^[ \t\u3000]+/u, ''); if (value) leading = false; }
+      value = value.replace(/\n+|[^\n]+/gu, run => {
+        if (run[0] !== '\n') { lfRun = 0; return run; }
+        if (lfRun <= 3 && lfRun + run.length > 3) blanks++;
+        const keep = Math.max(0, Math.min(run.length, 3 - lfRun)); lfRun += run.length; return '\n'.repeat(keep);
+      });
+      if (!value) return;
+      const trimmed = value.trimEnd();
+      if (trimmed) lastGood = offset + Buffer.byteLength(trimmed);
+      const suffix = /\ufffd+$/u.exec(value)?.[0].length ?? 0;
+      trailingReplacements = suffix === value.length ? trailingReplacements + suffix : suffix;
+      const data = Buffer.from(value); let at = 0; while (at < data.length) at += writeSync(output!, data, at, data.length - at); offset += data.length;
+    };
+    bytes = first; emit(decoder.decode(prefix.subarray(0, first), { stream: true })); progress?.(bytes, size);
+    const buffer = Buffer.alloc(chunkBytes); let n: number;
+    while ((n = readSync(input, buffer, 0, buffer.length, null))) { bytes += n; if (bytes > MAX_BOOK_BYTES) throw new BestEffortRejected('too_large', 'The file grew beyond 100 MiB'); emit(decoder.decode(buffer.subarray(0, n), { stream: true })); progress?.(bytes, size); }
+    emit(decoder.decode(), true); if (pendingCR) emit('', true);
+    if (bytes !== size) throw Error('Source file changed while importing');
+    const truncatedTail = trailingReplacements > 0 && trailingReplacements <= 4;
+    if (truncatedTail) { offset -= trailingReplacements * 3; lastGood = Math.min(lastGood, offset); repairs.push({ code: 'tail_truncated', message: 'Dropped an incomplete character at the end of the file' }); }
+    ftruncateSync(output, lastGood); fsyncSync(output); closeSync(output); output = undefined;
+    if (replacements) repairs.unshift({ code: 'encoding_repaired', message: replacements + ' undecodable character(s) retained or reported', count: replacements });
+    if (newlines) repairs.push({ code: 'newlines_normalized', message: 'Normalized line endings to LF' });
+    if (controls) repairs.push({ code: 'control_characters_removed', message: 'Removed control characters', count: controls });
+    if (blanks) repairs.push({ code: 'blank_runs_collapsed', message: 'Collapsed repeated blank lines', count: blanks });
+    const accumulator = new TextQualityAccumulator(); for (const text of fileText(canonicalFile, chunkBytes)) accumulator.push(text);
+    const metrics = accumulator.finish(); if (!metrics.totalChars) throw new BestEffortRejected('empty_file', 'The downloaded file has no readable text');
+    return { text: '', canonicalFile, metrics, warnings, encoding, repairs, replacements, truncatedTail, bytes: size };
+  } catch (error) { if (output !== undefined) { closeSync(output); output = undefined; } if (existsSync(canonicalFile)) unlinkSync(canonicalFile); throw error; }
+  finally { closeSync(input); }
+}

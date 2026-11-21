@@ -131,7 +131,7 @@ export function bookfishConfigGroup(english: boolean): ConfigGroup {
         },
         'worlds.bookfish.browserBridgeEnabled': {
           type: 'boolean', title: english ? 'Use the Edge/Chrome extension' : '使用 Edge/Chrome 扩展',
-          description: english ? 'Off by default. The world listens on 127.0.0.1 only and the extension polls it with a pairing token, so your everyday browser can fetch pages and files without a debug port or a restart. Same limits as the debug-port path: no login, paywall, captcha or DRM bypass.' : '默认关闭。世界只在本机 127.0.0.1 监听，扩展凭配对令牌轮询取任务，因此你日常使用的浏览器不需要调试端口、也不用重启就能打开页面和下载文件。限制与调试端口方式相同：不登录、不付费、不绕过验证码或 DRM。',
+          description: english ? 'Off by default. The world listens on 127.0.0.1 only and the extension polls it with a pairing token, A protected isolated browser controller must also be ready; pairing alone does not enable browser acquisition. Never use the everyday browser. Same limits as the debug-port path: no login, paywall, captcha or DRM bypass.' : '默认关闭。世界只在本机 127.0.0.1 监听，扩展凭配对令牌轮询取任务，必须另有就绪的隔离浏览器保护控制器；仅配对不会启用浏览器获取。不得使用日常浏览器。限制与调试端口方式相同：不登录、不付费、不绕过验证码或 DRM。',
           'x-hot': true,
         },
         'worlds.bookfish.browserBridgePort': {

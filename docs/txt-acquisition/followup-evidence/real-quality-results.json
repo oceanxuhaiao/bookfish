@@ -1,0 +1,724 @@
+{
+  "source": {
+    "source": "https://ftp.gwdg.de/pub/misc/gutenberg/2/4/2/6/24264/24264-0.txt",
+    "realOriginals": 1,
+    "derivedVariants": 11,
+    "historicalUserRejectedFiles": 0,
+    "chapterHeadings": 123,
+    "humanReadingReview": false,
+    "cases": [
+      "utf8-original",
+      "gb18030-full",
+      "utf16-full",
+      "minor-damage",
+      "mixed-utf8-gb",
+      "mixed-gb-utf8",
+      "irregular-titles",
+      "missing-chapter",
+      "duplicate-chapter",
+      "ad-lines",
+      "truncated-tail",
+      "partial-prose"
+    ]
+  },
+  "results": [
+    {
+      "id": "ad-lines",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2663368,
+      "sha256": "00dbf6fd011181b7e7ecdf3d3ff1a84e237e0e188e7fda5ba5f9005dbaadbd2e",
+      "strictRejected": false,
+      "encoding": "utf-8",
+      "replacements": 0,
+      "quality": "warning",
+      "warnings": [
+        "duplicate_chapters",
+        "ad_lines"
+      ],
+      "repairs": [
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 881313,
+      "totalSegments": 836,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probes": [
+        {
+          "segment": 0,
+          "chapter": "正文",
+          "text": "The Project Gutenberg EBook of A Dream Of Red Mansions, by Xueqin Cao\n\nThis eBook is for the use of anyone anywhere at no cost and with\nalmost no restrictions whatsoever.  You may copy it, give it away or\nre-use it under the terms of the Project Gutenberg License included\nwith this eBook or online at www.gutenberg.org\n\n\nTitle: A Dream Of Red Mansions\n\nAuthor: Xueqin Cao\n\nRelease Date: January 12, 2008 [EBook #24264]\n\nLanguage: Chinese\n\nCharacter set encoding: UTF-8\n\n*** START OF THIS PROJECT GUT"
+        },
+        {
+          "segment": 418,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "這是后人纂的，比一切的令都難．這里頭倒有一半是不會的，不如毀\n了，另拈一個雅俗共賞的。”探春笑道：“既拈了出來，如何又毀．如今再拈一\n個，若是雅俗共賞的，便叫他們行去．咱們行這個． \"說著又著襲人拈了一個，\n卻是\"拇戰\"．史湘云笑著說：“這個簡斷爽利，合了我的脾气． 我不行這個`射\n覆'，沒的垂頭喪气悶人，我只划拳去了。”探春道：“惟有他亂令，寶姐姐快\n罰他一鐘。”寶釵不容分說，便灌湘云一杯．探春道：“我吃一杯，我是令官，\n也不用宣，只听我分派。”命取了令骰令盆來，\"從琴妹擲起，挨下擲去，對了\n點的二人射覆。”寶琴一擲，是個三，岫煙寶玉等皆擲的不對，直到香菱方擲了\n一個三．寶琴笑道：“只好室內生春，若說到外頭去，可太沒頭緒了。”探春道：\n“自然．三次不中者罰一杯．你覆，他射。”寶琴想了一想，說了個\"老\"字．香\n菱原生于這令，一時想不到，滿室滿席都不見有与\"老\"字相連的成語．湘云先听\n了，便也亂看，忽見門斗上貼著\"紅香圃\" 三個字，便知寶琴覆的是\"吾不如老圃\n\"的\"圃\"字．見香菱射不著，眾人擊鼓又催，便悄悄的拉香菱，教他說\"藥\"字．黛\n玉偏看見了，說\"快罰他，又在那里私相傳遞呢。”哄的眾"
+        },
+        {
+          "segment": 835,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "cluded.  Thus, we do not necessarily\nkeep eBooks in compliance with any particular paper edition.\n\n\nMost people start at our Web site which has the main PG search facility:\n\n     http://www.gutenberg.org\n\nThis Web site includes information about Project Gutenberg-tm,\nincluding how to make donations to the Project Gutenberg Literary\nArchive Foundation, how to help produce our new eBooks, and how to\nsubscribe to our email newsletter to hear about new eBooks."
+        }
+      ],
+      "proseProbes": [
+        {
+          "segment": 1,
+          "chapter": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀",
+          "text": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀\n-----------------------------------------------------------------\n此開卷第一回也．作者自云：因曾歷過一番夢幻之后，故將真事隱去，\n而借\"通靈\"之說，撰此《石頭記》一書也．故曰\"甄士隱\"云云．但書中所記\n何事何人？自又云：“今風塵碌碌，一事無成，忽念及當日所有之女子，一\n一細考較去，覺其行止見識，皆出于我之上．何我堂堂須眉，誠不若彼裙釵\n哉？實愧則有余，悔又無益之大無可如何之日也！當此，則自欲將已往所賴\n天恩祖德，錦衣紈褲之時，飫甘饜肥之日，背父兄教育之恩，負師友規談之\n德，以至今日一技無成，半生潦倒之罪，編述一集，以告天下人：我之罪固\n不免，然閨閣中本自歷歷有人，万不可因我之不肖，自護己短，一并使其泯\n滅也．雖今日之茅椽蓬牖，瓦灶繩床，其晨夕風露，階柳庭花，亦未有妨我\n之襟怀筆墨者．雖我未學，下筆無文，又何妨用假語村言，敷演出一段故事\n來，亦可使閨閣昭傳，复可悅世之目，破人愁悶，不亦宜乎？\"故曰\"賈雨村\n\"云云．\n　　此回中凡用“夢”用“幻”等字，是提醒閱者眼目，亦是此書立意本"
+        },
+        {
+          "segment": 410,
+          "chapter": "第六十一回　 投鼠忌器寶玉瞞贓　判冤決獄平儿行權",
+          "text": "“姑娘別誤听了小孩子的話．\n柳嫂子有八個頭，也不敢得罪姑娘．說雞蛋難買是真． 我們才也說他不知好歹，\n憑是什么東西，也少不得變法儿去．他已經悟過來了，連忙蒸上了． 姑娘不信\n瞧那火上。”司棋被眾人一頓好言，方將气勸的漸平．小丫頭們也沒得摔完東西，\n便拉開了．司棋連說帶罵，鬧了一回，方被眾人勸去．柳家的只好摔碗丟盤自己\n咕嘟了一回，蒸了一碗蛋令人送去．司棋全潑了地下了．那人回來也不敢說，恐\n又生事．柳家的打發他女儿喝了一回湯，吃了半碗粥，又將茯苓霜一節說了．五\n儿听罷，便心下要分些贈芳官，遂用紙另包了一半，趁黃昏人稀之時，自己花遮\n柳隱的來找芳官． 且喜無人盤問．一徑到了怡紅院門前，不好進去，只在一簇\n玫瑰花前站立，遠遠的望著． 有一盞茶時，可巧小燕出來，忙上前叫住．小燕\n不知是那一個，至跟前方看真切， 因問作什么．五儿笑道：“你叫出芳官來，\n我和他說話。”小燕悄笑道：“姐姐太性急了， 橫豎等十來日就來了，只管找\n他做什么．方才使了他往前頭去了，你且等他一等．不然，有什么話告訴我，等\n我告訴他．恐怕你等不得，只怕關園門了。”五儿便將茯苓霜遞与了小燕，又說\n這是茯苓霜，如何吃，如何補益，\""
+        },
+        {
+          "segment": 819,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "道人又從青埂峰前經過，見那補天未用之石仍在那里，上面字跡\n依然如舊， 又從頭的細細看了一遍，見后面偈文后又歷敘了多少收緣結果的話\n頭，便點頭歎道：“我從前見石兄這段奇文，原說可以聞世傳奇，所以曾經抄錄，\n但未見返本還原．不知何時复有此一佳話，方知石兄下凡一次，磨出光明，修成\n圓覺，也可謂無复遺憾了．只怕年深日久，字跡模糊，反有舛錯，不如我再抄錄\n一番，尋個世上無事的人，托他傳遍， 知道奇而不奇，俗而不俗，真而不真，\n假而不假．或者塵夢勞人，聊倩鳥呼歸去，山靈好客， 更從石化飛來，亦未可\n知。”想畢，便又抄了，仍袖至那繁華昌盛的地方，遍尋了一番，不是建功立業\n之人，即系饒口謀衣之輩，那有閒情更去和石頭饒舌．直尋到急流津覺迷度口，\n草庵中睡著一個人，因想他必是閒人，便要將這抄錄的《石頭記》給他看看．那\n知那人再叫不醒．空空道人复又使勁拉他，才慢慢的開眼坐起，便草草一看，仍\n舊擲下道：“這事我早已親見盡知．你這抄錄的尚無舛錯，我只指与你一個人，\n托他傳去，便可歸結這一公案了。”空空道人忙問何人，那人道：“你須待某年\n某月某日到一個悼紅軒中，有個曹雪芹先生，只說賈雨村言托他如此如此。”說\n畢，"
+        }
+      ]
+    },
+    {
+      "id": "duplicate-chapter",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2689468,
+      "sha256": "91cf63832dced24e9e4a07410dd58eb7274b01f4e14b0719c46caf9296c728c7",
+      "strictRejected": false,
+      "encoding": "utf-8",
+      "replacements": 0,
+      "quality": "warning",
+      "warnings": [
+        "duplicate_chapters",
+        "ad_lines"
+      ],
+      "repairs": [
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 889851,
+      "totalSegments": 843,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probes": [
+        {
+          "segment": 0,
+          "chapter": "正文",
+          "text": "The Project Gutenberg EBook of A Dream Of Red Mansions, by Xueqin Cao\n\nThis eBook is for the use of anyone anywhere at no cost and with\nalmost no restrictions whatsoever.  You may copy it, give it away or\nre-use it under the terms of the Project Gutenberg License included\nwith this eBook or online at www.gutenberg.org\n\n\nTitle: A Dream Of Red Mansions\n\nAuthor: Xueqin Cao\n\nRelease Date: January 12, 2008 [EBook #24264]\n\nLanguage: Chinese\n\nCharacter set encoding: UTF-8\n\n*** START OF THIS PROJECT GUT"
+        },
+        {
+          "segment": 421,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙\n\n\n--------------------------------------------------------------------------------\n\n\n　　話說平儿出來吩咐林之孝家的道：“大事化為小事，小事化為沒事，方是興\n旺之家．若得不了一點子小事，便揚鈴打鼓的亂折騰起來，不成道理．如今將他\n母女帶回，照舊去當差．將秦顯家的仍舊退回．再不必提此事．只是每日小心巡\n察要緊。”說畢，起身走了． 柳家的母女忙向上磕頭，林家的帶回園中，回了\n李紈探春，二人皆說：“知道了，能可無事， 很好。”司棋等人空興頭了一陣．\n那秦顯家的好容易等了這個空子鑽了來，只興頭上半天． 在廚房內正亂著接收\n家伙米糧煤炭等物，又查出許多虧空來，說：“粳米短了兩石，常用米又多支了\n一個月的，炭也欠著額數。”一面又打點送林之孝家的禮， 悄悄的備了一簍炭，\n五百斤木柴，一擔粳米，在外邊就遣了子侄送入林家去了，又打點送帳房的禮，\n又預備几樣菜蔬請几位同事的人，說：“我來了，全仗列位扶持．自今以后都是\n一家人了． 我有照顧不到的，好歹大家照顧些。”正亂著，"
+        },
+        {
+          "segment": 842,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "cluded.  Thus, we do not necessarily\nkeep eBooks in compliance with any particular paper edition.\n\n\nMost people start at our Web site which has the main PG search facility:\n\n     http://www.gutenberg.org\n\nThis Web site includes information about Project Gutenberg-tm,\nincluding how to make donations to the Project Gutenberg Literary\nArchive Foundation, how to help produce our new eBooks, and how to\nsubscribe to our email newsletter to hear about new eBooks."
+        }
+      ],
+      "proseProbes": [
+        {
+          "segment": 1,
+          "chapter": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀",
+          "text": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀\n-----------------------------------------------------------------\n此開卷第一回也．作者自云：因曾歷過一番夢幻之后，故將真事隱去，\n而借\"通靈\"之說，撰此《石頭記》一書也．故曰\"甄士隱\"云云．但書中所記\n何事何人？自又云：“今風塵碌碌，一事無成，忽念及當日所有之女子，一\n一細考較去，覺其行止見識，皆出于我之上．何我堂堂須眉，誠不若彼裙釵\n哉？實愧則有余，悔又無益之大無可如何之日也！當此，則自欲將已往所賴\n天恩祖德，錦衣紈褲之時，飫甘饜肥之日，背父兄教育之恩，負師友規談之\n德，以至今日一技無成，半生潦倒之罪，編述一集，以告天下人：我之罪固\n不免，然閨閣中本自歷歷有人，万不可因我之不肖，自護己短，一并使其泯\n滅也．雖今日之茅椽蓬牖，瓦灶繩床，其晨夕風露，階柳庭花，亦未有妨我\n之襟怀筆墨者．雖我未學，下筆無文，又何妨用假語村言，敷演出一段故事\n來，亦可使閨閣昭傳，复可悅世之目，破人愁悶，不亦宜乎？\"故曰\"賈雨村\n\"云云．\n　　此回中凡用“夢”用“幻”等字，是提醒閱者眼目，亦是此書立意本"
+        },
+        {
+          "segment": 414,
+          "chapter": "第六十回　茉莉粉替去薔薇硝　玫瑰露引來茯苓霜",
+          "text": "就罷了．怎奈\n錢槐不得五儿，心中又气又愧，發恨定要弄取成配，方了此愿．今也同人來瞧望\n柳侄，不期柳家的在內．\n\n　　柳家的忽見一群人來了，內中有錢槐，便推說不得閒，起身便走了．他哥嫂\n忙說：“姑媽怎么不吃茶就走？倒難為姑媽記挂。”柳家的因笑道：“只怕里面\n傳飯，再閒了出來瞧侄子罷。”他嫂子因向抽屜內取了一個紙包出來，拿在手內\n送了柳家的出來，至牆角邊遞与柳家的，又笑道：“這是你哥哥昨儿在門上該班\n儿，誰知這五日一班，竟偏冷淡，一個外財沒發． 只有昨儿有粵東的官儿來拜，\n送了上頭兩小簍子茯苓霜．余外給了門上人一簍作門禮， 你哥哥分了這些．這\n地方千年松柏最多，所以單取了這茯苓的精液和了藥，不知怎么弄出這怪俊的白\n霜儿來．說第一用人乳和著，每日早起吃一鐘，最補人的，第二用牛奶子，万不\n得，滾白水也好．我們想著，正宜外甥女儿吃．原是上半日打發小丫頭子送了家\n去的，他說鎖著門，連外甥女儿也進去了．本來我要瞧瞧他去，給他帶了去的，\n又想主子們不在家，各處嚴緊，我又沒甚么差使，有要沒緊跑些什么．況且這兩\n日風聲，聞得里頭家反宅亂的，倘或沾帶了倒值多的．姑娘來的正好，親自帶去\n罷。”\n　　柳氏道了生"
+        },
+        {
+          "segment": 826,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "道人又從青埂峰前經過，見那補天未用之石仍在那里，上面字跡\n依然如舊， 又從頭的細細看了一遍，見后面偈文后又歷敘了多少收緣結果的話\n頭，便點頭歎道：“我從前見石兄這段奇文，原說可以聞世傳奇，所以曾經抄錄，\n但未見返本還原．不知何時复有此一佳話，方知石兄下凡一次，磨出光明，修成\n圓覺，也可謂無复遺憾了．只怕年深日久，字跡模糊，反有舛錯，不如我再抄錄\n一番，尋個世上無事的人，托他傳遍， 知道奇而不奇，俗而不俗，真而不真，\n假而不假．或者塵夢勞人，聊倩鳥呼歸去，山靈好客， 更從石化飛來，亦未可\n知。”想畢，便又抄了，仍袖至那繁華昌盛的地方，遍尋了一番，不是建功立業\n之人，即系饒口謀衣之輩，那有閒情更去和石頭饒舌．直尋到急流津覺迷度口，\n草庵中睡著一個人，因想他必是閒人，便要將這抄錄的《石頭記》給他看看．那\n知那人再叫不醒．空空道人复又使勁拉他，才慢慢的開眼坐起，便草草一看，仍\n舊擲下道：“這事我早已親見盡知．你這抄錄的尚無舛錯，我只指与你一個人，\n托他傳去，便可歸結這一公案了。”空空道人忙問何人，那人道：“你須待某年\n某月某日到一個悼紅軒中，有個曹雪芹先生，只說賈雨村言托他如此如此。”說\n畢，"
+        }
+      ]
+    },
+    {
+      "id": "gb18030-full",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 1808755,
+      "sha256": "e5cedeb881f0c129f4e7b252403e98d20f2d6aa29a5062031db26f232c6ef802",
+      "strictRejected": false,
+      "encoding": "gb18030",
+      "replacements": 0,
+      "quality": "warning",
+      "warnings": [
+        "duplicate_chapters",
+        "ad_lines"
+      ],
+      "repairs": [
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 881285,
+      "totalSegments": 836,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probes": [
+        {
+          "segment": 0,
+          "chapter": "正文",
+          "text": "The Project Gutenberg EBook of A Dream Of Red Mansions, by Xueqin Cao\n\nThis eBook is for the use of anyone anywhere at no cost and with\nalmost no restrictions whatsoever.  You may copy it, give it away or\nre-use it under the terms of the Project Gutenberg License included\nwith this eBook or online at www.gutenberg.org\n\n\nTitle: A Dream Of Red Mansions\n\nAuthor: Xueqin Cao\n\nRelease Date: January 12, 2008 [EBook #24264]\n\nLanguage: Chinese\n\nCharacter set encoding: UTF-8\n\n*** START OF THIS PROJECT GUT"
+        },
+        {
+          "segment": 418,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "這是后人纂的，比一切的令都難．這里頭倒有一半是不會的，不如毀\n了，另拈一個雅俗共賞的。”探春笑道：“既拈了出來，如何又毀．如今再拈一\n個，若是雅俗共賞的，便叫他們行去．咱們行這個． \"說著又著襲人拈了一個，\n卻是\"拇戰\"．史湘云笑著說：“這個簡斷爽利，合了我的脾气． 我不行這個`射\n覆'，沒的垂頭喪气悶人，我只划拳去了。”探春道：“惟有他亂令，寶姐姐快\n罰他一鐘。”寶釵不容分說，便灌湘云一杯．探春道：“我吃一杯，我是令官，\n也不用宣，只听我分派。”命取了令骰令盆來，\"從琴妹擲起，挨下擲去，對了\n點的二人射覆。”寶琴一擲，是個三，岫煙寶玉等皆擲的不對，直到香菱方擲了\n一個三．寶琴笑道：“只好室內生春，若說到外頭去，可太沒頭緒了。”探春道：\n“自然．三次不中者罰一杯．你覆，他射。”寶琴想了一想，說了個\"老\"字．香\n菱原生于這令，一時想不到，滿室滿席都不見有与\"老\"字相連的成語．湘云先听\n了，便也亂看，忽見門斗上貼著\"紅香圃\" 三個字，便知寶琴覆的是\"吾不如老圃\n\"的\"圃\"字．見香菱射不著，眾人擊鼓又催，便悄悄的拉香菱，教他說\"藥\"字．黛\n玉偏看見了，說\"快罰他，又在那里私相傳遞呢。”哄的眾"
+        },
+        {
+          "segment": 835,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "cluded.  Thus, we do not necessarily\nkeep eBooks in compliance with any particular paper edition.\n\n\nMost people start at our Web site which has the main PG search facility:\n\n     http://www.gutenberg.org\n\nThis Web site includes information about Project Gutenberg-tm,\nincluding how to make donations to the Project Gutenberg Literary\nArchive Foundation, how to help produce our new eBooks, and how to\nsubscribe to our email newsletter to hear about new eBooks."
+        }
+      ],
+      "proseProbes": [
+        {
+          "segment": 1,
+          "chapter": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀",
+          "text": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀\n-----------------------------------------------------------------\n此開卷第一回也．作者自云：因曾歷過一番夢幻之后，故將真事隱去，\n而借\"通靈\"之說，撰此《石頭記》一書也．故曰\"甄士隱\"云云．但書中所記\n何事何人？自又云：“今風塵碌碌，一事無成，忽念及當日所有之女子，一\n一細考較去，覺其行止見識，皆出于我之上．何我堂堂須眉，誠不若彼裙釵\n哉？實愧則有余，悔又無益之大無可如何之日也！當此，則自欲將已往所賴\n天恩祖德，錦衣紈褲之時，飫甘饜肥之日，背父兄教育之恩，負師友規談之\n德，以至今日一技無成，半生潦倒之罪，編述一集，以告天下人：我之罪固\n不免，然閨閣中本自歷歷有人，万不可因我之不肖，自護己短，一并使其泯\n滅也．雖今日之茅椽蓬牖，瓦灶繩床，其晨夕風露，階柳庭花，亦未有妨我\n之襟怀筆墨者．雖我未學，下筆無文，又何妨用假語村言，敷演出一段故事\n來，亦可使閨閣昭傳，复可悅世之目，破人愁悶，不亦宜乎？\"故曰\"賈雨村\n\"云云．\n　　此回中凡用“夢”用“幻”等字，是提醒閱者眼目，亦是此書立意本"
+        },
+        {
+          "segment": 410,
+          "chapter": "第六十一回　 投鼠忌器寶玉瞞贓　判冤決獄平儿行權",
+          "text": "“姑娘別誤听了小孩子的話．\n柳嫂子有八個頭，也不敢得罪姑娘．說雞蛋難買是真． 我們才也說他不知好歹，\n憑是什么東西，也少不得變法儿去．他已經悟過來了，連忙蒸上了． 姑娘不信\n瞧那火上。”司棋被眾人一頓好言，方將气勸的漸平．小丫頭們也沒得摔完東西，\n便拉開了．司棋連說帶罵，鬧了一回，方被眾人勸去．柳家的只好摔碗丟盤自己\n咕嘟了一回，蒸了一碗蛋令人送去．司棋全潑了地下了．那人回來也不敢說，恐\n又生事．柳家的打發他女儿喝了一回湯，吃了半碗粥，又將茯苓霜一節說了．五\n儿听罷，便心下要分些贈芳官，遂用紙另包了一半，趁黃昏人稀之時，自己花遮\n柳隱的來找芳官． 且喜無人盤問．一徑到了怡紅院門前，不好進去，只在一簇\n玫瑰花前站立，遠遠的望著． 有一盞茶時，可巧小燕出來，忙上前叫住．小燕\n不知是那一個，至跟前方看真切， 因問作什么．五儿笑道：“你叫出芳官來，\n我和他說話。”小燕悄笑道：“姐姐太性急了， 橫豎等十來日就來了，只管找\n他做什么．方才使了他往前頭去了，你且等他一等．不然，有什么話告訴我，等\n我告訴他．恐怕你等不得，只怕關園門了。”五儿便將茯苓霜遞与了小燕，又說\n這是茯苓霜，如何吃，如何補益，\""
+        },
+        {
+          "segment": 819,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "道人又從青埂峰前經過，見那補天未用之石仍在那里，上面字跡\n依然如舊， 又從頭的細細看了一遍，見后面偈文后又歷敘了多少收緣結果的話\n頭，便點頭歎道：“我從前見石兄這段奇文，原說可以聞世傳奇，所以曾經抄錄，\n但未見返本還原．不知何時复有此一佳話，方知石兄下凡一次，磨出光明，修成\n圓覺，也可謂無复遺憾了．只怕年深日久，字跡模糊，反有舛錯，不如我再抄錄\n一番，尋個世上無事的人，托他傳遍， 知道奇而不奇，俗而不俗，真而不真，\n假而不假．或者塵夢勞人，聊倩鳥呼歸去，山靈好客， 更從石化飛來，亦未可\n知。”想畢，便又抄了，仍袖至那繁華昌盛的地方，遍尋了一番，不是建功立業\n之人，即系饒口謀衣之輩，那有閒情更去和石頭饒舌．直尋到急流津覺迷度口，\n草庵中睡著一個人，因想他必是閒人，便要將這抄錄的《石頭記》給他看看．那\n知那人再叫不醒．空空道人复又使勁拉他，才慢慢的開眼坐起，便草草一看，仍\n舊擲下道：“這事我早已親見盡知．你這抄錄的尚無舛錯，我只指与你一個人，\n托他傳去，便可歸結這一公案了。”空空道人忙問何人，那人道：“你須待某年\n某月某日到一個悼紅軒中，有個曹雪芹先生，只說賈雨村言托他如此如此。”說\n畢，"
+        }
+      ]
+    },
+    {
+      "id": "irregular-titles",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2663318,
+      "sha256": "58537c88b35881748930b39d4d109d1ad9b4e6d3c39f16cb1bd82461c5443731",
+      "strictRejected": false,
+      "encoding": "utf-8",
+      "replacements": 0,
+      "quality": "warning",
+      "warnings": [
+        "duplicate_chapters",
+        "ad_lines"
+      ],
+      "repairs": [
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 881288,
+      "totalSegments": 835,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probes": [
+        {
+          "segment": 0,
+          "chapter": "正文",
+          "text": "The Project Gutenberg EBook of A Dream Of Red Mansions, by Xueqin Cao\n\nThis eBook is for the use of anyone anywhere at no cost and with\nalmost no restrictions whatsoever.  You may copy it, give it away or\nre-use it under the terms of the Project Gutenberg License included\nwith this eBook or online at www.gutenberg.org\n\n\nTitle: A Dream Of Red Mansions\n\nAuthor: Xueqin Cao\n\nRelease Date: January 12, 2008 [EBook #24264]\n\nLanguage: Chinese\n\nCharacter set encoding: UTF-8\n\n*** START OF THIS PROJECT GUT"
+        },
+        {
+          "segment": 417,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "這是后人纂的，比一切的令都難．這里頭倒有一半是不會的，不如毀\n了，另拈一個雅俗共賞的。”探春笑道：“既拈了出來，如何又毀．如今再拈一\n個，若是雅俗共賞的，便叫他們行去．咱們行這個． \"說著又著襲人拈了一個，\n卻是\"拇戰\"．史湘云笑著說：“這個簡斷爽利，合了我的脾气． 我不行這個`射\n覆'，沒的垂頭喪气悶人，我只划拳去了。”探春道：“惟有他亂令，寶姐姐快\n罰他一鐘。”寶釵不容分說，便灌湘云一杯．探春道：“我吃一杯，我是令官，\n也不用宣，只听我分派。”命取了令骰令盆來，\"從琴妹擲起，挨下擲去，對了\n點的二人射覆。”寶琴一擲，是個三，岫煙寶玉等皆擲的不對，直到香菱方擲了\n一個三．寶琴笑道：“只好室內生春，若說到外頭去，可太沒頭緒了。”探春道：\n“自然．三次不中者罰一杯．你覆，他射。”寶琴想了一想，說了個\"老\"字．香\n菱原生于這令，一時想不到，滿室滿席都不見有与\"老\"字相連的成語．湘云先听\n了，便也亂看，忽見門斗上貼著\"紅香圃\" 三個字，便知寶琴覆的是\"吾不如老圃\n\"的\"圃\"字．見香菱射不著，眾人擊鼓又催，便悄悄的拉香菱，教他說\"藥\"字．黛\n玉偏看見了，說\"快罰他，又在那里私相傳遞呢。”哄的眾"
+        },
+        {
+          "segment": 834,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "cluded.  Thus, we do not necessarily\nkeep eBooks in compliance with any particular paper edition.\n\n\nMost people start at our Web site which has the main PG search facility:\n\n     http://www.gutenberg.org\n\nThis Web site includes information about Project Gutenberg-tm,\nincluding how to make donations to the Project Gutenberg Literary\nArchive Foundation, how to help produce our new eBooks, and how to\nsubscribe to our email newsletter to hear about new eBooks."
+        }
+      ],
+      "proseProbes": [
+        {
+          "segment": 0,
+          "chapter": "正文",
+          "text": "The Project Gutenberg EBook of A Dream Of Red Mansions, by Xueqin Cao\n\nThis eBook is for the use of anyone anywhere at no cost and with\nalmost no restrictions whatsoever.  You may copy it, give it away or\nre-use it under the terms of the Project Gutenberg License included\nwith this eBook or online at www.gutenberg.org\n\n\nTitle: A Dream Of Red Mansions\n\nAuthor: Xueqin Cao\n\nRelease Date: January 12, 2008 [EBook #24264]\n\nLanguage: Chinese\n\nCharacter set encoding: UTF-8\n\n*** START OF THIS PROJECT GUT"
+        },
+        {
+          "segment": 409,
+          "chapter": "第六十一回　 投鼠忌器寶玉瞞贓　判冤決獄平儿行權",
+          "text": "“姑娘別誤听了小孩子的話．\n柳嫂子有八個頭，也不敢得罪姑娘．說雞蛋難買是真． 我們才也說他不知好歹，\n憑是什么東西，也少不得變法儿去．他已經悟過來了，連忙蒸上了． 姑娘不信\n瞧那火上。”司棋被眾人一頓好言，方將气勸的漸平．小丫頭們也沒得摔完東西，\n便拉開了．司棋連說帶罵，鬧了一回，方被眾人勸去．柳家的只好摔碗丟盤自己\n咕嘟了一回，蒸了一碗蛋令人送去．司棋全潑了地下了．那人回來也不敢說，恐\n又生事．柳家的打發他女儿喝了一回湯，吃了半碗粥，又將茯苓霜一節說了．五\n儿听罷，便心下要分些贈芳官，遂用紙另包了一半，趁黃昏人稀之時，自己花遮\n柳隱的來找芳官． 且喜無人盤問．一徑到了怡紅院門前，不好進去，只在一簇\n玫瑰花前站立，遠遠的望著． 有一盞茶時，可巧小燕出來，忙上前叫住．小燕\n不知是那一個，至跟前方看真切， 因問作什么．五儿笑道：“你叫出芳官來，\n我和他說話。”小燕悄笑道：“姐姐太性急了， 橫豎等十來日就來了，只管找\n他做什么．方才使了他往前頭去了，你且等他一等．不然，有什么話告訴我，等\n我告訴他．恐怕你等不得，只怕關園門了。”五儿便將茯苓霜遞与了小燕，又說\n這是茯苓霜，如何吃，如何補益，\""
+        },
+        {
+          "segment": 818,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "道人又從青埂峰前經過，見那補天未用之石仍在那里，上面字跡\n依然如舊， 又從頭的細細看了一遍，見后面偈文后又歷敘了多少收緣結果的話\n頭，便點頭歎道：“我從前見石兄這段奇文，原說可以聞世傳奇，所以曾經抄錄，\n但未見返本還原．不知何時复有此一佳話，方知石兄下凡一次，磨出光明，修成\n圓覺，也可謂無复遺憾了．只怕年深日久，字跡模糊，反有舛錯，不如我再抄錄\n一番，尋個世上無事的人，托他傳遍， 知道奇而不奇，俗而不俗，真而不真，\n假而不假．或者塵夢勞人，聊倩鳥呼歸去，山靈好客， 更從石化飛來，亦未可\n知。”想畢，便又抄了，仍袖至那繁華昌盛的地方，遍尋了一番，不是建功立業\n之人，即系饒口謀衣之輩，那有閒情更去和石頭饒舌．直尋到急流津覺迷度口，\n草庵中睡著一個人，因想他必是閒人，便要將這抄錄的《石頭記》給他看看．那\n知那人再叫不醒．空空道人复又使勁拉他，才慢慢的開眼坐起，便草草一看，仍\n舊擲下道：“這事我早已親見盡知．你這抄錄的尚無舛錯，我只指与你一個人，\n托他傳去，便可歸結這一公案了。”空空道人忙問何人，那人道：“你須待某年\n某月某日到一個悼紅軒中，有個曹雪芹先生，只說賈雨村言托他如此如此。”說\n畢，"
+        }
+      ]
+    },
+    {
+      "id": "minor-damage",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2663313,
+      "sha256": "88f427ba981df594c4c470ccdf5cf17427ab9c6065719cd1ccedba3cfb669e7b",
+      "strictRejected": false,
+      "encoding": "utf-8-bom",
+      "replacements": 1,
+      "quality": "warning",
+      "warnings": [
+        "replacement_characters",
+        "duplicate_chapters",
+        "ad_lines"
+      ],
+      "repairs": [
+        "encoding_repaired",
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 881285,
+      "totalSegments": 836,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probes": [
+        {
+          "segment": 0,
+          "chapter": "正文",
+          "text": "The Project Gutenberg EBook of A Dream Of Red Mansions, by Xueqin Cao\n\nThis eBook is for the use of anyone anywhere at no cost and with\nalmost no restrictions whatsoever.  You may copy it, give it away or\nre-use it under the terms of the Project Gutenberg License included\nwith this eBook or online at www.gutenberg.org\n\n\nTitle: A Dream Of Red Mansions\n\nAuthor: Xueqin Cao\n\nRelease Date: January 12, 2008 [EBook #24264]\n\nLanguage: Chinese\n\nCharacter set encoding: UTF-8\n\n*** START OF THIS PROJECT GUT"
+        },
+        {
+          "segment": 418,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "這是后人纂的，比一切的令都難．這里頭倒有一半是不會的，不如毀\n了，另拈一個雅俗共賞的。”探春笑道：“既拈了出來，如何又毀．如今再拈一\n個，若是雅俗共賞的，便叫他們行去．咱們行這個． \"說著又著襲人拈了一個，\n卻是\"拇戰\"．史湘云笑著說：“這個簡斷爽利，合了我的脾气． 我不行這個`射\n覆'，沒的垂頭喪气悶人，我只划拳去了。”探春道：“惟有他亂令，寶姐姐快\n罰他一鐘。”寶釵不容分說，便灌湘云一杯．探春道：“我吃一杯，我是令官，\n也不用宣，只听我分派。”命取了令骰令盆來，\"從琴妹擲起，挨下擲去，對了\n點的二人射覆。”寶琴一擲，是個三，岫煙寶玉等皆擲的不對，直到香菱方擲了\n一個三．寶琴笑道：“只好室內生春，若說到外頭去，可太沒頭緒了。”探春道：\n“自然．三次不中者罰一杯．你覆，他射。”寶琴想了一想，說了個\"老\"字．香\n菱原生于這令，一時想不到，滿室滿席都不見有与\"老\"字相連的成語．湘云先听\n了，便也亂看，忽見門斗上貼著\"紅香圃\" 三個字，便知寶琴覆的是\"吾不如老圃\n\"的\"圃\"字．見香菱射不著，眾人擊鼓又催，便悄悄的拉香菱，教他說\"藥\"字．黛\n玉偏看見了，說\"快罰他，又在那里私相傳遞呢。”哄的眾"
+        },
+        {
+          "segment": 835,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "cluded.  Thus, we do not necessarily\nkeep eBooks in compliance with any particular paper edition.\n\n\nMost people start at our Web site which has the main PG search facility:\n\n     http://www.gutenberg.org\n\nThis Web site includes information about Project Gutenberg-tm,\nincluding how to make donations to the Project Gutenberg Literary\nArchive Foundation, how to help produce our new eBooks, and how to\nsubscribe to our email newsletter to hear about new eBooks."
+        }
+      ],
+      "proseProbes": [
+        {
+          "segment": 1,
+          "chapter": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀",
+          "text": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀\n-----------------------------------------------------------------\n此開卷第一回也．作者自云：因曾歷過一番夢幻之后，故將真事隱去，\n而借\"通靈\"之說，撰此《石頭記》一書也．故曰\"甄士隱\"云云．但書中所記\n何事何人？自又云：“今風塵碌碌，一事無成，忽念及當日所有之女子，一\n一細考較去，覺其行止見識，皆出于我之上．何我堂堂須眉，誠不若彼裙釵\n哉？實愧則有余，悔又無益之大無可如何之日也！當此，則自欲將已往所賴\n天恩祖德，錦衣紈褲之時，飫甘饜肥之日，背父兄教育之恩，負師友規談之\n德，以至今日一技無成，半生潦倒之罪，編述一集，以告天下人：我之罪固\n不免，然閨閣中本自歷歷有人，万不可因我之不肖，自護己短，一并使其泯\n滅也．雖今日之茅椽蓬牖，瓦灶繩床，其晨夕風露，階柳庭花，亦未有妨我\n之襟怀筆墨者．雖我未學，下筆無文，又何妨用假語村言，敷演出一段故事\n來，亦可使閨閣昭傳，复可悅世之目，破人愁悶，不亦宜乎？\"故曰\"賈雨村\n\"云云．\n　　此回中凡用“夢”用“幻”等字，是提醒閱者眼目，亦是此書立意本"
+        },
+        {
+          "segment": 410,
+          "chapter": "第六十一回　 投鼠忌器寶玉瞞贓　判冤決獄平儿行權",
+          "text": "“姑娘別誤听了小孩子的話．\n柳嫂子有八個頭，也不敢得罪姑娘．說雞蛋難買是真． 我們才也說他不知好歹，\n憑是什么東西，也少不得變法儿去．他已經悟過來了，連忙蒸上了． 姑娘不信\n瞧那火上。”司棋被眾人一頓好言，方將气勸的漸平．小丫頭們也沒得摔完東西，\n便拉開了．司棋連說帶罵，鬧了一回，方被眾人勸去．柳家的只好摔碗丟盤自己\n咕嘟了一回，蒸了一碗蛋令人送去．司棋全潑了地下了．那人回來也不敢說，恐\n又生事．柳家的打發他女儿喝了一回湯，吃了半碗粥，又將茯苓霜一節說了．五\n儿听罷，便心下要分些贈芳官，遂用紙另包了一半，趁黃昏人稀之時，自己花遮\n柳隱的來找芳官． 且喜無人盤問．一徑到了怡紅院門前，不好進去，只在一簇\n玫瑰花前站立，遠遠的望著． 有一盞茶時，可巧小燕出來，忙上前叫住．小燕\n不知是那一個，至跟前方看真切， 因問作什么．五儿笑道：“你叫出芳官來，\n我和他說話。”小燕悄笑道：“姐姐太性急了， 橫豎等十來日就來了，只管找\n他做什么．方才使了他往前頭去了，你且等他一等．不然，有什么話告訴我，等\n我告訴他．恐怕你等不得，只怕關園門了。”五儿便將茯苓霜遞与了小燕，又說\n這是茯苓霜，如何吃，如何補益，\""
+        },
+        {
+          "segment": 819,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "道人又從青埂峰前經過，見那補天未用之石仍在那里，上面字跡\n依然如舊， 又從頭的細細看了一遍，見后面偈文后又歷敘了多少收緣結果的話\n頭，便點頭歎道：“我從前見石兄這段奇文，原說可以聞世傳奇，所以曾經抄錄，\n但未見返本還原．不知何時复有此一佳話，方知石兄下凡一次，磨出光明，修成\n圓覺，也可謂無复遺憾了．只怕年深日久，字跡模糊，反有舛錯，不如我再抄錄\n一番，尋個世上無事的人，托他傳遍， 知道奇而不奇，俗而不俗，真而不真，\n假而不假．或者塵夢勞人，聊倩鳥呼歸去，山靈好客， 更從石化飛來，亦未可\n知。”想畢，便又抄了，仍袖至那繁華昌盛的地方，遍尋了一番，不是建功立業\n之人，即系饒口謀衣之輩，那有閒情更去和石頭饒舌．直尋到急流津覺迷度口，\n草庵中睡著一個人，因想他必是閒人，便要將這抄錄的《石頭記》給他看看．那\n知那人再叫不醒．空空道人复又使勁拉他，才慢慢的開眼坐起，便草草一看，仍\n舊擲下道：“這事我早已親見盡知．你這抄錄的尚無舛錯，我只指与你一個人，\n托他傳去，便可歸結這一公案了。”空空道人忙問何人，那人道：“你須待某年\n某月某日到一個悼紅軒中，有個曹雪芹先生，只說賈雨村言托他如此如此。”說\n畢，"
+        }
+      ]
+    },
+    {
+      "id": "missing-chapter",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2637150,
+      "sha256": "344bc143a89c644fa4700823eeae61948e5fea781dabd2f7758d65f64d6bc1de",
+      "strictRejected": false,
+      "encoding": "utf-8",
+      "replacements": 0,
+      "quality": "warning",
+      "warnings": [
+        "duplicate_chapters",
+        "ad_lines"
+      ],
+      "repairs": [
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 872719,
+      "totalSegments": 828,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probes": [
+        {
+          "segment": 0,
+          "chapter": "正文",
+          "text": "The Project Gutenberg EBook of A Dream Of Red Mansions, by Xueqin Cao\n\nThis eBook is for the use of anyone anywhere at no cost and with\nalmost no restrictions whatsoever.  You may copy it, give it away or\nre-use it under the terms of the Project Gutenberg License included\nwith this eBook or online at www.gutenberg.org\n\n\nTitle: A Dream Of Red Mansions\n\nAuthor: Xueqin Cao\n\nRelease Date: January 12, 2008 [EBook #24264]\n\nLanguage: Chinese\n\nCharacter set encoding: UTF-8\n\n*** START OF THIS PROJECT GUT"
+        },
+        {
+          "segment": 414,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "家的說去，明儿直叫他進來罷，等我告訴他們一聲就完\n了。”芳官听了，笑道：“這倒是正經。”小燕又叫兩個小丫頭進來， 伏侍洗\n手倒茶，自己收了家伙，交与婆子，也洗了手，便去找柳家的，不在話下．寶玉\n便出來，仍往紅香圃尋眾姐妹，芳官在后拿著巾扇．剛出了院門，只見襲人晴雯\n二人攜手回來．寶玉問：“你們做什么？\"襲人道：“擺下飯了，等你吃飯呢。”\n寶玉便笑著將方才吃的飯一節告訴了他兩個．襲人笑道：“我說你是貓儿食，聞\n見了香就好． 隔鍋飯儿香．雖然如此，也該上去陪他們多少應個景儿。”晴雯\n用手指戳在芳官額上，說道：“你就是個狐媚子，什么空儿跑了去吃飯，兩個人\n怎么就約下了，也不告訴我一聲儿． \"襲人笑道：“不過是誤打誤撞的遇見了，\n說約下了可是沒有的事。”晴雯道：“既這么著，要我們無用．明儿我們都走了\n讓芳官一個人就夠使了。”襲人笑道：“我們都去了使得， 你卻去不得。”晴\n雯道：“惟有我是第一個要去，又懶又笨，性子又不好， 又沒用。”襲人笑道：\n“倘或那孔雀褂子再燒個窟窿，你去了誰可會補呢．你倒別和我拿三撇四的，我\n煩你做個什么，把你懶的橫針不拈，豎線不動．一般也不是我的私活煩你， 橫\n豎都是他"
+        },
+        {
+          "segment": 827,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "cluded.  Thus, we do not necessarily\nkeep eBooks in compliance with any particular paper edition.\n\n\nMost people start at our Web site which has the main PG search facility:\n\n     http://www.gutenberg.org\n\nThis Web site includes information about Project Gutenberg-tm,\nincluding how to make donations to the Project Gutenberg Literary\nArchive Foundation, how to help produce our new eBooks, and how to\nsubscribe to our email newsletter to hear about new eBooks."
+        }
+      ],
+      "proseProbes": [
+        {
+          "segment": 1,
+          "chapter": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀",
+          "text": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀\n-----------------------------------------------------------------\n此開卷第一回也．作者自云：因曾歷過一番夢幻之后，故將真事隱去，\n而借\"通靈\"之說，撰此《石頭記》一書也．故曰\"甄士隱\"云云．但書中所記\n何事何人？自又云：“今風塵碌碌，一事無成，忽念及當日所有之女子，一\n一細考較去，覺其行止見識，皆出于我之上．何我堂堂須眉，誠不若彼裙釵\n哉？實愧則有余，悔又無益之大無可如何之日也！當此，則自欲將已往所賴\n天恩祖德，錦衣紈褲之時，飫甘饜肥之日，背父兄教育之恩，負師友規談之\n德，以至今日一技無成，半生潦倒之罪，編述一集，以告天下人：我之罪固\n不免，然閨閣中本自歷歷有人，万不可因我之不肖，自護己短，一并使其泯\n滅也．雖今日之茅椽蓬牖，瓦灶繩床，其晨夕風露，階柳庭花，亦未有妨我\n之襟怀筆墨者．雖我未學，下筆無文，又何妨用假語村言，敷演出一段故事\n來，亦可使閨閣昭傳，复可悅世之目，破人愁悶，不亦宜乎？\"故曰\"賈雨村\n\"云云．\n　　此回中凡用“夢”用“幻”等字，是提醒閱者眼目，亦是此書立意本"
+        },
+        {
+          "segment": 406,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙\n\n\n--------------------------------------------------------------------------------\n\n\n　　話說平儿出來吩咐林之孝家的道：“大事化為小事，小事化為沒事，方是興\n旺之家．若得不了一點子小事，便揚鈴打鼓的亂折騰起來，不成道理．如今將他\n母女帶回，照舊去當差．將秦顯家的仍舊退回．再不必提此事．只是每日小心巡\n察要緊。”說畢，起身走了． 柳家的母女忙向上磕頭，林家的帶回園中，回了\n李紈探春，二人皆說：“知道了，能可無事， 很好。”司棋等人空興頭了一陣．\n那秦顯家的好容易等了這個空子鑽了來，只興頭上半天． 在廚房內正亂著接收\n家伙米糧煤炭等物，又查出許多虧空來，說：“粳米短了兩石，常用米又多支了\n一個月的，炭也欠著額數。”一面又打點送林之孝家的禮， 悄悄的備了一簍炭，\n五百斤木柴，一擔粳米，在外邊就遣了子侄送入林家去了，又打點送帳房的禮，\n又預備几樣菜蔬請几位同事的人，說：“我來了，全仗列位扶持．自今以后都是\n一家人了． 我有照顧不到的，好歹大家照顧些。”正亂著，"
+        },
+        {
+          "segment": 811,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "道人又從青埂峰前經過，見那補天未用之石仍在那里，上面字跡\n依然如舊， 又從頭的細細看了一遍，見后面偈文后又歷敘了多少收緣結果的話\n頭，便點頭歎道：“我從前見石兄這段奇文，原說可以聞世傳奇，所以曾經抄錄，\n但未見返本還原．不知何時复有此一佳話，方知石兄下凡一次，磨出光明，修成\n圓覺，也可謂無复遺憾了．只怕年深日久，字跡模糊，反有舛錯，不如我再抄錄\n一番，尋個世上無事的人，托他傳遍， 知道奇而不奇，俗而不俗，真而不真，\n假而不假．或者塵夢勞人，聊倩鳥呼歸去，山靈好客， 更從石化飛來，亦未可\n知。”想畢，便又抄了，仍袖至那繁華昌盛的地方，遍尋了一番，不是建功立業\n之人，即系饒口謀衣之輩，那有閒情更去和石頭饒舌．直尋到急流津覺迷度口，\n草庵中睡著一個人，因想他必是閒人，便要將這抄錄的《石頭記》給他看看．那\n知那人再叫不醒．空空道人复又使勁拉他，才慢慢的開眼坐起，便草草一看，仍\n舊擲下道：“這事我早已親見盡知．你這抄錄的尚無舛錯，我只指与你一個人，\n托他傳去，便可歸結這一公案了。”空空道人忙問何人，那人道：“你須待某年\n某月某日到一個悼紅軒中，有個曹雪芹先生，只說賈雨村言托他如此如此。”說\n畢，"
+        }
+      ]
+    },
+    {
+      "id": "mixed-gb-utf8",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2229248,
+      "sha256": "6ec98de4043c5f39bd27d349b18d08d953f9f47c38d3a9e288fccae78e60e72f",
+      "strictRejected": true,
+      "encoding": "gb18030",
+      "replacements": 9321,
+      "quality": "partial",
+      "warnings": [
+        "mixed_encoding_suspected",
+        "replacement_characters",
+        "duplicate_chapters",
+        "ad_lines"
+      ],
+      "repairs": [
+        "encoding_repaired",
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 1100571,
+      "totalSegments": 996,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probes": [
+        {
+          "segment": 0,
+          "chapter": "正文",
+          "text": "The Project Gutenberg EBook of A Dream Of Red Mansions, by Xueqin Cao\n\nThis eBook is for the use of anyone anywhere at no cost and with\nalmost no restrictions whatsoever.  You may copy it, give it away or\nre-use it under the terms of the Project Gutenberg License included\nwith this eBook or online at www.gutenberg.org\n\n\nTitle: A Dream Of Red Mansions\n\nAuthor: Xueqin Cao\n\nRelease Date: January 12, 2008 [EBook #24264]\n\nLanguage: Chinese\n\nCharacter set encoding: UTF-8\n\n*** START OF THIS PROJECT GUT"
+        },
+        {
+          "segment": 498,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "紟鎴戝洜澶氱梾浜嗭紝\n浣犲嵒鐒＄梾涔熶笉瑕嬫€€鑳庯紟濡備粖浜屽ザ濂堕€欐ǎ锛岄兘鍥犲挶鍊戠劇绂忥紝鎴栫姱浜嗕粈涔堬紝娌栫殑浠栭€�\n妯ｏ紟 \"鍥犲張鍙汉鍑哄幓绠楀懡鎵撳崷锛庡亸绠楀懡鐨勫洖渚嗗張瑾細鈥滅郴灞厰鐨勯櫚浜烘矕鐘€傗€濆ぇ\n瀹剁畻灏囪捣渚嗭紝 鍙湁绉嬫涓€浜哄爆鍏旓紝瑾粬娌栫殑锛庣妗愯繎瑕嬭硤鐠夎珛閱不钘ワ紝鎵撲汉缃�\n鐙楋紝鐐哄挨浜屽鍗佸垎鐩″績锛屼粬蹇冧腑鏃╂蹈浜嗕竴缂搁唻鍦ㄥ収浜嗭紟浠婂張鍚濡傛瑾粬娌栦簡锛�\n槌冲鍎垮張鍕镐粬瑾細鈥滀綘鏆笖鍒ヨ檿鍘昏翰鍑犲€嬫湀鍐嶄締銆傗€濈妗愪究姘旂殑鍝降閬擄細鈥滅悊閭�\n璧风瀻鈻＄殑娣峰挰鑸屾牴锛佹垜鍜屼粬`浜曟按涓嶇姱娌虫按'锛屾€庝箞灏辨矕浜嗕粬锛佸ソ鍊嬫剾鍏摜鍎匡紝鍦�\n澶栭牠浠€涔堜汉涓嶈锛屽亸渚嗕簡灏辨湁浜烘矕浜嗭紟 鐧界湁璧よ噳锛岄偅閲屼締鐨勫瀛愶紵浠栦笉閬庢寚钁�\n鍝勬垜鍊戦偅鍊嬫鑺辫€虫湹鐨勭埡缃蜂簡锛庣副鏈夊瀛愶紝涔熶笉鐭ュ寮靛鐜嬶紟 濂跺ザ甯岀綍閭ｉ洔绉�\n缇斿瓙锛屾垜涓嶅枩姝★紒鑰佷簡瑾颁笉鎴愶紵瑾颁笉鏈冮锛佷竴骞村崐杓夐涓€鍊嬶紝 鍊掗倓鏄竴榛炴敊闆"
+        },
+        {
+          "segment": 995,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "ubscribe to our email newsletter to hear about new eBooks."
+        }
+      ],
+      "proseProbes": [
+        {
+          "segment": 1,
+          "chapter": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀",
+          "text": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀\n-----------------------------------------------------------------\n此開卷第一回也．作者自云：因曾歷過一番夢幻之后，故將真事隱去，\n而借\"通靈\"之說，撰此《石頭記》一書也．故曰\"甄士隱\"云云．但書中所記\n何事何人？自又云：“今風塵碌碌，一事無成，忽念及當日所有之女子，一\n一細考較去，覺其行止見識，皆出于我之上．何我堂堂須眉，誠不若彼裙釵\n哉？實愧則有余，悔又無益之大無可如何之日也！當此，則自欲將已往所賴\n天恩祖德，錦衣紈褲之時，飫甘饜肥之日，背父兄教育之恩，負師友規談之\n德，以至今日一技無成，半生潦倒之罪，編述一集，以告天下人：我之罪固\n不免，然閨閣中本自歷歷有人，万不可因我之不肖，自護己短，一并使其泯\n滅也．雖今日之茅椽蓬牖，瓦灶繩床，其晨夕風露，階柳庭花，亦未有妨我\n之襟怀筆墨者．雖我未學，下筆無文，又何妨用假語村言，敷演出一段故事\n來，亦可使閨閣昭傳，复可悅世之目，破人愁悶，不亦宜乎？\"故曰\"賈雨村\n\"云云．\n　　此回中凡用“夢”用“幻”等字，是提醒閱者眼目，亦是此書立意本"
+        },
+        {
+          "segment": 491,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "擄細鈥滄棦娌掗€欐湰浜嬶紝瑾板彨浣犲共\n閫欎簨浜嗭紟閫欐渻瀛愬張閫欏€嬭厰鍎匡紝鎴戝張鐪嬩笉涓婏紟 寰呰涓嶅嚭鍊嬩富鎰忥紝鎴戝張鏄€嬪績鎱堥潰\n杌熺殑浜猴紝鎲戜汉鎾紕鎴戯紝鎴戦倓鏄竴鐗囩棿蹇冿紟瑾笉寰楄畵鎴戞噳璧蜂締锛庡浠婁綘鍊戝彧鍒ラ湶闈紝\n鎴戝彧闋樹簡浣犲濡瑰幓涓庤€佸お澶紝澶お鍊戠闋紝鍙鍘熺郴浣犲濡癸紝鎴戠湅涓婁簡寰堝ソ锛庢\n鍥犳垜涓嶅ぇ鐢熼暦锛屽師瑾卜鍏╁€嬩汉鏀惧湪灞嬮噷鐨勶紝浠婃棦瑕嬩綘濡瑰寰堝ソ锛岃€屽張鏄Κ涓婂仛瑕�\n鐨勶紝鎴戞効鎰忓ǘ渚嗗仛浜屾埧锛庣殕鍥犲涓埗姣嶅濡规柊杩戜竴姒傛浜嗭紝鏃ュ瓙鍙堣壉闆ｏ紝涓嶈兘搴�\n鏃ワ紝鑻ョ瓑鐧炬棩涔嬪悗锛岀劇濂堢劇瀹剁劇妤紝瀵﹂洠绛夊緱锛庢垜鐨勪富鎰忔帴浜嗛€蹭締锛屽凡缍撳粋鎴挎敹\n鎷句簡鍑轰締鏆笖浣忚憲锛岀瓑婊夸簡鏈嶅啀鍦撴埧锛庝粭钁楁垜涓嶆€曡噴鐨勮噳锛屾娲昏炒鍘伙紝鏈変簡涓嶆槸锛�\n涔熷皨涓嶈憲浣犲€戜簡锛庝綘鍊戞瘝瀛愭兂鎯筹紝鍙娇寰楋紵\"灏ゆ皬璩堣搲涓€榻婄瑧瑾細鈥滃埌搴曟槸瀣稿瓙\n瀵椽澶ч噺锛� 瓒虫櫤澶氳瑎锛庣瓑浜嬪Ε浜嗭紝灏戜笉寰楁垜鍊戝鍎垮€戦亷鍘绘嫓璎濄€"
+        },
+        {
+          "segment": 979,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "┖閬撲汉渚垮皣璩堥洦鏉戣█浜嗭紝鏂规妸閫欍€婄煶\n闋銆嬬ず鐪嬶紟閭ｉ洩鑺瑰厛鐢熺瑧閬擄細鈥滄灉鐒舵槸`璩堥洦鏉戣█'浜嗭紒\"绌虹┖閬撲汉渚垮晱锛氣€滃厛鐢�\n浣曚互瑾嶅緱姝や汉锛屼究鑲浛浠栧偝杩帮紵 \"鏇归洩鑺瑰厛鐢熺瑧閬擄細鈥滆浣犵┖锛屽師渚嗕綘鑲氶噷鏋滅劧\n绌虹┖锛庢棦鏄亣瑾炴潙瑷€锛屼絾鐒￠榄氫亥璞曚互鍙婅儗璎煕鐩句箣铏曪紝 妯傚緱涓庝簩涓夊悓蹇楋紝閰�\n浣欓／椋斤紝闆ㄥ鐕堢獥涔嬩笅锛屽悓娑堝瘋瀵烇紝鍙堜笉蹇呭ぇ浜哄厛鐢熷搧椤屽偝涓栵紝 浼间綘閫欐ǎ灏嬫牴\n鍟忓簳锛屼究鏄埢鑸熸眰鍔嶏紝鑶犳煴榧撶憻浜嗐€傗€濋偅绌虹┖閬撲汉鍚簡锛屼话澶╁ぇ绗戯紝鎿蹭笅鎶勬湰锛�\n椋勭劧鑰屽幓锛庝竴闈㈣蛋钁楋紝鍙ｄ腑瑾亾锛氣€滄灉鐒舵槸鏁疯鑽掑攼锛佷笉浣嗕綔鑰呬笉鐭ワ紝鎶勮€呬笉鐭ワ紝\n骞堕柋鑰呬篃涓嶇煡锛庝笉閬庢父鎴茬瓎澧紝闄舵儏閫傛€ц€屽凡锛�\"鍚庝汉瑕嬩簡閫欐湰濂囧偝锛屼害鏇鹃閬�\n鍥涘彞鐐轰綔鑰呯罚璧蜂箣瑷€鏇磋綁涓€绔块牠浜戯細\n銆€銆€瑾埌杈涢吀铏曪紝鑽掑攼鎰堝彲鎮诧紟\n銆€銆€鐢变締鍚屼竴澶紝浼戠瑧涓栦汉鐥�!\n\n\nEnd of the Project"
+        }
+      ],
+      "notes": "Only the confidently detected global encoding is used. Opposite-encoding portions can remain damaged; no claim of automatic full mixed-encoding restoration."
+    },
+    {
+      "id": "mixed-utf8-gb",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2242816,
+      "sha256": "34a8092371c1c917ca4e7389ba9236c45c42aa20ee1a7207a091022986177dce",
+      "strictRejected": true,
+      "encoding": "utf-8",
+      "replacements": 530447,
+      "quality": "partial",
+      "warnings": [
+        "mixed_encoding_suspected",
+        "encoding_damaged",
+        "replacement_characters",
+        "duplicate_chapters",
+        "ad_lines"
+      ],
+      "repairs": [
+        "encoding_repaired",
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 627598,
+      "totalSegments": 1036,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probes": [
+        {
+          "segment": 0,
+          "chapter": "正文",
+          "text": "The Project Gutenberg EBook of A Dream Of Red Mansions, by Xueqin Cao\n\nThis eBook is for the use of anyone anywhere at no cost and with\nalmost no restrictions whatsoever.  You may copy it, give it away or\nre-use it under the terms of the Project Gutenberg License included\nwith this eBook or online at www.gutenberg.org\n\n\nTitle: A Dream Of Red Mansions\n\nAuthor: Xueqin Cao\n\nRelease Date: January 12, 2008 [EBook #24264]\n\nLanguage: Chinese\n\nCharacter set encoding: UTF-8\n\n*** START OF THIS PROJECT GUT"
+        },
+        {
+          "segment": 518,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "�[�ء������ϴ������˳��������P�������\n������P����ژ��Ͽ��������ͶY��������ֻ��ƽ���ڷ������P����B��\n���������򆖣����ゃ���̳�����˛]�У�\"ƽ��Ц����������M��Ո����ȥ�ġ���\n����Ц���������@�ӣ��҄e̎�ҳԵ�ȥ���I�����ܲ����ˡ����f�������ߣ�ƽ��\næЦ����������Ո�؁����@�����c�ģ����c�aһ�c���� �؁��ٳ��������Ц\n�������ゃæ���@�ӣ��҈@�������Â��[ȥ����һ���f��һ����ߣ�ƽ������\nס��ֻ���T�ˣ�\n�������f����һ�������@�У� ֻҊ�@�����T���̎���T��δ�P���q������ɫ��\n��������^��СѾ�^��ԓ���Ů�ˣ���Ѿ������෿�У����]һ����Ӱ���؁���\n�����ϣ����ϱ������ܼҵ�Ů�ˣ��@Ѿ�^���˱��ȥ�����"
+        },
+        {
+          "segment": 1035,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "nberg-tm,\nincluding how to make donations to the Project Gutenberg Literary\nArchive Foundation, how to help produce our new eBooks, and how to\nsubscribe to our email newsletter to hear about new eBooks."
+        }
+      ],
+      "proseProbes": [
+        {
+          "segment": 1,
+          "chapter": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀",
+          "text": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀\n-----------------------------------------------------------------\n此開卷第一回也．作者自云：因曾歷過一番夢幻之后，故將真事隱去，\n而借\"通靈\"之說，撰此《石頭記》一書也．故曰\"甄士隱\"云云．但書中所記\n何事何人？自又云：“今風塵碌碌，一事無成，忽念及當日所有之女子，一\n一細考較去，覺其行止見識，皆出于我之上．何我堂堂須眉，誠不若彼裙釵\n哉？實愧則有余，悔又無益之大無可如何之日也！當此，則自欲將已往所賴\n天恩祖德，錦衣紈褲之時，飫甘饜肥之日，背父兄教育之恩，負師友規談之\n德，以至今日一技無成，半生潦倒之罪，編述一集，以告天下人：我之罪固\n不免，然閨閣中本自歷歷有人，万不可因我之不肖，自護己短，一并使其泯\n滅也．雖今日之茅椽蓬牖，瓦灶繩床，其晨夕風露，階柳庭花，亦未有妨我\n之襟怀筆墨者．雖我未學，下筆無文，又何妨用假語村言，敷演出一段故事\n來，亦可使閨閣昭傳，复可悅世之目，破人愁悶，不亦宜乎？\"故曰\"賈雨村\n\"云云．\n　　此回中凡用“夢”用“幻”等字，是提醒閱者眼目，亦是此書立意本"
+        },
+        {
+          "segment": 211,
+          "chapter": "第三十三回　 手足耽耽小動唇舌　不肖种种大承笞撻　卻",
+          "text": "回道：“實在不知\n此事．究竟連`琪官'兩個字不知為何物，豈更又加`引逗'二字！\n\"說著便哭了．賈政未及開言，只見那長史官冷笑道：“公子\n也不必掩飾．或隱藏在家，或知其下落，早說了出來，我們\n也少受些辛苦，豈不念公子之德？\"寶玉連說不知， \"恐是訛\n傳，也未見得。”那長史官冷笑道：“現有据證，何必還賴？\n必定當著老大人說了出來， 公子豈不吃虧？既云不知此人，\n那紅汗巾子怎么到了公子腰里？\"寶玉听了這話，不覺轟去魂\n魄，目瞪口呆，心下自思：“這話他如何得知！他既連這樣\n机密事都知道了， 大約別的瞞他不過，不如打發他去了，免\n的再說出別的事來。”因說道：“大人既知他的底細，如何\n連他置買房舍這樣大事倒不曉得了？听得說他如今在東郊离\n城二十里有個什么紫檀堡，他在那里置了几畝田地几間房\n舍．想是在那里也未可知。”那長史官听了，笑道：“這樣\n說，一定是在那里．我且去找一回，若有了便罷，若沒有，\n還要來請教。”說著，便忙忙的走了．\n　　賈政此時气的目瞪口歪，一面送那長史官，一面回頭命\n寶玉\"不許動！回來有話問你！\"一直送那官員去了．才回身，\n忽見賈環帶著几個小廝一陣亂跑．賈政喝令小廝\"快打， 快\n打"
+        },
+        {
+          "segment": 959,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "�\n�Č�����ˣ� \"���˼�æ�ӳ�������������̎���£������жY����Щ�غ�������\n������ֻ�������������猚�����Լ��Č���o���� ҪՈ�猚��һҊ����Ԓ��ȥ��\n�؁��f���������٠��������ͬ�Ϡ��fԒ���f��Ͷ�˻��ˣ���l�ˁ�Ո�҂�����\n������߀���m����������^���������M�������f�������^Ҳ��[����}��\n�������f�Z��Ҋ�猚����ò���댚��һ�ӣ�ԇ̽�����Ĳţ�������������������\n�����ʽЌ�������˳����������������ߵ��׽Ќ������һ�ȣ���������������\n�ط��������ֵ�ֶ�������� Ҋ���猚�񣬾����f���Rһ�㣮���猚��Ҳ������\nҊ�^�ģ��������˶Y��Ȼ���Z�h�Z�m��Ҋ�������Z��ϯ�ض�����Ҫ׌�猚������\n���������猚��������݅�����"
+        }
+      ],
+      "notes": "Only the confidently detected global encoding is used. Opposite-encoding portions can remain damaged; no claim of automatic full mixed-encoding restoration."
+    },
+    {
+      "id": "partial-prose",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 67547,
+      "sha256": "0680c3463e491db409b38bd43983af0b87477635d5c669c7429d3590c5ac4d7e",
+      "strictRejected": false,
+      "encoding": "utf-8",
+      "replacements": 0,
+      "quality": "partial",
+      "warnings": [
+        "possible_truncation"
+      ],
+      "repairs": [
+        "newlines_normalized"
+      ],
+      "readableChars": 22111,
+      "totalSegments": 21,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probes": [
+        {
+          "segment": 0,
+          "chapter": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀",
+          "text": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀\n-----------------------------------------------------------------\n此開卷第一回也．作者自云：因曾歷過一番夢幻之后，故將真事隱去，\n而借\"通靈\"之說，撰此《石頭記》一書也．故曰\"甄士隱\"云云．但書中所記\n何事何人？自又云：“今風塵碌碌，一事無成，忽念及當日所有之女子，一\n一細考較去，覺其行止見識，皆出于我之上．何我堂堂須眉，誠不若彼裙釵\n哉？實愧則有余，悔又無益之大無可如何之日也！當此，則自欲將已往所賴\n天恩祖德，錦衣紈褲之時，飫甘饜肥之日，背父兄教育之恩，負師友規談之\n德，以至今日一技無成，半生潦倒之罪，編述一集，以告天下人：我之罪固\n不免，然閨閣中本自歷歷有人，万不可因我之不肖，自護己短，一并使其泯\n滅也．雖今日之茅椽蓬牖，瓦灶繩床，其晨夕風露，階柳庭花，亦未有妨我\n之襟怀筆墨者．雖我未學，下筆無文，又何妨用假語村言，敷演出一段故事\n來，亦可使閨閣昭傳，复可悅世之目，破人愁悶，不亦宜乎？\"故曰\"賈雨村\n\"云云．\n　　此回中凡用“夢”用“幻”等字，是提醒閱者眼目，亦是此書立意本"
+        },
+        {
+          "segment": 10,
+          "chapter": "第二回　　賈夫人仙逝揚州城　冷子興演說榮國府",
+          "text": "史老太君還是命根一樣．說來又奇，如今長了七八歲，雖然淘气\n异常，但其聰明乖覺處，百個不及他一個．說起孩子話來也奇怪，他說：`\n女儿是水作的骨肉，男人是泥作的骨肉．我見了女儿，我便清爽，見了男子\n，便覺濁臭逼人．'你道好笑不好笑？將來色鬼無疑了！\"雨村罕然厲色忙止\n道：“非也！可惜你們不知道這人來歷．大約政老前輩也錯以淫魔色鬼看待\n了．若非多讀書識事，加以致知格物之功，悟道參玄之力，不能知也。”\n　　子興見他說得這樣重大，忙請教其端．雨村道：“天地生人，除大仁大\n惡兩种，余者皆無大异．若大仁者，則應運而生，大惡者，則應劫而生．運\n生世治，劫生世危．堯，舜，禹，湯，文，武，周，召，孔，孟，董，韓，\n周，程，張，朱，皆應運而生者．蚩尤，共工，桀，紂，始皇，王莽，曹操\n，桓溫，安祿山，秦檜等，皆應劫而生者．大仁者，修治天下，大惡者，撓\n亂天下．清明靈秀，天地之正气，仁者之所秉也，殘忍乖僻，天地之邪气，\n惡者之所秉也．今當運隆祚永之朝，太平無為之世，清明靈秀之气所秉者，\n上至朝廷，下及草野，比比皆是．所余之秀气，漫無所歸，遂為甘露，為和\n風，洽然溉及四海．彼殘忍乖僻之邪气，不能蕩溢于光天化日之中"
+        },
+        {
+          "segment": 20,
+          "chapter": "第三回",
+          "text": "情乖僻，每每規諫寶玉，心中著實憂郁\n．\n　　是晚，寶玉李嬤嬤已睡了，他見里面黛玉和鸚哥猶未安息，他自卸了妝\n，悄悄進來，笑問：“姑娘怎么還不安息？\"黛玉忙讓：“姐姐請坐。”襲\n人在床沿上坐了．鸚哥笑道：“林姑娘正在這里傷心，自己淌眼抹淚的說：\n`今才來，就惹出你家哥儿的狂病，倘或摔坏了那玉，豈不是因我之過！'\n因此便傷心，我好容易勸好了\"．襲人道：“姑娘快休如"
+        }
+      ],
+      "proseProbes": [
+        {
+          "segment": 0,
+          "chapter": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀",
+          "text": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀\n-----------------------------------------------------------------\n此開卷第一回也．作者自云：因曾歷過一番夢幻之后，故將真事隱去，\n而借\"通靈\"之說，撰此《石頭記》一書也．故曰\"甄士隱\"云云．但書中所記\n何事何人？自又云：“今風塵碌碌，一事無成，忽念及當日所有之女子，一\n一細考較去，覺其行止見識，皆出于我之上．何我堂堂須眉，誠不若彼裙釵\n哉？實愧則有余，悔又無益之大無可如何之日也！當此，則自欲將已往所賴\n天恩祖德，錦衣紈褲之時，飫甘饜肥之日，背父兄教育之恩，負師友規談之\n德，以至今日一技無成，半生潦倒之罪，編述一集，以告天下人：我之罪固\n不免，然閨閣中本自歷歷有人，万不可因我之不肖，自護己短，一并使其泯\n滅也．雖今日之茅椽蓬牖，瓦灶繩床，其晨夕風露，階柳庭花，亦未有妨我\n之襟怀筆墨者．雖我未學，下筆無文，又何妨用假語村言，敷演出一段故事\n來，亦可使閨閣昭傳，复可悅世之目，破人愁悶，不亦宜乎？\"故曰\"賈雨村\n\"云云．\n　　此回中凡用“夢”用“幻”等字，是提醒閱者眼目，亦是此書立意本"
+        },
+        {
+          "segment": 10,
+          "chapter": "第二回　　賈夫人仙逝揚州城　冷子興演說榮國府",
+          "text": "史老太君還是命根一樣．說來又奇，如今長了七八歲，雖然淘气\n异常，但其聰明乖覺處，百個不及他一個．說起孩子話來也奇怪，他說：`\n女儿是水作的骨肉，男人是泥作的骨肉．我見了女儿，我便清爽，見了男子\n，便覺濁臭逼人．'你道好笑不好笑？將來色鬼無疑了！\"雨村罕然厲色忙止\n道：“非也！可惜你們不知道這人來歷．大約政老前輩也錯以淫魔色鬼看待\n了．若非多讀書識事，加以致知格物之功，悟道參玄之力，不能知也。”\n　　子興見他說得這樣重大，忙請教其端．雨村道：“天地生人，除大仁大\n惡兩种，余者皆無大异．若大仁者，則應運而生，大惡者，則應劫而生．運\n生世治，劫生世危．堯，舜，禹，湯，文，武，周，召，孔，孟，董，韓，\n周，程，張，朱，皆應運而生者．蚩尤，共工，桀，紂，始皇，王莽，曹操\n，桓溫，安祿山，秦檜等，皆應劫而生者．大仁者，修治天下，大惡者，撓\n亂天下．清明靈秀，天地之正气，仁者之所秉也，殘忍乖僻，天地之邪气，\n惡者之所秉也．今當運隆祚永之朝，太平無為之世，清明靈秀之气所秉者，\n上至朝廷，下及草野，比比皆是．所余之秀气，漫無所歸，遂為甘露，為和\n風，洽然溉及四海．彼殘忍乖僻之邪气，不能蕩溢于光天化日之中"
+        },
+        {
+          "segment": 20,
+          "chapter": "第三回",
+          "text": "情乖僻，每每規諫寶玉，心中著實憂郁\n．\n　　是晚，寶玉李嬤嬤已睡了，他見里面黛玉和鸚哥猶未安息，他自卸了妝\n，悄悄進來，笑問：“姑娘怎么還不安息？\"黛玉忙讓：“姐姐請坐。”襲\n人在床沿上坐了．鸚哥笑道：“林姑娘正在這里傷心，自己淌眼抹淚的說：\n`今才來，就惹出你家哥儿的狂病，倘或摔坏了那玉，豈不是因我之過！'\n因此便傷心，我好容易勸好了\"．襲人道：“姑娘快休如"
+        }
+      ]
+    },
+    {
+      "id": "truncated-tail",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 2643293,
+      "sha256": "bba91ce9db7e4c1305baa6c83b37e7ef5fd93928264542e0c5093d121848db23",
+      "strictRejected": true,
+      "encoding": "utf-8",
+      "replacements": 1,
+      "quality": "partial",
+      "warnings": [
+        "replacement_characters",
+        "duplicate_chapters",
+        "ad_lines",
+        "tail_truncated",
+        "possible_truncation"
+      ],
+      "repairs": [
+        "encoding_repaired",
+        "tail_truncated",
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 865430,
+      "totalSegments": 820,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probes": [
+        {
+          "segment": 0,
+          "chapter": "正文",
+          "text": "The Project Gutenberg EBook of A Dream Of Red Mansions, by Xueqin Cao\n\nThis eBook is for the use of anyone anywhere at no cost and with\nalmost no restrictions whatsoever.  You may copy it, give it away or\nre-use it under the terms of the Project Gutenberg License included\nwith this eBook or online at www.gutenberg.org\n\n\nTitle: A Dream Of Red Mansions\n\nAuthor: Xueqin Cao\n\nRelease Date: January 12, 2008 [EBook #24264]\n\nLanguage: Chinese\n\nCharacter set encoding: UTF-8\n\n*** START OF THIS PROJECT GUT"
+        },
+        {
+          "segment": 410,
+          "chapter": "第六十一回　 投鼠忌器寶玉瞞贓　判冤決獄平儿行權",
+          "text": "“姑娘別誤听了小孩子的話．\n柳嫂子有八個頭，也不敢得罪姑娘．說雞蛋難買是真． 我們才也說他不知好歹，\n憑是什么東西，也少不得變法儿去．他已經悟過來了，連忙蒸上了． 姑娘不信\n瞧那火上。”司棋被眾人一頓好言，方將气勸的漸平．小丫頭們也沒得摔完東西，\n便拉開了．司棋連說帶罵，鬧了一回，方被眾人勸去．柳家的只好摔碗丟盤自己\n咕嘟了一回，蒸了一碗蛋令人送去．司棋全潑了地下了．那人回來也不敢說，恐\n又生事．柳家的打發他女儿喝了一回湯，吃了半碗粥，又將茯苓霜一節說了．五\n儿听罷，便心下要分些贈芳官，遂用紙另包了一半，趁黃昏人稀之時，自己花遮\n柳隱的來找芳官． 且喜無人盤問．一徑到了怡紅院門前，不好進去，只在一簇\n玫瑰花前站立，遠遠的望著． 有一盞茶時，可巧小燕出來，忙上前叫住．小燕\n不知是那一個，至跟前方看真切， 因問作什么．五儿笑道：“你叫出芳官來，\n我和他說話。”小燕悄笑道：“姐姐太性急了， 橫豎等十來日就來了，只管找\n他做什么．方才使了他往前頭去了，你且等他一等．不然，有什么話告訴我，等\n我告訴他．恐怕你等不得，只怕關園門了。”五儿便將茯苓霜遞与了小燕，又說\n這是茯苓霜，如何吃，如何補益，\""
+        },
+        {
+          "segment": 819,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "道人又從青埂峰前經過，見那補天未用之石仍在那里，上面字跡\n依然如舊， 又從頭的細細看了一遍，見后面偈文后又歷敘了多少收緣結果的話\n頭，便點頭歎道：“我從前見石兄這段奇文，原說可以聞世傳奇，所以曾經抄錄，\n但未見返本還原．不知何時复有此一佳話，方知石兄下凡一次，磨出光明，修成\n圓覺，也可謂無复遺憾了．只怕年深日久，字跡模糊，反有舛錯，不如我再抄錄\n一番，尋個世上無事的人，托他傳遍， 知道奇而不奇，俗而不俗，真而不真，\n假而不假．或者塵夢勞人，聊倩鳥呼歸去，山靈好客， 更從石化飛來，亦未可\n知。”想畢，便又抄了，仍袖至那繁華昌盛的地方，遍尋了一番，不是建功立業\n之人，即系饒口謀衣之輩，那有閒情更去和石頭饒舌．直尋到急流津覺迷度口，\n草庵中睡著一個人，因想他必是閒人，便要將這抄錄的《石頭記》給他看看．那\n知那人再叫不醒．空空道人复又使勁拉他，才慢慢的開眼坐起，便草草一看，仍\n舊擲下道：“這事我早已親見盡知．你這抄錄的尚無舛錯，我只指与你一個人，\n托他傳去，便可歸結這一公案了。”空空道人忙問何人，那人道：“你須待某年\n某月某日到一個悼紅軒中，有個曹雪芹先生，只說賈雨村言托他如此如此。”說\n畢，"
+        }
+      ],
+      "proseProbes": [
+        {
+          "segment": 1,
+          "chapter": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀",
+          "text": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀\n-----------------------------------------------------------------\n此開卷第一回也．作者自云：因曾歷過一番夢幻之后，故將真事隱去，\n而借\"通靈\"之說，撰此《石頭記》一書也．故曰\"甄士隱\"云云．但書中所記\n何事何人？自又云：“今風塵碌碌，一事無成，忽念及當日所有之女子，一\n一細考較去，覺其行止見識，皆出于我之上．何我堂堂須眉，誠不若彼裙釵\n哉？實愧則有余，悔又無益之大無可如何之日也！當此，則自欲將已往所賴\n天恩祖德，錦衣紈褲之時，飫甘饜肥之日，背父兄教育之恩，負師友規談之\n德，以至今日一技無成，半生潦倒之罪，編述一集，以告天下人：我之罪固\n不免，然閨閣中本自歷歷有人，万不可因我之不肖，自護己短，一并使其泯\n滅也．雖今日之茅椽蓬牖，瓦灶繩床，其晨夕風露，階柳庭花，亦未有妨我\n之襟怀筆墨者．雖我未學，下筆無文，又何妨用假語村言，敷演出一段故事\n來，亦可使閨閣昭傳，复可悅世之目，破人愁悶，不亦宜乎？\"故曰\"賈雨村\n\"云云．\n　　此回中凡用“夢”用“幻”等字，是提醒閱者眼目，亦是此書立意本"
+        },
+        {
+          "segment": 410,
+          "chapter": "第六十一回　 投鼠忌器寶玉瞞贓　判冤決獄平儿行權",
+          "text": "“姑娘別誤听了小孩子的話．\n柳嫂子有八個頭，也不敢得罪姑娘．說雞蛋難買是真． 我們才也說他不知好歹，\n憑是什么東西，也少不得變法儿去．他已經悟過來了，連忙蒸上了． 姑娘不信\n瞧那火上。”司棋被眾人一頓好言，方將气勸的漸平．小丫頭們也沒得摔完東西，\n便拉開了．司棋連說帶罵，鬧了一回，方被眾人勸去．柳家的只好摔碗丟盤自己\n咕嘟了一回，蒸了一碗蛋令人送去．司棋全潑了地下了．那人回來也不敢說，恐\n又生事．柳家的打發他女儿喝了一回湯，吃了半碗粥，又將茯苓霜一節說了．五\n儿听罷，便心下要分些贈芳官，遂用紙另包了一半，趁黃昏人稀之時，自己花遮\n柳隱的來找芳官． 且喜無人盤問．一徑到了怡紅院門前，不好進去，只在一簇\n玫瑰花前站立，遠遠的望著． 有一盞茶時，可巧小燕出來，忙上前叫住．小燕\n不知是那一個，至跟前方看真切， 因問作什么．五儿笑道：“你叫出芳官來，\n我和他說話。”小燕悄笑道：“姐姐太性急了， 橫豎等十來日就來了，只管找\n他做什么．方才使了他往前頭去了，你且等他一等．不然，有什么話告訴我，等\n我告訴他．恐怕你等不得，只怕關園門了。”五儿便將茯苓霜遞与了小燕，又說\n這是茯苓霜，如何吃，如何補益，\""
+        },
+        {
+          "segment": 819,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "道人又從青埂峰前經過，見那補天未用之石仍在那里，上面字跡\n依然如舊， 又從頭的細細看了一遍，見后面偈文后又歷敘了多少收緣結果的話\n頭，便點頭歎道：“我從前見石兄這段奇文，原說可以聞世傳奇，所以曾經抄錄，\n但未見返本還原．不知何時复有此一佳話，方知石兄下凡一次，磨出光明，修成\n圓覺，也可謂無复遺憾了．只怕年深日久，字跡模糊，反有舛錯，不如我再抄錄\n一番，尋個世上無事的人，托他傳遍， 知道奇而不奇，俗而不俗，真而不真，\n假而不假．或者塵夢勞人，聊倩鳥呼歸去，山靈好客， 更從石化飛來，亦未可\n知。”想畢，便又抄了，仍袖至那繁華昌盛的地方，遍尋了一番，不是建功立業\n之人，即系饒口謀衣之輩，那有閒情更去和石頭饒舌．直尋到急流津覺迷度口，\n草庵中睡著一個人，因想他必是閒人，便要將這抄錄的《石頭記》給他看看．那\n知那人再叫不醒．空空道人复又使勁拉他，才慢慢的開眼坐起，便草草一看，仍\n舊擲下道：“這事我早已親見盡知．你這抄錄的尚無舛錯，我只指与你一個人，\n托他傳去，便可歸結這一公案了。”空空道人忙問何人，那人道：“你須待某年\n某月某日到一個悼紅軒中，有個曹雪芹先生，只說賈雨村言托他如此如此。”說\n畢，"
+        }
+      ]
+    },
+    {
+      "id": "utf16-full",
+      "provenance": "derived from the same real novel; not another original",
+      "bytes": 1908402,
+      "sha256": "544fe6c6553897d0cc45d3fc459d7d06489df44b9b4ce6e520dce2674e7a9a04",
+      "strictRejected": false,
+      "encoding": "utf-16le",
+      "replacements": 0,
+      "quality": "warning",
+      "warnings": [
+        "duplicate_chapters",
+        "ad_lines"
+      ],
+      "repairs": [
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 881285,
+      "totalSegments": 836,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probes": [
+        {
+          "segment": 0,
+          "chapter": "正文",
+          "text": "The Project Gutenberg EBook of A Dream Of Red Mansions, by Xueqin Cao\n\nThis eBook is for the use of anyone anywhere at no cost and with\nalmost no restrictions whatsoever.  You may copy it, give it away or\nre-use it under the terms of the Project Gutenberg License included\nwith this eBook or online at www.gutenberg.org\n\n\nTitle: A Dream Of Red Mansions\n\nAuthor: Xueqin Cao\n\nRelease Date: January 12, 2008 [EBook #24264]\n\nLanguage: Chinese\n\nCharacter set encoding: UTF-8\n\n*** START OF THIS PROJECT GUT"
+        },
+        {
+          "segment": 418,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "這是后人纂的，比一切的令都難．這里頭倒有一半是不會的，不如毀\n了，另拈一個雅俗共賞的。”探春笑道：“既拈了出來，如何又毀．如今再拈一\n個，若是雅俗共賞的，便叫他們行去．咱們行這個． \"說著又著襲人拈了一個，\n卻是\"拇戰\"．史湘云笑著說：“這個簡斷爽利，合了我的脾气． 我不行這個`射\n覆'，沒的垂頭喪气悶人，我只划拳去了。”探春道：“惟有他亂令，寶姐姐快\n罰他一鐘。”寶釵不容分說，便灌湘云一杯．探春道：“我吃一杯，我是令官，\n也不用宣，只听我分派。”命取了令骰令盆來，\"從琴妹擲起，挨下擲去，對了\n點的二人射覆。”寶琴一擲，是個三，岫煙寶玉等皆擲的不對，直到香菱方擲了\n一個三．寶琴笑道：“只好室內生春，若說到外頭去，可太沒頭緒了。”探春道：\n“自然．三次不中者罰一杯．你覆，他射。”寶琴想了一想，說了個\"老\"字．香\n菱原生于這令，一時想不到，滿室滿席都不見有与\"老\"字相連的成語．湘云先听\n了，便也亂看，忽見門斗上貼著\"紅香圃\" 三個字，便知寶琴覆的是\"吾不如老圃\n\"的\"圃\"字．見香菱射不著，眾人擊鼓又催，便悄悄的拉香菱，教他說\"藥\"字．黛\n玉偏看見了，說\"快罰他，又在那里私相傳遞呢。”哄的眾"
+        },
+        {
+          "segment": 835,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "cluded.  Thus, we do not necessarily\nkeep eBooks in compliance with any particular paper edition.\n\n\nMost people start at our Web site which has the main PG search facility:\n\n     http://www.gutenberg.org\n\nThis Web site includes information about Project Gutenberg-tm,\nincluding how to make donations to the Project Gutenberg Literary\nArchive Foundation, how to help produce our new eBooks, and how to\nsubscribe to our email newsletter to hear about new eBooks."
+        }
+      ],
+      "proseProbes": [
+        {
+          "segment": 1,
+          "chapter": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀",
+          "text": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀\n-----------------------------------------------------------------\n此開卷第一回也．作者自云：因曾歷過一番夢幻之后，故將真事隱去，\n而借\"通靈\"之說，撰此《石頭記》一書也．故曰\"甄士隱\"云云．但書中所記\n何事何人？自又云：“今風塵碌碌，一事無成，忽念及當日所有之女子，一\n一細考較去，覺其行止見識，皆出于我之上．何我堂堂須眉，誠不若彼裙釵\n哉？實愧則有余，悔又無益之大無可如何之日也！當此，則自欲將已往所賴\n天恩祖德，錦衣紈褲之時，飫甘饜肥之日，背父兄教育之恩，負師友規談之\n德，以至今日一技無成，半生潦倒之罪，編述一集，以告天下人：我之罪固\n不免，然閨閣中本自歷歷有人，万不可因我之不肖，自護己短，一并使其泯\n滅也．雖今日之茅椽蓬牖，瓦灶繩床，其晨夕風露，階柳庭花，亦未有妨我\n之襟怀筆墨者．雖我未學，下筆無文，又何妨用假語村言，敷演出一段故事\n來，亦可使閨閣昭傳，复可悅世之目，破人愁悶，不亦宜乎？\"故曰\"賈雨村\n\"云云．\n　　此回中凡用“夢”用“幻”等字，是提醒閱者眼目，亦是此書立意本"
+        },
+        {
+          "segment": 410,
+          "chapter": "第六十一回　 投鼠忌器寶玉瞞贓　判冤決獄平儿行權",
+          "text": "“姑娘別誤听了小孩子的話．\n柳嫂子有八個頭，也不敢得罪姑娘．說雞蛋難買是真． 我們才也說他不知好歹，\n憑是什么東西，也少不得變法儿去．他已經悟過來了，連忙蒸上了． 姑娘不信\n瞧那火上。”司棋被眾人一頓好言，方將气勸的漸平．小丫頭們也沒得摔完東西，\n便拉開了．司棋連說帶罵，鬧了一回，方被眾人勸去．柳家的只好摔碗丟盤自己\n咕嘟了一回，蒸了一碗蛋令人送去．司棋全潑了地下了．那人回來也不敢說，恐\n又生事．柳家的打發他女儿喝了一回湯，吃了半碗粥，又將茯苓霜一節說了．五\n儿听罷，便心下要分些贈芳官，遂用紙另包了一半，趁黃昏人稀之時，自己花遮\n柳隱的來找芳官． 且喜無人盤問．一徑到了怡紅院門前，不好進去，只在一簇\n玫瑰花前站立，遠遠的望著． 有一盞茶時，可巧小燕出來，忙上前叫住．小燕\n不知是那一個，至跟前方看真切， 因問作什么．五儿笑道：“你叫出芳官來，\n我和他說話。”小燕悄笑道：“姐姐太性急了， 橫豎等十來日就來了，只管找\n他做什么．方才使了他往前頭去了，你且等他一等．不然，有什么話告訴我，等\n我告訴他．恐怕你等不得，只怕關園門了。”五儿便將茯苓霜遞与了小燕，又說\n這是茯苓霜，如何吃，如何補益，\""
+        },
+        {
+          "segment": 819,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "道人又從青埂峰前經過，見那補天未用之石仍在那里，上面字跡\n依然如舊， 又從頭的細細看了一遍，見后面偈文后又歷敘了多少收緣結果的話\n頭，便點頭歎道：“我從前見石兄這段奇文，原說可以聞世傳奇，所以曾經抄錄，\n但未見返本還原．不知何時复有此一佳話，方知石兄下凡一次，磨出光明，修成\n圓覺，也可謂無复遺憾了．只怕年深日久，字跡模糊，反有舛錯，不如我再抄錄\n一番，尋個世上無事的人，托他傳遍， 知道奇而不奇，俗而不俗，真而不真，\n假而不假．或者塵夢勞人，聊倩鳥呼歸去，山靈好客， 更從石化飛來，亦未可\n知。”想畢，便又抄了，仍袖至那繁華昌盛的地方，遍尋了一番，不是建功立業\n之人，即系饒口謀衣之輩，那有閒情更去和石頭饒舌．直尋到急流津覺迷度口，\n草庵中睡著一個人，因想他必是閒人，便要將這抄錄的《石頭記》給他看看．那\n知那人再叫不醒．空空道人复又使勁拉他，才慢慢的開眼坐起，便草草一看，仍\n舊擲下道：“這事我早已親見盡知．你這抄錄的尚無舛錯，我只指与你一個人，\n托他傳去，便可歸結這一公案了。”空空道人忙問何人，那人道：“你須待某年\n某月某日到一個悼紅軒中，有個曹雪芹先生，只說賈雨村言托他如此如此。”說\n畢，"
+        }
+      ]
+    },
+    {
+      "id": "utf8-original",
+      "provenance": "real public-domain original",
+      "bytes": 2663312,
+      "sha256": "20c795971786fd8eb2a00d35a1194b6dd3074b2afb4f4cd5a82ba3e10fe5dfaa",
+      "strictRejected": false,
+      "encoding": "utf-8-bom",
+      "replacements": 0,
+      "quality": "warning",
+      "warnings": [
+        "duplicate_chapters",
+        "ad_lines"
+      ],
+      "repairs": [
+        "newlines_normalized",
+        "blank_runs_collapsed"
+      ],
+      "readableChars": 881285,
+      "totalSegments": 836,
+      "confirmedChars": 0,
+      "originalUnchanged": true,
+      "streamedTextEqualsLegacy": true,
+      "probes": [
+        {
+          "segment": 0,
+          "chapter": "正文",
+          "text": "The Project Gutenberg EBook of A Dream Of Red Mansions, by Xueqin Cao\n\nThis eBook is for the use of anyone anywhere at no cost and with\nalmost no restrictions whatsoever.  You may copy it, give it away or\nre-use it under the terms of the Project Gutenberg License included\nwith this eBook or online at www.gutenberg.org\n\n\nTitle: A Dream Of Red Mansions\n\nAuthor: Xueqin Cao\n\nRelease Date: January 12, 2008 [EBook #24264]\n\nLanguage: Chinese\n\nCharacter set encoding: UTF-8\n\n*** START OF THIS PROJECT GUT"
+        },
+        {
+          "segment": 418,
+          "chapter": "第六十二回　　憨湘云醉眠芍藥茵屆@呆香菱情解石榴裙",
+          "text": "這是后人纂的，比一切的令都難．這里頭倒有一半是不會的，不如毀\n了，另拈一個雅俗共賞的。”探春笑道：“既拈了出來，如何又毀．如今再拈一\n個，若是雅俗共賞的，便叫他們行去．咱們行這個． \"說著又著襲人拈了一個，\n卻是\"拇戰\"．史湘云笑著說：“這個簡斷爽利，合了我的脾气． 我不行這個`射\n覆'，沒的垂頭喪气悶人，我只划拳去了。”探春道：“惟有他亂令，寶姐姐快\n罰他一鐘。”寶釵不容分說，便灌湘云一杯．探春道：“我吃一杯，我是令官，\n也不用宣，只听我分派。”命取了令骰令盆來，\"從琴妹擲起，挨下擲去，對了\n點的二人射覆。”寶琴一擲，是個三，岫煙寶玉等皆擲的不對，直到香菱方擲了\n一個三．寶琴笑道：“只好室內生春，若說到外頭去，可太沒頭緒了。”探春道：\n“自然．三次不中者罰一杯．你覆，他射。”寶琴想了一想，說了個\"老\"字．香\n菱原生于這令，一時想不到，滿室滿席都不見有与\"老\"字相連的成語．湘云先听\n了，便也亂看，忽見門斗上貼著\"紅香圃\" 三個字，便知寶琴覆的是\"吾不如老圃\n\"的\"圃\"字．見香菱射不著，眾人擊鼓又催，便悄悄的拉香菱，教他說\"藥\"字．黛\n玉偏看見了，說\"快罰他，又在那里私相傳遞呢。”哄的眾"
+        },
+        {
+          "segment": 835,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "cluded.  Thus, we do not necessarily\nkeep eBooks in compliance with any particular paper edition.\n\n\nMost people start at our Web site which has the main PG search facility:\n\n     http://www.gutenberg.org\n\nThis Web site includes information about Project Gutenberg-tm,\nincluding how to make donations to the Project Gutenberg Literary\nArchive Foundation, how to help produce our new eBooks, and how to\nsubscribe to our email newsletter to hear about new eBooks."
+        }
+      ],
+      "proseProbes": [
+        {
+          "segment": 1,
+          "chapter": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀",
+          "text": "第一回　甄士隱夢幻識通靈　賈雨村風塵怀閨秀\n-----------------------------------------------------------------\n此開卷第一回也．作者自云：因曾歷過一番夢幻之后，故將真事隱去，\n而借\"通靈\"之說，撰此《石頭記》一書也．故曰\"甄士隱\"云云．但書中所記\n何事何人？自又云：“今風塵碌碌，一事無成，忽念及當日所有之女子，一\n一細考較去，覺其行止見識，皆出于我之上．何我堂堂須眉，誠不若彼裙釵\n哉？實愧則有余，悔又無益之大無可如何之日也！當此，則自欲將已往所賴\n天恩祖德，錦衣紈褲之時，飫甘饜肥之日，背父兄教育之恩，負師友規談之\n德，以至今日一技無成，半生潦倒之罪，編述一集，以告天下人：我之罪固\n不免，然閨閣中本自歷歷有人，万不可因我之不肖，自護己短，一并使其泯\n滅也．雖今日之茅椽蓬牖，瓦灶繩床，其晨夕風露，階柳庭花，亦未有妨我\n之襟怀筆墨者．雖我未學，下筆無文，又何妨用假語村言，敷演出一段故事\n來，亦可使閨閣昭傳，复可悅世之目，破人愁悶，不亦宜乎？\"故曰\"賈雨村\n\"云云．\n　　此回中凡用“夢”用“幻”等字，是提醒閱者眼目，亦是此書立意本"
+        },
+        {
+          "segment": 410,
+          "chapter": "第六十一回　 投鼠忌器寶玉瞞贓　判冤決獄平儿行權",
+          "text": "“姑娘別誤听了小孩子的話．\n柳嫂子有八個頭，也不敢得罪姑娘．說雞蛋難買是真． 我們才也說他不知好歹，\n憑是什么東西，也少不得變法儿去．他已經悟過來了，連忙蒸上了． 姑娘不信\n瞧那火上。”司棋被眾人一頓好言，方將气勸的漸平．小丫頭們也沒得摔完東西，\n便拉開了．司棋連說帶罵，鬧了一回，方被眾人勸去．柳家的只好摔碗丟盤自己\n咕嘟了一回，蒸了一碗蛋令人送去．司棋全潑了地下了．那人回來也不敢說，恐\n又生事．柳家的打發他女儿喝了一回湯，吃了半碗粥，又將茯苓霜一節說了．五\n儿听罷，便心下要分些贈芳官，遂用紙另包了一半，趁黃昏人稀之時，自己花遮\n柳隱的來找芳官． 且喜無人盤問．一徑到了怡紅院門前，不好進去，只在一簇\n玫瑰花前站立，遠遠的望著． 有一盞茶時，可巧小燕出來，忙上前叫住．小燕\n不知是那一個，至跟前方看真切， 因問作什么．五儿笑道：“你叫出芳官來，\n我和他說話。”小燕悄笑道：“姐姐太性急了， 橫豎等十來日就來了，只管找\n他做什么．方才使了他往前頭去了，你且等他一等．不然，有什么話告訴我，等\n我告訴他．恐怕你等不得，只怕關園門了。”五儿便將茯苓霜遞与了小燕，又說\n這是茯苓霜，如何吃，如何補益，\""
+        },
+        {
+          "segment": 819,
+          "chapter": "第一二零回　　甄士隱詳說太虛情　賈雨村歸結紅樓夢",
+          "text": "道人又從青埂峰前經過，見那補天未用之石仍在那里，上面字跡\n依然如舊， 又從頭的細細看了一遍，見后面偈文后又歷敘了多少收緣結果的話\n頭，便點頭歎道：“我從前見石兄這段奇文，原說可以聞世傳奇，所以曾經抄錄，\n但未見返本還原．不知何時复有此一佳話，方知石兄下凡一次，磨出光明，修成\n圓覺，也可謂無复遺憾了．只怕年深日久，字跡模糊，反有舛錯，不如我再抄錄\n一番，尋個世上無事的人，托他傳遍， 知道奇而不奇，俗而不俗，真而不真，\n假而不假．或者塵夢勞人，聊倩鳥呼歸去，山靈好客， 更從石化飛來，亦未可\n知。”想畢，便又抄了，仍袖至那繁華昌盛的地方，遍尋了一番，不是建功立業\n之人，即系饒口謀衣之輩，那有閒情更去和石頭饒舌．直尋到急流津覺迷度口，\n草庵中睡著一個人，因想他必是閒人，便要將這抄錄的《石頭記》給他看看．那\n知那人再叫不醒．空空道人复又使勁拉他，才慢慢的開眼坐起，便草草一看，仍\n舊擲下道：“這事我早已親見盡知．你這抄錄的尚無舛錯，我只指与你一個人，\n托他傳去，便可歸結這一公案了。”空空道人忙問何人，那人道：“你須待某年\n某月某日到一個悼紅軒中，有個曹雪芹先生，只說賈雨村言托他如此如此。”說\n畢，"
+        }
+      ]
+    }
+  ]
+}

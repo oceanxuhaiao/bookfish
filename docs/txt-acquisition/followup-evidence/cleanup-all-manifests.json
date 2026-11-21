@@ -1,0 +1,126 @@
+[
+  {
+    "manifest": "cdp-filters-1795194769212.txt",
+    "removed": true
+  },
+  {
+    "manifest": "dns-filters-1795228735257.txt",
+    "removed": true
+  },
+  {
+    "manifest": "filters-1795192660545.txt",
+    "removed": true
+  },
+  {
+    "manifest": "filters-1795192692097.txt",
+    "removed": true
+  },
+  {
+    "manifest": "filters-1795192738606.txt",
+    "removed": true
+  },
+  {
+    "manifest": "filters.txt",
+    "removed": true
+  },
+  {
+    "manifest": "h3-filters-1795227097420.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795226626163.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795226685694.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795226725284.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795226929579.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795227040805.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795227187204.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795227308001.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795227582036.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795227903235.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795228060634.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795228192202.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795228330198.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795228435098.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795228570765.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795228743772.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795228895855.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-dual-filters-1795228976876.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-probe-filters-1795201538968.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-probe-filters-1795201622001.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-probe-filters-1795201678972.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-probe-filters-1795201871058.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-probe-filters-1795201887082.txt",
+    "removed": true
+  },
+  {
+    "manifest": "mv3-probe-filters-1795201915884.txt",
+    "removed": true
+  },
+  {
+    "manifest": "public-filters-1795192958344.txt",
+    "removed": true
+  }
+]

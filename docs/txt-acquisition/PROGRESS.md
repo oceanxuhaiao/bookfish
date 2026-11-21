@@ -107,3 +107,6 @@ npm run build:webui
 ## 2026-11-21 第二轮收尾审核
 
 协议v2、DNS固定传输、来源授权、记录脱敏、原件保护与宽松质量修复完成。75文件778测试、类型、构建、官方契约通过；真实CDP导航与WFP实验通过。正式控制器／MV3／实际Coopanion／真实样本仍待验收，SSM review7未放行，未push。详见ROUND2-IMPLEMENTATION-REVIEW.md。
+
+
+2026-11-21后续阶段：799测试与Chrome／Edge真实MV3回归通过；发现共享DNS代发缺口。完整结果、内存代价和待人工审核边界见[后续交付报告](ROUND2-FOLLOWUP-REVIEW.md)。

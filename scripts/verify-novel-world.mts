@@ -27,6 +27,8 @@ const dataDir = resolve(argument('--data-dir', mkdtempSync(join(tmpdir(), 'bookf
 const title = argument('--title', '狂人日记')!;
 const keep = process.argv.includes('--keep');
 const fetchBook = !process.argv.includes('--no-fetch');
+const expectedAuthor = argument('--author', title === '狂人日记' ? '鲁迅' : undefined);
+if (fetchBook && !expectedAuthor) throw new Error('A full fetch verification requires --author to avoid same-title false matches');
 
 function sleep(ms: number): Promise<void> { return new Promise((resolveDelay) => setTimeout(resolveDelay, ms)); }
 
@@ -94,8 +96,8 @@ try {
   if (!search || search.state !== 'complete') throw new Error(`search failed: ${search?.error}`);
   console.log(JSON.stringify({ step: 'search', ms: Date.now() - searchStart, completed: search.completed, total: search.total, checked: search.checked, checkTotal: search.checkTotal, hidden: search.hidden ?? 0, count: search.candidates?.length ?? 0, candidates: (search.candidates ?? []).slice(0, 5).map((candidate) => ({ title: candidate.title, author: candidate.author, source: (candidate.source as { name: string }).name, match: candidate.match, check: candidate.check })) }));
   if (!fetchBook) { await world.stop(); world = undefined; process.exit(0); }
-  const candidate = (search.candidates ?? []).find((item) => item.match === 'exact');
-  if (!candidate) throw new Error('no exact candidate to fetch');
+  const candidate = (search.candidates ?? []).find((item) => item.match === 'exact' && String(item.author ?? '').trim() === expectedAuthor);
+  if (!candidate) throw new Error('No exact title-and-author candidate to fetch; refused a same-title false match');
   const task = await invoke('shelf', 'novel_fetch', [candidate]) as { id: string; state: string };
   let record: { state: string; stage: string; downloadedChapters: number; catalogChapters: number; error?: string; issues?: unknown[]; bookKey?: string } | undefined;
   const fetchStart = Date.now();

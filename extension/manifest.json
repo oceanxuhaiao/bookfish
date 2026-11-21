@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "BookFish Browser Bridge",
   "version": "0.63.0",
-  "description": "Lets the BookFish world use your own Edge/Chrome to open resource pages and fetch TXT files.",
+  "description": "Fetch authorized TXT resources through a protected isolated Chrome/Edge profile. Pairing alone does not enable acquisition.",
   "minimum_chrome_version": "116",
   "permissions": [
     "storage",

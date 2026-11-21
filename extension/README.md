@@ -9,3 +9,6 @@
 重定向一律拒绝。页面最多8MiB、文件最多100MiB、单次上传块最多4MiB，原始字节不转码，失败／超时取消读取。令牌只存本机；不要粘贴到聊天、日志或截图中。
 
 审核状态和尚未覆盖的安全边界见 docs/txt-acquisition/ROUND2-IMPLEMENTATION-REVIEW.md。
+
+
+2026-11-21：独立Chrome／Edge真实MV3双端点实验通过，正常人工授权对话框及真实Coopanion尚未验收。共享DNS服务代发缺口已确认，正式产品controllerReady／browserReady保持false。详见docs/txt-acquisition/ROUND2-FOLLOWUP-REVIEW.md。

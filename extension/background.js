@@ -9,10 +9,16 @@ async function setState(patch) { const { state = {} } = await chrome.storage.loc
 const sleep = ms => new Promise(ok => setTimeout(ok, ms));
 function auth(token, job) { return { 'x-bookfish-token': token, 'x-bookfish-consumer': consumer, ...(job ? { 'x-bookfish-lease': job.lease } : {}) }; }
 async function post(config, job, action, body, type = 'application/json', sequence) {
-  return fetch(`http://127.0.0.1:${config.port}/bridge/jobs/${job.id}/${action}`, {
+  const response = await fetch(`http://127.0.0.1:${config.port}/bridge/jobs/${job.id}/${action}`, {
     method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10000),
     headers: { ...auth(config.token, job), 'content-type': type, ...(sequence === undefined ? {} : { 'x-bookfish-sequence': String(sequence) }) }, body,
   });
+  // Drain tiny acknowledgements before reusing HTTP/1.1 connections. Unread bodies
+  // otherwise keep connection slots alive until the request abort timer fires.
+  const reader = response.body?.getReader(); let received = 0;
+  try { if (reader) for (;;) { const { done, value } = await reader.read(); if (done) break; received += value?.byteLength ?? 0; if (received > 64 * 1024) throw transferError('bridge_protocol'); } }
+  finally { await reader?.cancel().catch(() => undefined); }
+  return response;
 }
 function transferError(code) { const error = new Error('Transfer failed'); error.code = code; return error; }
 async function allowed(config, raw) {
@@ -30,7 +36,8 @@ async function handle(job, config) {
   const changed = (changes, area) => { if (area === 'local' && ['allowedOrigins', 'token', 'port'].some(key => changes[key])) revoke(); };
   chrome.storage.onChanged?.addListener(changed);
   chrome.permissions.onRemoved?.addListener(revoke);
-  const timeout = setTimeout(() => controller.abort(), 120000);
+  const transferLimit = job.kind === 'file' ? 300000 : 120000;
+  const timeout = setTimeout(() => controller.abort(), Number.isSafeInteger(job.timeoutMs) && job.timeoutMs > 0 ? Math.min(transferLimit, job.timeoutMs) : transferLimit);
   let heartbeatBusy = false;
   const heartbeat = setInterval(async () => {
     if (heartbeatBusy) return; heartbeatBusy = true;
@@ -51,23 +58,33 @@ async function handle(job, config) {
     if (job.kind === 'file' && contentType && !/^(text\/plain|text\/markdown|text\/x-markdown|application\/octet-stream|application\/x-download|binary\/octet-stream)(\s*;.*)?$/iu.test(contentType)) throw transferError('download_failed');
     reader = response.body?.getReader(); if (!reader) throw transferError('download_failed');
     let bytes = 0, sequence = 0; const pageParts = [];
+    const chunkBuffer = job.kind === 'file' ? new Uint8Array(MAX_CHUNK) : undefined; let chunkLength = 0;
+    const flush = async () => {
+      if (!chunkLength) return;
+      if (controller.signal.aborted) throw transferError('cancelled');
+      const sent = await post(config, job, 'chunk', chunkBuffer.subarray(0, chunkLength), 'application/octet-stream', sequence++);
+      if (!sent.ok) throw transferError('cancelled'); chunkLength = 0;
+    };
     for (;;) {
       const { done, value } = await reader.read(); if (done) break;
       if (controller.signal.aborted) throw transferError('cancelled');
       if (!value) continue; bytes += value.byteLength;
       if (bytes > max) throw transferError('too_large');
       if (job.kind === 'page') pageParts.push(value);
-      else for (let offset = 0; offset < value.length; offset += MAX_CHUNK) {
-        const sent = await post(config, job, 'chunk', value.subarray(offset, offset + MAX_CHUNK), 'application/octet-stream', sequence++);
-        if (!sent.ok) throw transferError('cancelled');
+      else for (let offset = 0; offset < value.length;) {
+        const take = Math.min(value.length - offset, MAX_CHUNK - chunkLength);
+        chunkBuffer.set(value.subarray(offset, offset + take), chunkLength); chunkLength += take; offset += take;
+        if (chunkLength === MAX_CHUNK) await flush();
       }
     }
     if (controller.signal.aborted) throw transferError('cancelled');
     if (job.kind === 'page') {
       const raw = new Uint8Array(bytes); let offset = 0; for (const part of pageParts) { raw.set(part, offset); offset += part.length; }
-      const html = new TextDecoder().decode(raw);
-      const sent = await post(config, job, 'page', JSON.stringify({ html, finalUrl: response.url })); if (!sent.ok) throw transferError('download_failed');
+      const encoded = []; for (let at = 0; at < raw.length; at += 32768) encoded.push(String.fromCharCode(...raw.subarray(at, at + 32768)));
+      const htmlBytes = btoa(encoded.join(''));
+      const sent = await post(config, job, 'page', JSON.stringify({ htmlBytes, contentType, finalUrl: response.url })); if (!sent.ok) throw transferError('download_failed');
     } else {
+      await flush();
       const sent = await post(config, job, 'done', JSON.stringify({ bytes, finalUrl: response.url, contentType })); if (!sent.ok) throw transferError('download_failed');
     }
   } catch (error) {
@@ -89,7 +106,8 @@ async function pollLoop() {
       const key = config.port + ':' + config.token;
       if (pairedKey !== key) {
         const hello = await fetch('http://127.0.0.1:' + config.port + '/bridge/hello', { headers: auth(config.token), redirect: 'error', signal: AbortSignal.timeout(5000) });
-        if (!hello.ok || (await hello.json()).version !== 2) throw transferError('bridge_protocol');
+        const handshake = await hello.json();
+        if (!hello.ok || handshake.version !== 2) throw transferError('bridge_protocol');
         pairedKey = key;
       }
       const response = await fetch(`http://127.0.0.1:${config.port}/bridge/jobs`, { headers: auth(config.token), redirect: 'error', signal: AbortSignal.timeout(35000) });

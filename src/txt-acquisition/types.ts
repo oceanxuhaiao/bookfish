@@ -26,7 +26,7 @@ const TRANSITIONS: Readonly<Record<AcquisitionStatus, readonly AcquisitionStatus
   completed: [],
   // Repairing an imported-but-flawed file produces a new revision; the old one stays.
   completed_with_warning: ['validating'],
-  failed_recoverable: ['downloading', 'repairing', 'importing', 'discovering', 'failed_terminal'],
+  failed_recoverable: ['validating', 'downloading', 'repairing', 'importing', 'discovering', 'failed_terminal'],
   // A terminal failure still keeps its bytes. Retrying it is an explicit user
   // decision, so it may reuse the retained file or the page it came from.
   failed_terminal: ['validating', 'downloading', 'discovering'],
@@ -125,6 +125,7 @@ export interface AcquisitionTask {
   quality?: QualityReport;
   bookKey?: string;
   duplicate?: boolean;
+  selection?: { status: 'completed' | 'failed'; message?: string };
   rejection?: { code: string; message: string };
   failure?: FailureRecord;
   attempts: { downloads: number; imports: number; repairs: number };
@@ -150,6 +151,7 @@ export const FAILURE_RECOVERABLE: Readonly<Record<string, boolean>> = {
   encoding_damaged: true,
   not_a_book: false,
   import_failed: true,
+  import_busy: true,
   storage_unavailable: true,
   candidate_expired: true,
   candidate_unknown: true,
@@ -175,6 +177,7 @@ export interface TaskView {
   requiresRediscovery?: boolean;
   sourceHost: string;
   bookKey?: string;
+  selection?: { status: 'completed' | 'failed'; message?: string };
   duplicate?: boolean;
   quality?: QualityReport;
   file?: { filename: string; bytes: number; sha256: string; retained: boolean; contentType?: string };
@@ -190,7 +193,7 @@ export function validateAcquisitionState(raw: unknown): AcquisitionState {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid acquisition records');
   const state = raw as AcquisitionState;
   if (state.schema !== 1 || !Array.isArray(state.tasks)) throw new Error('Invalid acquisition records');
-  if (state.tasks.length > MAX_TASKS) throw new Error('Acquisition record count exceeds limit');
+  if (state.tasks.length > MAX_TASKS && state.tasks.filter(task => !task.file?.retained).length > MAX_TASKS) throw new Error('Acquisition unprotected record count exceeds limit');
   const ids = new Set<string>();
   for (const task of state.tasks) {
     if (!task || typeof task !== 'object') throw new Error('Invalid acquisition task');

@@ -43,16 +43,16 @@ public static class WfpLab {
   string operation=args[0];
   if(operation=="hold"){Console.WriteLine("ready");Console.Out.Flush();Thread.Sleep(Timeout.Infinite);return 0;}
   if(operation=="install"){
-   int apps=args.Length-3;int port=int.Parse(args[2]);if(port<1024||port>65535||apps<1)throw new Exception("Bad scope");
+   int apps=args.Length-3;string[] portParts=args[2].Split(',');if(portParts.Length<1||portParts.Length>2||apps<1)throw new Exception("Bad scope");foreach(string part in portParts){int port=int.Parse(part);if(port<1024||port>65535)throw new Exception("Bad port");}
    foreach(string candidate in new ArraySegment<string>(args,3,apps)){string path=Path.GetFullPath(candidate);if(!path.StartsWith(Path.GetDirectoryName(manifest)+"\\",StringComparison.OrdinalIgnoreCase)||!File.Exists(path))throw new Exception("Target outside lab or missing");}
    if(File.Exists(manifest))throw new Exception("Refusing to replace existing manifest");
-   List<string> keys=new List<string>();for(int i=0;i<1+3*apps;i++)keys.Add(Guid.NewGuid().ToString());File.WriteAllLines(manifest,keys.ToArray());
+   List<string> keys=new List<string>();for(int i=0;i<1+(args[2].Split(',').Length+2)*apps;i++)keys.Add(Guid.NewGuid().ToString());File.WriteAllLines(manifest,keys.ToArray());
   }
   string[] lines=File.ReadAllLines(manifest);Guid sub=new Guid(lines[0]);Check(FwpmEngineOpen0(null,10,IntPtr.Zero,IntPtr.Zero,out engine),"open");
   if(operation=="install"){
    Check(FwpmTransactionBegin0(engine,0),"begin");tx=true;
    Sub s=new Sub{key=sub,display=new Display{name="BookFish isolated egress lab"},flags=1,weight=0x7000};Check(FwpmSubLayerAdd0(engine,ref s,IntPtr.Zero),"sublayer");
-   for(int appIndex=0;appIndex<args.Length-3;appIndex++){IntPtr blob;Check(FwpmGetAppIdFromFileName0(Path.GetFullPath(args[appIndex+3]),out blob),"appid");try{int offset=1+3*appIndex;Add(engine,new Guid(lines[offset]),sub,V4,blob,int.Parse(args[2]),true);Add(engine,new Guid(lines[offset+1]),sub,V4,blob,0,false);Add(engine,new Guid(lines[offset+2]),sub,V6,blob,0,false);}finally{FwpmFreeMemory0(ref blob);}}
+   for(int appIndex=0;appIndex<args.Length-3;appIndex++){IntPtr blob;Check(FwpmGetAppIdFromFileName0(Path.GetFullPath(args[appIndex+3]),out blob),"appid");try{string[] ports=args[2].Split(',');int offset=1+(ports.Length+2)*appIndex;for(int n=0;n<ports.Length;n++)Add(engine,new Guid(lines[offset+n]),sub,V4,blob,int.Parse(ports[n]),true);Add(engine,new Guid(lines[offset+ports.Length]),sub,V4,blob,0,false);Add(engine,new Guid(lines[offset+ports.Length+1]),sub,V6,blob,0,false);}finally{FwpmFreeMemory0(ref blob);}}
    Check(FwpmTransactionCommit0(engine),"commit");tx=false;
   }else if(operation=="verify"){
    int found=0;for(int i=1;i<lines.Length;i++){Guid key=new Guid(lines[i]);IntPtr value;uint code=FwpmFilterGetByKey0(engine,ref key,out value);Console.WriteLine("filter "+key+" result=0x"+code.ToString("x8"));if(code==0){found++;FwpmFreeMemory0(ref value);}}

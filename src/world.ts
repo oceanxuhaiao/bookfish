@@ -133,7 +133,7 @@ export class BookfishWorld implements World {
           progressUnit: current.progressUnit, complete: current.complete, readiness: current.readiness,
           chapterGoalSupported: current.chapterGoalSupported } : null },
       sharing: this.sharing.summary(),
-      txtFiles: { enabled: txt.enabled, browserConfigured: txt.browserConfigured, active: txt.active },
+      txtFiles: { enabled: txt.enabled, browserConfigured: txt.browserReady, transportConnected: txt.transportConnected, controllerReady: txt.controllerReady, browserReady: txt.browserReady, unavailableReason: txt.unavailableReason, active: txt.active },
     };
   }
   tools(): ToolDef[] {

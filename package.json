@@ -69,7 +69,7 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8",
-    "yauzl": "3.2.0",
+    "yauzl": "3.2.1",
     "yazl": "3.3.1"
   },
   "dependencies": {

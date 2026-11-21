@@ -6,21 +6,19 @@
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { BookfishConfigSection } from '../config.ts';
 import type { Library } from '../library.ts';
-import { BestEffortRejected, decodeFileBestEffort, type BestEffortDecoded } from '../stream-import.ts';
+import { BestEffortRejected, prepareFileBestEffort, type BestEffortDecoded } from '../stream-import.ts';
 import { BrowserClient, BrowserError } from './browser-client.ts';
 import { BridgeError, BrowserBridge } from './bridge.ts';
 import { DownloadError, downloadFile } from './download.ts';
 import { discoverLinks, extractIdentity } from './link-discovery.ts';
 import { assessText, type Assessment, type IdentityMatch } from './quality.ts';
 import { AcquisitionRecords } from './records.ts';
-import { decodeBestEffort, detectEncoding, looksBinary, normalizeText } from './repair.ts';
 import { AcquisitionStaging } from './staging.ts';
 import {
-  CANDIDATE_TTL_MS, MAX_CANDIDATES, assertTransition, failureRecoverable, isTerminal,
+  CANDIDATE_TTL_MS, MAX_CANDIDATES, MAX_TASKS, assertTransition, failureRecoverable, isTerminal,
   type AcquisitionOrigin, type AcquisitionStatus, type AcquisitionTask, type CandidateRecord,
   type DetectedEncoding, type FileFormat, type QualityReport, type TaskView, type DiscoveredLink,
 } from './types.ts';
@@ -42,8 +40,9 @@ export interface AcquisitionOptions {
   bridge?: BrowserBridge;
   /** Supplied by the operator controller after enforcing the browser network boundary. */
   browserGuard?: (url: string) => Promise<void>;
+  controllerReady?: () => boolean;
   /** Called after a successful shelf insert so autonomous selection can finish its intent. */
-  onImported?: (task: AcquisitionTask, identity: IdentityMatch) => void;
+  onImported?: (task: AcquisitionTask, identity: IdentityMatch) => void | Promise<void>;
 }
 
 export interface ImportOutcome {
@@ -104,6 +103,7 @@ export class TxtAcquisition {
   private readonly resolve?: HostResolver;
   private readonly pageLoader: PageLoader;
   private bridge: BrowserBridge | undefined;
+  private readonly controllerReady: () => boolean;
   private readonly browserGuard?: (url: string) => Promise<void>;
   private readonly pageUrls = new Map<string, string>();
   private readonly onImported?: (task: AcquisitionTask, identity: IdentityMatch) => void;
@@ -122,18 +122,24 @@ export class TxtAcquisition {
     this.resolve = options.resolve;
     this.pageLoader = options.pageLoader ?? (async (url, settings) => {
       if (!this.browserGuard) throw new BrowserError('policy_blocked', 'A protected browser controller is required');
+      if (!this.controllerReady()) throw new BrowserError('policy_blocked', 'Protected controller is not ready');
       await this.browserGuard(url); return defaultPageLoader(options.fetchImpl)(url, settings);
     });
     this.bridge = options.bridge;
     this.browserGuard = options.browserGuard;
+    this.controllerReady = () => Boolean(options.browserGuard) && options.controllerReady?.() === true;
     if (options.onImported) this.onImported = options.onImported;
   }
+
+  private importQueue: Promise<void> = Promise.resolve();
+  private waitingImports = 0;
+  private maintenance: Promise<unknown> = Promise.resolve();
 
   async init(): Promise<void> {
     await this.staging.init();
     this.records.load(this.now());
     this.recover();
-    await this.staging.clearExpiredParts(this.now());
+    await this.prune();
     // A busy port must not stop reading; the failure surfaces on the first task.
     try { await this.ensureBridge(); } catch { /* reported by discover or import */ }
   }
@@ -155,7 +161,7 @@ export class TxtAcquisition {
     if (!this.bridge) {
       this.bridge = new BrowserBridge({
         dataDir: this.root,
-        authorize: this.browserGuard,
+        authorize: this.browserGuard ? async url => { if (!this.controllerReady()) throw new BrowserError('policy_blocked', 'Protected controller is not ready'); await this.browserGuard!(url); } : undefined,
         networkAllowed: () => this.cfg().allowNetwork,
         ...(typeof cfg.browserBridgePort === 'number' && cfg.browserBridgePort > 0 ? { port: cfg.browserBridgePort } : {}),
         ...(this.resolve ? { resolve: this.resolve } : {}),
@@ -165,10 +171,18 @@ export class TxtAcquisition {
     return this.bridge;
   }
 
+  private get readiness() {
+    const transportConnected = this.bridge?.connected === true;
+    const controllerReady = this.controllerReady();
+    const browserReady = this.cfg().allowNetwork && this.cfg().txtAcquisitionEnabled === true && this.cfg().browserBridgeEnabled === true && transportConnected && controllerReady;
+    return { transportConnected, controllerReady, browserReady, unavailableReason: !controllerReady ? 'Protected isolated browser controller is not ready' : !transportConnected ? 'Extension transport is disconnected' : !browserReady ? 'Network or acquisition is disabled' : null };
+  }
+
   /** Pairing details for the extension popup; the token never reaches the model. */
-  get bridgeInfo(): { enabled: boolean; running: boolean; connected: boolean; port: number; token: string } {
+  get bridgeInfo() {
     const info = this.bridge?.info();
     return {
+      ...this.readiness,
       enabled: this.cfg().browserBridgeEnabled === true,
       running: this.bridge?.running === true,
       connected: this.bridge?.connected === true,
@@ -194,11 +208,12 @@ export class TxtAcquisition {
   }
 
   /** Small status block for the model; full task detail stays behind `status`. */
-  summary(): { enabled: boolean; browserConfigured: boolean; active: number; tasks: Array<{ taskId: string; status: string; title: string; updatedAt: number; bookKey?: string }> } {
+  summary() {
     const tasks = this.records.list();
     return {
       enabled: this.cfg().txtAcquisitionEnabled === true,
-      browserConfigured: (this.cfg().browserDebugPort ?? 0) > 0 || this.bridge?.running === true,
+      ...this.readiness,
+      browserConfigured: this.readiness.browserReady,
       active: tasks.filter((task) => !isTerminal(task.status)).length,
       tasks: tasks.slice(-5).map((task) => ({
         taskId: task.id, status: task.status, title: task.target.title, updatedAt: task.updatedAt,
@@ -258,6 +273,7 @@ export class TxtAcquisition {
       ...(task.pageUrl ? { pageUrl: task.pageUrl, pageUrlHash: task.pageUrlHash, requiresRediscovery: task.requiresRediscovery } : {}),
       sourceHost: task.sourceHost,
       ...(task.bookKey ? { bookKey: task.bookKey } : {}),
+      ...(task.selection ? { selection: task.selection } : {}),
       ...(task.duplicate !== undefined ? { duplicate: task.duplicate } : {}),
       ...(task.quality ? { quality: task.quality } : {}),
       ...(task.file ? { file: { filename: task.file.filename, bytes: task.file.bytes, sha256: task.file.sha256, retained: task.file.retained, ...(task.file.contentType ? { contentType: task.file.contentType } : {}) } } : {}),
@@ -289,6 +305,7 @@ export class TxtAcquisition {
   }
 
   private newTask(input: { title: string; author?: string; pageUrl?: string; origin: AcquisitionOrigin; intentId?: string }): AcquisitionTask {
+    if (this.records.list().filter(task => !isTerminal(task.status)).length >= MAX_TASKS) throw new AcquisitionFailure('busy', 'Finish or cancel existing candidate tasks before creating another acquisition');
     const now = this.now();
     const task: AcquisitionTask = {
       id: randomUUID(),
@@ -332,6 +349,7 @@ export class TxtAcquisition {
   }
 
   async discover(input: { pageUrl: string; title: string; author?: string; origin?: AcquisitionOrigin; intentId?: string }): Promise<TaskView> {
+    await this.maintenance;
     this.requireEnabled();
     const cfg = this.cfg();
     if (!cfg.allowNetwork) throw new AcquisitionFailure('network_disabled', 'Network access is disabled for this world');
@@ -358,7 +376,7 @@ export class TxtAcquisition {
       const bridge = await this.ensureBridge();
       let html: string;
       if (bridge) {
-        // The extension runs in the user's own browser, so their logins are already there.
+        // Only the protected isolated browser may supply its own authorized login state.
         const page = await bridge.fetchPage(checked.toString(), { allowNetwork: cfg.allowNetwork, signal: controller.signal });
         html = page.html;
       } else {
@@ -381,7 +399,7 @@ export class TxtAcquisition {
     } catch (error) {
       if (controller.signal.aborted) this.fail(taskId, 'cancelled', 'Discovery cancelled'); else this.classifyFailure(taskId, error);
       return this.status(taskId) as TaskView;
-    } finally { this.aborts.delete(taskId); }
+    } finally { this.aborts.delete(taskId); await this.prune(); }
   }
 
   /** Candidate addresses live in memory only, so a new scan drops the old ones. */
@@ -493,15 +511,26 @@ export class TxtAcquisition {
     } finally {
       if (downloadedPart && !rawRelative) await this.staging.removeIfPresent(downloadedPart);
       this.aborts.delete(taskId);
+      await this.prune();
     }
   }
 
-  private async finishImport(taskId: string, rawRelative: string, filename: string, declared: { title?: string; author?: string }): Promise<TaskView> {
+  private async withImportSlot<T>(taskId: string, operation: () => Promise<T>): Promise<T> {
+    if (this.waitingImports >= 4) throw new AcquisitionFailure('import_busy', 'Import queue is full; retry the retained original later');
+    this.waitingImports++;
+    const previous = this.importQueue; let release!: () => void;
+    this.importQueue = new Promise<void>(done => { release = done; });
+    try { await previous; this.aborts.get(taskId)?.signal.throwIfAborted(); return await operation(); }
+    finally { this.waitingImports--; release(); }
+  }
+
+  private async finishImport(taskId: string, rawRelative: string, filename: string, declared: { title?: string; author?: string }, forced?: DetectedEncoding): Promise<TaskView> {
+    return this.withImportSlot(taskId, async () => {
     const task = this.records.get(taskId)!;
     const absolute = this.staging.resolveInside(rawRelative);
     let decoded: BestEffortDecoded;
     try {
-      decoded = await decodeFileBestEffort(absolute, 16 * 1024);
+      decoded = prepareFileBestEffort(absolute, 16 * 1024, undefined, forced);
     } catch (error) {
       if (error instanceof BestEffortRejected) {
         this.records.update(taskId, (draft) => { draft.rejection = { code: error.code, message: error.message }; });
@@ -511,13 +540,17 @@ export class TxtAcquisition {
       throw error;
     }
     return await this.importDecoded(taskId, rawRelative, filename, decoded, declared);
+    });
   }
 
   private async importDecoded(taskId: string, rawRelative: string, filename: string, decoded: BestEffortDecoded, declared: { title?: string; author?: string }): Promise<TaskView> {
+    try {
     this.aborts.get(taskId)?.signal.throwIfAborted();
     const task = this.records.get(taskId)!;
     const assessment: Assessment = assessText({
       text: decoded.text,
+      metrics: decoded.metrics,
+      warnings: decoded.warnings,
       encoding: decoded.encoding,
       replacements: decoded.replacements,
       truncatedTail: decoded.truncatedTail,
@@ -572,8 +605,12 @@ export class TxtAcquisition {
     });
     this.urls.delete(task.selectedCandidateId ?? '');
     if (clean && updated.file) await this.dropRaw(updated.file.path);
-    this.onImported?.(updated, result.identity);
-    return this.view(updated);
+    if (this.onImported) {
+      try { await this.onImported(updated, result.identity); this.records.update(taskId, draft => { draft.selection = { status: 'completed' }; }); }
+      catch (error) { this.records.update(taskId, draft => { draft.selection = { status: 'failed', message: redactMessage((error as Error)?.message ?? 'Queue integration failed') }; }); }
+    }
+    return this.view(this.records.get(taskId)!);
+    } finally { if (decoded.canonicalFile) await this.staging.removeIfPresent(decoded.canonicalFile); }
   }
 
   private async dropRaw(relative?: string): Promise<void> {
@@ -606,12 +643,15 @@ export class TxtAcquisition {
       this.records.update(taskId, (draft) => { draft.failure = undefined; draft.rejection = undefined; });
       return await this.runDiscovery(taskId, pageUrl);
     }
+    if (this.aborts.has(taskId)) throw new AcquisitionFailure('busy', 'This task is active');
+    this.aborts.set(taskId, new AbortController());
+    try {
     this.records.update(taskId, (draft) => { draft.failure = undefined; draft.rejection = undefined; });
     this.setStatus(taskId, 'validating', 'retry from retained file');
     const declared = { title: task.candidates[0]?.title, author: task.candidates[0]?.author };
-    const outcome = await this.decodeOrRecordRejection(taskId, task.file.path, task.file.filename);
-    if ('rejected' in outcome) return outcome.rejected;
-    return await this.importDecoded(taskId, task.file.path, task.file.filename, outcome.decoded, declared);
+    return await this.finishImport(taskId, task.file.path, task.file.filename, declared);
+    } catch (error) { this.classifyFailure(taskId, error); return this.status(taskId) as TaskView; }
+    finally { this.aborts.delete(taskId); await this.prune(); }
   }
 
   /**
@@ -625,6 +665,9 @@ export class TxtAcquisition {
     if (!task.file?.path || !existsSync(this.staging.resolveInside(task.file.path))) {
       throw new AcquisitionFailure('invalid_input', 'No retained original file for this task');
     }
+    if (this.aborts.has(taskId)) throw new AcquisitionFailure('busy', 'This task is active');
+    this.aborts.set(taskId, new AbortController());
+    try {
     this.records.update(taskId, (draft) => { draft.failure = undefined; draft.rejection = undefined; });
     const from = task.status;
     if (from === 'failed_recoverable' || from === 'failed_terminal') {
@@ -633,61 +676,9 @@ export class TxtAcquisition {
     } else {
       this.setStatus(taskId, 'validating', 'repair');
     }
-    const outcome = await this.decodeOrRecordRejection(taskId, task.file.path, task.file.filename, encoding);
-    if ('rejected' in outcome) return outcome.rejected;
-    return await this.importDecoded(taskId, task.file.path, task.file.filename, outcome.decoded, { title: task.candidates[0]?.title, author: task.candidates[0]?.author });
-  }
-
-  /**
-   * A rejected file is a normal outcome: record it and keep the bytes so the task
-   * can be repaired or retried instead of throwing away the only copy.
-   */
-  private async decodeOrRecordRejection(taskId: string, relative: string, filename: string, forced?: DetectedEncoding): Promise<{ decoded: BestEffortDecoded } | { rejected: TaskView }> {
-    try {
-      return { decoded: await this.decodeRetained(relative, filename, forced) };
-    } catch (error) {
-      if (!(error instanceof BestEffortRejected)) throw error;
-      this.records.update(taskId, (draft) => { draft.rejection = { code: error.code, message: error.message }; });
-      this.fail(taskId, error.code, error.message);
-      return { rejected: this.status(taskId) as TaskView };
-    }
-  }
-
-  /**
-   * Decode retained bytes, optionally trying every plausible encoding and keeping
-   * the one with the fewest replacement characters.
-   */
-  private async decodeRetained(relative: string, filename: string, forced?: DetectedEncoding): Promise<BestEffortDecoded> {
-    const absolute = this.staging.resolveInside(relative);
-    const bytes = await readFile(absolute);
-    if (!bytes.length) throw new BestEffortRejected('empty_file', 'The retained file is empty');
-    const detected = detectEncoding(bytes);
-    if (looksBinary(bytes, detected)) throw new BestEffortRejected('binary_file', 'The retained file looks binary, not text');
-    const candidates: DetectedEncoding[] = forced ? [forced] : [detected, 'utf-8', 'gb18030', 'utf-16le', 'utf-16be'];
-    let best: BestEffortDecoded | undefined;
-    for (const encoding of [...new Set(candidates)]) {
-      const decoded = decodeBestEffort(bytes, encoding);
-      const normalized = normalizeText(decoded.text);
-      const attempt: BestEffortDecoded = {
-        text: normalized.text,
-        encoding,
-        repairs: [...decoded.issues, ...normalized.issues],
-        replacements: decoded.replacements,
-        truncatedTail: normalized.truncatedTail,
-        bytes: bytes.length,
-      };
-      if (!best || attempt.replacements < best.replacements) best = attempt;
-      if (attempt.replacements === 0) break;
-    }
-    if (!best) throw new BestEffortRejected('unreadable_text', 'The retained file could not be decoded');
-    if (!forced) {
-      const assessed = assessText({
-        text: best.text, encoding: best.encoding, replacements: best.replacements, truncatedTail: best.truncatedTail,
-        repairs: best.repairs, filename,
-      });
-      if (assessed.verdict === 'reject') throw new BestEffortRejected(assessed.reject?.code ?? 'unreadable_text', assessed.reject?.message ?? 'The retained file is not readable text');
-    }
-    return best;
+    return await this.finishImport(taskId, task.file.path, task.file.filename, { title: task.candidates[0]?.title, author: task.candidates[0]?.author }, encoding);
+    } catch (error) { this.classifyFailure(taskId, error); return this.status(taskId) as TaskView; }
+    finally { this.aborts.delete(taskId); await this.prune(); }
   }
 
   private classifyFailure(taskId: string, error: unknown): void {
@@ -698,7 +689,7 @@ export class TxtAcquisition {
     if (error instanceof BridgeError) {
       // A missing extension is a setup problem, not a bad file: retrying is useful,
       // but the message must say what to fix.
-      const code = error.code === 'bridge_offline' || error.code === 'bridge_timeout' || error.code === 'busy' ? 'browser_unavailable' : error.code;
+      const code = error.code === 'bridge_timeout' ? 'timeout' : error.code === 'bridge_offline' || error.code === 'busy' ? 'browser_unavailable' : error.code;
       this.fail(taskId, code, error.message);
       return;
     }
@@ -711,23 +702,28 @@ export class TxtAcquisition {
 
   /** Keep the staging area under the configured bound; refuses while a task runs. */
   async prune(): Promise<string[]> {
-    if (this.records.hasActive()) return [];
-    const limit = (this.cfg().txtAcquisitionRetentionMb ?? 512) * 1024 * 1024;
-    const referenced = new Set<string>();
-    for (const task of this.records.list()) if (task.file?.path) referenced.add(task.file.sha256);
-    await this.staging.clearExpiredParts(this.now());
-    return this.staging.enforceQuota(limit, referenced);
+    const run = this.maintenance.then(async () => {
+      if (this.records.hasActive() || this.aborts.size) return [];
+      const limit = (this.cfg().txtAcquisitionRetentionMb ?? 512) * 1024 * 1024;
+      const referenced = new Set<string>();
+      for (const task of this.records.list()) if (task.file?.path && task.file.retained) referenced.add(task.file.sha256);
+      await this.staging.clearExpiredParts(this.now());
+      return this.staging.enforceQuota(limit, referenced);
+    });
+    this.maintenance = run.catch(() => undefined);
+    return run.catch(() => []); // storage maintenance must not reverse a committed import
   }
 
   /** Release the loopback port when the world stops. */
   async stop(): Promise<void> {
+    for (const abort of this.aborts.values()) abort.abort();
     const bridge = this.bridge;
     this.bridge = undefined;
     if (bridge?.running) await bridge.stop().catch(() => undefined);
   }
 
   /** Apply a changed bridge setting without restarting the world. */
-  async restartBridge(): Promise<{ enabled: boolean; running: boolean; connected: boolean; port: number; token: string }> {
+  async restartBridge() {
     await this.stop();
     await this.ensureBridge().catch(() => undefined);
     return this.bridgeInfo;

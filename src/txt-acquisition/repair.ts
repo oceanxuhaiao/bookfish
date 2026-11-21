@@ -70,7 +70,7 @@ export function detectEncoding(bytes: Buffer): DetectedEncoding {
     if (nonAsciiLetters >= 16 && !opening.includes('\0')) return 'utf-8';
   } catch { /* the opening needs another decoder */ }
   const utf8Damage = countReplacement(decodeSample(sample, 'utf-8'));
-  if (utf8Damage === 0) return 'utf-8';
+  if (utf8Damage === 0 || (sample.length >= 256 && utf8Damage <= Math.max(2, Math.floor(sample.length * 0.002)))) return 'utf-8';
   // Hard cases: UTF-16 text that is mostly Chinese has almost no NUL bytes, and
   // UTF-16 code units can double as plausible GBK pairs. Score every candidate
   // by how much of the result reads like ordinary prose.
