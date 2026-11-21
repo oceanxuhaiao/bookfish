@@ -84,7 +84,9 @@ try {
   console.log(JSON.stringify({ step: 'runtime', runtime }));
   if (!runtime.usable) throw new Error('runtime not usable');
 
-  const job = await invoke('shelf', 'novel_search_start', [{ title }]) as { id: string; state: string };
+  // A title-only search is no longer a full identity assertion. Full verification
+  // must supply the expected author rather than relabel partial candidates exact.
+  const job = await invoke('shelf', 'novel_search_start', [{ title, ...(fetchBook ? { author: expectedAuthor } : {}) }]) as { id: string; state: string };
   let search: { state: string; completed: number; total: number; checked: number; checkTotal: number; hidden?: number; candidates?: Array<Record<string, unknown>>; error?: string } | undefined;
   const searchStart = Date.now();
   for (;;) {
