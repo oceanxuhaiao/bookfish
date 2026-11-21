@@ -1,0 +1,12 @@
+{
+  "previousPid": 37180,
+  "currentPid": 24268,
+  "protocol": "bookfish-sqlite-writer-v1",
+  "uptimeSec": 21,
+  "worldStatus": "active",
+  "lifecycle": "running",
+  "version": "0.63.1",
+  "extensionState": "loaded",
+  "bookCount": 11,
+  "restoredWithoutManualLockDeletion": true
+}

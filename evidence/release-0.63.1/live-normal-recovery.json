@@ -1,0 +1,6 @@
+{
+  "recoveredAfterObserverConflict": true,
+  "pid": 37180,
+  "protocol": "bookfish-sqlite-writer-v1",
+  "explanation": "Read-only integrity snapshot overlapped asynchronous host startup and its HistoryStore write; reader exited, reactivation succeeded. Data comparison will now run only after World deactivation."
+}

@@ -58,7 +58,7 @@ SQLite 数据库与 history.sqlite 完全独立，无业务表、无业务迁移
 | Windows 11 + 桌面 UI | **未完成**：本机实为 Windows 10 Pro 19045，不具备 Windows 11；未操作 Electron UI |
 | 真实用户书库升级完整性 | **未完成**：真实书库未安装候选，不能以合成副本测试替代真实数据验收 |
 
-原始记录见 `evidence/writer-lock/full-tests.log`、`typecheck.log`、`extension-check.log`、`ssm-guard.log`、`protected-hashes.json`、`windows-environment.json`、`windows-processes.json`、`coopanion-host.json`、`coopanion-core.log`。开发中曾发现 ESM 全局函数不可 spy、夹具文件名写错、宿主脚本 Windows --import 路径需 file URL、重复引用必须带 start；均修正夹具/脚本后复测，最终结论仅引用最后通过记录。
+原始记录见 `evidence/writer-lock/full-tests.log`、`typecheck.log`、`extension-check.log`、`protection-check.log`、`protected-hashes.json`、`windows-environment.json`、`windows-processes.json`、`coopanion-host.json`、`coopanion-core.log`。开发中曾发现 ESM 全局函数不可 spy、夹具文件名写错、宿主脚本 Windows --import 路径需 file URL、重复引用必须带 start；均修正夹具/脚本后复测，最终结论仅引用最后通过记录。
 
 PID 复用是可重复的故障条件重建，没有等待或观测到内核自然复用同一个 PID，不能称为自然 PID 回收实测。强制终止是真实 Windows 进程 SIGKILL，具体 PID、实际创建时间和接管结果见下方关键证据。
 

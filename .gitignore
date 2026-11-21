@@ -36,3 +36,6 @@ output/coopanion-launch*.txt
 output/live-backup-0.25.0.bfbak
 output/restore-0.25.0/
 scripts/novel-adapter/bridge/classes/
+
+# Private release backup and packed candidates
+/output/release-0.63.1/
