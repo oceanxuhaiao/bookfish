@@ -9,10 +9,13 @@ import assert from 'node:assert/strict';
 import { Library } from '../src/library.ts';
 const root=process.cwd(),evidence=resolve('_verify/host');mkdirSync(evidence,{recursive:true});
 const groups=execFileSync('whoami.exe',['/groups'],{encoding:'utf8'});
-const adminLine=groups.split('\n').find(line=>line.includes('S-1-5-32-544'))??'';
-const token={medium:groups.includes('S-1-16-8192'),high:groups.includes('S-1-16-12288'),adminEnabled:adminLine.length>0&&!/deny only/i.test(adminLine)};
+// WindowsPrincipal checks the enabled token, including UAC deny-only groups,
+// rather than depending on localized whoami attribute text.
+const adminProbe=execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-Command','([Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)'],{encoding:'utf8',windowsHide:true}).trim();
+if(!/^(True|False)$/u.test(adminProbe))throw Error('BLOCKED: could not verify the current Windows token; no host was started');
+const token={medium:groups.includes('S-1-16-8192'),high:groups.includes('S-1-16-12288'),adminEnabled:adminProbe==='True'};
 writeFileSync(join(evidence,'token-preflight.json'),JSON.stringify(token,null,2));
-if(!token.medium||token.high||token.adminEnabled)throw Error('BLOCKED: run from an ordinary non-elevated user terminal; no host was started');
+if(!token.medium||token.high||token.adminEnabled){console.error('BLOCKED: ordinary Medium-integrity user token required. Actual token: '+JSON.stringify(token)+'. No host was started.');process.exit(2);}
 const app=resolve(process.argv[2]??'E:/zcdfy/Coopanion/resources/app'),work=join(evidence,randomUUID()),home=join(work,'home'),deployment=join(home,'companion'),extensions=join(work,'extensions'),data=join(deployment,'data');
 mkdirSync(deployment,{recursive:true});mkdirSync(join(extensions,'node_modules'),{recursive:true});
 writeFileSync(join(deployment,'deployment.json'),JSON.stringify({bot:'cormini'}));writeFileSync(join(deployment,'guide.json'),JSON.stringify({done:true}));
