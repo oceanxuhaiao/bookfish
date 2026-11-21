@@ -1,0 +1,13 @@
+/** Fresh isolated shelves; output contains hashes/counts only, never full novel bodies. */
+import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
+import {resolve,join} from 'node:path';
+import {createHash,randomUUID} from 'node:crypto';
+import assert from 'node:assert/strict';
+import {Library} from '../src/library.ts';
+import {prepareFileBestEffort} from '../src/stream-import.ts';
+const root=resolve('_verify/round3-real-sources'),sources=JSON.parse(readFileSync(join(root,'sources.json'),'utf8')),results=[];
+const hash=(data:Buffer|string)=>createHash('sha256').update(data).digest('hex');
+for(const source of sources){if(!source.acquired)continue;const dataDir=join(root,'shelves',randomUUID());mkdirSync(dataDir,{recursive:true});const library=new Library({dataDir});library.open();try{const before=hash(readFileSync(source.file));const prepared=prepareFileBestEffort(source.file);const canonical=readFileSync(prepared.canonicalFile!,'utf8');const imported=library.importFileBestEffort({filename:source.id+'.txt',title:source.title,author:source.author},source.file,{decoded:prepared});let cursor:number|null=0,count=0,indexed='';const ids=new Set<number>();while(cursor!==null){const page=library.reader({bookKey:imported.book.key,segment:cursor});for(const segment of page.segments){assert.ok(!ids.has(segment.id));ids.add(segment.id);indexed+=segment.text;count++;}cursor=page.next;}
+// Segmentation can normalize paragraph separators. Compare all non-whitespace code points independently.
+const normalized=(s:string)=>s.replace(/\s/gu,'');assert.equal(hash(normalized(indexed)),hash(normalized(canonical)));assert.equal(hash(readFileSync(source.file)),before);assert.equal(imported.book.confirmedChars,0);const duplicate=library.importFileBestEffort({filename:source.id+'.txt',title:source.title,author:source.author},source.file);assert.equal(duplicate.book.key,imported.book.key);assert.equal(library.list().length,1);results.push({id:source.id,title:source.title,sourceUrl:source.url,representation:source.representation,bytes:readFileSync(source.file).length,sha256:before,encoding:prepared.encoding,quality:imported.quality.quality,warnings:imported.quality.warnings.map(w=>w.code),indexedSegments:count,canonicalCodePoints:[...canonical].length,indexedCodePoints:[...indexed].length,nonWhitespaceTextExactlyPreserved:true,duplicateBook:false,confirmedChars:0,originalUnchanged:true,passed:true});}catch(error){results.push({id:source.id,passed:false,error:String(error)});process.exitCode=1;}finally{library.close();}}
+writeFileSync(join(root,'import-results.json'),JSON.stringify({scope:'two independent actual public-domain works; local Library, not actual Coopanion acceptance',results},null,2));console.log(JSON.stringify(results));

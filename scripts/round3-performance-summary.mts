@@ -1,0 +1,5 @@
+import { readFileSync,writeFileSync } from 'node:fs';
+const rows=readFileSync('_verify/round3-performance-frozen.jsonl','utf8').trim().split(/\r?\n/).map(s=>JSON.parse(s));
+const summary=[];
+for(const source of ['hardening','round3'])for(const size of [20,50,99]){const group=rows.filter(r=>r.source.endsWith(source)&&r.bytes===size*1048576);if(group.length!==5)throw Error('Expected five runs: '+source+'/'+size);const stats=(key:string,scale=1)=>{const v=group.map(r=>r[key]/scale).sort((a,b)=>a-b);return{median:v[2],p95:v[4]};};summary.push({source:source==='hardening'?'d5878f9':'13b6149',MiB:size,n:5,decodeMs:stats('decodeMs'),fullMs:stats('fullMs'),peakRssMiB:stats('peakRss',1048576),processReadMiB:stats('readBytes',1048576),processWriteMiB:stats('writeBytes',1048576)});}
+writeFileSync('_verify/r3-performance-summary.json',JSON.stringify({node:rows[0].node,p95:'nearest rank, n=5 => maximum; exploratory small sample',scope:rows[0].scope,ioMethod:rows[0].ioMethod,summary},null,2));console.log(JSON.stringify(summary));

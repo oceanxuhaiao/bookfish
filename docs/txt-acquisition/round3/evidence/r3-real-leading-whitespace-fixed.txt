@@ -1,0 +1,17 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/txt-acquisition-round3-stream.test.ts (19 tests) 5548ms
+   ✓ third-round decoding boundaries > preserves the correct opening and reports partial for known mixed bytes near-head 1338ms
+   ✓ third-round decoding boundaries > preserves the correct opening and reports partial for known mixed bytes near-tail 980ms
+   ✓ third-round decoding boundaries > preserves utf8 across the prefix and one-byte read boundaries 431ms
+   ✓ third-round decoding boundaries > preserves gb18030 across the prefix and one-byte read boundaries 429ms
+   ✓ third-round decoding boundaries > preserves utf16le across the prefix and one-byte read boundaries 808ms
+   ✓ third-round decoding boundaries > preserves utf16be across the prefix and one-byte read boundaries 856ms
+   ✓ third-round decoding boundaries > normalizes CRLF across a prefix boundary and EOF CR, trimming many whitespace blocks 438ms
+
+ Test Files  1 passed (1)
+      Tests  19 passed (19)
+   Start at  16:00:09
+   Duration  7.07s (transform 143ms, setup 0ms, collect 444ms, tests 5.55s, environment 0ms, prepare 105ms)
+

@@ -1,0 +1,158 @@
+{
+  "node": "v24.15.0",
+  "p95": "nearest rank, n=5 => maximum; exploratory small sample",
+  "scope": "decode through Library persisted shelf commit, excluding network and retained-original snapshot verification",
+  "ioMethod": "Win32_Process process I/O transfer counters; includes metadata/pipe I/O, not physical-disk-only",
+  "summary": [
+    {
+      "source": "d5878f9",
+      "MiB": 20,
+      "n": 5,
+      "decodeMs": {
+        "median": 3474.7562,
+        "p95": 3535.7360000000003
+      },
+      "fullMs": {
+        "median": 7741.392000000001,
+        "p95": 7921.6813999999995
+      },
+      "peakRssMiB": {
+        "median": 216.5625,
+        "p95": 217.55859375
+      },
+      "processReadMiB": {
+        "median": 81.20737648010254,
+        "p95": 81.20737648010254
+      },
+      "processWriteMiB": {
+        "median": 20.213128089904785,
+        "p95": 20.213128089904785
+      }
+    },
+    {
+      "source": "d5878f9",
+      "MiB": 50,
+      "n": 5,
+      "decodeMs": {
+        "median": 7583.447400000001,
+        "p95": 8536.2242
+      },
+      "fullMs": {
+        "median": 14160.7226,
+        "p95": 18719.1423
+      },
+      "peakRssMiB": {
+        "median": 242.42578125,
+        "p95": 248.71484375
+      },
+      "processReadMiB": {
+        "median": 202.26901149749756,
+        "p95": 202.26901149749756
+      },
+      "processWriteMiB": {
+        "median": 50.482675552368164,
+        "p95": 50.482675552368164
+      }
+    },
+    {
+      "source": "d5878f9",
+      "MiB": 99,
+      "n": 5,
+      "decodeMs": {
+        "median": 12875.239,
+        "p95": 16917.4274
+      },
+      "fullMs": {
+        "median": 25334.1236,
+        "p95": 33153.9841
+      },
+      "peakRssMiB": {
+        "median": 274.63671875,
+        "p95": 275.90625
+      },
+      "processReadMiB": {
+        "median": 400.0008726119995,
+        "p95": 400.0008726119995
+      },
+      "processWriteMiB": {
+        "median": 99.92285823822021,
+        "p95": 99.92285823822021
+      }
+    },
+    {
+      "source": "13b6149",
+      "MiB": 20,
+      "n": 5,
+      "decodeMs": {
+        "median": 3388.6682,
+        "p95": 3460.4194
+      },
+      "fullMs": {
+        "median": 6398.849699999999,
+        "p95": 7814.333699999999
+      },
+      "peakRssMiB": {
+        "median": 218.2265625,
+        "p95": 227.61328125
+      },
+      "processReadMiB": {
+        "median": 81.20737648010254,
+        "p95": 81.2075662612915
+      },
+      "processWriteMiB": {
+        "median": 20.213128089904785,
+        "p95": 20.213202476501465
+      }
+    },
+    {
+      "source": "13b6149",
+      "MiB": 50,
+      "n": 5,
+      "decodeMs": {
+        "median": 7741.166499999999,
+        "p95": 8289.6002
+      },
+      "fullMs": {
+        "median": 15177.4947,
+        "p95": 18080.4299
+      },
+      "peakRssMiB": {
+        "median": 241.9921875,
+        "p95": 242.8828125
+      },
+      "processReadMiB": {
+        "median": 202.26901149749756,
+        "p95": 202.26901149749756
+      },
+      "processWriteMiB": {
+        "median": 50.482675552368164,
+        "p95": 50.482675552368164
+      }
+    },
+    {
+      "source": "13b6149",
+      "MiB": 99,
+      "n": 5,
+      "decodeMs": {
+        "median": 10011.6911,
+        "p95": 15353.437899999999
+      },
+      "fullMs": {
+        "median": 22335.823099999998,
+        "p95": 28131.182099999998
+      },
+      "peakRssMiB": {
+        "median": 275.43359375,
+        "p95": 275.77734375
+      },
+      "processReadMiB": {
+        "median": 400.0008726119995,
+        "p95": 400.0008726119995
+      },
+      "processWriteMiB": {
+        "median": 99.92285823822021,
+        "p95": 99.92285823822021
+      }
+    }
+  ]
+}

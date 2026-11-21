@@ -1,0 +1,33 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ❯ tests/txt-acquisition-flow.test.ts (13 tests | 1 failed | 12 skipped) 265ms
+   × browser-assisted acquisition flow > rejects an already leased upload when the simulated controller loses protection 263ms
+     → expected 200 to be 403 // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/txt-acquisition-flow.test.ts > browser-assisted acquisition flow > rejects an already leased upload when the simulated controller loses protection
+AssertionError: expected 200 to be 403 // Object.is equality
+
+- Expected
++ Received
+
+- 403
++ 200
+
+ ❯ tests/txt-acquisition-flow.test.ts:261:31
+    259|       // Settle the old implementation too, so a failed assertion neve…
+    260|       await acquisition.stop();const result=await importing;
+    261|       expect(uploaded.status).toBe(403);expect(result.status).not.toBe…
+       |                               ^
+    262|     }finally{await acquisition.stop();}
+    263|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 12 skipped (13)
+   Start at  16:04:25
+   Duration  2.09s (transform 383ms, setup 0ms, collect 738ms, tests 265ms, environment 0ms, prepare 104ms)
+

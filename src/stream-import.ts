@@ -224,7 +224,7 @@ export function prepareFileBestEffort(file: string, chunkBytes = 16 * 1024, prog
       if (!final && value.endsWith('\r')) { value = value.slice(0, -1); pendingCR = true; }
       if (value.includes('\r')) newlines = true;
       value = value.replace(/\r\n?/gu, '\n').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/gu, () => { controls++; return ''; });
-      if (leading) { value = value.replace(/^[ \t\u3000]+/u, ''); if (value) leading = false; }
+      if (leading) { value = value.trimStart(); if (value) leading = false; }
       value = value.replace(/\n+|[^\n]+/gu, run => {
         if (run[0] !== '\n') { lfRun = 0; return run; }
         if (lfRun <= 3 && lfRun + run.length > 3) blanks++;

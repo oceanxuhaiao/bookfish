@@ -162,7 +162,7 @@ export function normalizeText(input: string): NormalizeResult {
     issues.push({ code: 'blank_runs_collapsed', message: `Collapsed ${collapsedBlankRuns} run(s) of repeated blank lines`, count: collapsedBlankRuns });
   }
 
-  text = text.replace(/^[ \t\u3000]+/u, '').replace(/\s+$/u, '');
+  text = text.trim();
   return { text, issues, truncatedTail, controlChars, collapsedBlankRuns };
 }
 

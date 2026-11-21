@@ -242,6 +242,26 @@ describe('browser-assisted acquisition flow', () => {
     expect(acquisition.list()).toHaveLength(1);
   });
 
+  it('rejects an already leased upload when the simulated controller loses protection', async () => {
+    // Test-only injected guard; this is protocol evidence, never OS isolation evidence.
+    let protectedNow=true;
+    cfg={...cfg,browserBridgeEnabled:true,browserBridgePort:0};
+    const acquisition=new TxtAcquisition({dataDir:dir,library,cfg:()=>cfg,resolve,browserGuard:async()=>undefined,controllerReady:()=>protectedNow});
+    await acquisition.init();const {port,token}=acquisition.bridgeInfo;
+    const auth={'x-bookfish-token':token,'x-bookfish-consumer':'round3-guard-loss'};
+    try{
+      await fetch(`http://127.0.0.1:${port}/bridge/hello`,{headers:auth});
+      const importing=acquisition.importFile({url:TXT_LINK,title:'海风',author:'小鱼'});
+      const polled=await fetch(`http://127.0.0.1:${port}/bridge/jobs`,{headers:auth});
+      const {job}=await polled.json() as any;expect(job).toBeTruthy();
+      protectedNow=false;
+      const uploaded=await fetch(`http://127.0.0.1:${port}/bridge/jobs/${job.id}/chunk`,{method:'POST',headers:{...auth,'x-bookfish-lease':job.lease,'x-bookfish-sequence':'0','content-type':'application/octet-stream'},body:Buffer.from(novel())});
+      // Settle the old implementation too, so a failed assertion never leaves a job hanging.
+      await acquisition.stop();const result=await importing;
+      expect(uploaded.status).toBe(400);expect(await uploaded.json()).toMatchObject({ok:false,code:'policy_blocked'});expect(result.status).not.toBe('completed');expect(library.list()).toHaveLength(0);
+    }finally{await acquisition.stop();}
+  });
+
   it('opens the page and downloads through the connected browser extension', async () => {
     // No debug port and no direct fetch: the extension must carry both jobs.
     cfg = { ...cfg, browserDebugPort: 0, browserBridgeEnabled: true, browserBridgePort: 0 };

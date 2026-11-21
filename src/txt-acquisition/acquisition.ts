@@ -173,7 +173,7 @@ export class TxtAcquisition {
       this.bridge = new BrowserBridge({
         dataDir: this.root,
         authorize: this.browserGuard ? async url => { if (!this.controllerReady()) throw new BrowserError('policy_blocked', 'Protected controller is not ready'); await this.browserGuard!(url); } : undefined,
-        networkAllowed: () => this.cfg().allowNetwork,
+        networkAllowed: () => this.cfg().allowNetwork && this.controllerReady(),
         ...(typeof cfg.browserBridgePort === 'number' && cfg.browserBridgePort > 0 ? { port: cfg.browserBridgePort } : {}),
         ...(this.resolve ? { resolve: this.resolve } : {}),
       });

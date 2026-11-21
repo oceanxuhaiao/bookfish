@@ -1,0 +1,34 @@
+{
+  "codeCommit": "13b6149e4f3354e06c86e84d54fe42437afe61e3",
+  "node": "v24.15.0",
+  "files": [
+    {
+      "path": "src/stream-import.ts",
+      "sha256": "03e68b3acda89ea8977cea807b74f33b3a24f26e7164d1488f13644ecf00a95c"
+    },
+    {
+      "path": "src/txt-acquisition/quality.ts",
+      "sha256": "4f805c6904d38bb0ff6b914e08cb37ea975f157d3bc2f29d206b1e4d1e81213e"
+    },
+    {
+      "path": "src/txt-acquisition/repair.ts",
+      "sha256": "51c3dcae2356630ada5fb590a064df2019d92878a58c0f4991f390e68ac7bf0d"
+    },
+    {
+      "path": "src/library.ts",
+      "sha256": "2909f888852868de6848dded18b0c3356ac79b609183a9bb6f505d953b8e09a9"
+    },
+    {
+      "path": "src/book-storage.ts",
+      "sha256": "153da3625e91caeee640e9f26085f3767523062b0205d3abd89471994b082ffd"
+    },
+    {
+      "path": "src/paged-book.ts",
+      "sha256": "9e758761030de6b8b998953b10e6e742786a3cb3407d312495bef9dac36a4841"
+    },
+    {
+      "path": "src/stream-index.ts",
+      "sha256": "03963cf7e0ca55eb57071e7c47920683e8a6a1cdac714491cc044a58d49c495d"
+    }
+  ]
+}

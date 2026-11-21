@@ -5,11 +5,18 @@ import { tmpdir } from 'node:os';
 import { prepareFileBestEffort } from '../src/stream-import.ts';
 import { decodeHtml } from '../src/txt-acquisition/html-encoding.ts';
 import { assessText, TextQualityAccumulator } from '../src/txt-acquisition/quality.ts';
+import { normalizeText } from '../src/txt-acquisition/repair.ts';
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'bf-r3-stream-')); });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 function prepare(bytes: Buffer, chunk = 1) { const file = join(dir, 'original.txt'); writeFileSync(file, bytes); const decoded = prepareFileBestEffort(file, chunk); return { text: readFileSync(decoded.canonicalFile!, 'utf8'), decoded }; }
 describe('third-round decoding boundaries', () => {
+  it('removes all leading canonical whitespace before the first prose character', () => {
+    const prose='她打开信封，读起那封迟来的信。'.repeat(100);
+    const result=prepare(Buffer.from('\n\n\u00a0\u3000\t'+prose+'\n'));
+    expect(result.text).toBe(prose);
+    expect(normalizeText('\n\n\u00a0\u3000\t'+prose+'\n').text).toBe(result.text);
+  });
   it.each(['near-head','near-tail','alternating'] as const)('preserves the correct opening and reports partial for known mixed bytes %s', kind => {
     const prose='她把信折好放进抽屉，海风从窗口吹进来。';const utf=Buffer.from(prose),gb=Buffer.from('cbfdb0d1d0c5d5dbbac3b7c5bdf8b3e9cceba3acbaa3b7e7b4d3b4b0bfdab4b5bdf8c0b4a1a3','hex');const opening=prose.repeat(20);
     const parts=kind==='near-head'?[Buffer.from(opening),...Array(2000).fill(gb)]:kind==='near-tail'?[Buffer.from(prose.repeat(2000)),...Array(40).fill(gb)]:[Buffer.from(opening),...Array.from({length:200},(_,i)=>i%2?gb:utf)];
