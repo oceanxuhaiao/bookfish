@@ -1,0 +1,24 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3/_verify/round4-install-d5dcb3c4-b650-49c5-91f8-f8710b9f9bf6/npm
+
+ ✓ tests/txt-acquisition-round4-integration.test.ts (22 tests) 5335ms
+   ✓ round4 controlled raw races > serializes dropRaw with a new same-hash publication 334ms
+   ✓ round4 authenticated consumed bytes > preserves an already committed unread book when cancel arrives before the shelf receipt 603ms
+   ✓ round4 authenticated consumed bytes > preserves an already committed unread book when abandon arrives before the shelf receipt 537ms
+   ✓ round4 authenticated consumed bytes > refuses a canonical-file replacement before the actual index consumes it 423ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot replace between verification and decoder open 478ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot remove between verification and decoder open 372ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through cancel and preserves no false shelf result 398ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through abandon and preserves no false shelf result 336ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through autonomous-off and preserves no false shelf result 360ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through network-off and preserves no false shelf result 357ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through stop and preserves no false shelf result 320ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > revokes a browser lease after Selection cancellation without using a production guard stub 346ms
+ ✓ tests/txt-acquisition-selection.test.ts (14 tests) 3331ms
+   ✓ acquisition results entering autonomous selection > keeps an uncertain identity out of the queue through two fresh coordinator starts 350ms
+
+ Test Files  2 passed (2)
+      Tests  36 passed (36)
+   Start at  20:33:49
+   Duration  10.34s (transform 457ms, setup 0ms, collect 1.11s, tests 8.67s, environment 0ms, prepare 174ms)
+

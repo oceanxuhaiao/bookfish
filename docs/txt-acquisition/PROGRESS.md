@@ -123,4 +123,3 @@ npm run build:webui
 独立worktree bookfish-txt-acquisition-round3中新建codex/txt-acquisition-round4，源码修复12d8a03，补测试c5de064、验证脚本dc53793/9761e47。七项P1与P2网络撤销修复、受控故障回归完成；统一目录检查仍无法消除Node原生路径调用内外部恶意进程竞态，完整保证PARTIAL，待独立判断可信单写者前提。主pnpm与新npm副本均82文件907pass/1 POSIX skip，类型/构建/官方describe/check通过；runtime/no-fetch0，完整world明确作者16源无候选而FAIL。30次同输入性能与10次并发实测源码hash一致，99MiB解码9.51→10.35秒、入架21.55→22.52秒，RSS持平，不宣称提速。双锁安装版本集对齐，实际yauzl3.2.1发布worker通过，六项开发audit未关闭。SSM0阻断review7/4/2/2待独立审批；未运行宿主脚本，不创建账户，不安装控制器，不改系统网络，不合并或部署。审核入口该worktree/docs/txt-acquisition/round4/00-审核入口.md。
 
 第四阶段最终补充冻结ed020ae：生产源码仍12d8a03；主树最终82文件908pass/1skip，类型0。npm独立树此前完整907pass/1skip，加最后两文件同步后的36项边界pass；不虚构npm树重复全量。宿主继续暂缓，等待独立审核。
-

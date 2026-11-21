@@ -1,0 +1,20 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3/_verify/round4-baseline
+
+stdout | tests/round4-baseline-counterexamples.test.ts > historical bug: deleting after canDelete can remove a newly referenced same-hash raw
+COUNTEREXAMPLE: new reference=true, raw exists=false
+
+stdout | tests/round4-baseline-counterexamples.test.ts > historical bug: decoder imports a stable replacement snapshot without the original digest
+COUNTEREXAMPLE: changed snapshot imported as completed
+
+stdout | tests/round4-baseline-counterexamples.test.ts > historical bug: Selection cancel does not abort a TXT transfer before the task id is linked
+COUNTEREXAMPLE: Selection cancelled, transfer signal not aborted
+
+ ✓ tests/round4-baseline-counterexamples.test.ts (3 tests) 731ms
+   ✓ historical bug: Selection cancel does not abort a TXT transfer before the task id is linked 447ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  18:24:53
+   Duration  2.91s (transform 446ms, setup 0ms, collect 865ms, tests 731ms, environment 0ms, prepare 100ms)
+

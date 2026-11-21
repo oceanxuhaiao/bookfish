@@ -1,0 +1,78 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/novel-match.test.ts (5 tests) 9ms
+ ✓ tests/txt-acquisition-round4.test.ts (8 tests) 133ms
+ ❯ tests/txt-acquisition-selection.test.ts (14 tests | 1 failed) 3933ms
+   × acquisition results entering autonomous selection > keeps an uncertain identity out of the queue through two fresh coordinator starts 404ms
+     → this.options.novelFetches.persisted is not a function
+   ✓ acquisition results entering autonomous selection > propagates abandon and cancel to the associated TXT intent before any late callback 344ms
+   ✓ acquisition results entering autonomous selection > keeps the queued fact if announcement fails, and replay does not create a second queue item 303ms
+   ✓ acquisition results entering autonomous selection > queues a matching book exactly once and never claims reading progress 306ms
+ ❯ tests/txt-acquisition-round3.test.ts (22 tests | 1 failed) 11123ms
+   ✓ third-round original integrity > preserves the retained original and existing shelf entry when repair fails 861ms
+   ✓ third-round original integrity > finishes a pending raw commit on retry without requiring a World restart 578ms
+   ✓ third-round original integrity > shares raw bytes safely across simultaneous tasks and duplicate shelf imports 967ms
+   ✓ third-round original integrity > does not let a retained retry consume a 101st active slot 1500ms
+   ✓ third-round original integrity > reports read permission failure as storage, preserving the original digest 431ms
+   ✓ third-round original integrity > rejects a symlink identity before opening its target (filesystem fault fixture) 428ms
+   ✓ third-round original integrity > does not mark completion or queue when cancelled just before shelf metadata commits 607ms
+   ✓ third-round original integrity > retains a retryable original when shelf persistence fails, preserving earlier shelf data 547ms
+   ✓ third-round original integrity > retries idempotently if the task receipt fails after the shelf commit 551ms
+   ✓ third-round original integrity > recovers a raw commit interrupted before linking without a second download 535ms
+   ✓ third-round original integrity > replays only queue integration after restart, preserving one unread shelf item 474ms
+   ✓ third-round original integrity > keeps persistent pending success when writing the queue receipt fails 415ms
+   ✓ third-round original integrity > World stop during async queue integration leaves a replayable receipt 409ms
+   ✓ third-round original integrity > does not clean originals when task records are corrupt 394ms
+   × third-round original integrity > distinguishes deletion permissions from quota pressure and nothing to do 201ms
+     → expected { status: 'success', …(3) } to match object { status: 'permission_denied', …(2) }
+(2 matching properties omitted from actual)
+   ✓ third-round original integrity > refuses byte mutation without importing or changing original digest 435ms
+   ✓ third-round original integrity > refuses truncate mutation without importing or changing original digest 419ms
+   ✓ third-round original integrity > refuses missing mutation without importing or changing original digest 434ms
+   ✓ third-round original integrity > rolls back in-memory task changes when record persistence fails 371ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/txt-acquisition-round3.test.ts > third-round original integrity > distinguishes deletion permissions from quota pressure and nothing to do
+AssertionError: expected { status: 'success', …(3) } to match object { status: 'permission_denied', …(2) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  Object {
+-   "errorCode": "EACCES",
+-   "removed": Array [],
+-   "status": "permission_denied",
++   "removed": Array [
++     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt",
++   ],
++   "status": "success",
+  }
+
+ ❯ tests/txt-acquisition-round3.test.ts:110:54
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/txt-acquisition-selection.test.ts > acquisition results entering autonomous selection > keeps an uncertain identity out of the queue through two fresh coordinator starts
+TypeError: this.options.novelFetches.persisted is not a function
+ ❯ SelectionCoordinator.viewIntent src/selection.ts:873:53
+    871|           downloaded: value.downloadedChapters, total: value.catalogCh…
+    872|       } catch {
+    873|         const persisted = this.options.novelFetches.persisted(intent.a…
+       |                                                     ^
+    874|         if (persisted) task = { id: persisted.id, state: persisted.sta…
+    875|           downloaded: persisted.downloadedChapters, total: persisted.c…
+ ❯ SelectionCoordinator.summary src/selection.ts:893:29
+ ❯ SelectionCoordinator.plan src/selection.ts:776:17
+ ❯ tests/txt-acquisition-selection.test.ts:74:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+ Test Files  2 failed | 2 passed (4)
+      Tests  2 failed | 47 passed (49)
+   Start at  18:16:51
+   Duration  14.36s (transform 1.14s, setup 0ms, collect 3.16s, tests 15.20s, environment 1ms, prepare 796ms)
+

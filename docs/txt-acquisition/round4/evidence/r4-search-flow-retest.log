@@ -1,0 +1,20 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/novel-fetch.test.ts (24 tests) 370ms
+ ✓ tests/txt-acquisition-flow.test.ts (13 tests) 4115ms
+   ✓ browser-assisted acquisition flow > downloads a candidate, imports it and drops the clean original 401ms
+   ✓ browser-assisted acquisition flow > keeps the original bytes when the copy has warnings, and still lets it be read 396ms
+   ✓ browser-assisted acquisition flow > retries a recoverable download failure without duplicating the task 402ms
+   ✓ browser-assisted acquisition flow > repairs a damaged file into a new revision without touching the first one 445ms
+   ✓ browser-assisted acquisition flow > does not import the same file twice as two books 474ms
+   ✓ browser-assisted acquisition flow > keeps the original bytes when the file is not a book, so it can be retried later 332ms
+   ✓ browser-assisted acquisition flow > opens the page and downloads through the connected browser extension 376ms
+ ✓ tests/txt-acquisition-selection.test.ts (14 tests) 3205ms
+   ✓ acquisition results entering autonomous selection > keeps an uncertain identity out of the queue through two fresh coordinator starts 339ms
+
+ Test Files  3 passed (3)
+      Tests  51 passed (51)
+   Start at  20:09:23
+   Duration  9.96s (transform 537ms, setup 0ms, collect 1.33s, tests 7.69s, environment 0ms, prepare 294ms)
+

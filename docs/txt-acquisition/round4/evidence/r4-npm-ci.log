@@ -1,0 +1,11 @@
+npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+npm warn deprecated tldts-core@7.4.20: Partial release, see https://github.com/remusao/tldts/issues/2735. Use >=7.4.22.
+
+added 235 packages, and audited 236 packages in 22s
+
+6 vulnerabilities (3 moderate, 1 high, 2 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.

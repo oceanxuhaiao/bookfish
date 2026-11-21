@@ -1,0 +1,531 @@
+
+> cortico-world-bookfish@0.63.0 test
+> node scripts/build-worker.mjs && vitest run --maxWorkers=4 --minWorkers=1
+
+Built lib/import-worker.mjs
+Built lib/zip-worker.mjs
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/webui/import-method.test.ts (1 test) 319ms
+   ✓ groups the three import methods in one selector and marks experiments 319ms
+ ✓ tests/webui/settings.test.ts (9 tests) 759ms
+ ✓ tests/story-core.test.ts (38 tests) 28ms
+ ✓ tests/novel-fetch.test.ts (24 tests) 396ms
+ ✓ tests/webui/runtime.test.ts (5 tests) 4082ms
+   ✓ runtime settings card > polls after a one-click install so the card does not freeze at the first byte count 2663ms
+   ✓ runtime settings card > renders measured download progress and a cancel action, then hides progress when ready 1264ms
+ ✓ tests/novel-integrity.test.ts (35 tests) 33ms
+ ✓ tests/selection.test.ts (8 tests) 7243ms
+   ✓ autonomous selection state machine > fails over to different works, rejects source/edition retries, stops after three, and pauses globally 1094ms
+   ✓ autonomous selection state machine > preflights exact candidates and skips a source whose catalog is rejected 545ms
+   ✓ autonomous selection state machine > treats a pet-selected book as an unfinished commitment through pause, switch and restart, and only full confirmation releases it 1148ms
+   ✓ autonomous selection state machine > recovers the queue after an import receipt and deduplicates repeated terminal callbacks 592ms
+   ✓ autonomous selection state machine > rejects unknown or expired candidate ids, respects the source allowlist, and pauses on user cancellation 871ms
+   ✓ autonomous selection state machine > pauses an uncommitted autonomous chain when the feature is switched off 416ms
+   ✓ autonomous selection state machine > reports a completed import after cancellation without undoing the book or queuing it 574ms
+   ✓ autonomous selection state machine > does not release the self-selected gate when an ongoing serial is merely caught up 2003ms
+ ✓ tests/story-store.test.ts (18 tests) 4830ms
+   ✓ StoryStore persistence and capture > creates a read-only snapshot and restores it into another store 491ms
+   ✓ StoryStore persistence and capture > binds stable entity ids and refuses unresolved or cross-version relations 364ms
+ ✓ tests/scheduler.test.ts (35 tests) 16337ms
+   ✓ reading opportunities, never timer-based progress > waits one interval, deduplicates ticks and requires a supplied range plus confirmation 603ms
+   ✓ reading opportunities, never timer-based progress > does not queue during chatting, backoff or handoff and requires 30 seconds idle 479ms
+   ✓ reading opportunities, never timer-based progress > waits for an actual host idle observation after mount 944ms
+   ✓ reading opportunities, never timer-based progress > expires queued events at delivery instead of accumulating or confirming offline work 501ms
+   ✓ reading opportunities, never timer-based progress > invalidates supplied work on pause, switch, disabling and stop 826ms
+   ✓ reading opportunities, never timer-based progress > does not invent reading time or a long rest when the model declines before reading 382ms
+   ✓ reading opportunities, never timer-based progress > settles a delivered or discarded main opportunity without immediately generating another 464ms
+   ✓ retired daily caps retain audit accounting > keeps audit counts across restart without enforcing retired task limits 497ms
+   ✓ retired daily caps retain audit accounting > ignores legacy character caps while preserving confirmed-progress semantics 375ms
+   ✓ retired daily caps retain audit accounting > rolls budgets at deployment midnight without resetting progress, never on a backward clock 567ms
+   ✓ retired daily caps retain audit accounting > does not reinstate retired caps when old configuration is lowered 489ms
+   ✓ retired daily caps retain audit accounting > rejects an automatic task after hot disabling even when a caller drops its opportunity id 470ms
+   ✓ retired daily caps retain audit accounting > does not erase accounting when the library is cleared or a backup restored 464ms
+   ✓ retired daily caps retain audit accounting > fails closed on corrupt budget storage without resetting it 344ms
+   ✓ retired daily caps retain audit accounting > does not return novel text when the budget reservation cannot be persisted 403ms
+   ✓ retired daily caps retain audit accounting > uses bounded speed preferences and safe fallback for invalid configuration 349ms
+   ✓ Persona cognition capability and late results > requests only this World tools and does not equate generated text with confirmed reading 402ms
+   ✓ Persona cognition capability and late results > allows the model tool protocol to advance exactly one supplied segment 487ms
+   ✓ Persona cognition capability and late results > rejects late background confirmations as soon as the main session becomes busy and does not run overlapping requests 1036ms
+   ✓ Persona cognition capability and late results > reports cognition errors with backoff rather than producing a wake storm 313ms
+   ✓ character-paced idle reading > preserves earned pacing across a speed change and never advances progress by time 335ms
+   ✓ character-paced idle reading > slows only the remaining range, not already earned pacing 371ms
+   ✓ character-paced idle reading > does not cancel an already supplied task merely because speed changed 408ms
+   ✓ character-paced idle reading > counts actual short-segment length and still requires idle observation 386ms
+   ✓ character-paced idle reading > does not count model/chat time or timer gaps as reading 425ms
+   ✓ character-paced idle reading > does not restore partial pacing across a restart 342ms
+   ✓ character-paced idle reading > bounds custom rates and falls back to legacy preset selection 336ms
+   ✓ explicit Read now requests > bypasses automatic pacing while off, deduplicates clicks, and never advances without confirmation 446ms
+   ✓ explicit Read now requests > resumes a paused book on an explicit request without changing the automatic switch 526ms
+   ✓ explicit Read now requests > allows a single requested passage during rest without clearing the rest period 384ms
+   ✓ explicit Read now requests > rejects stale book keys but ignores retired caps for explicit reads 336ms
+   ✓ explicit Read now requests > keeps the original paused state and exposes failure when event persistence fails 444ms
+   ✓ explicit Read now requests > rejects late work after pause or expiry and reports requests that end without confirmation 366ms
+   ✓ explicit Read now requests > confirms a supplied range even when the model drops bookKey, deriving it from the task 549ms
+ ✓ tests/story-library.test.ts (16 tests) 19127ms
+   ✓ Library story sidecar lifecycle > captures through the book revision and survives close/open 392ms
+   ✓ Library story sidecar lifecycle > deletes only the removed book story records 699ms
+   ✓ Library story sidecar lifecycle > writes and restores BOOKFISH5 with story memory 1202ms
+   ✓ Library story sidecar lifecycle > clears stale story records when restoring an older BOOKFISH3 archive 857ms
+   ✓ Library story sidecar lifecycle > rolls back to an empty library when a restore stage is injected to fail 5796ms
+   ✓ Library story sidecar lifecycle > cleans story records for a removed book even when the sidecar is disabled 740ms
+   ✓ Library story sidecar lifecycle > writes a persistent cleanup tombstone when the sidecar cannot be opened and retries after recovery 830ms
+   ✓ Library story sidecar lifecycle > cleans orphan story records left by an interrupted restore on startup 449ms
+   ✓ Library story sidecar lifecycle > keeps valid committed data when a real child process dies after commit with the marker present 1866ms
+   ✓ Library story sidecar lifecycle > keeps committed data across a forced SIGKILL after commit 1894ms
+   ✓ Library story sidecar lifecycle > does not expose a partial restore after a forced SIGKILL before history commit 1946ms
+   ✓ Library story sidecar lifecycle > keeps committed data with a corrupt restore marker and only removes the marker 727ms
+   ✓ Library story sidecar lifecycle > blocks all story mutations while an archive snapshot is in progress and tracks changeSeq 678ms
+   ✓ Library story sidecar lifecycle > exposes frontier-scoped overview/evidence and validates the persisted pack tree 626ms
+ ✓ tests/txt-acquisition-flow.test.ts (13 tests) 6365ms
+   ✓ browser-assisted acquisition flow > discovers TXT and Markdown candidates and keeps only digests on disk 315ms
+   ✓ browser-assisted acquisition flow > downloads a candidate, imports it and drops the clean original 513ms
+   ✓ browser-assisted acquisition flow > keeps the original bytes when the copy has warnings, and still lets it be read 546ms
+   ✓ browser-assisted acquisition flow > retries a recoverable download failure without duplicating the task 645ms
+   ✓ browser-assisted acquisition flow > marks interrupted work recoverable after a restart and keeps the page for rediscovery 399ms
+   ✓ browser-assisted acquisition flow > cancels a pending task, keeps it recoverable and leaves no partial file 357ms
+   ✓ browser-assisted acquisition flow > repairs a damaged file into a new revision without touching the first one 750ms
+   ✓ browser-assisted acquisition flow > does not import the same file twice as two books 841ms
+   ✓ browser-assisted acquisition flow > requires an explicit browser debug port instead of probing for one 324ms
+   ✓ browser-assisted acquisition flow > keeps the original bytes when the file is not a book, so it can be retried later 489ms
+   ✓ browser-assisted acquisition flow > rejects an already leased upload when the simulated controller loses protection 373ms
+   ✓ browser-assisted acquisition flow > opens the page and downloads through the connected browser extension 538ms
+ ✓ tests/webui/client.test.ts (28 tests) 22550ms
+   ✓ library panel with real World data plane > opens unconfirmed local text with a directory without changing pet selection or progress 673ms
+   ✓ library panel with real World data plane > shows an immediate in-flight source state and a failure result while preserving the URL 316ms
+   ✓ library panel with real World data plane > shows the single recommendation entry and explains a missing engine instead of enabling a fake download 311ms
+   ✓ library panel with real World data plane > lists only search candidates that pass catalog validation and reports when none do 658ms
+   ✓ library panel with real World data plane > reports no successful search results when every searched version fails validation 408ms
+   ✓ library panel with real World data plane > offers a full-title hint when a short title has no exact match 469ms
+   ✓ library panel with real World data plane > reports a likely abridged edition instead of offering it for download 464ms
+   ✓ library panel with real World data plane > displays a reported mood, evidence and stated reason without executing annotation text 6107ms
+   ✓ library panel with real World data plane > keeps configuration solely in the host group and preserves explicit reading preference 400ms
+   ✓ library panel with real World data plane > shows that old confirmations have no recorded mood instead of synthesizing one 671ms
+   ✓ library panel with real World data plane > imports a UTF-8 file, selects it, shows confirmed progress, pauses and resumes 1309ms
+   ✓ library panel with real World data plane > shows background import progress and cancels without changing the shelf 2357ms
+   ✓ library panel with real World data plane > renders local typographic covers on the home card and shelf without image requests 569ms
+   ✓ library panel with real World data plane > renders hostile metadata as text, asks for removal confirmation, and removes only after confirmation 504ms
+   ✓ library panel with real World data plane > does not update the DOM after disposal 434ms
+   ✓ library panel with real World data plane > imports a paginated source link and displays chapter-based progress and source identity 520ms
+   ✓ uses host-persisted reading and quiet settings without duplicate controls 405ms
+   ✓ opens real cover details and another book journal without switching the current reading book 632ms
+   ✓ switches between recent and title sorting without pinning the current book 680ms
+   ✓ renders a compact empty state with one clear call to action 364ms
+   ✓ opens a feedback page with GitHub, QQ group and author links 441ms
+   ✓ lets the user request a passage immediately while automatic reading is off and distinguishes queued from confirmed 762ms
+   ✓ does not block Read now on retired character caps and does not fake progress 586ms
+   ✓ shows rest as a mechanical timeline entry without inventing a reading mood 682ms
+   ✓ disables Continue while routine is active and shows the reason even with automatic reading off 601ms
+   ✓ opens the top-level shelf panel directly without visible secondary navigation 353ms
+   ✓ opens the top-level trail panel directly without visible secondary navigation 362ms
+   ✓ lets the panel declare a later chapter as the reading start without marking it read 510ms
+ ✓ tests/novel-runtime-manager.test.ts (11 tests) 983ms
+   ✓ novel runtime manager > waits for an in-flight engine lease before switching, then rolls back 402ms
+ ✓ tests/txt-acquisition-round4-integration.test.ts (21 tests) 6530ms
+   ✓ round4 controlled raw races > serializes dropRaw with a new same-hash publication 431ms
+   ✓ round4 authenticated consumed bytes > preserves an already committed unread book when cancellation arrives before the shelf receipt 640ms
+   ✓ round4 authenticated consumed bytes > refuses a canonical-file replacement before the actual index consumes it 475ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot replace between verification and decoder open 503ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot remove between verification and decoder open 465ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through cancel and preserves no false shelf result 668ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through abandon and preserves no false shelf result 588ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through autonomous-off and preserves no false shelf result 563ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through network-off and preserves no false shelf result 535ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through stop and preserves no false shelf result 518ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > revokes a browser lease after Selection cancellation without using a production guard stub 595ms
+ ✓ tests/world.test.ts (10 tests) 5318ms
+   ✓ Bookfish library World > drives two paced opportunities through actual World hooks, timer, panel and tool handlers 1146ms
+   ✓ Bookfish library World > reports stopped before mount and after stop; mounting does not enable automatic reading 316ms
+   ✓ Bookfish library World > reads current cognition availability and hot configuration without requesting a model 344ms
+   ✓ Bookfish library World > mounts and closes the optional story sidecar without enabling it by default 511ms
+   ✓ Bookfish library World > captures a story fact through the optional tool without advancing reading 798ms
+   ✓ Bookfish library World > keeps the model-facing status compact while the panel keeps the full shape 485ms
+   ✓ Bookfish library World > rolls back state when event persistence fails, allowing a clean subsequent mount 506ms
+   ✓ Bookfish library World > rejects an aborted confirmation and serializes concurrent retries into one confirmed range 601ms
+   ✓ Bookfish library World > exposes the declared reading start to the panel only, and rejects an invalid start 604ms
+ ✓ tests/txt-acquisition-browser.test.ts (14 tests) 149ms
+ ✓ tests/batch-reading.test.ts (17 tests) 9234ms
+   ✓ batch reading keeps atomic, contiguous progress > defaults to two segments per opportunity and keeps the explicit override 360ms
+   ✓ batch reading keeps atomic, contiguous progress > supplies a contiguous run in one read and confirms it in one call 577ms
+   ✓ batch reading keeps atomic, contiguous progress > advances only the prefix before a malformed item and leaves the rest unread 464ms
+   ✓ batch reading keeps atomic, contiguous progress > re-mount cancels in-flight batch work and offers a fresh contiguous run at the frontier 534ms
+   ✓ scheduler batch, cap and self-correcting retries > confirms a paced batch and accounts every character 604ms
+   ✓ scheduler batch, cap and self-correcting retries > routes a batch-level episode through the scheduler exactly once 606ms
+   ✓ scheduler batch, cap and self-correcting retries > rejects a guessed segmentId and names the supplied ids for self-recovery 444ms
+   ✓ scheduler batch, cap and self-correcting retries > rejects a guessed segmentId inside a batch and names the supplied ids 484ms
+   ✓ scheduler batch, cap and self-correcting retries > rejects a batch item that belongs to another opportunity 630ms
+   ✓ scheduler batch, cap and self-correcting retries > stops new automatic reading at the configured daily task cap but keeps explicit Read now 778ms
+   ✓ scheduler batch, cap and self-correcting retries > turns a repeated malformed confirmation into a self-correcting hint instead of a retry storm 580ms
+   ✓ scheduler batch, cap and self-correcting retries > attaches one optional batch episode to the latest cited segment 511ms
+   ✓ scheduler batch, cap and self-correcting retries > rejects a batch episode that cites no segment supplied in the batch 373ms
+   ✓ scheduler batch, cap and self-correcting retries > rejects an episode attached both to the batch and to one confirmation 364ms
+   ✓ scheduler batch, cap and self-correcting retries > accepts one confirmation per segment inside the same opportunity 624ms
+   ✓ scheduler batch, cap and self-correcting retries > never lets a finished opportunity confirm its leftover pending slots 506ms
+   ✓ scheduler batch, cap and self-correcting retries > serialises a batch replay after completion without double counting 793ms
+ ✓ tests/txt-acquisition-round3.test.ts (22 tests) 12266ms
+   ✓ third-round original integrity > preserves the retained original and existing shelf entry when repair fails 804ms
+   ✓ third-round original integrity > finishes a pending raw commit on retry without requiring a World restart 537ms
+   ✓ third-round original integrity > shares raw bytes safely across simultaneous tasks and duplicate shelf imports 890ms
+   ✓ third-round original integrity > does not let a retained retry consume a 101st active slot 1336ms
+   ✓ third-round original integrity > reports read permission failure as storage, preserving the original digest 396ms
+   ✓ third-round original integrity > rejects a symlink identity before opening its target (filesystem fault fixture) 424ms
+   ✓ third-round original integrity > does not mark completion or queue when cancelled just before shelf metadata commits 719ms
+   ✓ third-round original integrity > retains a retryable original when shelf persistence fails, preserving earlier shelf data 635ms
+   ✓ third-round original integrity > retries idempotently if the task receipt fails after the shelf commit 631ms
+   ✓ third-round original integrity > recovers a raw commit interrupted before linking without a second download 601ms
+   ✓ third-round original integrity > replays only queue integration after restart, preserving one unread shelf item 576ms
+   ✓ third-round original integrity > keeps persistent pending success when writing the queue receipt fails 534ms
+   ✓ third-round original integrity > World stop during async queue integration leaves a replayable receipt 526ms
+   ✓ third-round original integrity > does not clean originals when task records are corrupt 490ms
+   ✓ third-round original integrity > refuses byte mutation without importing or changing original digest 546ms
+   ✓ third-round original integrity > refuses truncate mutation without importing or changing original digest 500ms
+   ✓ third-round original integrity > refuses missing mutation without importing or changing original digest 508ms
+   ✓ third-round original integrity > rolls back in-memory task changes when record persistence fails 471ms
+ ✓ tests/journal.test.ts (16 tests) 8236ms
+   ✓ exact reading evidence, atomic progress and authored reports > saves a reading episode atomically and computes Unicode-codepoint anchors 439ms
+   ✓ exact reading evidence, atomic progress and authored reports > rejects invented text, wrong offsets and unread references without confirming the task 359ms
+   ✓ exact reading evidence, atomic progress and authored reports > requires an unambiguous quotation or explicit matching offset 427ms
+   ✓ exact reading evidence, atomic progress and authored reports > deduplicates exact confirmations but never changes an existing episode on retry 457ms
+   ✓ exact reading evidence, atomic progress and authored reports > does not turn a missing report into mood or invent notes from legacy confirmations 451ms
+   ✓ exact reading evidence, atomic progress and authored reports > keeps the last explicitly reported mood and timestamp when a newer record omits mood/reason 454ms
+   ✓ exact reading evidence, atomic progress and authored reports > rejects a reading episode citing only an old segment 486ms
+   ✓ append-only reflections, revisions and stable indexes > preserves the original and timestamps later revisions as new reflections 496ms
+   ✓ append-only reflections, revisions and stable indexes > deduplicates reflection requests and rejects conflicting retries 519ms
+   ✓ append-only reflections, revisions and stable indexes > rejects references and revisions to future, missing or other-version records 626ms
+   ✓ append-only reflections, revisions and stable indexes > pages by stable sequence while new entries are appended 759ms
+   ✓ journal state migration, restoration and tamper checks > migrates schema1 without making up episodes, reasons, moods or timestamps 455ms
+   ✓ journal state migration, restoration and tamper checks > preserves episodes, relationships and exact evidence across restart and backup restoration 771ms
+   ✓ journal state migration, restoration and tamper checks > rejects altered quotations, missing task backing, time, revision cycles and sequence corruption 465ms
+   ✓ journal state migration, restoration and tamper checks > removes the book journal on version deletion or clear, without carrying it to another book 821ms
+ ✓ tests/sharing.test.ts (20 tests) 9702ms
+   ✓ optional bounded sharing, never a fabricated display receipt > enforces sentence limits before nomination and again before claiming or output 447ms
+   ✓ optional bounded sharing, never a fabricated display receipt > honors minute-precision quiet boundaries across midnight 384ms
+   ✓ optional bounded sharing, never a fabricated display receipt > proposes without output or progress and never claims before event delivery 432ms
+   ✓ optional bounded sharing, never a fabricated display receipt > is opt-in, respects pause and does not awaken during quiet hours 526ms
+   ✓ optional bounded sharing, never a fabricated display receipt > handles same-day and all-day quiet windows and safe defaults 444ms
+   ✓ optional bounded sharing, never a fabricated display receipt > waits while busy and for 30 seconds idle; deferred expiry never accumulates a replay 458ms
+   ✓ optional bounded sharing, never a fabricated display receipt > cannot claim when quiet starts, settings change or the book generation changes 527ms
+   ✓ optional bounded sharing, never a fabricated display receipt > invalidates an output permit when disabled, quiet, paused or expired 467ms
+   ✓ optional bounded sharing, never a fabricated display receipt > deduplicates episode/text, retains only the newest waiting candidate and refuses missing episodes 515ms
+   ✓ optional bounded sharing, never a fabricated display receipt > counts failure/unknown once, enforces cooldown, and never retries an unavailable output 516ms
+   ✓ optional bounded sharing, never a fabricated display receipt > persists attempt auditing and cooldown through restart and clearing history without a daily cap 568ms
+   ✓ optional bounded sharing, never a fabricated display receipt > does not impose a daily attempt cap; cooldown remains the only frequency limit 688ms
+   ✓ optional bounded sharing, never a fabricated display receipt > requires a receipt for acceptance, separates user visibility, and preserves unknown on timeout 468ms
+   ✓ optional bounded sharing, never a fabricated display receipt > drops a declined or discarded opportunity and keeps the original journal 459ms
+   ✓ optional bounded sharing, never a fabricated display receipt > drops an unclaimed opportunity after a delivered turn, with no later replay 442ms
+   ✓ optional bounded sharing, never a fabricated display receipt > purges share text when its episode is deleted without resetting budget or hashed dedupe 492ms
+   ✓ optional bounded sharing, never a fabricated display receipt > rejects a corrupt ledger without replacing it 429ms
+   ✓ optional bounded sharing, never a fabricated display receipt > does not reserve an attempt when atomic persistence fails 504ms
+   ✓ optional bounded sharing, never a fabricated display receipt > pages the model-facing share history and bounds each item 518ms
+   ✓ optional bounded sharing, never a fabricated display receipt > keeps the frequent status summary compact and leaves share text to the dedicated tool 419ms
+ ✓ tests/library.test.ts (24 tests) 10251ms
+   ✓ book import and stable segmentation > deduplicates canonical content without losing progress and isolates a changed revision 367ms
+   ✓ confirmed reading protocol > fetching reuses a single lease and advances provided text only; identical confirmation is idempotent 408ms
+   ✓ confirmed reading protocol > rejects invented task ids, revision or segment mismatches 324ms
+   ✓ confirmed reading protocol > accepts an empty understanding as the legal "nothing to note" result 425ms
+   ✓ confirmed reading protocol > rejects expired tasks and offers the same range under a fresh task 460ms
+   ✓ confirmed reading protocol > pause and resume invalidate old tasks but preserve committed progress 583ms
+   ✓ confirmed reading protocol > switching books cancels the pending task and switching back resumes confirmed progress 642ms
+   ✓ confirmed reading protocol > switching to a changed revision rejects the former version task 476ms
+   ✓ confirmed reading protocol > rereads confirmed text without advancing and refuses unread text 423ms
+   ✓ confirmed reading protocol > reaches completion only after every contiguous segment has a confirmation 760ms
+   ✓ persistence, recovery and failure > restart resumes the last confirmation, cancels pending work and preserves committed retry receipts 618ms
+   ✓ persistence, recovery and failure > a stop blocks confirmation until remount and remount invalidates the task 460ms
+   ✓ persistence, recovery and failure > rejects a second writer without interfering with the first writer 430ms
+   ✓ persistence, recovery and failure > corrupt persisted state is kept intact and the writer lock is released 347ms
+   ✓ persistence, recovery and failure > ignores an interrupted temporary write and recovers the last committed file 556ms
+   ✓ persistence, recovery and failure > rejects a damaged body index even when a backup checksum has been recomputed 553ms
+   ✓ persistence, recovery and failure > exports and restores exact confirmed content into an empty library while cancelling pending tasks 781ms
+   ✓ persistence, recovery and failure > rejects checksum damage, inconsistent indexes and forged progress without changing live state 636ms
+   ✓ persistence, recovery and failure > removal and bulk clearing invalidate tasks and cannot remove other books accidentally 490ms
+ ✓ tests/sources.test.ts (16 tests) 5836ms
+   ✓ source integration and progress > imports from a chapter URL but starts at the beginning; a cached prefix never counts as the whole novel 848ms
+   ✓ source integration and progress > does not store half a chapter or skip it after a fetch fails, then retries at the same position 406ms
+   ✓ source integration and progress > coalesces concurrent next-chapter fetches and never changes previously confirmed segment bytes 446ms
+   ✓ source integration and progress > preserves remote cache, provenance and progress across restart and backup recovery without network calls 569ms
+   ✓ source integration and progress > keeps changed catalog versions and same-title books on separate URLs isolated 622ms
+   ✓ source integration and progress > does not commit a late fetch after pause or selection changes 564ms
+   ✓ source integration and progress > does not commit cancelled source work or lose local progress when a source is unavailable 533ms
+   ✓ source integration and progress > does not claim an ongoing or unknown-status novel is finished after reading its current snapshot 1549ms
+ ✓ tests/serial-model.test.ts (7 tests) 4872ms
+   ✓ serial identity, append and evidence > keeps the stable key, frontier and old segment bytes when a chapter is appended 1217ms
+   ✓ serial identity, append and evidence > rejects a changed old chapter or non-contiguous body without changing the accepted snapshot 315ms
+   ✓ serial identity, append and evidence > reopens with the same stable key, accepted segments and chapter layout 516ms
+   ✓ serial identity, append and evidence > archives serial metadata and blocks as BOOKFISH4, then restores with subscription paused 783ms
+   ✓ serial identity, append and evidence > updates subscription control without rewriting the cached book blob 419ms
+   ✓ serial identity, append and evidence > keeps an in-flight reading task confirmable while a later chapter is appended 495ms
+   ✓ serial identity, append and evidence > does not treat an ongoing or unknown serial tail as a finished book 1125ms
+ ✓ tests/security/untrusted-book-content.test.ts (9 tests) 4925ms
+   ✓ untrusted book content cannot become instructions > never puts book text into an event, only into a tool receipt 568ms
+   ✓ untrusted book content cannot become instructions > keeps configuration out of reach of every tool, whatever the text says 761ms
+   ✓ untrusted book content cannot become instructions > cannot advance the reading frontier past what was supplied 565ms
+   ✓ untrusted book content cannot become instructions > cannot turn book text into a share without a delivered permit 507ms
+   ✓ untrusted book content cannot become instructions > refuses a full-book review while the book is not finished 658ms
+   ✓ untrusted book content cannot become instructions > rejects an episode that quotes text the reader never received 576ms
+   ✓ untrusted book content cannot become instructions > never returns unread text from retrieval 513ms
+   ✓ untrusted book content cannot become instructions > accepts a hostile title as data and never lets it reach an event 491ms
+ ✓ tests/txt-acquisition-bridge.test.ts (8 tests) 186ms
+ ✓ tests/serial-sync.test.ts (11 tests) 4753ms
+   ✓ serial sync transaction, cancellation and recovery > creates a subscription, fetches a bounded first batch and keeps a stable key 428ms
+   ✓ serial sync transaction, cancellation and recovery > records no_change without growing contentVersion or reading chapters again 406ms
+   ✓ serial sync transaction, cancellation and recovery > appends only the new tail and preserves confirmed progress and old bytes 489ms
+   ✓ serial sync transaction, cancellation and recovery > deduplicates concurrent checks into one job 403ms
+   ✓ serial sync transaction, cancellation and recovery > cancels before commit without adding visible chapters 377ms
+   ✓ serial sync transaction, cancellation and recovery > commits the verified prefix when a later chapter fails, then retries from that chapter 482ms
+   ✓ serial sync transaction, cancellation and recovery > does not commit when the second catalog read conflicts 421ms
+   ✓ serial sync transaction, cancellation and recovery > fails closed on an incomplete catalog or disabled network 447ms
+   ✓ serial sync transaction, cancellation and recovery > does not resurrect a book deleted while a job is running 443ms
+   ✓ serial sync transaction, cancellation and recovery > stops before commit when the global network switch is turned off mid-check 417ms
+   ✓ serial sync transaction, cancellation and recovery > marks an interrupted job as interrupted after restart instead of replaying it 441ms
+ ✓ tests/txt-acquisition-import.test.ts (19 tests) 5393ms
+   ✓ lenient TXT import across encodings > imports a utf8 novel and keeps the prose intact 306ms
+   ✓ lenient TXT import across encodings > imports a utf16be novel and keeps the prose intact 314ms
+   ✓ lenient TXT import across encodings > keeps the valid prefix when the last character is cut in half 313ms
+   ✓ lenient TXT import when the copy is imperfect > imports a novel with an out-of-order chapter number and warns 301ms
+   ✓ lenient TXT import when the copy is imperfect > imports prose with no chapter headings at all 318ms
+ ✓ tests/protocol-behavior/retrieval-data.test.ts (10 tests) 4159ms
+   ✓ retrieval data distinguishes record provenance > case A: a reading-time record is labelled kind=reading with its own time 432ms
+   ✓ retrieval data distinguishes record provenance > case B: a later reflection is kind=reflection, linked by revises, with its own time 454ms
+   ✓ retrieval data distinguishes record provenance > case C: a revision is labelled kind=revision and still points at the old record 449ms
+   ✓ retrieval data distinguishes record provenance > case D: no record exists — search returns zero and says it is not proof of absence 348ms
+   ✓ retrieval data distinguishes record provenance > case E: old and new can be compared in one context call without losing either 412ms
+   ✓ retrieval data distinguishes record provenance > search tells the caller how to use the ids it just returned 406ms
+   ✓ retrieval errors are actionable without a protocol pointer > context explains which ids it needs and where they come from 359ms
+   ✓ retrieval errors are actionable without a protocol pointer > journal evidence errors give the required shape instead of a pointer 365ms
+   ✓ retrieval hints that do not cost anything on the normal path > explains a zero result under a character filter instead of implying absence 436ms
+   ✓ retrieval hints that do not cost anything on the normal path > marks a record that was later revised and says what to tell the user 498ms
+ ✓ tests/txt-acquisition-reliability.test.ts (18 tests) 9497ms
+   ✓ second-round reliability regressions > recovers a retained post-download import failure through retry without changing old progress 860ms
+   ✓ second-round reliability regressions > recovers a retained post-download import failure through repair without changing old progress 800ms
+   ✓ second-round reliability regressions > keeps committed shelf success separate from an async queue callback failure 537ms
+   ✓ second-round reliability regressions > automatically prunes after init and completion but protects warning originals 556ms
+   ✓ second-round reliability regressions > does not trim the only retained-original references when the task cap is exceeded 1577ms
+   ✓ second-round reliability regressions > keeps a protected original loadable when active candidate tasks reach the cap 1464ms
+   ✓ second-round reliability regressions > does not advertise a merely running transport as a ready protected browser 318ms
+   ✓ second-round reliability regressions > preserves the confidently decoded opening when processing utf8-first 426ms
+   ✓ second-round reliability regressions > preserves the confidently decoded opening when processing gb-first 425ms
+   ✓ second-round reliability regressions > preserves the confidently decoded opening when processing utf8-damage 349ms
+   ✓ second-round reliability regressions > preserves the confidently decoded opening when processing gb 328ms
+   ✓ second-round reliability regressions > preserves the confidently decoded opening when processing utf16 302ms
+ ✓ tests/page-data.test.ts (8 tests) 3617ms
+   ✓ records confirmation time, paginates only confirmed plots, and preserves times after reopening 606ms
+   ✓ does not invent timestamps for old receipts 478ms
+   ✓ probes source text without importing, then requires a valid confirmation token 316ms
+   ✓ discussion sends a bounded operator event linked to real evidence without advancing reading 885ms
+   ✓ timeline moods belong to the matching reading task and ignore later reflections 558ms
+ ✓ tests/retrieval.test.ts (14 tests) 7334ms
+   ✓ scoped lexical discovery, not invented semantic memory > finds saved reasons, aliases, questions and exact source with bounded snippets 492ms
+   ✓ scoped lexical discovery, not invented semantic memory > searches only confirmed segments, not cached unread text or chapter headings 540ms
+   ✓ scoped lexical discovery, not invented semantic memory > does not substitute a similar event involving another character 667ms
+   ✓ scoped lexical discovery, not invented semantic memory > keeps book revisions separate even for identical story terms 499ms
+   ✓ scoped lexical discovery, not invented semantic memory > pages deterministically and rejects reuse after progress or query changes 561ms
+   ✓ scoped lexical discovery, not invented semantic memory > invalidates a search cursor after a new reflection but not a mere repeated read offer 548ms
+   ✓ scoped lexical discovery, not invented semantic memory > validates keyword and cursor bounds, and states what empty matches mean 492ms
+   ✓ bounded evidence bundles distinguish then, later and missing > includes the original reading reason and a later revision without overwriting either 482ms
+   ✓ bounded evidence bundles distinguish then, later and missing > reaches the earlier record from a revision and follows a receipt episode link 477ms
+   ✓ bounded evidence bundles distinguish then, later and missing > keeps unrecorded legacy reasons and timestamps null rather than deriving them from understanding 595ms
+   ✓ bounded evidence bundles distinguish then, later and missing > rejects explicit unread segments, unconfirmed tasks and cross-version records 525ms
+   ✓ bounded evidence bundles distinguish then, later and missing > preserves whole reasons and quotations or explicitly omits the record under a small budget 468ms
+   ✓ bounded evidence bundles distinguish then, later and missing > does not change progress, notes or mood during discovery and context retrieval 481ms
+   ✓ bounded evidence bundles distinguish then, later and missing > can exclude related records explicitly and marks all annotations as unverified data 506ms
+ ✓ tests/context-budget.test.ts (12 tests) 29ms
+ ✓ tests/txt-acquisition-selection.test.ts (14 tests) 6362ms
+   ✓ acquisition results entering autonomous selection > keeps an uncertain identity out of the queue through two fresh coordinator starts 671ms
+   ✓ acquisition results entering autonomous selection > does not revive abandoned with late or duplicate external imports 387ms
+   ✓ acquisition results entering autonomous selection > does not revive cancelled with late or duplicate external imports 503ms
+   ✓ acquisition results entering autonomous selection > does not revive completed with late or duplicate external imports 401ms
+   ✓ acquisition results entering autonomous selection > does not revive failed with late or duplicate external imports 361ms
+   ✓ acquisition results entering autonomous selection > propagates abandon and cancel to the associated TXT intent before any late callback 525ms
+   ✓ acquisition results entering autonomous selection > can retry persistence failure without a second commitment or progress 517ms
+   ✓ acquisition results entering autonomous selection > can retry queue_append failure without a second commitment or progress 440ms
+   ✓ acquisition results entering autonomous selection > keeps the queued fact if announcement fails, and replay does not create a second queue item 445ms
+   ✓ acquisition results entering autonomous selection > queues a matching book exactly once and never claims reading progress 471ms
+   ✓ acquisition results entering autonomous selection > holds an uncertain edition for confirmation instead of queueing it 449ms
+   ✓ acquisition results entering autonomous selection > ignores manual imports and cancelled intents 463ms
+   ✓ acquisition results entering autonomous selection > leaves an intent that already points at another revision alone 376ms
+   ✓ acquisition results entering autonomous selection > records a failure when the book is missing from the shelf 351ms
+ ✓ tests/closeout-data-recovery.test.ts (16 tests) 14124ms
+   ✓ C1/C2 真实导出器产生的 BOOKFISH2/3/5 归档 > BOOKFISH2 (books only) restores the book but carries no history 740ms
+   ✓ C1/C2 真实导出器产生的 BOOKFISH2/3/5 归档 > BOOKFISH3 (books + history) restores journal records 899ms
+   ✓ C1/C2 真实导出器产生的 BOOKFISH2/3/5 归档 > BOOKFISH5 (books + history + story) restores with story memory enabled 1348ms
+   ✓ C1/C2 真实导出器产生的 BOOKFISH2/3/5 归档 > refuses a BOOKFISH5 archive when story memory is off, instead of dropping the story section 1135ms
+   ✓ C3 九个恢复故障注入点 > injects at preflight and keeps the target library consistent 829ms
+   ✓ C3 九个恢复故障注入点 > injects at before-books and keeps the target library consistent 879ms
+   ✓ C3 九个恢复故障注入点 > injects at after-books and keeps the target library consistent 892ms
+   ✓ C3 九个恢复故障注入点 > injects at before-history and keeps the target library consistent 854ms
+   ✓ C3 九个恢复故障注入点 > injects at after-history and keeps the target library consistent 929ms
+   ✓ C3 九个恢复故障注入点 > injects at before-story and keeps the target library consistent 929ms
+   ✓ C3 九个恢复故障注入点 > injects at after-story and keeps the target library consistent 941ms
+   ✓ C3 九个恢复故障注入点 > injects at before-commit and keeps the target library consistent 948ms
+   ✓ C3 九个恢复故障注入点 > injects at after-commit and keeps the target library consistent 886ms
+   ✓ C4 SQLite quick_check 与损坏处理 > a corrupted history database is reported, not silently emptied 418ms
+   ✓ C5 恢复中断与重试 > a pre-commit failure keeps the old library readable and the restore retryable 1090ms
+   ✓ C5 恢复中断与重试 > leaves no restore temp files behind after a failed restore 407ms
+ ✓ tests/txt-acquisition-hardening.test.ts (13 tests) 484ms
+ ✓ tests/txt-acquisition-download.test.ts (10 tests) 212ms
+ ✓ tests/novel-volume.test.ts (11 tests) 48ms
+ ✓ tests/txt-acquisition-worker.test.ts (11 tests) 54ms
+ ✓ tests/txt-acquisition-url.test.ts (12 tests) 28ms
+ ✓ tests/paged-book.test.ts (15 tests) 3540ms
+   ✓ keeps a shared bounded LRU across books, supports cold random ranges, and never caches the whole virtual array 1833ms
+   ✓ migrates the previous gzip format, preserves exact keys and progress, and keeps rollback data 451ms
+   ✓ does not decode the rest of a book when listing and respects confirmed read boundaries 495ms
+   ✓ pages remote chapter bodies and keeps status and source errors from loading the complete book 611ms
+ ✓ tests/novel-runtime.test.ts (10 tests) 507ms
+ ✓ tests/prior-reading.test.ts (6 tests) 2946ms
+   ✓ declared start > records a chapter start without claiming anything was read 409ms
+   ✓ declared start > reads forward from the declared start and keeps absolute receipts 484ms
+   ✓ declared start > rejects a mid-chapter start, an out-of-range start, and a second declaration after reading 460ms
+   ✓ declared start > keeps the declared start across remount and archive restore 711ms
+   ✓ hidden text stays hidden > never returns pre-start text from search or reread 425ms
+   ✓ hidden text stays hidden > refuses journal evidence that cites text before the start 456ms
+ ✓ tests/ssm-guard.test.ts (21 tests) 58ms
+ ✓ tests/review-closure.test.ts (5 tests) 3704ms
+   ✓ full-book review closes > signals when both material collections are complete, and only then 887ms
+   ✓ full-book review closes > refuses to save before every range page has been fetched 765ms
+   ✓ citation errors are actionable > lists the real offsets when a quote occurs more than once 684ms
+   ✓ citation errors are actionable > tells the model what a wrong start should be 691ms
+   ✓ citation errors are actionable > explains the episodeIds contract instead of a bare length error 675ms
+ ✓ tests/source-http.test.ts (13 tests) 99ms
+ ✓ tests/review-schema.test.ts (9 tests) 1590ms
+   ✓ bookfish_review: only begin takes a requestId > tells the model exactly what to send when begin has no requestId 543ms
+   ✓ bookfish_review: only begin takes a requestId > lets every non-begin action run without a requestId 537ms
+   ✓ bookfish_review: only begin takes a requestId > refuses to begin on an unfinished book even with a valid requestId 492ms
+ ✓ tests/predeploy-data-lifecycle.test.ts (7 tests) 4563ms
+   ✓ export and restore round trip > keeps books, progress, journal and reviews 533ms
+   ✓ export and restore round trip > rejects a tampered backup instead of half-installing it 385ms
+   ✓ deleting one book only touches its own data > keeps the other book and its progress, and cleans the story record when the store is present 792ms
+   ✓ deleting one book only touches its own data > cleans the story row for the removed book even with SSM off, without enabling SSM 812ms
+   ✓ clearing the shelf > removes books and history, then accepts a new import 595ms
+   ✓ clearing the shelf > clears story rows too when a story store exists, and records a cleanup failure instead of throwing 758ms
+   ✓ downgrade safety > a backup made with story data cannot be silently restored as if story did not exist 687ms
+ ✓ tests/habits.test.ts (10 tests) 5915ms
+   ✓ retires both legacy caps and leaves an unlimited chapter goal by default 644ms
+   ✓ counts complete chapters rather than segments, prevents auto offers at a goal and permits an explicit extra passage 549ms
+   ✓ recomputes the daily goal on the deployment date and after restart without advancing any progress 626ms
+   ✓ records a proportional rest atomically with a successful read and does not duplicate it on retry 549ms
+   ✓ finishes a scheduled rest on a real timer observation and allows a user to skip a later rest 620ms
+   ✓ records program stop as interrupted and never completes reading while the application is stopped 506ms
+   ✓ includes the rest history in a full backup and restores its source timing and chapter progress 781ms
+   ✓ commits neither reading progress nor a planned rest when the metadata write fails 457ms
+   ✓ refuses automatic chapter-limited reading for an unstructured long text rather than treating chunks as chapters 547ms
+   ✓ releases a completed manual opportunity without relying on host turn hooks, then stops at the goal after resting 636ms
+ ✓ tests/predeploy-ssm-isolation.test.ts (7 tests) 2776ms
+   ✓ 6.1 clean library with SSM off > runs the whole reading path without ever creating a story store 430ms
+   ✓ 6.1 clean library with SSM off > remounts and keeps the same records, still without a story store 422ms
+   ✓ 6.3 a broken story store must not block ordinary reading > ignores a corrupt story.sqlite while SSM is off 379ms
+   ✓ 6.3 a broken story store must not block ordinary reading > does not delete or rewrite an existing story file while SSM is off 384ms
+   ✓ 6.4 tool isolation > reports story lookups as disabled instead of pretending there is no memory 388ms
+   ✓ 6.5 long book stays on the legacy path while SSM is off > does not create story files for a 300+ segment book 336ms
+   ✓ 6.2 an existing story store survives untouched while SSM is off > leaves every story file byte-identical after a full reading pass 435ms
+ ✓ tests/review-invalidation-r2.test.ts (9 tests) 5341ms
+   ✓ full-book review snapshot invalidation (real handlers + storage) > completes normally when the snapshot never changes 689ms
+   ✓ full-book review snapshot invalidation (real handlers + storage) > rejects finish after the episode set changes mid-read 638ms
+   ✓ full-book review snapshot invalidation (real handlers + storage) > rejects further material pages once the snapshot is stale 597ms
+   ✓ full-book review snapshot invalidation (real handlers + storage) > rejects the old snapshot after the selected book switches 450ms
+   ✓ full-book review snapshot invalidation (real handlers + storage) > does not save anything after invalidation 544ms
+   ✓ full-book review snapshot invalidation (real handlers + storage) > a fresh request after invalidation saves version 1, not a duplicate 729ms
+   ✓ full-book review snapshot invalidation (real handlers + storage) > repeating an identical finish returns the saved version without a new one 598ms
+   ✓ full-book review snapshot invalidation (real handlers + storage) > a failed job cannot be finished afterwards 559ms
+   ✓ full-book review snapshot invalidation (real handlers + storage) > a saved review cannot be failed or overwritten 533ms
+ ✓ tests/reviews.test.ts (13 tests) 42573ms
+   ✓ full-book articles, evidence and immutable versions > rejects partial reading and remote cached prefixes or ongoing snapshots 317ms
+   ✓ full-book articles, evidence and immutable versions > requires all range and episode pages; malformed quotes never save an article 602ms
+   ✓ full-book articles, evidence and immutable versions > handles identical retries and preserves old versions when a new article is written 1067ms
+   ✓ full-book articles, evidence and immutable versions > records failures and requires explicit fresh request ids, retaining previous articles 934ms
+   ✓ full-book articles, evidence and immutable versions > invalidates pending jobs on pause, switching, remount and expiration 815ms
+   ✓ full-book articles, evidence and immutable versions > requires a coherent note snapshot and accepts later new versions without changing old ones 908ms
+   ✓ full-book articles, evidence and immutable versions > does not invent old moods or reasons when only legacy receipts exist 743ms
+   ✓ full-book articles, evidence and immutable versions > restores every article/version and rejects tampered quotes or version chains 744ms
+   ✓ full-book articles, evidence and immutable versions > migrates schema2 without fabricating jobs or articles and deletes articles with their book 796ms
+   ✓ full-book articles, evidence and immutable versions > rejects cross-book episodes, unknown jobs, invalid pages and concurrent jobs 699ms
+   ✓ full-book articles, evidence and immutable versions > does not save an article or complete its job when the atomic commit fails 330ms
+   ✓ one optional completion opportunity > waits for idle, emits once, does not retry a failed job and respects opt-out 619ms
+   ✓ launch review boundary > rejects a full review above the launch segment limit 34001ms
+ ✓ tests/txt-acquisition-round3-stream.test.ts (19 tests) 6025ms
+   ✓ third-round decoding boundaries > preserves the correct opening and reports partial for known mixed bytes near-head 1393ms
+   ✓ third-round decoding boundaries > preserves the correct opening and reports partial for known mixed bytes near-tail 1065ms
+   ✓ third-round decoding boundaries > preserves utf8 across the prefix and one-byte read boundaries 490ms
+   ✓ third-round decoding boundaries > preserves gb18030 across the prefix and one-byte read boundaries 500ms
+   ✓ third-round decoding boundaries > preserves utf16le across the prefix and one-byte read boundaries 903ms
+   ✓ third-round decoding boundaries > preserves utf16be across the prefix and one-byte read boundaries 858ms
+   ✓ third-round decoding boundaries > normalizes CRLF across a prefix boundary and EOF CR, trimming many whitespace blocks 509ms
+ ✓ tests/stream-import.test.ts (15 tests) 1547ms
+   ✓ keeps old progress for a duplicate streaming import and leaves a failed commit unchanged 536ms
+   ✓ cleans a late UTF-8 error after multiple input chunks and preserves the existing shelf 314ms
+ ✓ tests/novel-world.test.ts (2 tests) 822ms
+   ✓ World fetch-by-title integration > search → queue → complete imports exactly once through the existing library 455ms
+   ✓ World fetch-by-title integration > does not expose a fetch that fails its integrity gate 367ms
+ ✓ tests/storage.test.ts (10 tests) 4140ms
+   ✓ imports multi-megabyte UTF-8 across chunk boundaries; confirmations rewrite only metadata 969ms
+   ✓ round-trips a split archive, progress and text into an empty library 1041ms
+   ✓ migrates an inline book without losing its key and fails closed on a corrupted blob 305ms
+   ✓ rejects a truncated archive and leaves the empty library usable 495ms
+ ✓ tests/import-job.test.ts (9 tests) 4665ms
+   ✓ keeps the event loop responsive and commits the exact legacy book after background validation 1049ms
+   ✓ cancels a running parser before commit and permits another upload after cleanup 724ms
+   ✓ fails closed on late invalid UTF-8 and keeps the original shelf 501ms
+   ✓ uses current library state at commit and preserves duplicate progress 706ms
+   ✓ stops the worker before library shutdown and never commits a late result 314ms
+   ✓ does not install an imported blob when the metadata commit fails 694ms
+ ✓ tests/txt-acquisition-round4.test.ts (17 tests | 1 skipped) 199ms
+ ✓ tests/txt-acquisition-privacy.test.ts (5 tests) 438ms
+   ✓ acquisition privacy and original retention > never exposes signed page URLs in task receipts and requires rediscovery after restart 335ms
+ ✓ tests/epub.test.ts (4 tests) 54ms
+ ✓ tests/selection-world.test.ts (1 test) 615ms
+   ✓ autonomous selection through actual World tools > exposes controlled tools, queues the imported book key, and blocks the next search until it is read 615ms
+ ✓ tests/storage-location.test.ts (4 tests) 1164ms
+   ✓ configurable full-text storage folder > migrates existing bodies while metadata and progress stay in the data folder 550ms
+   ✓ configurable full-text storage folder > saves an absolute folder through the World settings panel 318ms
+ ✓ tests/history.test.ts (7 tests) 2939ms
+   ✓ keeps tasks and journal outside metadata and indexes exact record relationships after restart 338ms
+   ✓ keeps both progress and journal at the old snapshot if metadata commit fails after SQL commit, including remount recovery 346ms
+   ✓ restores a SQLite history archive into an empty library and preserves revisions, then deletes only the chosen book history 537ms
+   ✓ invalidates a backed-up pending task durably when restoring a read-only SQLite snapshot 634ms
+   ✓ keeps an empty restore target usable after metadata commit failure and reclaims the failed future version 615ms
+ ✓ tests/serial-review.test.ts (1 test) 447ms
+   ✓ serial completion and historical review snapshots > allows a full-book review only for a finished, fully cached serial and keeps it after a later append 446ms
+ ✓ tests/novel-probe.test.ts (7 tests) 2422ms
+   ✓ per-source page probe > fails closed when the source page cannot be read 1202ms
+   ✓ per-source page probe > does not silently accept a next page whose fetch fails 1202ms
+ ✓ tests/serial-diff.test.ts (5 tests) 7ms
+ ✓ tests/novel-match.test.ts (12 tests) 6ms
+ ✓ tests/routine.test.ts (3 tests) 512ms
+ ✓ tests/txt-acquisition-tool.test.ts (4 tests) 83ms
+ ✓ tests/serial-scheduler.test.ts (4 tests) 1595ms
+   ✓ serial check scheduling > waits for startup jitter, then checks a due subscription once 398ms
+   ✓ serial check scheduling > does not check while the global network switch is off 375ms
+   ✓ serial check scheduling > does not replay missed offline intervals after restart 403ms
+   ✓ serial check scheduling > does not schedule a disabled subscription 417ms
+ ✓ tests/closeout-bookfish4.test.ts (2 tests) 1008ms
+   ✓ BOOKFISH4 > is produced by the real writer from a real serial book 419ms
+   ✓ BOOKFISH4 > restores the serial book into an empty library with the same key 588ms
+ ✓ tests/story-e2e.test.ts (1 test) 3199ms
+   ✓ offline story index end-to-end > runs capture -> publish -> overview/evidence/entity with omissions and conflicts 3199ms
+ ✓ tests/txt-acquisition-quality.test.ts (8 tests) 1134ms
+ ✓ tests/scope-r2.test.ts (3 tests) 471ms
+   ✓ feature scope > with story memory off, no story store or sidecar is created 467ms
+ ✓ tests/novel-runtime-update.test.ts (2 tests) 52ms
+ ✓ tests/cover.test.ts (4 tests) 4ms
+ ✓ tests/txt-acquisition-pinned-round3.test.ts (4 tests) 11ms
+stderr | tests/pdf.test.ts > PDF import > rejects PDFs without a text layer so scanned books never import empty
+Warning: Indexing all PDF objects
+
+stderr | tests/pdf.test.ts > PDF import > rejects files that are not PDF documents
+Warning: Indexing all PDF objects
+
+ ✓ tests/pdf.test.ts (4 tests) 168ms
+ ✓ tests/webui/mood.test.ts (15 tests) 4ms
+ ✓ tests/webui/offline-panel.test.ts (1 test) 10ms
+ ✓ tests/import-metadata.test.ts (1 test) 4ms
+ ✓ tests/story-scale.test.ts (2 tests) 26352ms
+   ✓ SSM scale isolation > drives a 350+ segment isolated World through completion and story capture 26005ms
+   ✓ SSM scale isolation > pages a 2000+ segment book without reading the whole text into memory 346ms
+ ✓ tests/zip-parser-security.test.ts (3 tests) 4ms
+
+ Test Files  82 passed (82)
+      Tests  907 passed | 1 skipped (908)
+   Start at  20:25:03
+   Duration  118.48s (transform 2.73s, setup 0ms, collect 28.06s, tests 350.37s, environment 4.89s, prepare 8.36s)
+

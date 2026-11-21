@@ -1,0 +1,10 @@
+{"phase":"recover","result":"completed_with_warning","books":1,"confirmedChars":0,"downloads":1}
+raw forcedExit=23 recovery=PASS
+{"phase":"recover","result":"completed_with_warning","books":1,"confirmedChars":0,"downloads":1}
+prepared forcedExit=23 recovery=PASS
+{"phase":"recover","result":"completed_with_warning","books":1,"confirmedChars":0,"downloads":1}
+metadata forcedExit=23 recovery=PASS
+{"phase":"recover","result":"completed_with_warning","books":1,"confirmedChars":0,"downloads":1}
+book forcedExit=23 recovery=PASS
+{"phase":"recover","result":"completed_with_warning","books":1,"confirmedChars":0,"downloads":1}
+task forcedExit=23 recovery=PASS

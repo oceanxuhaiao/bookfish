@@ -1,0 +1,19 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/txt-acquisition-round4-integration.test.ts (21 tests) 4484ms
+   ✓ round4 authenticated consumed bytes > preserves an already committed unread book when cancellation arrives before the shelf receipt 478ms
+   ✓ round4 authenticated consumed bytes > refuses a canonical-file replacement before the actual index consumes it 375ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot replace between verification and decoder open 402ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot remove between verification and decoder open 372ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through cancel and preserves no false shelf result 410ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through abandon and preserves no false shelf result 358ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through autonomous-off and preserves no false shelf result 359ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through network-off and preserves no false shelf result 309ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > revokes a browser lease after Selection cancellation without using a production guard stub 344ms
+
+ Test Files  1 passed (1)
+      Tests  21 passed (21)
+   Start at  20:22:51
+   Duration  5.78s (transform 479ms, setup 0ms, collect 926ms, tests 4.48s, environment 0ms, prepare 113ms)
+

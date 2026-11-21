@@ -1,0 +1,30 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/txt-acquisition-tool.test.ts (4 tests) 81ms
+ ✓ tests/webui/import-method.test.ts (1 test) 313ms
+   ✓ groups the three import methods in one selector and marks experiments 312ms
+ ✓ tests/txt-acquisition-round4-integration.test.ts (12 tests) 3977ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot replace between verification and decoder open 465ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot remove between verification and decoder open 404ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through cancel and preserves no false shelf result 489ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through abandon and preserves no false shelf result 420ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through autonomous-off and preserves no false shelf result 445ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through network-off and preserves no false shelf result 448ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through stop and preserves no false shelf result 393ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > revokes a browser lease after Selection cancellation without using a production guard stub 437ms
+ ✓ tests/world.test.ts (10 tests) 4146ms
+   ✓ Bookfish library World > drives two paced opportunities through actual World hooks, timer, panel and tool handlers 1046ms
+   ✓ Bookfish library World > reports stopped before mount and after stop; mounting does not enable automatic reading 308ms
+   ✓ Bookfish library World > mounts and closes the optional story sidecar without enabling it by default 397ms
+   ✓ Bookfish library World > captures a story fact through the optional tool without advancing reading 586ms
+   ✓ Bookfish library World > keeps the model-facing status compact while the panel keeps the full shape 350ms
+   ✓ Bookfish library World > rolls back state when event persistence fails, allowing a clean subsequent mount 376ms
+   ✓ Bookfish library World > rejects an aborted confirmation and serializes concurrent retries into one confirmed range 409ms
+   ✓ Bookfish library World > exposes the declared reading start to the panel only, and rejects an invalid start 396ms
+
+ Test Files  4 passed (4)
+      Tests  27 passed (27)
+   Start at  18:22:56
+   Duration  6.74s (transform 2.01s, setup 0ms, collect 4.97s, tests 8.52s, environment 1.14s, prepare 453ms)
+

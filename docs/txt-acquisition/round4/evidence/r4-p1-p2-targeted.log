@@ -1,0 +1,43 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/novel-match.test.ts (12 tests) 6ms
+ ✓ tests/txt-acquisition-round4.test.ts (17 tests | 1 skipped) 197ms
+ ✓ tests/txt-acquisition-selection.test.ts (14 tests) 3963ms
+   ✓ acquisition results entering autonomous selection > keeps an uncertain identity out of the queue through two fresh coordinator starts 382ms
+   ✓ acquisition results entering autonomous selection > does not revive cancelled with late or duplicate external imports 311ms
+   ✓ acquisition results entering autonomous selection > propagates abandon and cancel to the associated TXT intent before any late callback 333ms
+   ✓ acquisition results entering autonomous selection > queues a matching book exactly once and never claims reading progress 315ms
+   ✓ acquisition results entering autonomous selection > ignores manual imports and cancelled intents 303ms
+ ❯ tests/txt-acquisition-round4-integration.test.ts (17 tests | 1 failed) 4664ms
+   ✓ round4 controlled raw races > serializes dropRaw with a new same-hash publication 352ms
+   ✓ round4 authenticated consumed bytes > refuses a canonical-file replacement before the actual index consumes it 458ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot replace between verification and decoder open 455ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot remove between verification and decoder open 470ms
+   × round4 standalone Node permission revocation > aborts pending-headers without waiting for another data chunk 123ms
+     → expected 'timeout' to be 'policy_blocked' // Object.is equality
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through cancel and preserves no false shelf result 489ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through abandon and preserves no false shelf result 440ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through autonomous-off and preserves no false shelf result 455ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through network-off and preserves no false shelf result 480ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through stop and preserves no false shelf result 334ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > revokes a browser lease after Selection cancellation without using a production guard stub 359ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/txt-acquisition-round4-integration.test.ts > round4 standalone Node permission revocation > aborts pending-headers without waiting for another data chunk
+AssertionError: expected 'timeout' to be 'policy_blocked' // Object.is equality
+
+Expected: "policy_blocked"
+Received: "timeout"
+
+ ❯ tests/txt-acquisition-round4-integration.test.ts:66:77
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  1 failed | 58 passed | 1 skipped (60)
+   Start at  18:27:36
+   Duration  6.83s (transform 771ms, setup 0ms, collect 1.95s, tests 8.83s, environment 1ms, prepare 463ms)
+

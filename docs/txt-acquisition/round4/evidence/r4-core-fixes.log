@@ -1,0 +1,31 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/novel-match.test.ts (5 tests) 5ms
+ ✓ tests/txt-acquisition-round4.test.ts (8 tests) 85ms
+ ✓ tests/txt-acquisition-download.test.ts (10 tests) 237ms
+ ✓ tests/txt-acquisition-selection.test.ts (14 tests) 3692ms
+   ✓ acquisition results entering autonomous selection > keeps an uncertain identity out of the queue through two fresh coordinator starts 337ms
+   ✓ acquisition results entering autonomous selection > does not revive cancelled with late or duplicate external imports 302ms
+ ✓ tests/txt-acquisition-round3.test.ts (22 tests) 8402ms
+   ✓ third-round original integrity > preserves the retained original and existing shelf entry when repair fails 630ms
+   ✓ third-round original integrity > finishes a pending raw commit on retry without requiring a World restart 441ms
+   ✓ third-round original integrity > shares raw bytes safely across simultaneous tasks and duplicate shelf imports 726ms
+   ✓ third-round original integrity > does not let a retained retry consume a 101st active slot 1124ms
+   ✓ third-round original integrity > reports read permission failure as storage, preserving the original digest 387ms
+   ✓ third-round original integrity > rejects a symlink identity before opening its target (filesystem fault fixture) 360ms
+   ✓ third-round original integrity > does not mark completion or queue when cancelled just before shelf metadata commits 456ms
+   ✓ third-round original integrity > retains a retryable original when shelf persistence fails, preserving earlier shelf data 406ms
+   ✓ third-round original integrity > retries idempotently if the task receipt fails after the shelf commit 390ms
+   ✓ third-round original integrity > recovers a raw commit interrupted before linking without a second download 377ms
+   ✓ third-round original integrity > replays only queue integration after restart, preserving one unread shelf item 346ms
+   ✓ third-round original integrity > keeps persistent pending success when writing the queue receipt fails 313ms
+   ✓ third-round original integrity > World stop during async queue integration leaves a replayable receipt 314ms
+   ✓ third-round original integrity > refuses byte mutation without importing or changing original digest 319ms
+   ✓ third-round original integrity > refuses truncate mutation without importing or changing original digest 301ms
+
+ Test Files  5 passed (5)
+      Tests  59 passed (59)
+   Start at  18:18:39
+   Duration  10.61s (transform 914ms, setup 0ms, collect 2.45s, tests 12.42s, environment 2ms, prepare 602ms)
+

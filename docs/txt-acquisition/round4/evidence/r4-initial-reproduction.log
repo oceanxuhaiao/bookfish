@@ -1,0 +1,140 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ❯ tests/txt-acquisition-round4.test.ts (8 tests | 7 failed) 72ms
+   × round4 staging boundaries > refuses redirected raw before any maintenance touches the external sentinel 25ms
+     → expected false to be true // Object.is equality
+   × round4 staging boundaries > refuses redirected work before any maintenance touches the external sentinel 9ms
+     → expected false to be true // Object.is equality
+   × round4 staging boundaries > rejects replacement after commitRaw hashing instead of publishing different bytes 20ms
+     → promise resolved "'raw\c2e49d89b5831b64ad0a4e8bedfb8bbdf…'" instead of rejecting
+   × round4 metadata identity > does not label differing metadata exact: 海风 / 海风传 7ms
+     → expected 'exact' not to be 'exact' // Object.is equality
+   × round4 metadata identity > does not label differing metadata exact: 红楼梦 / 红楼梦续 1ms
+     → expected 'exact' not to be 'exact' // Object.is equality
+   × round4 metadata identity > does not label differing metadata exact: 海风 / 海风 1ms
+     → expected 'exact' not to be 'exact' // Object.is equality
+   × round4 metadata identity > does not label differing metadata exact: 海风 / 海风（修订版） 1ms
+     → expected 'exact' not to be 'exact' // Object.is equality
+ ❯ tests/txt-acquisition-selection.test.ts (14 tests | 5 failed) 3354ms
+   × acquisition results entering autonomous selection > keeps an uncertain identity out of the queue through two fresh coordinator starts 248ms
+     → expected true to be false // Object.is equality
+   × acquisition results entering autonomous selection > does not revive abandoned with late or duplicate external imports 262ms
+     → expected 'reading' to be 'abandoned' // Object.is equality
+   × acquisition results entering autonomous selection > does not revive completed with late or duplicate external imports 246ms
+     → expected 'reading' to be 'completed' // Object.is equality
+   × acquisition results entering autonomous selection > does not revive failed with late or duplicate external imports 239ms
+     → expected 'reading' to be 'failed' // Object.is equality
+   × acquisition results entering autonomous selection > propagates abandon and cancel to the associated TXT intent before any late callback 246ms
+     → expected [] to deeply equal [ …(2) ]
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 12 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/txt-acquisition-round4.test.ts > round4 staging boundaries > refuses redirected raw before any maintenance touches the external sentinel
+ FAIL  tests/txt-acquisition-round4.test.ts > round4 staging boundaries > refuses redirected work before any maintenance touches the external sentinel
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/txt-acquisition-round4.test.ts:13:257
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/12]⎯
+
+ FAIL  tests/txt-acquisition-round4.test.ts > round4 staging boundaries > rejects replacement after commitRaw hashing instead of publishing different bytes
+AssertionError: promise resolved "'raw\c2e49d89b5831b64ad0a4e8bedfb8bbdf…'" instead of rejecting
+
+- Expected: 
+[Error: rejected promise]
+
++ Received: 
+"raw\\c2e49d89b5831b64ad0a4e8bedfb8bbdf5be8b8c1332b055b003fd712458da30.txt"
+
+ ❯ tests/txt-acquisition-round4.test.ts:16:542
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/12]⎯
+
+ FAIL  tests/txt-acquisition-round4.test.ts > round4 metadata identity > does not label differing metadata exact: 海风 / 海风传
+ FAIL  tests/txt-acquisition-round4.test.ts > round4 metadata identity > does not label differing metadata exact: 红楼梦 / 红楼梦续
+ FAIL  tests/txt-acquisition-round4.test.ts > round4 metadata identity > does not label differing metadata exact: 海风 / 海风
+ FAIL  tests/txt-acquisition-round4.test.ts > round4 metadata identity > does not label differing metadata exact: 海风 / 海风（修订版）
+AssertionError: expected 'exact' not to be 'exact' // Object.is equality
+ ❯ tests/txt-acquisition-round4.test.ts:21:245
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/12]⎯
+
+ FAIL  tests/txt-acquisition-selection.test.ts > acquisition results entering autonomous selection > keeps an uncertain identity out of the queue through two fresh coordinator starts
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/txt-acquisition-selection.test.ts:72:47
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/12]⎯
+
+ FAIL  tests/txt-acquisition-selection.test.ts > acquisition results entering autonomous selection > does not revive abandoned with late or duplicate external imports
+AssertionError: expected 'reading' to be 'abandoned' // Object.is equality
+
+Expected: "abandoned"
+Received: "reading"
+
+ ❯ tests/txt-acquisition-selection.test.ts:77:192
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/12]⎯
+
+ FAIL  tests/txt-acquisition-selection.test.ts > acquisition results entering autonomous selection > does not revive completed with late or duplicate external imports
+AssertionError: expected 'reading' to be 'completed' // Object.is equality
+
+Expected: "completed"
+Received: "reading"
+
+ ❯ tests/txt-acquisition-selection.test.ts:77:192
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/12]⎯
+
+ FAIL  tests/txt-acquisition-selection.test.ts > acquisition results entering autonomous selection > does not revive failed with late or duplicate external imports
+AssertionError: expected 'reading' to be 'failed' // Object.is equality
+
+Expected: "failed"
+Received: "reading"
+
+ ❯ tests/txt-acquisition-selection.test.ts:77:192
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/12]⎯
+
+ FAIL  tests/txt-acquisition-selection.test.ts > acquisition results entering autonomous selection > propagates abandon and cancel to the associated TXT intent before any late callback
+AssertionError: expected [] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+- Array [
+-   "e6b752d4-5268-49aa-acfa-50421b7781f4",
+-   "9ad7e6ea-a87e-4d4f-8a0a-1e54fff96a6b",
+- ]
++ Array []
+
+ ❯ tests/txt-acquisition-selection.test.ts:81:90
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/12]⎯
+
+ Test Files  2 failed (2)
+      Tests  12 failed | 10 passed (22)
+   Start at  18:11:18
+   Duration  6.19s (transform 579ms, setup 0ms, collect 1.19s, tests 3.43s, environment 1ms, prepare 388ms)
+
