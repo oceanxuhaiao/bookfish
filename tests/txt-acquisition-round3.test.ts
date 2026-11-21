@@ -7,8 +7,10 @@ import { BOOKFISH_DEFAULTS } from '../src/config.ts';
 import { TxtAcquisition } from '../src/txt-acquisition/acquisition.ts';
 import { AcquisitionStaging } from '../src/txt-acquisition/staging.ts';
 import * as disk from 'node:fs/promises';
+import * as syncDisk from 'node:fs';
 import { randomUUID } from 'node:crypto';
 vi.mock('node:fs/promises', async importOriginal => ({ ...await importOriginal<typeof import('node:fs/promises')>() }));
+vi.mock('node:fs', async importOriginal => ({ ...await importOriginal<typeof import('node:fs')>() }));
 let dir: string, library: Library;
 const prose = '她把信折好放进抽屉，海风从窗口吹进来。'.repeat(80);
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'bf-r3-')); library = new Library({ dataDir: dir }); library.open(); });
@@ -106,7 +108,7 @@ describe('third-round original integrity', () => {
   it('distinguishes deletion permissions from quota pressure and nothing to do', async () => {
     const staging = new AcquisitionStaging(join(dir, 'staging')); await staging.init(); const hash = 'a'.repeat(64); writeFileSync(join(staging.rawDir, hash + '.txt'), 'original');
     expect(await staging.enforceQuota(0, new Set([hash]))).toMatchObject({ status: 'over_quota_referenced', removed: [] });
-    vi.spyOn(disk, 'rm').mockRejectedValueOnce(Object.assign(Error('denied'), { code: 'EACCES' }));
+    vi.spyOn(syncDisk, 'rmSync').mockImplementationOnce(()=>{throw Object.assign(Error('denied'), { code: 'EACCES' });});
     expect(await staging.enforceQuota(0, new Set())).toMatchObject({ status: 'permission_denied', removed: [], errorCode: 'EACCES' }); expect(existsSync(join(staging.rawDir, hash + '.txt'))).toBe(true);
   });
   it('rechecks live references before deleting either extension of the same hash', async () => {

@@ -9,7 +9,7 @@ import { existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import type { BookfishConfigSection } from '../config.ts';
 import type { Library } from '../library.ts';
-import { BestEffortRejected, prepareFileBestEffort, type BestEffortDecoded } from '../stream-import.ts';
+import { BestEffortRejected, AuthenticatedInputError, prepareFileBestEffort, type BestEffortDecoded } from '../stream-import.ts';
 import { BrowserClient, BrowserError } from './browser-client.ts';
 import { BridgeError, BrowserBridge } from './bridge.ts';
 import { DownloadError, downloadFile } from './download.ts';
@@ -29,6 +29,7 @@ export interface PageLoadResult { html: string; close: () => Promise<void> }
 export type PageLoader = (url: string, options: { allowNetwork: boolean; port: number; resolve?: HostResolver; signal?: AbortSignal }) => Promise<PageLoadResult>;
 
 export interface AcquisitionOptions {
+  onTaskCreated?: (task:AcquisitionTask)=>void;
   dataDir: string;
   library: Library;
   cfg: () => BookfishConfigSection;
@@ -113,11 +114,14 @@ export class TxtAcquisition {
   /** Candidate URLs stay in memory only; records carry their digest. */
   private readonly urls = new Map<string, { taskId: string; url: string }>();
   private readonly aborts = new Map<string, AbortController>();
+  private readonly onTaskCreated?:AcquisitionOptions['onTaskCreated'];
+  private policyTimer?:ReturnType<typeof setInterval>;
 
   constructor(options: AcquisitionOptions) {
     this.root = join(options.dataDir, 'bookfish', 'txt-acquisition');
     this.staging = new AcquisitionStaging(this.root);
-    this.records = new AcquisitionRecords(this.root);
+    this.records = new AcquisitionRecords(this.root,initialize=>initialize?this.staging.initializeDirectories():this.staging.assertSafeDirectories());
+    this.onTaskCreated=options.onTaskCreated;
     this.library = options.library;
     this.cfg = options.cfg;
     this.now = options.now ?? Date.now;
@@ -152,6 +156,7 @@ export class TxtAcquisition {
       throw new OriginalFileError('storage_unavailable', this.initializationError);
     }
     // A busy port must not stop reading; the failure surfaces on the first task.
+    this.policyTimer=setInterval(()=>this.onConfigChanged(),100);this.policyTimer.unref?.();
     try { await this.ensureBridge(); } catch { /* reported by discover or import */ }
   }
 
@@ -257,6 +262,11 @@ export class TxtAcquisition {
     }, { status: 'failed_recoverable', note: 'cancelled' }));
   }
 
+  cancelByIntentId(intentId:string):void{for(const task of this.records.list())if(task.intentId===intentId&&!isTerminal(task.status))this.cancel(task.id);}
+  onConfigChanged():void{
+    const cfg=this.cfg();for(const [id,abort] of this.aborts){const task=this.records.get(id);if(!cfg.allowNetwork||!cfg.txtAcquisitionEnabled||(task?.origin==='autonomous'&&!cfg.autonomousAcquisition))abort.abort(new Error('Acquisition permission revoked'));}
+  }
+
   private view(task: AcquisitionTask): TaskView {
     const candidates = task.candidates.map((candidate) => {
       const live = this.urls.get(candidate.id);
@@ -340,7 +350,9 @@ export class TxtAcquisition {
       attempts: { downloads: 0, imports: 0, repairs: 0 },
       history: [{ at: now, status: 'queued' }],
     };
-    return this.records.put(task);
+    const created=this.records.put(task);
+    try{this.onTaskCreated?.(created);}catch(error){this.cancel(created.id);throw error;}
+    return this.records.get(created.id)!;
   }
 
   private addCandidates(taskId: string, links: DiscoveredLink[]): AcquisitionTask {
@@ -381,6 +393,7 @@ export class TxtAcquisition {
 
   /** Scan a page inside this task; re-running it replaces the stale candidate list. */
   private async runDiscovery(taskId: string, pageUrl: string): Promise<TaskView> {
+    if(this.records.get(taskId)?.failure?.code==='cancelled')return this.status(taskId) as TaskView;
     const cfg = this.cfg();
     if (this.aborts.has(taskId)) throw new AcquisitionFailure('invalid_input', 'This task is already active');
     const controller = new AbortController(); this.aborts.set(taskId, controller);
@@ -475,6 +488,7 @@ export class TxtAcquisition {
 
   /** download -> validate -> repair -> import, with the original file kept on any trouble. */
   private async runPipeline(taskId: string, url: string, filename: string, declared: { title?: string; author?: string }): Promise<TaskView> {
+    if(this.records.get(taskId)?.failure?.code==='cancelled')return this.status(taskId) as TaskView;
     if (this.aborts.has(taskId)) throw new AcquisitionFailure('invalid_input', 'This task already has a transfer in progress');
     const cfg = this.cfg();
     const task = this.records.get(taskId)!;
@@ -509,25 +523,29 @@ export class TxtAcquisition {
             networkAllowed: () => this.cfg().allowNetwork,
           });
       downloadedPart = downloaded.partPath;
+      this.onConfigChanged();
       controller.signal.throwIfAborted();
       // Write intent before moving bytes. A crash on either side of commitRaw is recoverable.
-      this.records.update(taskId, draft => { draft.file = {
+      const pendingFile = {
         sha256: downloaded.sha256, bytes: downloaded.bytes, filename,
         path: join('raw', downloaded.sha256 + (/\.md$|\.markdown$/iu.test(filename) ? '.md' : '.txt')),
         pendingPart: relative(this.root, downloaded.partPath), retained: true,
         ...(downloaded.contentType ? { contentType: downloaded.contentType } : {}),
-      }; });
-      rawRelative = await this.staging.commitRaw(downloaded.partPath, downloaded.sha256, /\.md$|\.markdown$/iu.test(filename) ? 'md' : 'txt');
+      };
+      await this.staging.withRawLock(()=>{this.onConfigChanged();controller.signal.throwIfAborted();this.records.update(taskId,draft=>{draft.file=pendingFile;});});
+      rawRelative = await this.staging.commitRaw(downloaded.partPath, downloaded.sha256, /\.md$|\.markdown$/iu.test(filename) ? 'md' : 'txt',(path,phase)=>{
+      this.onConfigChanged();controller.signal.throwIfAborted();
+      if(phase==='pending')return;
       this.records.update(taskId, (draft) => {
         draft.file = {
           sha256: downloaded.sha256,
           bytes: downloaded.bytes,
           filename,
-          path: rawRelative,
+          path,
           retained: true,
           ...(downloaded.contentType ? { contentType: downloaded.contentType } : {}),
         };
-      });
+      });});
       this.setStatus(taskId, 'validating');
       controller.signal.throwIfAborted();
       return await this.finishImport(taskId, rawRelative, filename, declared);
@@ -557,7 +575,7 @@ export class TxtAcquisition {
     const absolute = await this.staging.verifiedOriginal({ ...task.file!, path: rawRelative });
     let decoded: BestEffortDecoded;
     try {
-      decoded = prepareFileBestEffort(absolute, 16 * 1024, undefined, forced);
+      this.staging.assertSafeDirectories();decoded = prepareFileBestEffort(absolute, 16 * 1024, undefined, forced,{sha256:task.file!.sha256,bytes:task.file!.bytes});
     } catch (error) {
       if (error instanceof BestEffortRejected) {
         this.records.update(taskId, (draft) => { draft.rejection = { code: error.code, message: error.message }; });
@@ -645,8 +663,10 @@ export class TxtAcquisition {
 
   private async dropRaw(relative?: string): Promise<void> {
     if (!relative) return;
+    return this.staging.withRawLock(async()=>{
     if (this.records.list().some(task => task.file?.path === relative && task.file.retained)) return;
     await this.staging.removeIfPresent(this.staging.resolveInside(relative));
+    });
   }
 
   /** Re-run the import from the retained original file; a new revision is a new book version. */
@@ -720,7 +740,7 @@ export class TxtAcquisition {
   }
 
   private classifyFailure(taskId: string, error: unknown): void {
-    if (error instanceof OriginalFileError) { this.fail(taskId, error.code, error.message); return; }
+    if (error instanceof OriginalFileError || error instanceof AuthenticatedInputError) { this.fail(taskId, error.code, error.message); return; }
     if (error instanceof AcquisitionFailure) { this.fail(taskId, error.code, error.message); return; }
     if (error instanceof BestEffortRejected) { this.fail(taskId, error.code, error.message); return; }
     if (error instanceof DownloadError) { this.fail(taskId, error.code, error.message); return; }
@@ -775,6 +795,7 @@ export class TxtAcquisition {
   /** Release the loopback port when the world stops. */
   async stop(): Promise<void> {
     this.stopped = true;
+    if(this.policyTimer)clearInterval(this.policyTimer);this.policyTimer=undefined;
     for (const abort of this.aborts.values()) abort.abort();
     const bridge = this.bridge;
     this.bridge = undefined;

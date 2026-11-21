@@ -12,11 +12,12 @@ export class AcquisitionRecords {
   private loaded = false;
   readonly file: string;
 
-  constructor(private readonly dir: string) {
+  constructor(private readonly dir: string,private readonly guard?:(initialize?:boolean)=>void) {
     this.file = join(dir, 'tasks.json');
   }
 
   load(now = Date.now()): void {
+    this.guard?.(true);
     mkdirSync(this.dir, { recursive: true });
     if (existsSync(this.file)) {
       try {
@@ -36,6 +37,7 @@ export class AcquisitionRecords {
   }
 
   save(): void {
+    this.guard?.();
     for (const task of this.state.tasks) {
       if (task.pageUrl) {
         try { const source = sourceReference(task.pageUrl); task.pageUrlHash ??= source.sha256; task.requiresRediscovery ||= source.requiresRediscovery; task.pageUrl = source.url; }

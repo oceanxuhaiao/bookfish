@@ -4,7 +4,7 @@
  * binary, login wall) from the many imperfections that are worth reporting and
  * reading anyway.
  */
-import { normalizeIdentity } from '../novel-match.ts';
+import { normalizeTitle, normalizeAuthor } from '../novel-match.ts';
 import type { DetectedEncoding, QualityIssue, QualityReport } from './types.ts';
 
 /** Below this size the copy is flagged for review, never rejected solely for length. */
@@ -78,14 +78,14 @@ function chapterLines(text: string): string[] {
 }
 
 function identityMatch(wanted?: { title?: string; author?: string }, declared?: { title?: string; author?: string }): IdentityMatch {
-  const wantedTitle = normalizeIdentity(wanted?.title ?? '');
-  const declaredTitle = normalizeIdentity(declared?.title ?? '');
+  const wantedTitle = normalizeTitle(wanted?.title ?? '');
+  const declaredTitle = normalizeTitle(declared?.title ?? '');
   if (!wantedTitle || !declaredTitle) return 'unknown';
-  const titleOk = wantedTitle === declaredTitle || wantedTitle.includes(declaredTitle) || declaredTitle.includes(wantedTitle);
-  const wantedAuthor = normalizeIdentity(wanted?.author ?? '');
-  const declaredAuthor = normalizeIdentity(declared?.author ?? '');
+  const titleOk = wantedTitle === declaredTitle;
+  const wantedAuthor = normalizeAuthor(wanted?.author ?? '');
+  const declaredAuthor = normalizeAuthor(declared?.author ?? '');
   if (!wantedAuthor || !declaredAuthor) return titleOk ? 'partial' : 'unknown';
-  const authorOk = wantedAuthor === declaredAuthor || wantedAuthor.includes(declaredAuthor) || declaredAuthor.includes(wantedAuthor);
+  const authorOk = wantedAuthor === declaredAuthor;
   return titleOk && authorOk ? 'exact' : 'partial';
 }
 

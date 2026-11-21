@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupCandidatesByBook, matchCandidate, normalizeIdentity, NovelMatchError, type NovelSearchCandidate } from '../src/novel-match.ts';
+import { groupCandidatesByBook, matchCandidate, normalizeIdentity, normalizeTitle,normalizeAuthor,labelCandidate, NovelMatchError, type NovelSearchCandidate } from '../src/novel-match.ts';
 
 function candidate(title: string, author: string, url: string, source = '笔趣阁365'): NovelSearchCandidate {
   return {
@@ -16,6 +16,12 @@ const results: NovelSearchCandidate[] = [
 ];
 
 describe('novel candidate matching', () => {
+  it.each([['海风','海风传','小鱼','小鱼'],['海风','海风（修订版）','小鱼','小鱼'],['海风','海风','鲁迅','鲁迅传'],['海风','海风','小鱼',''],['海风','海风','鲁迅','周树人'],['海风','海风','小鱼','小鱼（译者：某某）']])('refuses incomplete or different exact identities %s/%s', (title,other,author,otherAuthor)=>{
+    expect(()=>matchCandidate([candidate(other,otherAuthor,'https://example.test/')],{title,author})).toThrow();expect(labelCandidate(candidate(other,otherAuthor,'https://example.test/'),{title,author})).not.toBe('exact');
+  });
+  it('normalizes presentation while preserving editions and using only explicit author aliases',()=>{
+    expect(normalizeTitle(' 《ＡＢＣ 海风》 ')).toBe(normalizeTitle('abc海风'));expect(normalizeTitle('海风（修订版）')).not.toBe(normalizeTitle('海风'));expect(normalizeAuthor('曹雪芹（清）')).toBe('曹雪芹');expect(normalizeAuthor('某作者（清）')).not.toBe('某作者');expect(labelCandidate(candidate('海风','小鱼','https://example.test/'),{title:'海风'})).toBe('title');
+  });
   it('normalizes punctuation and dynasty suffixes', () => {
     expect(normalizeIdentity('《西游记》')).toBe('西游记');
     expect(normalizeIdentity('吴承恩（明）')).toBe('吴承恩');

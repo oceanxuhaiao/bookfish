@@ -79,10 +79,12 @@ export class BookfishWorld implements World {
       onTaskTerminal: (task) => this.selection?.onTaskTerminal(task),
     });
     this.selection = new SelectionCoordinator({ library: this.library, novelFetches: this.novelFetches,
-      scheduler: this.scheduler, cfg: () => this.opts.cfg, timezone: opts.timezone });
+      scheduler: this.scheduler, cfg: () => this.opts.cfg, timezone: opts.timezone,
+      cancelExternal:id=>this.txtAcquisition?.cancelByIntentId(id),isExternalTask:id=>{try{return!!this.txtAcquisition?.records.get(id);}catch{return true;}} });
     // Browser-assisted file acquisition: an independent route into the same Library.
     // It never opens a second shelf and never queues reading on its own.
     this.txtAcquisition = new TxtAcquisition({ dataDir: opts.dataDir, library: this.library, cfg: () => this.opts.cfg,
+      onTaskCreated:task=>this.selection.onExternalTaskCreated(task),
       onImported: (task, identity) => this.selection?.onExternalImport(task, identity) });
   }
   private sourceSignal(signal?: AbortSignal): AbortSignal {
@@ -368,7 +370,7 @@ export class BookfishWorld implements World {
         }
         if(panel==='settings'){
           if(method==='get'&&args.length===0)return {config:{...this.opts.cfg},timezone:this.opts.timezone,storage:this.library.textStoreStatus()};
-          if(method==='save'&&args.length===1){const patch=validateSettings(args[0]);if(patch.textStoreDir!==undefined)patch.textStoreDir=assertWritableTextStoreDir(patch.textStoreDir);if(!this.opts.persist)throw Error('Host settings persistence unavailable');this.opts.persist(patch);this.selection.onConfigChanged();return {config:{...this.opts.cfg},timezone:this.opts.timezone,storage:this.library.textStoreStatus()};}
+          if(method==='save'&&args.length===1){const patch=validateSettings(args[0]);if(patch.textStoreDir!==undefined)patch.textStoreDir=assertWritableTextStoreDir(patch.textStoreDir);if(!this.opts.persist)throw Error('Host settings persistence unavailable');this.opts.persist(patch);this.selection.onConfigChanged();this.txtAcquisition.onConfigChanged();return {config:{...this.opts.cfg},timezone:this.opts.timezone,storage:this.library.textStoreStatus()};}
           // Pairing details for the Edge/Chrome extension. The panel shows the token;
           // it is never handed to the model.
           if(method==='txt_bridge'&&args.length===0)return this.txtAcquisition.bridgeInfo;
@@ -547,4 +549,3 @@ export class BookfishWorld implements World {
     try { await this.selection.stop(); this.serialScheduler.stop(); this.serialSync.stop(); this.reviewFlow.stop(); this.sharing.stop(); this.scheduler.stop(); await this.txtAcquisition.stop(); await this.novelFetches.stop(); await this.runtime.stop(); } finally { await this.transfers.shutdown(); this.discussions.clear(); this.lifetime.abort(); this.library.close(); this.host = undefined; }
   }
 }
-

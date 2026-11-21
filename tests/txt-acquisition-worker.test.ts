@@ -3,10 +3,11 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { webcrypto, randomUUID, createHash } from 'node:crypto';
 const SOURCE = 'https://files.example.com/book.txt';
-async function worker(responseFactory: () => Response, allowedOrigins = ['https://files.example.com'], revokeDuringFetch = false, bridgeStatus=200) {
+async function worker(responseFactory: () => Response, allowedOrigins = ['https://files.example.com'], revokeDuringFetch = false, bridgeStatus=200,stallUpstream=false) {
   const replies: Response[] = [];
   const calls: Array<{ url: string; init?: RequestInit }> = []; let upstreamCalls = 0;
   const listeners = new Set<(...args: any[]) => void>();
+  const intervals:Array<()=>Promise<void>>=[];
   const event = { addListener(fn: (...args: any[]) => void) { listeners.add(fn); }, removeListener(fn: (...args: any[]) => void) { listeners.delete(fn); } };
   const chrome = {
     storage: { onChanged: event, local: { get: async () => ({ token: '', state: {} }), set: async () => undefined } },
@@ -14,18 +15,24 @@ async function worker(responseFactory: () => Response, allowedOrigins = ['https:
   };
   const context = {
     btoa: (text: string) => Buffer.from(text, 'latin1').toString('base64'), chrome, crypto: { randomUUID, subtle: webcrypto.subtle }, AbortController, AbortSignal, URL, Uint8Array, TextDecoder,
-    setTimeout: () => 1, clearTimeout() {}, setInterval: () => 1, clearInterval() {},
+    setTimeout: () => 1, clearTimeout() {}, setInterval: (fn:()=>Promise<void>) => {intervals.push(fn);return 1;}, clearInterval() {},
     fetch: async (value: string, init?: RequestInit) => {
       const url = String(value); calls.push({ url, init: init?.body instanceof Uint8Array ? {...init,body:Uint8Array.from(init.body)} : init });
       if (url.startsWith('http://127.0.0.1:')) { const reply = new Response('{}', { status: bridgeStatus }); replies.push(reply); return reply; }
-      upstreamCalls++; if (revokeDuringFetch) for (const listener of listeners) listener({ allowedOrigins: { newValue: [] } }, 'local'); const response = responseFactory(); Object.defineProperty(response, 'url', { value: SOURCE }); return response;
+      upstreamCalls++;if(stallUpstream)return new Promise<Response>((_ok,no)=>{init!.signal!.addEventListener('abort',()=>no(new Error('Test upstream aborted')),{once:true});}); if (revokeDuringFetch) for (const listener of listeners) listener({ allowedOrigins: { newValue: [] } }, 'local'); const response = responseFactory(); Object.defineProperty(response, 'url', { value: SOURCE }); return response;
     },
   } as Record<string, unknown>;
   runInNewContext(readFileSync(new URL('../extension/background.js', import.meta.url), 'utf8') + '\nglobalThis.api = { handle };', context);
   const api = context.api as { handle: (job: unknown, config: unknown) => Promise<void> };
-  return { calls, replies, run: async (kind = 'file', url = SOURCE) => api.handle({ id: randomUUID(), kind, url, lease: randomUUID(), leaseMs: 30000, maxBytes: kind === 'file' ? 100 * 1024 * 1024 : 8 * 1024 * 1024 }, { port: 47823, token: 'paired', allowedOrigins }), get upstreamCalls() { return upstreamCalls; } };
+  return { calls, replies,pulse:async()=>Promise.all(intervals.map(fn=>fn())),change:(key:string)=>{for(const listener of listeners)listener({[key]:{newValue:'changed'}},'local');}, run: async (kind = 'file', url = SOURCE) => api.handle({ id: randomUUID(), kind, url, lease: randomUUID(), leaseMs: 30000, maxBytes: kind === 'file' ? 100 * 1024 * 1024 : 8 * 1024 * 1024 }, { port: 47823, token: 'paired', allowedOrigins }), get upstreamCalls() { return upstreamCalls; } };
 }
 describe('actual extension worker streaming policy', () => {
+  it.each(['lease-cancel','token','port'])('aborts a stalled browser fetch through %s',async reason=>{
+    const env=await worker(()=>new Response('unused'),['https://files.example.com'],false,reason==='lease-cancel'?404:200,true),running=env.run();
+    for(let n=0;n<100&&!env.upstreamCalls;n++)await Promise.resolve();expect(env.upstreamCalls).toBe(1);
+    const upstream=env.calls.find(c=>c.url===SOURCE)!;if(reason==='lease-cancel')await env.pulse();else env.change(reason);await running;
+    expect(upstream.init!.signal!.aborted).toBe(true);expect(env.calls.some(c=>c.url.endsWith('/done'))).toBe(false);
+  });
   it('sends exact 4MiB chunks and the final tail without decoding bytes', async () => {
     const bytes=new Uint8Array(4*1024*1024+137);for(let i=0;i<bytes.length;i++)bytes[i]=i%251;
     const env=await worker(()=>new Response(bytes,{headers:{'content-type':'text/plain'}}));await env.run();

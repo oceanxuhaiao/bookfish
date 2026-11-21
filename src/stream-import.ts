@@ -100,6 +100,7 @@ export interface BestEffortDecoded {
   /** Empty when canonicalFile owns the normalized text; metrics describe the complete file. */
   text: string;
   canonicalFile?: string;
+  canonicalSha256?:string;
   metrics?: TextQualityMetrics;
   warnings?: QualityIssue[];
   encoding: DetectedEncoding;
@@ -178,8 +179,10 @@ export function importFileBlobBestEffort(
       }
     }
     const id = writePagedStream(dir, () => {
+      const sourceDigest=sourceHash.digest('hex');
+      if(prepared.canonicalSha256&&sourceDigest!==prepared.canonicalSha256)throw new AuthenticatedInputError('Canonical file changed before indexing');
       const rev = revision.digest('hex');
-      return { key: identity.id + ':' + rev, id: identity.id, revision: rev, title: identity.title, author: identity.author, filename: identity.filename, sourceHash: sourceHash.digest('hex'), totalChars, parserVersion: 1 };
+      return { key: identity.id + ':' + rev, id: identity.id, revision: rev, title: identity.title, author: identity.author, filename: identity.filename, sourceHash: sourceDigest, totalChars, parserVersion: 1 };
     }, segments());
     return { id, decoded: prepared };
   } finally {
@@ -189,7 +192,8 @@ export function importFileBlobBestEffort(
 
 
 /** Disk-backed loose decoding; bounded buffers and summaries, independent of book size. */
-export function prepareFileBestEffort(file: string, chunkBytes = 16 * 1024, progress?: (done: number, total: number) => void, forced?: DetectedEncoding): BestEffortDecoded {
+export class AuthenticatedInputError extends Error{readonly code='original_integrity';}
+export function prepareFileBestEffort(file: string, chunkBytes = 16 * 1024, progress?: (done: number, total: number) => void, forced?: DetectedEncoding, expected?:{sha256:string;bytes:number}): BestEffortDecoded {
   if (!Number.isSafeInteger(chunkBytes) || chunkBytes < 1 || chunkBytes > 256 * 1024) throw Error('Invalid import buffer size');
   const size = statSync(file).size;
   if (!size) throw new BestEffortRejected('empty_file', 'The downloaded file is empty');
@@ -202,7 +206,9 @@ export function prepareFileBestEffort(file: string, chunkBytes = 16 * 1024, prog
   let offset = 0, lastGood = 0, leading = true, pendingCR = false, lfRun = 0, trailingReplacements = 0;
   let encoding: DetectedEncoding;
   try {
-    output = openSync(canonicalFile, 'wx');
+    if(expected&&size!==expected.bytes)throw new AuthenticatedInputError('Authenticated input size mismatch');
+    const consumedHash=expected?createHash('sha256'):undefined;
+    output = openSync(canonicalFile, 'wx',0o600);
     // Small lookahead beyond the detection window avoids classifying an isolated
     // leading byte when the first non-ASCII character straddles 64KiB.
     const prefix = Buffer.alloc(Math.min(64 * 1024 + 264, size));
@@ -237,13 +243,14 @@ export function prepareFileBestEffort(file: string, chunkBytes = 16 * 1024, prog
       trailingReplacements = suffix === value.length ? trailingReplacements + suffix : suffix;
       const data = Buffer.from(value); let at = 0; while (at < data.length) at += writeSync(output!, data, at, data.length - at); offset += data.length;
     };
-    bytes = first; emit(decoder.decode(prefix.subarray(0, first), { stream: true })); progress?.(bytes, size);
+    bytes = first;consumedHash?.update(prefix.subarray(0,first)); emit(decoder.decode(prefix.subarray(0, first), { stream: true })); progress?.(bytes, size);
     const buffer = Buffer.alloc(chunkBytes); let n: number;
-    while ((n = readSync(input, buffer, 0, buffer.length, null))) { bytes += n; if (bytes > MAX_BOOK_BYTES) throw new BestEffortRejected('too_large', 'The file grew beyond 100 MiB'); emit(decoder.decode(buffer.subarray(0, n), { stream: true })); progress?.(bytes, size); }
+    while ((n = readSync(input, buffer, 0, buffer.length, null))) { bytes += n; if (bytes > MAX_BOOK_BYTES) throw new BestEffortRejected('too_large', 'The file grew beyond 100 MiB');consumedHash?.update(buffer.subarray(0,n)); emit(decoder.decode(buffer.subarray(0, n), { stream: true })); progress?.(bytes, size); }
     emit(decoder.decode(), true); if (pendingCR) emit('', true);
     const after = fstatSync(input, { bigint: true });
     const pathAfter = statSync(file, { bigint: true });
     if (bytes !== size || after.size !== sourceIdentity.size || after.mtimeNs !== sourceIdentity.mtimeNs || after.ctimeNs !== sourceIdentity.ctimeNs || pathAfter.ino !== sourceIdentity.ino || pathAfter.dev !== sourceIdentity.dev) throw Error('Source file changed while importing');
+    if(expected&&consumedHash!.digest('hex')!==expected.sha256)throw new AuthenticatedInputError('Authenticated input SHA-256 mismatch');
     const truncatedTail = trailingReplacements > 0 && trailingReplacements <= 4;
     if (truncatedTail) { offset -= trailingReplacements * 3; lastGood = Math.min(lastGood, offset); repairs.push({ code: 'tail_truncated', message: 'Dropped an incomplete character at the end of the file' }); }
     ftruncateSync(output, lastGood); fsyncSync(output); closeSync(output); output = undefined;
@@ -251,9 +258,9 @@ export function prepareFileBestEffort(file: string, chunkBytes = 16 * 1024, prog
     if (newlines) repairs.push({ code: 'newlines_normalized', message: 'Normalized line endings to LF' });
     if (controls) repairs.push({ code: 'control_characters_removed', message: 'Removed control characters', count: controls });
     if (blanks) repairs.push({ code: 'blank_runs_collapsed', message: 'Collapsed repeated blank lines', count: blanks });
-    const accumulator = new TextQualityAccumulator(); for (const text of fileText(canonicalFile, chunkBytes)) accumulator.push(text);
+    const accumulator = new TextQualityAccumulator(),canonicalHash=createHash('sha256'); for (const text of fileText(canonicalFile, chunkBytes)){accumulator.push(text);canonicalHash.update(text);}
     const metrics = accumulator.finish(); if (!metrics.totalChars) throw new BestEffortRejected('empty_file', 'The downloaded file has no readable text');
-    return { text: '', canonicalFile, metrics, warnings, encoding, repairs, replacements, truncatedTail, bytes: size };
+    return { text: '', canonicalFile, canonicalSha256:canonicalHash.digest('hex'), metrics, warnings, encoding, repairs, replacements, truncatedTail, bytes: size };
   } catch (error) { if (output !== undefined) { closeSync(output); output = undefined; } if (existsSync(canonicalFile)) unlinkSync(canonicalFile); throw error; }
   finally { closeSync(input); }
 }

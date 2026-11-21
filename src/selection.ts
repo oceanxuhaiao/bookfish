@@ -6,7 +6,7 @@ import type { BookfishConfigSection } from './config.ts';
 import type { Library } from './library.ts';
 import type { ReadingScheduler } from './scheduler.ts';
 import type { NovelFetches, NovelSearchJobView, NovelTaskView } from './novel-fetch.ts';
-import { normalizeIdentity, type NovelSearchCandidate } from './novel-match.ts';
+import { normalizeTitle as normalizeIdentity, normalizeAuthor, type NovelSearchCandidate } from './novel-match.ts';
 import {
   workKey, type FailedWork, type ReadingQueueItem, type SelectionCandidate,
   type SelectionFailure, type SelectionIntent, type SelectionRound, type SelectionState,
@@ -16,6 +16,7 @@ const OPPORTUNITY_INTERVAL_MS = 30_000;
 const CANDIDATE_TTL_MS = 30 * 60_000;
 const ROUND_COOLDOWN_MS = 6 * 60 * 60_000;
 const MAX_ROUND_ATTEMPTS = 3;
+const TERMINAL_INTENTS = new Set(['abandoned','cancelled','completed','failed']);
 
 export interface SelectionGate { allowed: boolean; code: string; message: string }
 export interface SelectionViewIntent {
@@ -44,6 +45,8 @@ export interface SelectionSummary {
 }
 
 interface SelectionOptions {
+  cancelExternal?: (intentId:string)=>void;
+  isExternalTask?: (taskId:string)=>boolean;
   library: Library;
   novelFetches: NovelFetches;
   scheduler: ReadingScheduler;
@@ -92,6 +95,7 @@ export class SelectionCoordinator {
 
   async stop(): Promise<void> {
     this.stopped = true;
+    for(const intent of this.state().intents)if(['searching','awaiting_choice','acquiring'].includes(intent.status))this.options.cancelExternal?.(intent.id);
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
     this.host = undefined;
@@ -109,11 +113,13 @@ export class SelectionCoordinator {
     try {
       const state = this.state();
       for (const intent of state.intents) {
+        if(intent.status==='awaiting_choice'){if(intent.queueOnImport)this.update(draft=>{draft.intents.find(row=>row.id===intent.id)!.queueOnImport=false;});continue;}
         if (intent.status === 'searching') {
           this.deferIntent(intent.id, 'searching', '扩展重启中断了搜索，未自动重试。');
           continue;
         }
         if (intent.status === 'acquiring' && intent.acquisitionTaskId) {
+          if(this.options.isExternalTask?.(intent.acquisitionTaskId))continue; // TXT has its own authenticated recovery receipt.
           // The importer may have committed the book just before the process died,
           // before the task record or intent receipt was written. Match the exact
           // normalized work and queue that existing book instead of downloading it again.
@@ -146,8 +152,8 @@ export class SelectionCoordinator {
   }
 
   private existingWork(intent: SelectionIntent) {
-    const title = normalizeIdentity(intent.title), author = normalizeIdentity(intent.author);
-    return this.options.library.list().find((book) => normalizeIdentity(book.title) === title && normalizeIdentity(book.author) === author);
+    const title = normalizeIdentity(intent.title), author = normalizeAuthor(intent.author);
+    return this.options.library.list().find((book) => normalizeIdentity(book.title) === title && normalizeAuthor(book.author) === author);
   }
 
   /** Refresh derived commitment/queue facts. Writes only when a meaning changed. */
@@ -159,7 +165,7 @@ export class SelectionCoordinator {
       if (!intent.bookKey) continue;
       const book = this.bookView(intent.bookKey);
       if (!book) {
-        if (!['completed', 'abandoned'].includes(intent.status)) {
+        if (!TERMINAL_INTENTS.has(intent.status)) {
           intent.status = 'abandoned'; changed = true;
           intent.failure = { code: 'book_not_found', message: '这本书已不在书架，自选书承诺结束。', at: this.now() };
           intent.updatedAt = this.now();
@@ -229,7 +235,7 @@ export class SelectionCoordinator {
     const gate = this.gate();
     if (!gate.allowed) return { allowed: false, gate, nextAction: 'stop' };
     const key = workKey(title, author);
-    const existing = this.options.library.list().find((book) => normalizeIdentity(book.title) === normalizeIdentity(title) && normalizeIdentity(book.author) === normalizeIdentity(author));
+    const existing = this.options.library.list().find((book) => normalizeIdentity(book.title) === normalizeIdentity(title) && normalizeAuthor(book.author) === normalizeAuthor(author));
     if (existing) {
       return { allowed: false, gate: { allowed: false, code: 'already_in_library', message: `《${existing.title}》已经在书架，不再重复获取。` }, bookKey: existing.key, nextAction: 'stop' };
     }
@@ -402,7 +408,7 @@ export class SelectionCoordinator {
     if (!candidate) throw new Error('Candidate does not belong to this intent');
     if (candidate.expiresAt <= this.now()) throw new Error('Candidate has expired; search again');
     if (candidate.match !== 'exact' || !this.sourceAllowed(candidate.source.id)) throw new Error('Candidate is not an exact allowed edition');
-    if (this.options.library.list().some((book) => normalizeIdentity(book.title) === normalizeIdentity(candidate.title) && normalizeIdentity(book.author) === normalizeIdentity(candidate.author))) {
+    if (this.options.library.list().some((book) => normalizeIdentity(book.title) === normalizeIdentity(candidate.title) && normalizeAuthor(book.author) === normalizeAuthor(candidate.author))) {
       throw new Error('This work is already in the library');
     }
     const budget = Number.isSafeInteger(this.cfg.autonomousDiskBudgetMb) ? this.cfg.autonomousDiskBudgetMb! : 1024;
@@ -438,6 +444,7 @@ export class SelectionCoordinator {
     const state = this.refresh();
     const intent = state.intents.find((entry) => entry.acquisitionTaskId === task.id);
     if (!intent) return;
+    if(TERMINAL_INTENTS.has(intent.status)&&intent.status!=='cancelled')return;
     if (task.state === 'complete') {
       if (!task.bookKey || !this.bookExists(task.bookKey)) {
         this.recordFailure(intent.id, { code: 'import_failed', global: false, message: '下载完成但未找到持久化书籍，未安排阅读。' }, 'import');
@@ -473,6 +480,13 @@ export class SelectionCoordinator {
    * Browser-assisted file acquisition finished for an autonomous intent. Manual
    * imports never reach here: they carry no intentId and change no selection state.
    */
+  onExternalTaskCreated(task:{id:string;intentId?:string}):void{
+    if(!task.intentId)return;
+    const intent=this.state().intents.find(row=>row.id===task.intentId);
+    if(!intent||TERMINAL_INTENTS.has(intent.status)||this.stopped){this.options.cancelExternal?.(task.intentId);return;}
+    this.update(draft=>{const target=draft.intents.find(row=>row.id===intent.id)!;target.acquisitionTaskId=task.id;target.status='acquiring';target.updatedAt=this.now();});
+  }
+
   onExternalImport(task: { id: string; intentId?: string; bookKey?: string }, identity: 'exact' | 'partial' | 'unknown'): void {
     if (!task.intentId || !task.bookKey) return;
     if (this.stopped) throw new Error('Selection coordinator is stopped; shelf import remains pending for reconciliation');
@@ -480,6 +494,9 @@ export class SelectionCoordinator {
     const state = this.refresh();
     const intent = state.intents.find((entry) => entry.id === task.intentId);
     if (!intent) return;
+    if(TERMINAL_INTENTS.has(intent.status)&&intent.status!=='cancelled')return;
+    if(intent.bookKey===bookKey&&['fulfilled','reading'].includes(intent.status))return;
+    if(intent.acquisitionTaskId&&this.options.isExternalTask?.(intent.acquisitionTaskId)&&intent.acquisitionTaskId!==task.id)return;
     if (!this.bookExists(bookKey)) {
       this.recordFailure(intent.id, { code: 'import_failed', global: false, message: '文件已导入但未找到持久化书籍，未安排阅读。' }, 'import');
       return;
@@ -508,7 +525,7 @@ export class SelectionCoordinator {
       this.update((draft) => {
         const target = draft.intents.find((entry) => entry.id === intent.id);
         if (!target) return;
-        target.bookKey = bookKey; target.acquisitionTaskId = task.id; target.status = 'awaiting_choice';
+        target.bookKey = bookKey; target.acquisitionTaskId = task.id; target.status = 'awaiting_choice';target.queueOnImport=false;
         target.failure = { code: 'identity_mismatch', message: `文件书名或作者与《${intent.title}》不完全一致，需确认后再排队。`, at: this.now() };
         target.updatedAt = this.now();
         announced = structuredClone(target);
@@ -571,7 +588,7 @@ export class SelectionCoordinator {
     let announced: SelectionIntent | undefined;
     this.update((draft) => {
       const target = draft.intents.find((entry) => entry.id === intentId);
-      if (!target) return;
+      if (!target||TERMINAL_INTENTS.has(target.status)||(target.status==='awaiting_choice'&&!target.queueOnImport)) return;
       target.bookKey = bookKey; target.updatedAt = now;
       target.status = book?.complete ? 'completed' : 'reading';
       if (target.queueOnImport && book) {
@@ -698,6 +715,7 @@ export class SelectionCoordinator {
       if (intent.acquisitionTaskId) {
         try { this.options.novelFetches.cancel(intent.acquisitionTaskId); } catch { /* terminal already */ }
       }
+      this.options.cancelExternal?.(intent.id);
       this.deferIntent(intent.id, 'policy_changed', `${reason}，这次自选书获取已暂停，不自动换书。`);
     }
   }
@@ -724,6 +742,7 @@ export class SelectionCoordinator {
     const state = this.refresh();
     const intent = state.intents.find((entry) => entry.id === id);
     if (!intent) throw new Error('Selection intent not found');
+    if(TERMINAL_INTENTS.has(intent.status))throw new Error('Terminal selection intent cannot be reactivated; create a new intent');
     if (action === 'defer') {
       const item = state.queue.find((entry) => entry.intentId === id);
       if (!item) throw new Error('No queued reading item exists for this intent');
@@ -736,7 +755,7 @@ export class SelectionCoordinator {
       if (book.complete) throw new Error('Book is already complete');
       this.update((draft) => {
         const target = draft.intents.find((entry) => entry.id === id);
-        if (target) target.queueOnImport = true;
+        if (target) {target.queueOnImport = true;if(target.status==='awaiting_choice')target.status='reading';}
         const existing = draft.queue.find((entry) => entry.intentId === id);
         if (existing) {
           if (existing.status === 'cancelled' || existing.status === 'done') { existing.status = 'queued'; existing.updatedAt = this.now(); }
@@ -763,11 +782,15 @@ export class SelectionCoordinator {
     this.update((draft) => {
       const target = draft.intents.find((entry) => entry.id === id);
       if (!target) throw new Error('Selection intent not found');
+      if(TERMINAL_INTENTS.has(target.status))return;
       target.status = 'abandoned'; target.updatedAt = this.now();
+      target.queueOnImport=false;
       target.failure = { code: 'cancelled', message: '用户明确放弃这本自选书，承诺结束。', at: this.now() };
       for (const item of draft.queue) if (item.intentId === id) { item.status = 'cancelled'; item.updatedAt = this.now(); }
       if (draft.round?.day === this.day()) draft.round.status = 'paused';
     });
+    this.options.cancelExternal?.(id);
+    const task=this.state().intents.find(entry=>entry.id===id)?.acquisitionTaskId;if(task){try{this.options.novelFetches.cancel(task);}catch{/* already terminal */}}
     return this.summary(id);
   }
 
@@ -776,6 +799,7 @@ export class SelectionCoordinator {
     const state = this.refresh();
     const intent = state.intents.find((entry) => entry.id === id);
     if (!intent) throw new Error('Selection intent not found');
+    if(TERMINAL_INTENTS.has(intent.status))return {cancelled:false,intent:this.summary(id)};
     if (['fulfilled', 'reading'].includes(intent.status)) return { abandoned: true, intent: this.abandon(id) };
     if (intent.acquisitionTaskId) {
       try { this.options.novelFetches.cancel(intent.acquisitionTaskId); } catch { /* terminal already */ }
@@ -783,9 +807,10 @@ export class SelectionCoordinator {
     this.deferIntent(id, 'cancelled', '用户取消了这次自选书获取。');
     this.update((draft) => {
       const target = draft.intents.find((entry) => entry.id === id);
-      if (target) target.status = 'cancelled';
+      if (target) {target.status = 'cancelled';target.queueOnImport=false;}
       for (const item of draft.queue) if (item.intentId === id) { item.status = 'cancelled'; item.updatedAt = this.now(); }
     });
+    this.options.cancelExternal?.(id);
     return { cancelled: true, intent: this.summary(id) };
   }
 
@@ -793,7 +818,7 @@ export class SelectionCoordinator {
     const now = this.now();
     this.update((draft) => {
       for (const intent of draft.intents) {
-        if (!intent.bookKey || !intent.queueOnImport || ['abandoned', 'completed', 'cancelled', 'failed', 'deferred'].includes(intent.status)) continue;
+        if (!intent.bookKey || !intent.queueOnImport || ['awaiting_choice','abandoned', 'completed', 'cancelled', 'failed', 'deferred'].includes(intent.status)) continue;
         const book = this.bookView(intent.bookKey);
         if (!book || book.complete) continue;
         if (!draft.queue.some((item) => item.intentId === intent.id)) {
@@ -805,8 +830,8 @@ export class SelectionCoordinator {
       for (const item of draft.queue) {
         const book = this.bookView(item.bookKey);
         const intent = draft.intents.find((entry) => entry.id === item.intentId);
-        if (!book || intent?.status === 'abandoned' || intent?.status === 'completed') {
-          item.status = !book || intent?.status === 'abandoned' ? 'cancelled' : 'done';
+        if (!book || (intent&&['awaiting_choice','abandoned','cancelled','failed','completed'].includes(intent.status))) {
+          item.status = book&&intent?.status === 'completed' ? 'done' : 'cancelled';
           item.updatedAt = now;
         } else if (item.status === 'active' && this.options.library.status().current?.key !== item.bookKey) {
           item.status = 'queued'; item.updatedAt = now;

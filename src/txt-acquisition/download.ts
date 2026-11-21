@@ -46,7 +46,7 @@ export interface DownloadResult {
   redirects: number;
 }
 
-function abortable(parent: AbortSignal | undefined, timeoutMs: number): { signal: AbortSignal; done: () => void } {
+function abortable(parent: AbortSignal | undefined, timeoutMs: number): { signal: AbortSignal; cancel:()=>void; done: () => void } {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error('Download timed out')), timeoutMs);
   const onAbort = () => controller.abort(parent?.reason);
@@ -54,6 +54,7 @@ function abortable(parent: AbortSignal | undefined, timeoutMs: number): { signal
   if (parent?.aborted) onAbort();
   return {
     signal: controller.signal,
+    cancel:()=>controller.abort(new Error('Network permission revoked')),
     done: () => {
       clearTimeout(timer);
       parent?.removeEventListener('abort', onAbort);
@@ -72,6 +73,9 @@ export async function downloadFile(request: DownloadRequest): Promise<DownloadRe
   const storageFailure = new Promise<never>((_, reject) => { rejectStorage = reject; });
   void storageFailure.catch(() => undefined);
   stream.on('error', rejectStorage);
+  const interrupted=()=>rejectStorage(new DownloadError(request.networkAllowed?.()===false?'policy_blocked':request.signal?.aborted?'cancelled':'timeout','Download was interrupted',request.networkAllowed?.()!==false));
+  limit.signal.addEventListener('abort',interrupted,{once:true});if(limit.signal.aborted)interrupted();
+  const permissionTimer=request.networkAllowed?setInterval(()=>{if(request.networkAllowed?.()===false)limit.cancel();},100):undefined;permissionTimer?.unref?.();
 
   let response: Response | undefined;
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
@@ -91,19 +95,21 @@ export async function downloadFile(request: DownloadRequest): Promise<DownloadRe
   };
 
   try {
-    let current = await checkUrl(request.url, { allowNetwork: request.allowNetwork, ...(request.resolve ? { resolve: request.resolve } : {}) });
+    let current = await Promise.race([checkUrl(request.url, { allowNetwork: request.allowNetwork, ...(request.resolve ? { resolve: request.resolve } : {}) }),storageFailure]);
     let redirects = 0;
     for (;;) {
+      if(request.networkAllowed?.()===false)throw new DownloadError('policy_blocked','Network access is disabled',false);
       let hop: Response;
       try {
-        hop = await doFetch(current.toString(), {
+        hop = await Promise.race([doFetch(current.toString(), {
           redirect: 'manual',
           signal: limit.signal,
           headers: { 'user-agent': USER_AGENT, accept: 'text/plain,text/markdown,application/octet-stream,*/*;q=0.8', 'accept-encoding': 'identity' },
-        });
+        }),storageFailure]);
       } catch (error) {
+        if(error instanceof DownloadError)throw error;
+        if (request.networkAllowed?.() === false) throw new DownloadError('policy_blocked', 'Network access is disabled', false);
         if (limit.signal.aborted) throw new DownloadError(request.signal?.aborted ? 'cancelled' : 'timeout', 'Download was interrupted', true);
-      if (request.networkAllowed?.() === false) throw new DownloadError('policy_blocked', 'Network access is disabled', false);
         throw new DownloadError('network', `Download failed: ${redactMessage((error as Error).message)}`, true);
       }
       if (REDIRECT_STATUS.has(hop.status)) {
@@ -114,7 +120,7 @@ export async function downloadFile(request: DownloadRequest): Promise<DownloadRe
         if (redirects > MAX_REDIRECTS) throw new DownloadError('http_error', `More than ${MAX_REDIRECTS} redirects`, false);
         const next = new URL(location, current);
         try {
-          current = await checkUrl(next.toString(), { allowNetwork: request.allowNetwork, ...(request.resolve ? { resolve: request.resolve } : {}) });
+          current = await Promise.race([checkUrl(next.toString(), { allowNetwork: request.allowNetwork, ...(request.resolve ? { resolve: request.resolve } : {}) }),storageFailure]);
         } catch (error) {
           throw new DownloadError('policy_blocked', isPolicyError(error) ? error.message : 'Redirect target refused by the URL policy', false);
         }
@@ -160,6 +166,8 @@ export async function downloadFile(request: DownloadRequest): Promise<DownloadRe
       stream.end(() => resolve());
       stream.on('error', reject);
     });
+    if(request.networkAllowed?.()===false)throw new DownloadError('policy_blocked','Network access is disabled',false);
+    limit.signal.throwIfAborted();
 
     return {
       partPath,
@@ -179,6 +187,7 @@ export async function downloadFile(request: DownloadRequest): Promise<DownloadRe
     if (storageCode && ['ENOSPC', 'EIO', 'EACCES', 'EPERM', 'EBUSY', 'EROFS'].includes(storageCode)) throw new DownloadError('storage_unavailable', 'Cannot write downloaded bytes (' + storageCode + ')', true);
     throw new DownloadError('download_failed', redactMessage((error as Error).message), true);
   } finally {
+    if(permissionTimer)clearInterval(permissionTimer);limit.signal.removeEventListener('abort',interrupted);
     limit.done();
   }
 }

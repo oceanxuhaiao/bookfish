@@ -26,30 +26,34 @@ export class NovelMatchError extends Error {
   }
 }
 
-/** Strip punctuation, whitespace and dynasty parentheses for comparison only. */
-export function normalizeIdentity(text: string): string {
-  return text
+/** Presentation normalization preserves edition/translator parentheses. */
+export function normalizeTitle(text: string): string {
+  return text.normalize('NFKC')
     .replace(/^作者[:：]/u, '')
-    .replace(/[（(][^）)]*[）)]/gu, '')
     .replace(/[\s《》「」『』"'“”‘’·•,，。.、:：;；!！?？\-—_/\\|]/gu, '')
     .toLowerCase()
     .trim();
 }
+/** Only enumerated bibliographic author aliases are accepted; no substring rule. */
+const AUTHOR_ALIASES:Readonly<Record<string,string>>={'吴承恩(明)':'吴承恩','曹雪芹(清)':'曹雪芹'};
+export function normalizeAuthor(text:string):string{const value=normalizeTitle(text);return AUTHOR_ALIASES[value]??value;}
+/** Compatibility export; title call sites must use normalizeTitle explicitly. */
+export const normalizeIdentity=normalizeAuthor;
 
 /**
  * Exact title plus a non-ambiguous author. `candidate` may contain an author
- * suffix such as “（明）”; an exact author match or a containment match counts.
+ * suffix only through the explicit author-alias table; substring matches never count.
  * More than one surviving result is an error, not a coin flip.
  */
 export function matchCandidate(results: NovelSearchCandidate[], wanted: { title: string; author: string }): NovelSearchCandidate {
-  const title = normalizeIdentity(wanted.title);
-  const author = normalizeIdentity(wanted.author);
+  const title = normalizeTitle(wanted.title);
+  const author = normalizeAuthor(wanted.author);
   if (!title || !author) throw new NovelMatchError('invalid_input', 'Both title and author are required for matching');
-  const exact = results.filter((item) => normalizeIdentity(item.title) === title);
+  const exact = results.filter((item) => normalizeTitle(item.title) === title);
   if (!exact.length) throw new NovelMatchError('no_title', `No search result matches title "${wanted.title}"`);
   const byAuthor = exact.filter((item) => {
-    const candidate = normalizeIdentity(item.author);
-    return candidate === author || candidate.includes(author) || author.includes(candidate);
+    const candidate = normalizeAuthor(item.author);
+    return candidate === author;
   });
   if (!byAuthor.length) throw new NovelMatchError('wrong_author', `Title "${wanted.title}" matched only other authors: ${exact.map((item) => item.author).join(' / ')}`);
   if (byAuthor.length > 1) {
@@ -64,7 +68,7 @@ export type CandidateMatch = 'exact' | 'title' | 'author' | 'other';
 export function groupCandidatesByBook<T extends NovelSearchCandidate>(candidates: T[]): T[][] {
   const groups = new Map<string, T[]>();
   for (const candidate of candidates) {
-    const key = `${normalizeIdentity(candidate.title)}\n${normalizeIdentity(candidate.author)}`;
+    const key = `${normalizeTitle(candidate.title)}\n${normalizeAuthor(candidate.author)}`;
     const group = groups.get(key);
     if (group) group.push(candidate); else groups.set(key, [candidate]);
   }
@@ -73,14 +77,14 @@ export function groupCandidatesByBook<T extends NovelSearchCandidate>(candidates
 
 /** Label a search result against whichever fields the user actually supplied. */
 export function labelCandidate(candidate: NovelSearchCandidate, wanted: { title?: string; author?: string }): CandidateMatch {
-  const wantedTitle = normalizeIdentity(wanted.title ?? '');
-  const wantedAuthor = normalizeIdentity(wanted.author ?? '');
-  const title = wantedTitle ? normalizeIdentity(candidate.title) === wantedTitle : false;
+  const wantedTitle = normalizeTitle(wanted.title ?? '');
+  const wantedAuthor = normalizeAuthor(wanted.author ?? '');
+  const title = wantedTitle ? normalizeTitle(candidate.title) === wantedTitle : false;
   const author = wantedAuthor
-    ? (() => { const value = normalizeIdentity(candidate.author); return value === wantedAuthor || value.includes(wantedAuthor) || wantedAuthor.includes(value); })()
+    ? normalizeAuthor(candidate.author) === wantedAuthor
     : false;
   if (wantedTitle && wantedAuthor) return title && author ? 'exact' : title ? 'title' : author ? 'author' : 'other';
-  if (wantedTitle) return title ? 'exact' : 'other';
-  if (wantedAuthor) return author ? 'exact' : 'other';
+  if (wantedTitle) return title ? 'title' : 'other';
+  if (wantedAuthor) return author ? 'author' : 'other';
   return 'other';
 }

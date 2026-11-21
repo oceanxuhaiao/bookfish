@@ -9,7 +9,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { labelCandidate, normalizeIdentity, type CandidateMatch, type NovelSearchCandidate } from './novel-match.ts';
+import { labelCandidate, normalizeTitle as normalizeIdentity, type CandidateMatch, type NovelSearchCandidate } from './novel-match.ts';
 import { NOVEL_SOURCES, type NovelSourceSpec } from './novel-sources.ts';
 import { assessNovelDownload, composeValidatedText, isAnnouncementTitle, type CatalogChapter, type DownloadChapterFile, type NovelIntegrityIssue } from './novel-integrity.ts';
 import type { NovelDownloadResult, NovelEngineAvailability } from './novel-engine.ts';
@@ -355,7 +355,7 @@ export class NovelFetches {
       if (candidate.match === 'exact') continue;
       const title = normalizeIdentity(candidate.title);
       if (title.length <= query.length || !title.includes(query)) continue;
-      if (wanted.author && labelCandidate(candidate, { author: wanted.author }) !== 'exact') continue;
+      if (wanted.author && labelCandidate(candidate, { author: wanted.author }) !== 'author') continue;
       const key = `${candidate.title}\n${candidate.author}`;
       const known = groups.get(key);
       if (known) { known.sources += 1; continue; }
@@ -423,7 +423,12 @@ export class NovelFetches {
    * are dropped without spending a catalog request on them.
    */
   private async validateSearchCandidates(job: NovelSearchJobView, candidates: Array<NovelSearchCandidate & { match: CandidateMatch }>, engine: NovelEngineLike): Promise<void> {
-    const targets = candidates.filter((candidate) => candidate.match === 'exact');
+    // A one-field user search can list checked candidates without asserting full identity.
+    // Autonomous selection still requires match === 'exact' (both fields).
+    const eligible = (candidate: { match: CandidateMatch }) => candidate.match === 'exact'
+      || (!job.author && !!job.title && candidate.match === 'title')
+      || (!job.title && !!job.author && candidate.match === 'author');
+    const targets = candidates.filter(eligible);
     job.state = 'validating'; job.checked = 0; job.checkTotal = targets.length;
     job.updatedAt = new Date(this.now()).toISOString();
     const checks = new Map<string, NovelCandidateCheck>();
@@ -439,7 +444,7 @@ export class NovelFetches {
     await Promise.all(Array.from({ length: Math.min(SEARCH_CHECK_CONCURRENCY, targets.length) }, () => worker()));
     const rows = candidates
       .map((candidate) => ({ candidate, check: checks.get(`${candidate.source.id}|${candidate.url}`) }))
-      .filter((row): row is { candidate: NovelSearchCandidate & { match: CandidateMatch }; check: NovelCandidateCheck } => row.candidate.match === 'exact' && row.check !== undefined);
+      .filter((row): row is { candidate: NovelSearchCandidate & { match: CandidateMatch }; check: NovelCandidateCheck } => eligible(row.candidate) && row.check !== undefined);
     // Compare editions of the same *title*, never different works: a 4-chapter
     // page of 凡人修仙传 is a stub next to a 2,466-chapter edition even when the
     // stub carries a different author name. Author-only searches have one title

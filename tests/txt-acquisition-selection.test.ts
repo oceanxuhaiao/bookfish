@@ -67,6 +67,19 @@ afterEach(async () => {
 });
 
 describe('acquisition results entering autonomous selection', () => {
+  it('keeps an uncertain identity out of the queue through two fresh coordinator starts', async () => {
+    const intent=seedIntent(),bookKey=importBook();coordinator.onExternalImport({id:'partial',intentId:intent.id,bookKey},'partial');
+    expect(intentOf(intent.id).queueOnImport).toBe(false);
+    for(let n=0;n<2;n++){await coordinator.stop();library.close();library=new Library({dataDir:dir});library.open();coordinator=new SelectionCoordinator({library,novelFetches:{persisted:()=>undefined} as unknown as NovelFetches,scheduler:{} as ReadingScheduler,cfg:()=>cfg,timezone:'UTC'});coordinator.start(host);expect(library.selection().queue).toHaveLength(0);expect(intentOf(intent.id).status).toBe('awaiting_choice');}
+    coordinator.plan(intent.id,'queue');expect(library.selection().queue).toHaveLength(1);expect(intentOf(intent.id).status).toBe('reading');
+  });
+  it.each(['abandoned','cancelled','completed','failed'] as const)('does not revive %s with late or duplicate external imports', status=>{
+    const intent=seedIntent({status}),bookKey=importBook();for(let n=0;n<2;n++)coordinator.onExternalImport({id:'late',intentId:intent.id,bookKey},'exact');expect(intentOf(intent.id).status).toBe(status);expect(library.selection().queue).toHaveLength(0);
+  });
+  it('propagates abandon and cancel to the associated TXT intent before any late callback',()=>{
+    const cancelled:string[]=[];const c=new SelectionCoordinator({library,novelFetches:{} as NovelFetches,scheduler:{} as ReadingScheduler,cfg:()=>cfg,timezone:'UTC',cancelExternal:(id:string)=>{cancelled.push(id);}} as any);
+    const a=seedIntent(),b=seedIntent();c.abandon(a.id);c.cancel(b.id);expect(cancelled).toEqual([a.id,b.id]);
+  });
   it.each(['persistence','queue_append'] as const)('can retry %s failure without a second commitment or progress', stage => {
     const intent=seedIntent(),bookKey=importBook(); const original=library.updateSelection.bind(library);
     const fault=vi.spyOn(library,'updateSelection').mockImplementationOnce(fn=>{if(stage==='persistence')throw Error('state write failed');return original(draft=>{fn(draft);if(draft.queue.length)throw Error('queue append interrupted');});});

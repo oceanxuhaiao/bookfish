@@ -1,4 +1,4 @@
-import { normalizeIdentity, type CandidateMatch } from './novel-match.ts';
+import { normalizeTitle, normalizeAuthor, type CandidateMatch } from './novel-match.ts';
 
 /**
  * Durable state for the pet's own reading wishes.
@@ -133,7 +133,7 @@ export function emptySelection(): SelectionState {
 }
 
 export function workKey(title: string, author: string): string {
-  return `${normalizeIdentity(title)}\n${normalizeIdentity(author)}`;
+  return `${normalizeTitle(title)}\n${normalizeAuthor(author)}`;
 }
 
 function record(value: unknown): Record<string, unknown> {
