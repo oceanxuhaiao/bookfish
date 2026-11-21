@@ -1,7 +1,7 @@
 /** One real public-domain novel with explicitly labelled damaged/encoded derivatives. */
 import {readFileSync,writeFileSync,readdirSync,mkdirSync}from'node:fs';import{join,resolve}from'node:path';import{createHash}from'node:crypto';import assert from'node:assert/strict';
 import{Library}from'../src/library.ts';import{prepareFileBestEffort,decodeFileBestEffort}from'../src/stream-import.ts';
-const root=resolve('_verify/real-novels'),variants=join(root,'variants'),results:any[]=[];
+const root=resolve(process.argv[2]??'_verify/real-novels'),variants=join(root,'variants'),results:any[]=[];
 const hash=(b:Buffer)=>createHash('sha256').update(b).digest('hex');
 for(const name of readdirSync(variants).filter(n=>n.endsWith('.txt'))){const file=join(variants,name),original=readFileSync(file),before=hash(original),kind=name.replace('.txt','');const dataDir=join(root,'shelves',kind);mkdirSync(dataDir,{recursive:true});const library=new Library({dataDir});library.open();
 try{let strictRejected=false;try{library.importFile({filename:name,title:kind+' strict'},file);}catch{strictRejected=true;}
