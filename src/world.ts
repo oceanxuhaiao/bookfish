@@ -309,9 +309,9 @@ export class BookfishWorld implements World {
     return {
       label: en ? 'Bookfish' : '看书吧！大肥鱼',
       lamps: [this.readingLamp(en)],
-      panels: [{id:'status',title:en?'Reading now':'正在读',getMethods:['runtime_status']},{id:'shelf',title:en?'Bookshelf':'书架',getMethods:['runtime_status']},{id:'trail',title:en?'Reading journal':'阅读足迹'},{id:'support',title:en?'Feedback':'反馈'},{id:'settings',title:en?'Settings':'配置',getMethods:['runtime_status']}],
+      panels: [{id:'status',title:en?'Reading now':'正在读',getMethods:['runtime_status']},{id:'shelf',title:en?'Bookshelf':'书架',getMethods:['runtime_status']},{id:'trail',title:en?'Reading journal':'阅读足迹'},{id:'support',title:en?'Feedback':'反馈'},{id:'settings',title:en?'Settings':'配置',getMethods:['runtime_status']},{id:'help',title:en?'Help & updates':'帮助与更新'}],
       invoke: async (panel, method, args) => {
-        if (['status','shelf','trail','support','settings'].includes(panel)) {
+        if (['status','shelf','trail','support','settings','help'].includes(panel)) {
           if (method==='help_index'&&args.length<=1) return this.helpCenter.index(args[0]===true);
           if (method==='help_guide'&&args.length===1) return this.helpCenter.guide(requiredText(args[0],'helpId',80));
           if (method==='help_release'&&args.length<=1) return this.helpCenter.release(args.length===0?undefined:requiredText(args[0],'version',20));

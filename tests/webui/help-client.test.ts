@@ -59,23 +59,23 @@ const flush = async (): Promise<void> => { await new Promise((resolve) => setTim
 const button = (root: ParentNode, text: string): HTMLButtonElement | undefined => [...root.querySelectorAll('button')].find((entry) => entry.textContent?.includes(text));
 
 describe('help center entry and contextual help', () => {
-  it('opens the guide from the BookFish navigation without navigating away from reading', async () => {
-    const root = await mountPanel('status');
+  it('declares help as a top-level panel between settings and the prompt docs', async () => {
+    expect(world.webUi!('zh').panels!.map((panel) => panel.id)).toEqual(['status', 'shelf', 'trail', 'support', 'settings', 'help']);
+    const root = await mountPanel('help');
     const eventsBeforeHelp = host.events.length;
-    const entry = button(root, '帮助与更新');
-    expect(entry).toBeTruthy();
-    entry!.click();
-    await flush();
     expect(root.querySelector('.bf-help h2')?.textContent).toContain('功能指南');
-    expect(root.querySelector<HTMLElement>('[data-page=help]')?.hidden).toBe(false);
+    const tabs = root.querySelector<HTMLElement>('.bf-help-tabs')!;
+    expect(tabs.hidden).toBe(false);
     const first = root.querySelector<HTMLButtonElement>('.bf-help-item')!;
     first.click();
     await flush();
     expect(root.querySelector('.bf-help-body')?.textContent).toContain('怎么使用');
+    expect(tabs.hidden).toBe(true);
     const back = button(root, '返回功能目录');
     expect(back).toBeTruthy();
     back!.click();
     expect(root.querySelector<HTMLElement>('.bf-help-category')?.hidden).toBe(false);
+    expect(tabs.hidden).toBe(false);
     expect(host.events).toHaveLength(eventsBeforeHelp);
   });
 

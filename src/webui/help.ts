@@ -23,8 +23,6 @@ const KIND_LABEL: Record<string, [string, string]> = {
 
 export const helpStyle = `
 .bf nav{flex-wrap:wrap}
-.bf-help-entry{display:flex;justify-content:flex-end;margin:0 0 10px}
-.bf-help-entry-button{font-size:13px;padding:5px 11px;border-radius:999px}
 .bf-help{max-width:860px;margin:0 auto;color:#283d3a}
 .bf-help-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap;margin:0 0 16px}
 .bf-help-head h2{margin:0 0 4px}.bf-help-head p{margin:2px 0;color:#5f7064}
@@ -199,6 +197,7 @@ export function renderHelpBanner(announcement: AnnouncementView, say: Say, actio
 export class HelpCenterView {
   private index: HelpIndexView | undefined;
   private root: HTMLElement | undefined;
+  private tabs: HTMLElement | undefined;
   private catalog: HTMLElement | undefined;
   private detail: HTMLElement | undefined;
   private updates: HTMLElement | undefined;
@@ -263,6 +262,11 @@ export class HelpCenterView {
 
   private build(host: HTMLElement): void {
     const root = document.createElement('section'); root.className = 'bf-help'; host.replaceChildren(root); this.root = root;
+    const tabs = el('div', '', root); tabs.className = 'bf-help-tabs'; tabs.setAttribute('role', 'tablist'); this.tabs = tabs;
+    const guideTab = el('button', this.say('功能指南', 'Feature guide'), tabs); guideTab.type = 'button'; guideTab.setAttribute('role', 'tab');
+    const updatesTab = el('button', this.say('更新动态', 'Updates'), tabs); updatesTab.type = 'button'; updatesTab.setAttribute('role', 'tab');
+    guideTab.addEventListener('click', () => { this.tab = 'guide'; this.applyTab(); });
+    updatesTab.addEventListener('click', () => { this.tab = 'updates'; this.applyTab(); void this.renderUpdates(); });
     const header = el('header', '', root); header.className = 'bf-help-head';
     const copy = el('div', '', header);
     el('h2', this.say('大肥鱼 · 功能指南', 'Bookfish · Help center'), copy);
@@ -270,11 +274,6 @@ export class HelpCenterView {
     el('p', this.say('想知道大肥鱼会什么？点开看看吧！', 'Want to know what she can do? Open a card below.'), copy).className = 'bf-help-tagline';
     const version = el('span', '', header); version.className = 'bf-help-version';
     version.textContent = this.say('当前版本 ', 'Installed ') + (this.index?.currentVersion ?? '…');
-    const tabs = el('div', '', root); tabs.className = 'bf-help-tabs'; tabs.setAttribute('role', 'tablist');
-    const guideTab = el('button', this.say('功能指南', 'Feature guide'), tabs); guideTab.type = 'button'; guideTab.setAttribute('role', 'tab');
-    const updatesTab = el('button', this.say('更新动态', 'Updates'), tabs); updatesTab.type = 'button'; updatesTab.setAttribute('role', 'tab');
-    guideTab.addEventListener('click', () => { this.tab = 'guide'; this.applyTab(); });
-    updatesTab.addEventListener('click', () => { this.tab = 'updates'; this.applyTab(); void this.renderUpdates(); });
     const scroll = document.createElement('div'); scroll.className = 'bf-help-scroll'; scroll.tabIndex = 0; scroll.setAttribute('role', 'region'); scroll.setAttribute('aria-label', this.say('帮助内容，可滚动', 'Help content, scrollable')); root.append(scroll); this.scroll = scroll;
     const catalog = document.createElement('div'); scroll.append(catalog); this.catalog = catalog;
     const detail = document.createElement('div'); detail.hidden = true; scroll.append(detail); this.detail = detail;
@@ -291,6 +290,7 @@ export class HelpCenterView {
     for (const button of this.root.querySelectorAll<HTMLButtonElement>('.bf-help-tabs button')) {
       button.setAttribute('aria-selected', String((button.textContent === this.say('功能指南', 'Feature guide')) === guideActive));
     }
+    if (this.tabs) this.tabs.hidden = guideActive && !!this.activeGuide;
     if (!guideActive) { this.catalog.hidden = true; this.detail.hidden = true; this.updates.hidden = false; }
   }
 
@@ -341,6 +341,7 @@ export class HelpCenterView {
     if (!this.catalog || !this.detail || !this.scroll) return;
     this.activeGuide = id;
     this.savedScroll = this.scroll.scrollTop;
+    if (this.tabs) this.tabs.hidden = true;
     this.catalog.hidden = true;
     this.updates!.hidden = true;
     this.detail.hidden = false;
@@ -385,6 +386,7 @@ export class HelpCenterView {
     this.detail!.hidden = true;
     this.catalog!.hidden = false;
     this.updates!.hidden = true;
+    if (this.tabs) this.tabs.hidden = false;
     if (this.scroll) this.scroll.scrollTop = this.savedScroll;
   }
 

@@ -57,21 +57,19 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   const heading=old.querySelector('h2')!;heading.hidden=true;heading.textContent=say('🐟 看书吧！大肥鱼','🐟 Bookfish');
   const nav=document.createElement('nav');nav.hidden=true;nav.setAttribute('aria-label',say('阅读导航','Reading navigation'));heading.after(nav);
   const messages=old.querySelector('[role=status]') as HTMLElement;messages.className='messages';nav.after(messages);
-  const pages:Record<string,HTMLElement>={};for(const id of ['home','shelf','trail','support','help','bookDetail','reader']){const el=document.createElement('section');el.dataset.page=id;old.append(el);pages[id]=el;}
+  const pages:Record<string,HTMLElement>={};for(const id of ['home','shelf','trail','support','bookDetail','reader']){const el=document.createElement('section');el.dataset.page=id;old.append(el);pages[id]=el;}
   function page(id:string){for(const[key,el]of Object.entries(pages))el.hidden=key!==id;for(const b of nav.querySelectorAll('button'))b.setAttribute('aria-current',(b.dataset.page===id||id==='bookDetail'&&b.dataset.page==='shelf')?'page':'false');}
-  let helpDot:HTMLElement|undefined;
-  const helpView=new HelpCenterView(ctx,say,unread=>{if(helpDot)helpDot.hidden=!unread;});
+  const helpView=new HelpCenterView(ctx,say,()=>{});
   ['正在读','书架','阅读足迹','反馈'].forEach((label,i)=>{const b=document.createElement('button');const id=['home','shelf','trail','support'][i];b.textContent=en?['Reading','Bookshelf','Journal','Support'][i]:label;b.dataset.page=id;b.onclick=()=>{if(id==='support')buildSupport();page(id);};nav.append(b);});
-  const helpEntry=document.createElement('div');helpEntry.className='bf-help-entry';
-  const helpOpen=document.createElement('button');helpOpen.type='button';helpOpen.className='bf-help-entry-button';helpOpen.textContent=say('? 帮助与更新','? Help & updates');
-  helpDot=document.createElement('span');helpDot.className='bf-help-dot';helpDot.hidden=true;helpDot.setAttribute('aria-hidden','true');helpOpen.append(helpDot);
-  helpOpen.addEventListener('click',()=>{page('help');void helpView.open(pages.help);});
-  helpEntry.append(helpOpen);root.insertBefore(helpEntry,body);
+  function openHelpPanel(tab:'guide'|'updates'){
+    try{sessionStorage.setItem('bookfish:help-tab',tab);}catch{}
+    location.hash='#/provider/'+encodeURIComponent('world:bookfish')+'/help';
+  }
   let helpBanner:HTMLElement|undefined;
   function showAnnouncement(announcement:AnnouncementView){
     if(helpBanner)return;
     helpBanner=renderHelpBanner(announcement,say,{
-      onView:()=>{helpBanner?.remove();helpBanner=undefined;void helpView.markViewed(announcement.announcementId);page('help');void helpView.open(pages.help,'updates');},
+      onView:()=>{helpBanner?.remove();helpBanner=undefined;void helpView.markViewed(announcement.announcementId);openHelpPanel('updates');},
       onDismiss:()=>{helpBanner?.remove();helpBanner=undefined;void helpView.markDismissed(announcement.announcementId);},
     });
     root.insertBefore(helpBanner,body);
@@ -559,4 +557,26 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   const initialPanel=ctx.panelId==='shelf'?'shelf':ctx.panelId==='trail'?'trail':ctx.panelId==='support'?'support':'home';if(initialPanel==='support')buildSupport();page(initialPanel);await update();
   return {dispose(){disposed=true;helpView.dispose();if(novelPollTimer!==undefined){clearTimeout(novelPollTimer);novelPollTimer=undefined;}handle.dispose();}};
 } } satisfies WebUiClientBundle['panels'][string];
-export default {panels:{status:readingPanel,shelf:readingPanel,trail:readingPanel,support:supportPanel,settings:settingsPanel}} satisfies WebUiClientBundle;
+
+const helpPanel={ async mount(ctx:WebUiPanelContext){
+  const en=ctx.language!=='zh'&&ctx.language!=='zh-Hant',say=(zh:string,english:string)=>en?english:zh;
+  const root=document.createElement('section');root.className='bf';ctx.root.append(root);
+  const css=document.createElement('style');css.textContent=style+helpStyle;root.append(css);
+  const host=document.createElement('div');root.append(host);
+  const view=new HelpCenterView(ctx,say,()=>{});
+  const result=await view.prime(true);
+  let initial:'guide'|'updates'='guide';
+  try{if(sessionStorage.getItem('bookfish:help-tab')==='updates')initial='updates';sessionStorage.removeItem('bookfish:help-tab');}catch{}
+  let banner:HTMLElement|undefined;
+  if(result.announcement){
+    banner=renderHelpBanner(result.announcement,say,{
+      onView:()=>{banner?.remove();banner=undefined;void view.markViewed(result.announcement!.announcementId);void view.open(host,'updates');},
+      onDismiss:()=>{banner?.remove();banner=undefined;void view.markDismissed(result.announcement!.announcementId);},
+    });
+    root.insertBefore(banner,host);
+  }
+  await view.open(host,initial);
+  return {dispose(){view.dispose();root.remove();}};
+} };
+
+export default {panels:{status:readingPanel,shelf:readingPanel,trail:readingPanel,support:supportPanel,settings:settingsPanel,help:helpPanel}} satisfies WebUiClientBundle;
