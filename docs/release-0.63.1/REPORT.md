@@ -45,7 +45,9 @@ npm pack 清单确认无开发中的 TXT 获取代码、测试、证据、数据
 
 ## 发布状态
 
-等待用户实际目击书架、进度和足迹。npm 已完成用户网页登录并验证 whoami=oceanxuhaiao。通过目击后按 npm → GitHub Release → 扩展市场同步执行，并在此记录实际结果。
+用户已明确回复“显示正常”，桌面目击通过。npm 0.63.1 已发布，latest=0.63.1；线上元数据 shasum / integrity 与候选一致，下载包 SHA-256 与实机安装包完全相同。发布时间为 2026-11-21 12:45:35（Asia/Shanghai）。发布后初期 CDN 曾缓存旧元数据与 tarball 404，使用新查询核对源站和实际下载成功，未重复发布。
+
+正在同步 GitHub main / v0.63.1 与 Release，随后请求扩展市场同步。npm 发布证据：evidence/release-0.63.1/npm-published.json。
 
 ## 升降级说明
 
