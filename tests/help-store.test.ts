@@ -51,6 +51,8 @@ describe('help announcement state', () => {
     expect(next.evaluate()).toBeUndefined();
     expect(next.snapshot().lastSeenInstalledVersion).toBe('1.1.0');
     expect(next.unread()).toBe(true);
+    expect(next.markHelpOpened()).toBe(true);
+    expect(next.unread()).toBe(false);
     expect(next.markUpdatesViewed()).toBe(true);
     expect(next.unread()).toBe(false);
   });

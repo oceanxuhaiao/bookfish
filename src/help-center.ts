@@ -151,6 +151,11 @@ export class HelpCenter {
     return { ok, unread: this.store?.unread() ?? false, ...(ok ? {} : { warning: this.store?.snapshot().error ?? '更新状态未能保存' }) };
   }
 
+  markHelpOpened(): { ok: boolean; unread: boolean; warning?: string } {
+    const ok = this.store?.markHelpOpened() ?? false;
+    return { ok, unread: this.store?.unread() ?? false, ...(ok ? {} : { warning: this.store?.snapshot().error ?? '更新状态未能保存' }) };
+  }
+
   markUpdatesViewed(): { ok: boolean; unread: boolean; warning?: string } {
     this.requireCatalog();
     this.store?.discardPending();

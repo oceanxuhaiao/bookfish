@@ -230,6 +230,13 @@ export class HelpStore {
   }
 
   /** Opening the updates page counts as seeing every announcement that applies here. */
+  /** Opening the help tab itself counts as seeing the unread marker. */
+  markHelpOpened(): boolean {
+    if (!this.state) return false;
+    this.state.lastReadVersion = this.options.currentVersion;
+    return this.persist();
+  }
+
   markUpdatesViewed(): boolean {
     if (!this.state) return false;
     this.state.lastReadVersion = this.options.currentVersion;

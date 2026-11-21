@@ -565,6 +565,7 @@ const helpPanel={ async mount(ctx:WebUiPanelContext){
   const host=document.createElement('div');root.append(host);
   const view=new HelpCenterView(ctx,say,()=>{});
   const result=await view.prime(true);
+  try{await ctx.invoke('help_opened');await ctx.refresh();}catch{}
   let initial:'guide'|'updates'='guide';
   try{if(sessionStorage.getItem('bookfish:help-tab')==='updates')initial='updates';sessionStorage.removeItem('bookfish:help-tab');}catch{}
   let banner:HTMLElement|undefined;

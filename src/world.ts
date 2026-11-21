@@ -321,6 +321,7 @@ export class BookfishWorld implements World {
             if (action!=='viewed'&&action!=='dismissed') throw new Error('Invalid help announcement action');
             return this.helpCenter.mark(requiredText(args[0],'announcementId',100),action);
           }
+          if (method==='help_opened'&&args.length===0) return this.helpCenter.markHelpOpened();
           if (method==='help_updates_viewed'&&args.length===0) return this.helpCenter.markUpdatesViewed();
         }
         if (panel==='settings'||panel==='shelf'||panel==='status') {
