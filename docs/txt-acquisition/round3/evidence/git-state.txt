@@ -1,0 +1,44 @@
+## codex/txt-acquisition-round3
+ M .gitignore
+ M lib/import-worker.mjs
+ M lib/webui.js
+ M lib/zip-worker.mjs
+ M src/selection.ts
+ M src/stream-import.ts
+ M src/txt-acquisition/acquisition.ts
+ M src/txt-acquisition/download.ts
+ M src/txt-acquisition/html-encoding.ts
+ M src/txt-acquisition/quality.ts
+ M src/txt-acquisition/records.ts
+ M src/txt-acquisition/repair.ts
+ M src/txt-acquisition/staging.ts
+ M src/txt-acquisition/types.ts
+ M src/txt-acquisition/url-policy.ts
+ M src/world.ts
+ M tests/txt-acquisition-download.test.ts
+ M tests/txt-acquisition-flow.test.ts
+ M tests/txt-acquisition-privacy.test.ts
+ M tests/txt-acquisition-reliability.test.ts
+ M tests/txt-acquisition-selection.test.ts
+ M tests/txt-acquisition-url.test.ts
+?? scripts/round3-host.mts
+?? scripts/round3-performance.mts
+?? scripts/round3-real-sources.mts
+?? scripts/round3-restricted-runner.cs
+?? scripts/round3-stream-boundaries.mts
+?? tests/fixtures/txt-round3-crash.mts
+?? tests/txt-acquisition-round3-stream.test.ts
+?? tests/txt-acquisition-round3.test.ts
++ codex/help-updates              fcc8b4a (E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-help-updates) release: 0.64.1 top-tab help center
+  codex/issue-2-writer-lock       93c8aec [origin/codex/issue-2-writer-lock] docs: record writer lock validation evidence and pending Windows 11 acceptance
++ codex/release-0.63.1            c59bdbc (E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-issue-2-writer-lock) docs: record verified npm GitHub and market 0.63.1 release
++ codex/txt-acquisition-hardening d5878f9 (E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-hardening) [origin/codex/txt-acquisition-hardening] docs(txt): preserve follow-up verification logs for independent review
+* codex/txt-acquisition-round3    d5878f9 docs(txt): preserve follow-up verification logs for independent review
++ main                            ea9b45b (E:/项目/桌面宠物/扩展/cortina/state/packages/cortico-world-bookfish/output/github-bookfish) [origin/main: behind 13] release: Bookfish 0.62.1 (prompt optimization 0.62.0 + version bump)
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/cortico-world-bookfish/output/github-bookfish" ea9b45b [main]
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/bookfish-help-updates"                         fcc8b4a [codex/help-updates]
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/bookfish-issue-2-writer-lock"                  c59bdbc [codex/release-0.63.1]
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/bookfish-txt-acquisition-hardening"            d5878f9 [codex/txt-acquisition-hardening]
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/bookfish-txt-acquisition-round3"               d5878f9 [codex/txt-acquisition-round3]
+origin	https://github.com/oceanxuhaiao/bookfish.git (fetch)
+origin	https://github.com/oceanxuhaiao/bookfish.git (push)

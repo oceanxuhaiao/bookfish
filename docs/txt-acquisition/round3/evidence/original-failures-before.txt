@@ -1,0 +1,119 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+(node:10660) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ tests/txt-acquisition-round3.test.ts (4 tests | 4 failed) 1258ms
+   × third-round original integrity > refuses byte mutation without importing or changing original digest 335ms
+     → expected 'completed_with_warning' to be 'failed_recoverable' // Object.is equality
+   × third-round original integrity > refuses truncate mutation without importing or changing original digest 334ms
+     → expected 'completed_with_warning' to be 'failed_recoverable' // Object.is equality
+   × third-round original integrity > refuses missing mutation without importing or changing original digest 328ms
+     → expected 'completed_with_warning' to be 'failed_recoverable' // Object.is equality
+   × third-round original integrity > rolls back in-memory task changes when record persistence fails 259ms
+     → expected { …(13) } to deeply equal { …(13) }
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/txt-acquisition-round3.test.ts > third-round original integrity > refuses byte mutation without importing or changing original digest
+ FAIL  tests/txt-acquisition-round3.test.ts > third-round original integrity > refuses truncate mutation without importing or changing original digest
+ FAIL  tests/txt-acquisition-round3.test.ts > third-round original integrity > refuses missing mutation without importing or changing original digest
+AssertionError: expected 'completed_with_warning' to be 'failed_recoverable' // Object.is equality
+
+Expected: "failed_recoverable"
+Received: "completed_with_warning"
+
+ ❯ tests/txt-acquisition-round3.test.ts:23:27
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/txt-acquisition-round3.test.ts > third-round original integrity > rolls back in-memory task changes when record persistence fails
+AssertionError: expected { …(13) } to deeply equal { …(13) }
+
+- Expected
++ Received
+
+  Object {
+    "attempts": Object {
+      "downloads": 1,
+      "imports": 0,
+      "repairs": 0,
+    },
+    "candidates": Array [
+      Object {
+        "discoveredAt": 1795237461869,
+        "expiresAt": 1795239261869,
+        "filename": "a.txt",
+        "format": "txt",
+        "host": "books.example",
+        "id": "2166e0a8-3c66-410e-8fd5-ba6c7b248b5c",
+        "urlHash": "d1e49f05d896e0f20af1b7809d03f4e520d2273505ec2a654bb7b431f68016be",
+      },
+    ],
+    "createdAt": 1795237461867,
+    "failure": Object {
+      "at": 1795237461896,
+      "code": "import_failed",
+      "message": "disk temporarily unavailable",
+      "recoverable": true,
+    },
+    "file": Object {
+      "bytes": 4560,
+      "contentType": "text/plain",
+      "filename": "a.txt",
+      "path": "raw\\f815565c7274dad1cb34c64fa74b5acd4d201526163bef06431a38ce7f4081d9.txt",
+      "retained": true,
+      "sha256": "f815565c7274dad1cb34c64fa74b5acd4d201526163bef06431a38ce7f4081d9",
+    },
+    "history": Array [
+      Object {
+        "at": 1795237461867,
+        "status": "queued",
+      },
+      Object {
+        "at": 1795237461869,
+        "note": "direct file address",
+        "status": "candidate_ready",
+      },
+      Object {
+        "at": 1795237461870,
+        "status": "downloading",
+      },
+      Object {
+        "at": 1795237461884,
+        "status": "validating",
+      },
+      Object {
+        "at": 1795237461894,
+        "status": "importing",
+      },
+      Object {
+        "at": 1795237461896,
+        "note": "import_failed",
+        "status": "failed_recoverable",
+      },
+    ],
+    "id": "99ebbcd3-04e2-4f91-a863-b5f3f861de90",
+    "origin": "manual",
+    "selectedCandidateId": "2166e0a8-3c66-410e-8fd5-ba6c7b248b5c",
+    "sourceHost": "",
+    "status": "failed_recoverable",
+    "target": Object {
+-     "title": "海风",
++     "title": "not durable",
+    },
+-   "updatedAt": 1795237461896,
++   "updatedAt": 1795237461904,
+  }
+
+ ❯ tests/txt-acquisition-round3.test.ts:30:44
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ Test Files  1 failed (1)
+      Tests  4 failed (4)
+   Start at  13:04:19
+   Duration  2.92s (transform 399ms, setup 0ms, collect 739ms, tests 1.26s, environment 0ms, prepare 100ms)
+

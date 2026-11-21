@@ -1,0 +1,28 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ❯ tests/txt-acquisition-url.test.ts (12 tests | 1 failed) 34ms
+   × outbound URL policy > rejects unapproved ports before DNS, including public literal addresses 12ms
+     → promise resolved "URL { href: 'https://public.example:8443/a.txt', origin: 'https://public.example:8443', protocol: 'https:', username: '', password: '', host: 'public.example:8443', hostname: 'public.example', port: '8443', pathname: '/a.txt', search: '', searchParams: URLSearchParams {}, hash: '' }" instead of rejecting
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/txt-acquisition-url.test.ts > outbound URL policy > rejects unapproved ports before DNS, including public literal addresses
+AssertionError: promise resolved "URL { href: 'https://public.example:8443/a.txt', origin: 'https://public.example:8443', protocol: 'https:', username: '', password: '', host: 'public.example:8443', hostname: 'public.example', port: '8443', pathname: '/a.txt', search: '', searchParams: URLSearchParams {}, hash: '' }" instead of rejecting
+
+- Expected
++ Received
+
+- [Error: rejected promise]
++ "https://public.example:8443/a.txt"
+
+ ❯ tests/txt-acquisition-url.test.ts:21:191
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed (12)
+   Start at  15:04:04
+   Duration  1.82s (transform 58ms, setup 0ms, collect 309ms, tests 34ms, environment 0ms, prepare 96ms)
+

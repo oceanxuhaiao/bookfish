@@ -1,0 +1,39 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/txt-acquisition-round3-stream.test.ts (18 tests) 6578ms
+   ✓ third-round decoding boundaries > preserves the correct opening and reports partial for known mixed bytes near-head 1673ms
+   ✓ third-round decoding boundaries > preserves the correct opening and reports partial for known mixed bytes near-tail 1184ms
+   ✓ third-round decoding boundaries > preserves utf8 across the prefix and one-byte read boundaries 508ms
+   ✓ third-round decoding boundaries > preserves gb18030 across the prefix and one-byte read boundaries 482ms
+   ✓ third-round decoding boundaries > preserves utf16le across the prefix and one-byte read boundaries 933ms
+   ✓ third-round decoding boundaries > preserves utf16be across the prefix and one-byte read boundaries 947ms
+   ✓ third-round decoding boundaries > normalizes CRLF across a prefix boundary and EOF CR, trimming many whitespace blocks 546ms
+ ✓ tests/txt-acquisition-import.test.ts (19 tests) 6542ms
+   ✓ lenient TXT import across encodings > imports a utf8 novel and keeps the prose intact 499ms
+   ✓ lenient TXT import across encodings > imports a utf8-bom novel and keeps the prose intact 487ms
+   ✓ lenient TXT import across encodings > imports a utf16le novel and keeps the prose intact 491ms
+   ✓ lenient TXT import across encodings > imports a utf16be novel and keeps the prose intact 436ms
+   ✓ lenient TXT import across encodings > imports a GB18030 novel that the strict decoder would also accept, and reports no damage 419ms
+   ✓ lenient TXT import across encodings > keeps a few undecodable bytes as replacement marks instead of refusing the book 427ms
+   ✓ lenient TXT import across encodings > keeps the valid prefix when the last character is cut in half 406ms
+   ✓ lenient TXT import when the copy is imperfect > imports a novel with an out-of-order chapter number and warns 404ms
+   ✓ lenient TXT import when the copy is imperfect > imports a novel with a missing chapter and warns, without truncating anything 420ms
+   ✓ lenient TXT import when the copy is imperfect > imports mixed heading styles and repeated headings 383ms
+   ✓ lenient TXT import when the copy is imperfect > imports prose with no chapter headings at all 424ms
+ ✓ tests/txt-acquisition-reliability.test.ts (18 tests) 8608ms
+   ✓ second-round reliability regressions > recovers a retained post-download import failure through retry without changing old progress 1025ms
+   ✓ second-round reliability regressions > recovers a retained post-download import failure through repair without changing old progress 905ms
+   ✓ second-round reliability regressions > keeps committed shelf success separate from an async queue callback failure 558ms
+   ✓ second-round reliability regressions > automatically prunes after init and completion but protects warning originals 558ms
+   ✓ second-round reliability regressions > does not trim the only retained-original references when the task cap is exceeded 1670ms
+   ✓ second-round reliability regressions > keeps a protected original loadable when active candidate tasks reach the cap 975ms
+   ✓ second-round reliability regressions > preserves the confidently decoded opening when processing utf8-first 329ms
+   ✓ second-round reliability regressions > preserves the confidently decoded opening when processing gb-first 376ms
+   ✓ second-round reliability regressions > preserves the confidently decoded opening when processing utf8-damage 328ms
+
+ Test Files  3 passed (3)
+      Tests  55 passed (55)
+   Start at  15:44:52
+   Duration  11.14s (transform 642ms, setup 0ms, collect 2.56s, tests 21.73s, environment 1ms, prepare 484ms)
+

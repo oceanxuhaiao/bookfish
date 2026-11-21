@@ -1,0 +1,46 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+(node:28508) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ tests/txt-acquisition-round3.test.ts (15 tests | 2 failed) 3275ms
+   × third-round original integrity > does not mark completion or queue when cancelled just before shelf metadata commits 294ms
+     → expected 'completed_with_warning' to be 'failed_recoverable' // Object.is equality
+   ✓ third-round original integrity > retains a retryable original when shelf persistence fails, preserving earlier shelf data 305ms
+   × third-round original integrity > does not clean originals when task records are corrupt 196ms
+     → expected [Function] to throw error including 'originals preserved' but got 'Acquisition records unavailable; orig…'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/txt-acquisition-round3.test.ts > third-round original integrity > does not mark completion or queue when cancelled just before shelf metadata commits
+AssertionError: expected 'completed_with_warning' to be 'failed_recoverable' // Object.is equality
+
+Expected: "failed_recoverable"
+Received: "completed_with_warning"
+
+ ❯ tests/txt-acquisition-round3.test.ts:27:27
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/txt-acquisition-round3.test.ts > third-round original integrity > does not clean originals when task records are corrupt
+AssertionError: expected [Function] to throw error including 'originals preserved' but got 'Acquisition records unavailable; orig…'
+
+Expected: "originals preserved"
+Received: "Acquisition records unavailable; original files preserved and acquisition disabled"
+
+ ❯ tests/txt-acquisition-round3.test.ts:66:38
+     64|   it('does not clean originals when task records are corrupt', async (…
+     65|     const { acq, path } = await failedOriginal(); writeFileSync(acq.re…
+     66|     const restarted = acquisition(); await expect(restarted.init()).re…
+       |                                      ^
+     67|     expect(readFileSync(acq.records.file, 'utf8')).toBe('{broken'); ex…
+     68|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 13 passed (15)
+   Start at  15:08:12
+   Duration  4.97s (transform 399ms, setup 0ms, collect 758ms, tests 3.28s, environment 0ms, prepare 101ms)
+

@@ -1,0 +1,1 @@
+restricted process=37616; medium integrity, disabled privileges/admin SID

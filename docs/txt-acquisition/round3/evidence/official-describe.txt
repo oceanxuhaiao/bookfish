@@ -1,0 +1,2 @@
+$ tsx scripts/extension-describe.ts ../packages/bookfish-txt-acquisition-round3
+Wrote E:\项目\桌面宠物\扩展\cortina\state\packages\bookfish-txt-acquisition-round3\describe.json: tools 16, events 10, prompts 1.

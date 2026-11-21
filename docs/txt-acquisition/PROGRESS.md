@@ -110,3 +110,6 @@ npm run build:webui
 
 
 2026-11-21后续阶段：799测试与Chrome／Edge真实MV3回归通过；发现共享DNS代发缺口。完整结果、内存代价和待人工审核边界见[后续交付报告](ROUND2-FOLLOWUP-REVIEW.md)。
+
+
+第三轮独立分支codex/txt-acquisition-round3；数据可靠性候选13b6149，845全量+55后续边界专项、类型／构建／契约通过。五点Node中断、真实私有NTFS拒读／占用与100MiB边界验证通过；普通用户Coopanion预检受权限阻塞，未运行。浏览器就绪保持false，SSM仍需独立审核，未push／merge／部署。当前报告见round3/00-审核入口.md，后续阶段继续，不能把本阶段当全任务完成。

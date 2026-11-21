@@ -1,0 +1,37 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/txt-acquisition-round3.test.ts (22 tests) 5512ms
+   ✓ third-round original integrity > preserves the retained original and existing shelf entry when repair fails 363ms
+   ✓ third-round original integrity > shares raw bytes safely across simultaneous tasks and duplicate shelf imports 371ms
+   ✓ third-round original integrity > refuses a new task if its initial durable record cannot be written 334ms
+   ✓ third-round original integrity > does not let a retained retry consume a 101st active slot 631ms
+   ✓ third-round original integrity > does not mark completion or queue when cancelled just before shelf metadata commits 332ms
+ ❯ tests/txt-acquisition-round3-stream.test.ts (18 tests | 1 failed) 5857ms
+   ✓ third-round decoding boundaries > preserves the correct opening and reports partial for known mixed bytes near-head 1413ms
+   × third-round decoding boundaries > preserves the correct opening and reports partial for known mixed bytes near-tail 1077ms
+     → expected 'warning' to be 'partial' // Object.is equality
+   ✓ third-round decoding boundaries > preserves utf8 across the prefix and one-byte read boundaries 470ms
+   ✓ third-round decoding boundaries > preserves gb18030 across the prefix and one-byte read boundaries 465ms
+   ✓ third-round decoding boundaries > preserves utf16le across the prefix and one-byte read boundaries 852ms
+   ✓ third-round decoding boundaries > preserves utf16be across the prefix and one-byte read boundaries 836ms
+   ✓ third-round decoding boundaries > normalizes CRLF across a prefix boundary and EOF CR, trimming many whitespace blocks 483ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/txt-acquisition-round3-stream.test.ts > third-round decoding boundaries > preserves the correct opening and reports partial for known mixed bytes near-tail
+AssertionError: expected 'warning' to be 'partial' // Object.is equality
+
+Expected: "partial"
+Received: "warning"
+
+ ❯ tests/txt-acquisition-round3-stream.test.ts:16:171
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 39 passed (40)
+   Start at  15:41:56
+   Duration  7.53s (transform 486ms, setup 0ms, collect 1.35s, tests 11.37s, environment 1ms, prepare 213ms)
+

@@ -1,0 +1,15 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/txt-acquisition-browser.test.ts (14 tests) 188ms
+ ✓ tests/txt-acquisition-round3.test.ts (21 tests) 5013ms
+   ✓ third-round original integrity > shares raw bytes safely across simultaneous tasks and duplicate shelf imports 367ms
+   ✓ third-round original integrity > does not let a retained retry consume a 101st active slot 654ms
+   ✓ third-round original integrity > does not mark completion or queue when cancelled just before shelf metadata commits 313ms
+   ✓ third-round original integrity > retains a retryable original when shelf persistence fails, preserving earlier shelf data 306ms
+
+ Test Files  2 passed (2)
+      Tests  35 passed (35)
+   Start at  15:34:48
+   Duration  6.79s (transform 539ms, setup 0ms, collect 1.36s, tests 5.20s, environment 0ms, prepare 224ms)
+

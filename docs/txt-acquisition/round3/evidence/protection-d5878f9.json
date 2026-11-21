@@ -1,0 +1,292 @@
+{
+  "base": "d5878f9",
+  "staged": false,
+  "manifestVersion": 1,
+  "blocked": [],
+  "review": [
+    {
+      "path": "src/stream-import.ts",
+      "verdict": "review",
+      "rule": "src/stream-import.ts"
+    },
+    {
+      "path": "src/world.ts",
+      "verdict": "review",
+      "rule": "src/world.ts"
+    }
+  ],
+  "allowed": [
+    {
+      "path": ".gitignore",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "lib/import-worker.mjs",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/selection.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/acquisition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/download.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/html-encoding.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/quality.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/records.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/repair.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/staging.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/types.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/url-policy.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-download.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-flow.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-privacy.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-reliability.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-selection.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-url.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/round3-host.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/round3-performance.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/round3-real-sources.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/round3-restricted-runner.cs",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/round3-stream-boundaries.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/fixtures/txt-round3-crash.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-round3-stream.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-round3.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    }
+  ],
+  "findings": [
+    {
+      "path": ".gitignore",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "lib/import-worker.mjs",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/selection.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/stream-import.ts",
+      "verdict": "review",
+      "rule": "src/stream-import.ts"
+    },
+    {
+      "path": "src/txt-acquisition/acquisition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/download.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/html-encoding.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/quality.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/records.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/repair.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/staging.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/types.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/url-policy.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/world.ts",
+      "verdict": "review",
+      "rule": "src/world.ts"
+    },
+    {
+      "path": "tests/txt-acquisition-download.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-flow.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-privacy.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-reliability.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-selection.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-url.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/round3-host.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/round3-performance.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/round3-real-sources.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/round3-restricted-runner.cs",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/round3-stream-boundaries.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/fixtures/txt-round3-crash.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-round3-stream.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-round3.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    }
+  ]
+}

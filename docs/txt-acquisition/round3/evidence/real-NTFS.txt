@@ -1,0 +1,4 @@
+{"verified":false,"code":"storage_unavailable","message":"Cannot read or verify the retained original (EPERM)"}
+{"verified":false,"code":"storage_unavailable","message":"Cannot read or verify the retained original (EBUSY)"}
+{"verified":true}
+PASS: private-file ACL restored, exclusive handle closed, original bytes unchanged
