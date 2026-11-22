@@ -1,0 +1,73 @@
+[14:22:53.665] INFO  core.bus/paused: 总线已暂停:事件照常落库,不投递
+[14:22:53.674] INFO  webui: web面板已启动 http://127.0.0.1:58500/
+[14:22:53.675] INFO  core: World 已启动: console
+[14:22:54.228] INFO  core: World 已启动: bookfish
+[14:22:54.234] INFO  core/started: core已启动
+[14:22:54.286] INFO  core.loop: bootstrap:全新session
+[14:22:54.366] ERROR webui: 面板调用失败 world:bookfish/shelf.novel_search_start  {
+  error: 'SourceError: Network book access is disabled; cached text remains readable'
+}
+[14:22:54.780] INFO  core: World 已卸载: bookfish
+[14:22:54.801] WARN  core.loop/prefix-reload: 当前session系统前缀已重载 { keptMessages: 0 }
+[14:22:55.189] INFO  core: World 已启动: bookfish
+[14:22:55.210] WARN  webui: World 已重启 { id: 'bookfish' }
+[14:22:55.214] WARN  shutdown: 开始关机(应用退出) 
+[14:22:55.215] INFO  shutdown: 关机 ✓ 暂停事件投递
+[14:22:55.216] INFO  shutdown: 关机 ✓ 等待扩展装卸结束
+[14:22:55.219] INFO  core: core已停止
+[14:22:55.220] INFO  shutdown: 关机 ✓ 停止 World
+[14:22:55.221] INFO  shutdown: 关机 ✓ 停止 Persona
+[14:22:55.221] INFO  shutdown: 关机 ✓ 停止 Provider 实例
+[14:22:55.223] INFO  shutdown: 关机 ✓ 保存 Core 状态
+[14:22:55.225] INFO  shutdown: 关机 ✓ 关闭 WebUI
+[14:22:55.225] WARN  shutdown/shutdown-summary: 本地关机步骤全部完成 {
+  steps: [
+    '暂停事件投递=ok',
+    '等待扩展装卸结束=ok',
+    '停止 World=ok',
+    '停止 Persona=ok',
+    '停止 Provider 实例=ok',
+    '保存 Core 状态=ok',
+    '关闭 WebUI=ok'
+  ],
+  externalChecks: []
+}
+[14:22:57.438] INFO  core.bus/paused: 总线已暂停:事件照常落库,不投递
+[14:22:57.446] INFO  webui: web面板已启动 http://127.0.0.1:58507/
+[14:22:57.448] INFO  core: World 已启动: console
+[14:22:58.099] INFO  core: World 已启动: bookfish
+[14:22:58.106] INFO  core.loop: bootstrap:重启恢复
+[14:22:58.108] INFO  core/started: core已启动
+[14:26:06.968] INFO  core: World 已卸载: bookfish
+[14:26:06.992] WARN  core.loop/prefix-reload: 当前session系统前缀已重载 { keptMessages: 0 }
+[14:26:06.996] WARN  webui: World 激活状态已改 { id: 'bookfish', enabled: false }
+[14:26:10.476] INFO  core: World 已启动: bookfish
+[14:26:10.529] INFO  core: World 已卸载: bookfish
+[14:26:11.010] INFO  core: World 已启动: bookfish
+[14:26:11.040] WARN  webui: World 已重启 { id: 'bookfish' }
+[14:26:11.071] INFO  core: World 已卸载: bookfish
+[14:26:11.547] INFO  core: World 已启动: bookfish
+[14:26:36.996] WARN  core.loop/prefix-reload: 当前session系统前缀已重载 (×6) { keptMessages: 0 }
+[14:26:36.997] WARN  webui: World 激活状态已改 (×2) { id: 'bookfish', enabled: false }
+[14:26:41.052] WARN  webui: World 已重启 (×2) { id: 'bookfish' }
+[14:27:16.525] WARN  shutdown: 开始关机(应用退出) 
+[14:27:16.527] INFO  shutdown: 关机 ✓ 暂停事件投递
+[14:27:16.527] INFO  shutdown: 关机 ✓ 等待扩展装卸结束
+[14:27:16.531] INFO  core: core已停止
+[14:27:16.532] INFO  shutdown: 关机 ✓ 停止 World
+[14:27:16.532] INFO  shutdown: 关机 ✓ 停止 Persona
+[14:27:16.533] INFO  shutdown: 关机 ✓ 停止 Provider 实例
+[14:27:16.535] INFO  shutdown: 关机 ✓ 保存 Core 状态
+[14:27:16.537] INFO  shutdown: 关机 ✓ 关闭 WebUI
+[14:27:16.537] WARN  shutdown/shutdown-summary: 本地关机步骤全部完成 {
+  steps: [
+    '暂停事件投递=ok',
+    '等待扩展装卸结束=ok',
+    '停止 World=ok',
+    '停止 Persona=ok',
+    '停止 Provider 实例=ok',
+    '保存 Core 状态=ok',
+    '关闭 WebUI=ok'
+  ],
+  externalChecks: []
+}

@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "restoredBooks": 4,
+  "confirmedChars": 0,
+  "queue": 0,
+  "ownedHostPidsStopped": [
+    40360,
+    32064
+  ],
+  "sourceFreeze": "9a2300b",
+  "productionDataAccessed": false,
+  "sourceOrGuardChanged": false
+}

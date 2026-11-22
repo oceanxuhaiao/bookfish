@@ -1,0 +1,72 @@
+[
+  {
+    "step": "offline-fixtures-prepared",
+    "scope": "actual acquisition code with injected synthetic bytes before real host recovery; not live network/browser evidence",
+    "fixtures": [
+      {
+        "id": "8c7c2482-67ac-4e0d-964e-b7f710fa2be8",
+        "taskId": "f4f19670-955e-4d9b-a5df-9787a8e0bb90",
+        "bookKey": "6463c1f2e0e2ecc3bcf3df4083f8e6bcbe392c8da1e1eba54a35ee5d884c1ad6:05a2bdc408a541758057850c845a3e1b43c02a0978aa8963d72c535a9b453d6d",
+        "filename": "novel.txt"
+      },
+      {
+        "id": "7e846686-bab1-41d2-b00e-d9117614771c",
+        "taskId": "4dadbafd-2aef-49b6-9c41-38f8b322a322",
+        "bookKey": "a789cb0df1ce5bafc457bb320582a22ccbffce3caae11ab1b3b64bf3dc875606:05a2bdc408a541758057850c845a3e1b43c02a0978aa8963d72c535a9b453d6d",
+        "filename": "《另一部》作者：小鱼.txt"
+      }
+    ]
+  },
+  {
+    "step": "real-host-identity-summary-recovery",
+    "cycle": 0,
+    "passed": true
+  },
+  {
+    "step": "real-host-identity-summary-recovery",
+    "cycle": 1,
+    "passed": true
+  },
+  {
+    "step": "real-host-identity-summary-recovery",
+    "cycle": 2,
+    "passed": true
+  },
+  {
+    "step": "actual-host-abandon-preserves-shelf-no-reading",
+    "passed": true,
+    "books": [
+      {
+        "key": "b10fb5297ddf8aa8be504285702d0c0408cde4fc26b259abaa6710ba704336f4:d18ff3dbdc1edb18204758bb8496bd92243c18b611cc6d2a01d4a90c4553a9ea",
+        "title": "隔离宿主原书",
+        "author": "验收夹具",
+        "confirmedChars": 0
+      },
+      {
+        "key": "7ac340dd11efb2e092032dab357e8efaabd74fc58404a2157f93b723810af14d:77c1baee8d99a6ce259733f9cf9bcd388927f8876cf5937571a18f7a83e80c44",
+        "title": "隔离入口新书",
+        "author": "验收夹具",
+        "confirmedChars": 0
+      },
+      {
+        "key": "6463c1f2e0e2ecc3bcf3df4083f8e6bcbe392c8da1e1eba54a35ee5d884c1ad6:05a2bdc408a541758057850c845a3e1b43c02a0978aa8963d72c535a9b453d6d",
+        "title": "未确认作品（novel.txt · 3297811d8df4）",
+        "author": "",
+        "confirmedChars": 0
+      },
+      {
+        "key": "a789cb0df1ce5bafc457bb320582a22ccbffce3caae11ab1b3b64bf3dc875606:05a2bdc408a541758057850c845a3e1b43c02a0978aa8963d72c535a9b453d6d",
+        "title": "另一部",
+        "author": "小鱼",
+        "confirmedChars": 0
+      }
+    ]
+  },
+  {
+    "step": "result",
+    "passed": true,
+    "liveNetwork": false,
+    "modelCalled": false,
+    "productionWorldModified": false
+  }
+]

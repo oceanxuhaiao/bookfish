@@ -1,0 +1,46 @@
+/** Installed Coopanion Core with a new deployment. Elevated isolated acceptance only with explicit --authorized-elevated flag. No model credentials. */
+import { fork,execFileSync } from 'node:child_process';
+import { once } from 'node:events';
+import { mkdirSync,writeFileSync,readFileSync,existsSync,symlinkSync,createWriteStream } from 'node:fs';
+import { join,resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { randomUUID } from 'node:crypto';
+import assert from 'node:assert/strict';
+import { Library } from '../src/library.ts';
+const root=process.cwd(),evidence=resolve('_verify/host-final-'+randomUUID());mkdirSync(evidence,{recursive:true});
+const groups=execFileSync('whoami.exe',['/groups'],{encoding:'utf8'});
+// WindowsPrincipal checks the enabled token, including UAC deny-only groups,
+// rather than depending on localized whoami attribute text.
+const adminProbe=execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-Command','([Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)'],{encoding:'utf8',windowsHide:true}).trim();
+if(!/^(True|False)$/u.test(adminProbe))throw Error('BLOCKED: could not verify the current Windows token; no host was started');
+const token={medium:groups.includes('S-1-16-8192'),high:groups.includes('S-1-16-12288'),adminEnabled:adminProbe==='True'};
+writeFileSync(join(evidence,'token-preflight.json'),JSON.stringify(token,null,2));
+const elevatedAuthorized=process.argv.includes('--authorized-elevated');
+if((!token.medium||token.high||token.adminEnabled)&&!elevatedAuthorized){console.error('BLOCKED: ordinary Medium-integrity user token required. Actual token: '+JSON.stringify(token)+'. No host was started.');process.exit(2);}
+const app=resolve(process.argv[2]??'E:/zcdfy/Coopanion/resources/app'),work=join(evidence,randomUUID()),home=join(work,'home'),deployment=join(home,'companion'),extensions=join(work,'extensions'),data=join(deployment,'data');
+writeFileSync(resolve('_verify/host-final-current.json'),JSON.stringify({work,evidence,sourceFreeze:'9a2300b',elevatedAuthorized,token},null,2));
+mkdirSync(deployment,{recursive:true});mkdirSync(join(extensions,'node_modules'),{recursive:true});
+writeFileSync(join(deployment,'deployment.json'),JSON.stringify({bot:'cormini'}));writeFileSync(join(deployment,'guide.json'),JSON.stringify({done:true}));
+writeFileSync(join(deployment,'config.json'),JSON.stringify({displayName:'Bookfish TXT final authorized isolated acceptance',language:'zh',providerSchemaVersion:3,providers:{},activeProvider:'',web:{port:0},tick:{intervalMinutes:null},companion:{telemetry:false,autoUpdate:false},worlds:{'desktop-pet':{enabled:false},coopanion:{enabled:false},bookfish:{enabled:true,automaticReading:false,automaticSharing:false,automaticReview:false,autonomousAcquisition:false,realRoutineEnabled:false,allowNetwork:false,txtAcquisitionEnabled:true,browserBridgeEnabled:false,storyMemoryEnabled:false}}}));
+writeFileSync(join(extensions,'package.json'),JSON.stringify({name:'bookfish-r3-isolated',private:true,dependencies:{'cortico-world-bookfish':'link:'+root.replaceAll('\\','/')}}));symlinkSync(root,join(extensions,'node_modules','cortico-world-bookfish'),'junction');
+const initial=new Library({dataDir:data});initial.open();const seed=initial.import({filename:'seed.txt',title:'隔离宿主原书',author:'验收夹具',base64:Buffer.from('第一章 海风\n她把信折好，回到窗口等船。'.repeat(50)).toString('base64')}).book;
+const backup=initial.export();writeFileSync(join(work,'synthetic-backup.json'),backup);initial.close();
+const restored=new Library({dataDir:join(work,'restore-drill')});restored.open();restored.restore(backup);assert.equal(restored.list()[0].key,seed.key);assert.equal(restored.list()[0].confirmedChars,0);restored.close();
+const env:NodeJS.ProcessEnv={};for(const name of ['PATH','SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','APPDATA','LOCALAPPDATA','COMSPEC'])if(process.env[name])env[name]=process.env[name];
+Object.assign(env,{CORTICO_HOME:home,CORTICO_EXTENSIONS_DIR:extensions,CORTICO_START_PAUSED:'1',CORTICO_LANGUAGE:'zh',COOPANION_VERSION:JSON.parse(readFileSync(join(app,'package.json'),'utf8')).version});
+const records:any[]=[{step:'actual-token',elevatedAuthorized,...token},{step:'synthetic-backup-restore',passed:true,confirmedChars:0}];let child:ReturnType<typeof fork>|undefined,base='';
+const log=createWriteStream(join(work,'core.log'));
+async function launch(){child=fork(join(app,'core','boot.ts'),[],{cwd:app,env,execArgv:['--import',pathToFileURL(join(app,'node_modules','tsx','dist','loader.mjs')).href],stdio:['ignore','pipe','pipe','ipc']});child.stdout!.pipe(log,{end:false});child.stderr!.pipe(log,{end:false});const running=child;
+ const ready=await new Promise<any>((ok,no)=>{const timer=setTimeout(()=>{running.kill('SIGKILL');no(Error('Core readiness timed out'));},45000);running.on('message',(m:any)=>{if(m?.type==='companion:ready'){clearTimeout(timer);ok(m);}});running.once('exit',(code,signal)=>{clearTimeout(timer);no(Error('Core exited '+code+'/'+signal));});});base='http://127.0.0.1:'+ready.port;records.push({step:'installed-Core-ready',host:env.COOPANION_VERSION,pid:running.pid,port:ready.port});}
+async function request(path:string,body?:unknown,expected=200){const r=await fetch(base+path,{method:body===undefined?'GET':'POST',headers:{'content-type':'application/json',origin:base},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(20000)});const value=await r.json();assert.equal(r.status,expected,JSON.stringify(value));return value as any;}
+const panel=(name:string,method:string,args:unknown[]=[],expected=200)=>request('/api/webui/providers/world%3Abookfish/panels/'+name+'/'+method,{args},expected);
+async function close(){if(!child)return;if(child.exitCode!==null||child.signalCode!==null){child=undefined;return;}const current=child;child=undefined;const exited=once(current,'exit');current.send({type:'companion:shutdown'});const timer=setTimeout(()=>current.kill('SIGKILL'),15000);await exited;clearTimeout(timer);}
+try{await launch();const worlds=await request('/api/worlds');assert.ok(worlds.worlds.some((w:any)=>w.id==='bookfish'&&w.status==='active'));const tools=await request('/api/tool-schemas');assert.ok(JSON.stringify(tools).includes('bookfish_import_txt'));records.push({step:'world-active-and-tool-registered',passed:true});
+ const settings=await panel('settings','get');assert.equal(settings.config.allowNetwork,false);const before=await panel('shelf','get');assert.ok(before.books.some((b:any)=>b.key===seed.key));assert.equal(before.status.txtAcquisition.browserReady,false);assert.equal(before.status.txtAcquisition.controllerReady,false);records.push({step:'settings-status-controller-fail-closed',passed:true});
+ const refused=await panel('shelf','novel_search_start',[{title:'狂人日记',author:'鲁迅'}],500);assert.match(JSON.stringify(refused),/Network.*disabled/i);records.push({step:'network-disabled-rejection',passed:true});
+ const input={filename:'ordinary-import.txt',title:'隔离入口新书',author:'验收夹具',base64:Buffer.from('第1章 来信\n她打开信封，开始读那封迟来的信。'.repeat(70)).toString('base64')};const first=await panel('shelf','import',[input]);const duplicate=await panel('shelf','import',[input]);assert.equal(first.book.key,duplicate.book.key);assert.equal(duplicate.duplicate,true);const after=await panel('shelf','get');assert.equal(after.books.length,2);assert.ok(after.books.every((b:any)=>b.confirmedChars===0));assert.equal(after.selection.queue.length,0);const chapters=await panel('shelf','chapters',[first.book.key]);assert.ok(chapters);records.push({step:'actual-panel-import-index-duplicate-no-progress',passed:true});
+ await request('/api/worlds/restart',{id:'bookfish'});await close();await launch();const persisted=await panel('shelf','get');assert.equal(persisted.books.length,2);assert.ok(persisted.books.every((b:any)=>b.confirmedChars===0));records.push({step:'World-and-Core-restart-preservation',passed:true});
+ writeFileSync(join(evidence,'ready.json'),JSON.stringify({base,work},null,2));console.log('Isolated Coopanion ready: '+base+' ; private test logs: '+work);if(process.argv.includes('--hold')){const stop=join(work,'stop.request'),deadline=Date.now()+10*60000;while(!existsSync(stop)&&Date.now()<deadline)await new Promise(r=>setTimeout(r,500));}
+ records.push({step:'result',passed:true,scope:'installed Coopanion Core and public panel APIs; Electron desktop and manual source permission dialogue not accepted'});
+}catch(error){records.push({step:'result',passed:false,error:String(error)});process.exitCode=1;}
+finally{await close();log.end();writeFileSync(join(evidence,'results.json'),JSON.stringify({work,records},null,2));}
