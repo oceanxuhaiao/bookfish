@@ -1,0 +1,80 @@
+{
+  "source": "2685d7704b0f59d42fcc6a7aec93f613b78e5081",
+  "elevatedAuthorized": true,
+  "token": {
+    "medium": false,
+    "high": true,
+    "adminEnabled": true
+  },
+  "records": [
+    {
+      "step": "actual-token",
+      "elevatedAuthorized": true,
+      "medium": false,
+      "high": true,
+      "adminEnabled": true
+    },
+    {
+      "step": "synthetic-backup-restore",
+      "passed": true,
+      "confirmedChars": 0
+    },
+    {
+      "step": "installed-Core-ready",
+      "host": "0.2.23",
+      "pid": 41328,
+      "port": 49932
+    },
+    {
+      "step": "world-active-and-tool-registered",
+      "passed": true
+    },
+    {
+      "step": "latest-help-and-TXT-coexist",
+      "passed": true,
+      "version": "0.65.1"
+    },
+    {
+      "step": "browser-TXT-help-setup-and-server-gate",
+      "passed": true
+    },
+    {
+      "step": "settings-status-controller-fail-closed",
+      "passed": true
+    },
+    {
+      "step": "one-click-setup-stops-without-install-or-settings-change",
+      "passed": true
+    },
+    {
+      "step": "standard-mode-real-host-consent-readiness-persistence-revocation",
+      "passed": true,
+      "controllerReady": false,
+      "isolationVerified": false,
+      "client": "loopback protocol fixture; no real browser claim"
+    },
+    {
+      "step": "network-disabled-rejection",
+      "passed": true
+    },
+    {
+      "step": "actual-panel-import-index-duplicate-no-progress",
+      "passed": true
+    },
+    {
+      "step": "installed-Core-ready",
+      "host": "0.2.23",
+      "pid": 41000,
+      "port": 49944
+    },
+    {
+      "step": "World-and-Core-restart-preservation",
+      "passed": true
+    },
+    {
+      "step": "result",
+      "passed": true,
+      "scope": "installed Coopanion Core and public panel APIs; Electron desktop and manual source permission dialogue not accepted"
+    }
+  ]
+}

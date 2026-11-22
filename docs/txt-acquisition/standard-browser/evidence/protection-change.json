@@ -1,0 +1,262 @@
+{
+  "base": "640d6b1",
+  "staged": false,
+  "manifestVersion": 1,
+  "blocked": [],
+  "review": [
+    {
+      "path": "src/config.ts",
+      "verdict": "review",
+      "rule": "src/config.ts"
+    },
+    {
+      "path": "src/world.ts",
+      "verdict": "review",
+      "rule": "src/world.ts"
+    }
+  ],
+  "allowed": [
+    {
+      "path": "readme.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "assets/help/guides/browser-txt.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "assets/help/guides/fetch-book.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/readme.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/manifest.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/popup.html",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "lib/webui-txt-onboarding-0651.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "lib/webui-txt-standard-0651.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "lib/webui.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "package.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/build-webui.mjs",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/round4-final-host.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/acquisition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/browser-policy.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/setup.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/webui/browser-txt.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/webui/settings.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/browser-standard.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-flow.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-panel-gate.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/webui/browser-txt.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/00-实现与验收.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/protection-main.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    }
+  ],
+  "findings": [
+    {
+      "path": "readme.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "assets/help/guides/browser-txt.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "assets/help/guides/fetch-book.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/readme.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/manifest.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/popup.html",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "lib/webui-txt-onboarding-0651.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "lib/webui-txt-standard-0651.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "lib/webui.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "package.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/build-webui.mjs",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/round4-final-host.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/config.ts",
+      "verdict": "review",
+      "rule": "src/config.ts"
+    },
+    {
+      "path": "src/txt-acquisition/acquisition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/browser-policy.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/setup.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/webui/browser-txt.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/webui/settings.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/world.ts",
+      "verdict": "review",
+      "rule": "src/world.ts"
+    },
+    {
+      "path": "tests/browser-standard.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-flow.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-panel-gate.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/webui/browser-txt.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/00-实现与验收.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/protection-main.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    }
+  ]
+}

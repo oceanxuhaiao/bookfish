@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "source": "2685d7704b0f59d42fcc6a7aec93f613b78e5081",
+  "installedVersion": "0.65.1",
+  "install": "E:/zcdfy/Coopanion/data/local-extensions/bookfish-txt-0651-2685d77",
+  "books": 12,
+  "confirmedChars": 1862124,
+  "history": {
+    "version": 3721,
+    "tasks": 1695,
+    "episodes": 834,
+    "sum": "70c0f687b29c7cb465346b52994ef450e370a33b43f9c65de2a0442c0fe29c49"
+  },
+  "txtToolRegistered": true,
+  "txtAcquisitionEnabled": true,
+  "networkEnabled": true,
+  "browserBridgeEnabled": false,
+  "controllerReady": false,
+  "browserReady": false,
+  "originalPreferencesPreserved": true,
+  "oldVersion": "0.65.1",
+  "ordinaryConsentNotAcceptedOnUserBehalf": true,
+  "autonomousSettingPreserved": true
+}

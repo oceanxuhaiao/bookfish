@@ -1,0 +1,7 @@
+
+> cortico-world-bookfish@0.65.1 build:webui
+> node scripts/build-webui.mjs
+
+Built lib/webui.js
+Built lib/import-worker.mjs
+Built lib/zip-worker.mjs
