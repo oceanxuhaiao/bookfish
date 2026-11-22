@@ -272,6 +272,19 @@ describe('autonomous selection state machine', () => {
     } finally { await close(restricted); }
   });
 
+  it('guides multiple real search candidates through status and a valid start without import guidance',async()=>{
+    const ctx=setup({cfg:{autonomousAcquisitionMode:'notify'}});ctx.engine.multiSource=true;
+    try{
+      const started=ctx.coordinator.startSearch({title:'候选书',author:'小鱼',reason:'选择版本'});
+      await waitFor(()=>ctx.coordinator.summary().intent?.status==='awaiting_choice');
+      const status=ctx.coordinator.summary(started.intentId);expect(status.intent?.candidateCount).toBe(2);expect(status.intent?.choiceStage).toBe('search');
+      const event=ctx.host.events.map(e=>{try{return JSON.parse(e.text??'{}');}catch{return {};}}).find(e=>e.status==='awaiting_choice');
+      expect(event.guidance).toContain('action="start"');expect(event.guidance).not.toContain('planAction');
+      const id=ctx.coordinator.candidates(started.intentId)[0].candidateId;ctx.coordinator.acquireCandidate(id);
+      await waitFor(()=>ctx.coordinator.summary().intent?.status==='reading');expect(ctx.lib.selection().queue).toHaveLength(1);
+    }finally{await close(ctx);}
+  });
+
   it('pauses an uncommitted autonomous chain when the feature is switched off', async () => {
     const ctx = setup({ cfg: { autonomousAcquisitionMode: 'notify' } });
     try {

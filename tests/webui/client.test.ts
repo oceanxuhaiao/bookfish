@@ -47,6 +47,16 @@ async function mount(panelId='status') {
 function action(root: HTMLElement, label: string) { return [...root.querySelectorAll('button')].find(b => b.textContent === label)!; }
 async function settle() { await new Promise(resolve => setTimeout(resolve, 25)); }
 describe('library panel with real World data plane', () => {
+  it('renders acquisition source identity from persisted Book metadata instead of the wanted title',async()=>{
+    persist({txtAcquisitionEnabled:true,allowNetwork:true});const acq=(world as any).txtAcquisition;
+    acq.resolve=async()=>['93.184.216.34'];acq.fetchImpl=async()=>new Response('她把信放进抽屉，听海风吹过窗口。'.repeat(80));
+    const result=await acq.importFile({url:'https://books.example/'+encodeURIComponent('《另一部》作者：另一作者.txt'),title:'海风',author:'小鱼',origin:'manual'});
+    const invoke=world.webUi!().invoke!;const data:any=await invoke('status','get',[]);const book=data.books.find((b:any)=>b.key===result.bookKey);
+    expect(book.title).toBe('另一部');expect(book.author).toBe('另一作者');const {root}=await mount();
+    root.querySelector('.bf')!.dispatchEvent(new CustomEvent('bookfish-book',{bubbles:true,detail:{key:book.key}}));await settle();
+    expect(root.textContent).toContain('另一部');expect(root.textContent).toContain('另一作者');expect(root.querySelector('.book-detail h2')?.textContent ?? root.textContent).not.toContain('海风');
+    expect(book.confirmedChars).toBe(0);
+  });
   it('opens unconfirmed local text with a directory without changing pet selection or progress',async()=>{
     const invoke=world.webUi!().invoke!;const imported:any=await invoke('status','import',[{filename:'reader.md',title:'用户阅读样本',base64:Buffer.from('# 第一章 海边\n'+'风吹过海面。\n'.repeat(1800)+'\n# 第二章 回家\n小鱼回来了。').toString('base64')}]);
     const before=await invoke('status','get',[]);const {root}=await mount();root.querySelector('.bf')!.dispatchEvent(new CustomEvent('bookfish-book',{bubbles:true,detail:{key:imported.book.key}}));await settle();action(root,'阅读正文').click();await settle();

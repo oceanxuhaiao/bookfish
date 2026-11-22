@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { statfsSync } from 'node:fs';
 import type { RunPhase, WorldHost } from 'cortico/core/types.ts';
 import { nowIso } from 'cortico/core/util.ts';
@@ -26,6 +26,9 @@ export interface SelectionViewIntent {
   source?: string; candidateCount: number; bookKey?: string; failure?: SelectionFailure;
   candidates?: Array<{ candidateId: string; title: string; author: string; source: string; available: boolean; expiresAt: number }>;
   task?: { id: string; state: string; stage: string; percent: number; downloaded: number; total: number; error?: string; warningCount: number };
+  acquisitionTaskId?: string;
+  choiceStage?: string; guidance?: string;
+  txtIdentity?: { taskStatus: string; wantedIdentity: { title: string; author?: string }; declaredIdentity: { title?: string; author?: string }; libraryDisplayIdentity?: { title: string; author: string } };
 }
 export interface SelectionView {
   enabled: boolean; mode: 'notify' | 'auto'; gate: SelectionGate;
@@ -676,7 +679,7 @@ export class SelectionCoordinator {
         const existing = draft.queue.find((item) => item.intentId === target.id);
         if (!existing) {
           const item: ReadingQueueItem = {
-            id: randomUUID(), intentId: target.id, bookKey, title: target.title, source: 'pet',
+            id: randomUUID(), intentId: target.id, bookKey, title: book.title, source: 'pet',
             status: book.complete ? 'done' : 'queued', addedAt: now, updatedAt: now,
           };
           draft.queue = [...draft.queue, item].slice(-50);
@@ -692,7 +695,7 @@ export class SelectionCoordinator {
 
   private announce(intent: SelectionIntent, status: string, stage: string): void {
     if (this.suppressingEvents || !this.host) return;
-    const notified = `${status}:${intent.acquisitionTaskId ?? intent.searchJobId ?? ''}:${intent.bookKey ?? ''}:${intent.failure?.code ?? ''}`;
+    const notified = 'v2:' + createHash('sha256').update(JSON.stringify([status,stage,intent.acquisitionTaskId ?? intent.searchJobId,intent.bookKey,intent.failure?.code])).digest('hex');
     if (intent.notified === notified) return;
     this.update((draft) => {
       const target = draft.intents.find((entry) => entry.id === intent.id);
@@ -701,11 +704,13 @@ export class SelectionCoordinator {
     const text = JSON.stringify({
       intentId: intent.id, title: intent.title, author: intent.author, status, stage,
       ...(intent.bookKey ? { bookKey: intent.bookKey } : {}),
+      ...(intent.acquisitionTaskId ? { acquisitionTaskId: intent.acquisitionTaskId } : {}),
+      ...(this.txtIdentity(intent) ? { txtIdentity: this.txtIdentity(intent) } : {}),
       ...(intent.failure ? { failure: intent.failure } : {}),
       guidance: status === 'book_added'
         ? 'The book is now in the local shelf and queued after the current book. This is not reading progress. Call bookfish_acquire(action="status") to verify the bookKey; optionally call bookfish_acquire(action="plan") to confirm the queue. Do not search for another self-selected book until this one is fully read or the user explicitly abandons it.'
         : status === 'awaiting_choice'
-          ? 'Search returned exact candidates. Call bookfish_acquire(action="status") for server candidate ids, then bookfish_acquire(action="start") with one id, or stop if no edition is suitable.'
+          ? this.choiceGuidance(intent, stage)
           : status === 'failed'
             ? 'This work failed terminally. Do not ask the user for permission and do not retry it, change source, change edition or resume it automatically. Immediately propose and search a DIFFERENT work in this round, at most three works.'
             : status === 'cancelled_after_import'
@@ -717,6 +722,33 @@ export class SelectionCoordinator {
     const trigger = ['failed', 'awaiting_choice', 'cancelled_after_import'].includes(status) ? 'flush' : 'piggyback';
     this.host.pushEvent({ type: 'bookfish.acquisition_changed', ts: nowIso(this.options.timezone), source: 'bookfish',
       origin: 'internal', senderKey: this.id(), text }, { trigger }).catch(() => undefined);
+  }
+
+  /** Safe projection only: no source URL, path, credential or page text. */
+  private txtIdentity(intent: SelectionIntent): SelectionViewIntent['txtIdentity'] {
+    if (!intent.acquisitionTaskId) return undefined;
+    try {
+      const task=this.options.getExternalTask?.(intent.acquisitionTaskId);
+      if (!task || task.intentId !== intent.id || task.origin !== 'autonomous') return undefined;
+      const candidate=task.candidates.find(row=>row.id===task.selectedCandidateId);
+      const book=intent.bookKey ? this.bookView(intent.bookKey) : undefined;
+      return {taskStatus:task.status,wantedIdentity:{...task.target},declaredIdentity:{...(candidate?.title?{title:candidate.title}:{}),...(candidate?.author?{author:candidate.author}:{})},
+        ...(book?{libraryDisplayIdentity:{title:book.title,author:book.author}}:{})};
+    } catch { return undefined; }
+  }
+
+  private choiceGuidance(intent: SelectionIntent, stage: string): string {
+    if (intent.status !== 'awaiting_choice' || intent.externalPolicyRevokedAt !== undefined || !this.cfg.allowNetwork || !this.cfg.autonomousAcquisition)
+      return 'Choice is paused or terminal. Inspect status for diagnostics; do not start or queue anything.';
+    if(stage==='search' && intent.candidates.length>0 && !intent.bookKey && intent.failure?.code!=='identity_mismatch' && intent.acquisitionKind!=='txt')
+      return 'Search returned exact candidates. Call bookfish_acquire(action="status") for server candidate ids, then bookfish_acquire(action="start") with one id, or stop if no edition is suitable.';
+    if(stage==='import' && intent.failure?.code==='identity_mismatch' && intent.bookKey && intent.acquisitionTaskId){
+      const facts=this.txtIdentity(intent);
+      if (!facts || !facts.libraryDisplayIdentity || !['completed','completed_with_warning'].includes(facts.taskStatus))
+        return 'Import identity evidence is unavailable or inconsistent. Inspect status for diagnostics; do not start or queue anything.';
+      return 'TXT文件已经入架，但来源书名/作者与原目标不完全一致（身份信息不足/待确认）。Call bookfish_acquire(action="status", intentId="'+intent.id+'") to inspect wantedIdentity, declaredIdentity and libraryDisplayIdentity, task '+intent.acquisitionTaskId+' and bookKey '+intent.bookKey+'. Do not treat the wanted title as the source identity or invent missing metadata. Do not start a search candidate or queue automatically. Only after explicitly accepting this shelved work call bookfish_acquire(action="plan", intentId="'+intent.id+'", planAction="queue"); otherwise use action="abandon" for this intent. The shelf book is retained. Metadata agreement is not proof of the prose authenticity.';
+    }
+    return 'Choice stage is unclear or contradictory. Inspect status for diagnostics; do not assume search candidates or queue anything.';
   }
 
   private announceOpportunity(): string | null {
@@ -846,7 +878,7 @@ export class SelectionCoordinator {
           if (existing.status === 'cancelled' || existing.status === 'done') { existing.status = 'queued'; existing.updatedAt = this.now(); }
           existing.notBefore = when; existing.updatedAt = this.now();
         } else {
-          const item: ReadingQueueItem = { id: randomUUID(), intentId: id, bookKey: book.key, title: intent.title,
+          const item: ReadingQueueItem = { id: randomUUID(), intentId: id, bookKey: book.key, title: book.title,
             source: 'pet', status: 'queued', addedAt: this.now(), updatedAt: this.now(), ...(when ? { notBefore: when } : {}) };
           draft.queue = [...draft.queue, item].slice(-50);
         }
@@ -908,7 +940,7 @@ export class SelectionCoordinator {
         const book = this.bookView(intent.bookKey);
         if (!book || book.complete) continue;
         if (!draft.queue.some((item) => item.intentId === intent.id)) {
-          const item: ReadingQueueItem = { id: randomUUID(), intentId: intent.id, bookKey: book.key, title: intent.title,
+          const item: ReadingQueueItem = { id: randomUUID(), intentId: intent.id, bookKey: book.key, title: book.title,
             source: 'pet', status: 'queued', addedAt: now, updatedAt: now };
           draft.queue = [...draft.queue, item].slice(-50);
         }
@@ -939,7 +971,7 @@ export class SelectionCoordinator {
         const book = this.bookView(item.bookKey);
         return { ...item, bookExists: !!book, bookComplete: !!book?.complete, ...(book ? { sourceTitle: book.title } : {}) };
       }),
-      commitment: commitment ? { intentId: commitment.id, bookKey: commitment.bookKey!, title: commitment.title,
+      commitment: commitment ? { intentId: commitment.id, bookKey: commitment.bookKey!, title: this.bookView(commitment.bookKey!)?.title ?? commitment.title,
         readiness: this.bookView(commitment.bookKey!)?.readiness ?? null, complete: !!this.bookView(commitment.bookKey!)?.complete } : null,
       round: state.round ? { day: state.round.day, attempts: state.round.workKeys.length, status: state.round.status,
         cooldownUntil: state.round.cooldownUntil, workTitles: state.intents.filter((intent) => state.round!.workKeys.includes(workKey(intent.title, intent.author))).map((intent) => intent.title) } : null,
@@ -963,7 +995,11 @@ export class SelectionCoordinator {
           downloaded: persisted.downloadedChapters, total: persisted.catalogChapters, ...(persisted.error ? { error: persisted.error } : {}), warningCount: persisted.warningCount };
       }
     }
+    const choiceStage=intent.failure?.code==='identity_mismatch'&&intent.bookKey&&intent.acquisitionTaskId?'import':intent.searchJobId&&intent.candidates.length&&!intent.bookKey?'search':'unknown';
     return { id: intent.id, title: intent.title, author: intent.author, reason: intent.reason, status: intent.status,
+      ...(intent.status==='awaiting_choice'?{choiceStage,guidance:this.choiceGuidance(intent,choiceStage)}:{}),
+      ...(intent.acquisitionTaskId ? { acquisitionTaskId: intent.acquisitionTaskId } : {}),
+      ...(this.txtIdentity(intent) ? { txtIdentity: this.txtIdentity(intent) } : {}),
       createdAt: intent.createdAt, updatedAt: intent.updatedAt, candidateCount: intent.candidates.length,
       ...(candidate ? { source: candidate.source.name } : {}), ...(intent.bookKey ? { bookKey: intent.bookKey } : {}),
       ...(intent.candidates.length ? { candidates: intent.candidates.slice(0, 10).map((entry) => ({

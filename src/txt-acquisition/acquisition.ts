@@ -635,7 +635,10 @@ export class TxtAcquisition {
     let result: ReturnType<Library['importFileBestEffort']>;
     try {
       result = this.library.importFileBestEffort(
-        { filename, title: task.target.title, ...(task.target.author ? { author: task.target.author } : {}) },
+        { filename,
+          title: declared.title?.trim() || `未确认作品（${filename.slice(0, 80)} · ${task.file!.sha256.slice(0, 12)}）`,
+          ...(declared.title?.trim() && declared.author ? { author: declared.author } : {}),
+        },
         absolute,
         {
           wanted: { title: task.target.title, ...(task.target.author ? { author: task.target.author } : {}) },
