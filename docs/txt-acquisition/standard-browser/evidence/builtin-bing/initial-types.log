@@ -1,0 +1,17 @@
+
+> cortico-world-bookfish@0.65.1 typecheck
+> tsc --noEmit && tsc -p tsconfig.web.json --noEmit
+
+tests/extension-bing-popup.test.ts(4,66): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+tests/extension-bing-popup.test.ts(6,3): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+tests/extension-bing-popup.test.ts(11,90): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+tests/extension-bing-popup.test.ts(15,34): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+tests/extension-bing-popup.test.ts(18,27): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+tests/extension-bing-popup.test.ts(18,195): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+tests/extension-bing-popup.test.ts(18,264): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+tests/extension-bing-popup.test.ts(21,65): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+tests/extension-bing-popup.test.ts(21,134): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+tests/extension-bing-popup.test.ts(21,338): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+tests/extension-bing-popup.test.ts(24,68): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+tests/extension-bing-popup.test.ts(24,105): error TS2304: Cannot find name 'HTMLInputElement'.
+tests/extension-bing-popup.test.ts(24,151): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.

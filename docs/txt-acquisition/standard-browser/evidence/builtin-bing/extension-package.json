@@ -1,0 +1,12 @@
+{
+  "source": "4ba8df5d1f3809e8295d75e2884a776b5af4d861",
+  "version": "0.65.1",
+  "protocol": 2,
+  "file": "artifacts/BookFish-Bridge-0.65.1-builtin-bing-4ba8df5.zip",
+  "sha256": "7425b9b07669b4ba83dab77b1903b68553712ecb3b90770489b3871a845621fe",
+  "hostPermissions": [
+    "http://127.0.0.1/*",
+    "https://cn.bing.com/*"
+  ],
+  "actualBrowserInstallConfirmation": "NOT_TESTED; user must update extension files and confirm browser permission"
+}

@@ -1,0 +1,14 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/webui/extension-bing-popup.test.ts (4 tests) 151ms
+ ✓ tests/webui/browser-txt.test.ts (17 tests) 270ms
+ ✓ tests/txt-acquisition-worker.test.ts (14 tests) 56ms
+ ✓ tests/browser-book-search.test.ts (6 tests) 1670ms
+   ✓ browser book search > accepts title only or author only and bounds the query 639ms
+
+ Test Files  4 passed (4)
+      Tests  41 passed (41)
+   Start at  18:20:56
+   Duration  4.75s (transform 473ms, setup 0ms, collect 940ms, tests 2.15s, environment 2.17s, prepare 403ms)
+

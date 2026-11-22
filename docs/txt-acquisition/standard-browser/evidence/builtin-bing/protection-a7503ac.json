@@ -1,0 +1,171 @@
+{
+  "base": "a7503ac",
+  "staged": false,
+  "manifestVersion": 1,
+  "blocked": [],
+  "review": [],
+  "allowed": [
+    {
+      "path": "readme.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "assets/help/guides/browser-txt.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/readme.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/background.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/manifest.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/popup.html",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/popup.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "lib/webui-txt-builtin-bing-0651.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "lib/webui.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "package.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/build-webui.mjs",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/webui/browser-txt.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-worker.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/webui/extension-bing-popup.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "artifacts/bookfish-bridge-0.65.1-builtin-bing-4ba8df5.zip",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/builtin-bing/protection-main.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    }
+  ],
+  "findings": [
+    {
+      "path": "readme.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "assets/help/guides/browser-txt.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/readme.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/background.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/manifest.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/popup.html",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "extension/popup.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "lib/webui-txt-builtin-bing-0651.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "lib/webui.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "package.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/build-webui.mjs",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/webui/browser-txt.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-worker.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/webui/extension-bing-popup.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "artifacts/bookfish-bridge-0.65.1-builtin-bing-4ba8df5.zip",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/builtin-bing/protection-main.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    }
+  ]
+}
