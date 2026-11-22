@@ -1,0 +1,63 @@
+{
+  "work": "E:\\项目\\桌面宠物\\扩展\\cortina\\state\\packages\\bookfish-txt-acquisition-round3\\_verify\\host-final-1ccfaafc-bc04-4df0-8cd1-1953e84a69e9\\a5d5b122-0142-46da-b1a6-fae0d414790c",
+  "records": [
+    {
+      "step": "actual-token",
+      "elevatedAuthorized": true,
+      "medium": false,
+      "high": true,
+      "adminEnabled": true
+    },
+    {
+      "step": "synthetic-backup-restore",
+      "passed": true,
+      "confirmedChars": 0
+    },
+    {
+      "step": "installed-Core-ready",
+      "host": "0.2.23",
+      "pid": 22652,
+      "port": 54893
+    },
+    {
+      "step": "world-active-and-tool-registered",
+      "passed": true
+    },
+    {
+      "step": "latest-help-and-TXT-coexist",
+      "passed": true,
+      "version": "0.65.1"
+    },
+    {
+      "step": "browser-TXT-help-setup-and-server-gate",
+      "passed": true
+    },
+    {
+      "step": "settings-status-controller-fail-closed",
+      "passed": true
+    },
+    {
+      "step": "network-disabled-rejection",
+      "passed": true
+    },
+    {
+      "step": "actual-panel-import-index-duplicate-no-progress",
+      "passed": true
+    },
+    {
+      "step": "installed-Core-ready",
+      "host": "0.2.23",
+      "pid": 996,
+      "port": 54904
+    },
+    {
+      "step": "World-and-Core-restart-preservation",
+      "passed": true
+    },
+    {
+      "step": "result",
+      "passed": true,
+      "scope": "installed Coopanion Core and public panel APIs; Electron desktop and manual source permission dialogue not accepted"
+    }
+  ]
+}

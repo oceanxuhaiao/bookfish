@@ -1,0 +1,22 @@
+{
+  "source": "bfb4c7f0e05403bdd286268c87b5652ade5e9d0d",
+  "installedVersion": "0.65.1",
+  "host": "Coopanion 0.2.23",
+  "books": 12,
+  "confirmedChars": 1840439,
+  "episodes": 826,
+  "tasks": 1676,
+  "historyChecksum": "8bcc64646be532c2d26f97ae6e7da3aca20e1208d4aa38ba76de87d880066101",
+  "preferencesPreserved": true,
+  "loopResumed": true,
+  "controllerReady": false,
+  "browserReady": false,
+  "bridgeEnabled": false,
+  "observedUI": [
+    "书名或作者获取中的渠道选择",
+    "首次配置清单与重新检查",
+    "未就绪时发现按钮禁用",
+    "新帮助抽屉显示"
+  ],
+  "actualBrowserDownload": "BLOCKED: no production controller"
+}

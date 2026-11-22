@@ -1,0 +1,12 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/webui/browser-txt.test.ts (9 tests) 114ms
+ ✓ tests/txt-panel-gate.test.ts (1 test) 659ms
+   ✓ actual World browser TXT panel gate > exposes only setup facts and refuses direct discovery/import when the production controller is absent 658ms
+
+ Test Files  2 passed (2)
+      Tests  10 passed (10)
+   Start at  15:53:52
+   Duration  2.49s (transform 954ms, setup 0ms, collect 1.59s, tests 773ms, environment 992ms, prepare 193ms)
+

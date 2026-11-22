@@ -134,3 +134,6 @@ npm run build:webui
 
 
 2026-11-22 按用户要求先适配最新main 1fc504f/0.65.1再安装：冻结c9f24b494b83ac45439e35b737298e77bfe8a404，91文件1018pass/1平台skip，类型/构建/官方契约/帮助/runtime/no-fetch通过，完整world仍无精确候选失败；SSM blocked0 review8待独立审核。获准高权限隔离真实Core验证新版帮助和TXT共存；日常宿主新备份+副本兼容后升级，12书/1833748确认字符/823阅读记录保持，恢复运行，浏览器桥与controller/browser保持关闭。无push/main合并/正式发布。详见latest-adaptation/00-适配与安装报告.md。
+
+
+2026-11-22 浏览器TXT新帮助、并列获取渠道及首次配置向导已完成，本机安装bfb4c7f。93文件1029pass/1平台skip、类型/构建/20指南检查/官方契约通过；实际隔离Core与日常UI确认向导、服务端安全门禁及新帮助。12书/1840439确认字符/826episodes保持，恢复运行；正式控制器缺失，浏览器获取仍BLOCKED。报告browser-txt-ui/00-实现与验收.md。

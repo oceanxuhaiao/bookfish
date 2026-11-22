@@ -1,0 +1,8 @@
+{
+  "version": "0.65.1",
+  "integrity": "sha512-nrcnNZHL3VZNMSGdvBCPzf76Naas7MdctNBoBIEm6Y6iFUgT2vjjIxKMhlZbXYED58Yu6VvcwvxmXo/54c19Ng==",
+  "sha1": "ccd5177e0eab926868e56034989b6fa4d6105f7e",
+  "files": 145,
+  "guide": true,
+  "client": "lib/webui-txt-setup-0651.js"
+}
