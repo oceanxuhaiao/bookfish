@@ -3,7 +3,8 @@ const MAX_CHUNK = 4 * 1024 * 1024;
 const PAGE_LIMIT = 8 * 1024 * 1024;
 const FILE_LIMIT = 100 * 1024 * 1024;
 const consumer = crypto.randomUUID();
-const DEFAULTS = { port: 47823, token: '', allowedOrigins: [] };
+const BING_ORIGIN='https://cn.bing.com';
+const DEFAULTS = { port: 47823, token: '', allowedOrigins: [],bingSearchEnabled:true };
 async function settings() { return chrome.storage.local.get(DEFAULTS); }
 async function setState(patch) { const { state = {} } = await chrome.storage.local.get({ state: {} }); await chrome.storage.local.set({ state: { ...state, ...patch, at: Date.now() } }); }
 const sleep = ms => new Promise(ok => setTimeout(ok, ms));
@@ -23,7 +24,8 @@ async function post(config, job, action, body, type = 'application/json', sequen
 function transferError(code) { const error = new Error('Transfer failed'); error.code = code; return error; }
 async function allowed(config, raw) {
   const url = new URL(raw);
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || !config.allowedOrigins.includes(url.origin)) throw transferError('policy_blocked');
+  const sourceAllowed=url.origin===BING_ORIGIN?config.bingSearchEnabled!==false:config.allowedOrigins.includes(url.origin);
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || !sourceAllowed) throw transferError('policy_blocked');
   if (!await chrome.permissions.contains({ origins: [`${url.protocol}//${url.hostname}/*`] })) throw transferError('permission_missing');
   return url;
 }
@@ -33,7 +35,7 @@ async function handle(job, config) {
   }
   const controller = new AbortController();
   const revoke = () => controller.abort();
-  const changed = (changes, area) => { if (area === 'local' && ['allowedOrigins', 'token', 'port'].some(key => changes[key])) revoke(); };
+  const changed = (changes, area) => { if (area === 'local' && ['allowedOrigins', 'bingSearchEnabled','token', 'port'].some(key => changes[key])) revoke(); };
   chrome.storage.onChanged?.addListener(changed);
   chrome.permissions.onRemoved?.addListener(revoke);
   const transferLimit = job.kind === 'file' ? 300000 : 120000;

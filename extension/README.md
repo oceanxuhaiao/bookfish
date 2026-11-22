@@ -12,3 +12,10 @@
 
 
 2026-11-21：独立Chrome／Edge真实MV3双端点实验通过，正常人工授权对话框及真实Coopanion尚未验收。共享DNS服务代发缺口已确认，正式产品controllerReady／browserReady保持false。详见docs/txt-acquisition/ROUND2-FOLLOWUP-REVIEW.md。
+
+
+## 内置 Bing 搜索来源（扩展 0.65.1）
+
+必需 host_permissions 仅包含本机桥接与 https://cn.bing.com/*，搜索来源随安装授权，无需手动添加。内部允许列表默认启用该精确 HTTPS origin，不自动授权其他 Bing 主机、端口或下载网站。旧版更新可能要求浏览器重新确认新增权限；不绕过确认或浏览器网站访问限制。
+
+弹窗可停用/恢复 Bing 搜索来源。停用保存为 bingSearchEnabled=false，重启/更新不恢复；撤销时中止在途传输。因该权限为安装必需项，弹窗停用仅禁止本扩展派发，浏览器权限仍由扩展管理页控制；权限 API 确认缺失时后台始终拒绝。

@@ -52,7 +52,7 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
   const searchForm=el('form','');searchForm.className='novel-form';searchForm.dataset.bookSearch='true';
   const searchTitleLabel=el('label',say('书名（可只填作者）','Title (or search by author)'),searchForm),searchTitle=el('input','',searchTitleLabel);searchTitle.type='text';searchTitle.maxLength=200;
   const searchAuthorLabel=el('label',say('作者（可只填书名）','Author (or search by title)'),searchForm),searchAuthor=el('input','',searchAuthorLabel);searchAuthor.type='text';searchAuthor.maxLength=100;
-  el('small',say('书名或作者至少填一个。通过 Bing 搜索 TXT 资源，搜索词会发送给 Bing；先在浏览器扩展中授权 https://cn.bing.com。搜索结果不代表已经验证作品身份或版权授权。','Enter a title or author. Queries are sent to Bing to search for TXT resources; grant https://cn.bing.com in the extension first. Results do not verify work identity or access rights.'),searchForm);
+  el('small',say('书名或作者至少填一个。通过 Bing 搜索 TXT 资源，搜索词会发送给 Bing；Bing 搜索来源已内置，安装新版扩展时授权，无需手动添加。搜索结果不代表已经验证作品身份或版权授权。','Enter a title or author. Queries are sent to Bing to search for TXT resources; Bing access is declared at extension installation; no manual source entry is needed. Results do not verify work identity or access rights.'),searchForm);
   const search=el('button',say('搜索书籍','Search books'),searchForm);search.type='submit';search.disabled=true;
   const searchResults=el('div','');
   const manual=el('details','');el('summary',say('已有资源页地址？手动发现（可选）','Already have a resource page? Manual discovery (optional)'),manual);
@@ -94,7 +94,7 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
       say('本机设置已保存；一键配置还不会自动安装浏览器扩展。','Local settings are saved; setup does not yet install the browser extension automatically.'),
       say('点击“查看扩展文件夹位置”。在 Edge 地址栏输入 edge://extensions（Chrome 用 chrome://extensions），打开“开发人员模式”，选择“加载解压缩的扩展”，选中该文件夹。','Show the extension folder. Open edge://extensions (chrome://extensions in Chrome), enable developer mode and load that unpacked folder.'),
       say('打开配置页复制端口和令牌，在浏览器工具栏打开 BookFish 扩展，分别填入后点击“保存并连接”。不要把令牌发到聊天中。','Copy the port and token from settings into the BookFish extension popup, then save and connect. Do not share the token in chat.'),
-      say('先在扩展中填写 https://cn.bing.com，点击“授权这个来源”并确认权限，用于搜书；打开搜索结果里的新网站时，再授权相应来源。','First grant https://cn.bing.com in the extension for book search. Grant additional sources before opening search results.'),
+      say('Bing 搜索来源已内置，安装时授权，无需手动填写。旧版扩展需更新并确认浏览器新增权限；打开搜索结果里的新网站时，再授权对应来源。','Bing search access is built in and granted at installation. Update older extensions and confirm new browser permissions; grant other sources as needed.'),
       say('回到这里点击“我已完成连接，重新检查”。此页每3秒检查连接；只有出现“配置完成，可以开始获取”且下方按钮可用，才表示连接配置完成。','Return here and recheck. Connection is checked every 3 seconds while this view is open. Setup is complete when the completion message appears and discovery is enabled.'),
     ]:[say('在下方选择使用模式并完成必要确认，然后点击“一键配置浏览器获取”；若提示还需操作，请继续按本清单完成。','Choose a mode and confirm the required permissions below, then run setup and follow the remaining steps here.')];
     for(const instruction of instructions)el('li',instruction,nextSteps);

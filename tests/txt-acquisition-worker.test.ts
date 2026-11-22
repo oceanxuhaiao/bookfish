@@ -22,12 +22,22 @@ async function worker(responseFactory: () => Response, allowedOrigins = ['https:
       upstreamCalls++;if(stallUpstream)return new Promise<Response>((_ok,no)=>{init!.signal!.addEventListener('abort',()=>no(new Error('Test upstream aborted')),{once:true});}); if (revokeDuringFetch) for (const listener of listeners) listener({ allowedOrigins: { newValue: [] } }, 'local'); const response = responseFactory(); Object.defineProperty(response, 'url', { value: SOURCE }); return response;
     },
   } as Record<string, unknown>;
-  runInNewContext(readFileSync(new URL('../extension/background.js', import.meta.url), 'utf8') + '\nglobalThis.api = { handle };', context);
-  const api = context.api as { handle: (job: unknown, config: unknown) => Promise<void> };
-  return { calls, replies,pulse:async()=>Promise.all(intervals.map(fn=>fn())),change:(key:string)=>{for(const listener of listeners)listener({[key]:{newValue:'changed'}},'local');}, run: async (kind = 'file', url = SOURCE) => api.handle({ id: randomUUID(), kind, url, lease: randomUUID(), leaseMs: 30000, maxBytes: kind === 'file' ? 100 * 1024 * 1024 : 8 * 1024 * 1024 }, { port: 47823, token: 'paired', allowedOrigins }), get upstreamCalls() { return upstreamCalls; } };
+  runInNewContext(readFileSync(new URL('../extension/background.js', import.meta.url), 'utf8') + '\nglobalThis.api = { handle,allowed,settings };', context);
+  const api = context.api as { allowed:(config:unknown,url:string)=>Promise<URL>;settings:()=>Promise<unknown>; handle: (job: unknown, config: unknown) => Promise<void> };
+  return { allowed:api.allowed,settings:api.settings,permission:(value:boolean)=>{chrome.permissions.contains=async()=>value;}, calls, replies,pulse:async()=>Promise.all(intervals.map(fn=>fn())),change:(key:string)=>{for(const listener of listeners)listener({[key]:{newValue:'changed'}},'local');}, run: async (kind = 'file', url = SOURCE) => api.handle({ id: randomUUID(), kind, url, lease: randomUUID(), leaseMs: 30000, maxBytes: kind === 'file' ? 100 * 1024 * 1024 : 8 * 1024 * 1024 }, { port: 47823, token: 'paired', allowedOrigins }), get upstreamCalls() { return upstreamCalls; } };
 }
 describe('actual extension worker streaming policy', () => {
-  it.each(['lease-cancel','token','port'])('aborts a stalled browser fetch through %s',async reason=>{
+  it('allows only built-in HTTPS cn.bing.com without a saved source and honors app/browser revocation',async()=>{
+    const env=await worker(()=>new Response('unused'),[]);const cfg={allowedOrigins:[]};
+    expect((await env.allowed(cfg,'https://cn.bing.com/search?q=novel')).origin).toBe('https://cn.bing.com');
+    for(const url of ['http://cn.bing.com/search','https://www.bing.com/search','https://other.cn.bing.com/search','https://cn.bing.com:8443/search','https://files.example.com/a'])await expect(env.allowed(cfg,url)).rejects.toMatchObject({code:'policy_blocked'});
+    await expect(env.allowed({allowedOrigins:['https://cn.bing.com'],bingSearchEnabled:false},'https://cn.bing.com/search')).rejects.toMatchObject({code:'policy_blocked'});
+    env.permission(false);await expect(env.allowed(cfg,'https://cn.bing.com/search')).rejects.toMatchObject({code:'permission_missing'});
+  });
+  it('declares the exact built-in search host at installation, without granting all websites',()=>{
+    const manifest=JSON.parse(readFileSync(new URL('../extension/manifest.json',import.meta.url),'utf8'));expect(manifest.host_permissions).toEqual(['http://127.0.0.1/*','https://cn.bing.com/*']);
+  });
+  it.each(['lease-cancel','token','port','bingSearchEnabled'])('aborts a stalled browser fetch through %s',async reason=>{
     const env=await worker(()=>new Response('unused'),['https://files.example.com'],false,reason==='lease-cancel'?404:200,true),running=env.run();
     for(let n=0;n<100&&!env.upstreamCalls;n++)await Promise.resolve();expect(env.upstreamCalls).toBe(1);
     const upstream=env.calls.find(c=>c.url===SOURCE)!;if(reason==='lease-cancel')await env.pulse();else env.change(reason);await running;

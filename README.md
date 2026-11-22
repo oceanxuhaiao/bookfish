@@ -16,7 +16,7 @@ Coopanion / Cortico World 扩展，0.65.1 整体测试版。给大肥鱼一本�
 
 ## 小说引擎运行时
 
-本机 TXT 试用版可在「书架」→「＋ 推荐一本书」→「书名或作者获取」选择「浏览器辅助 TXT 获取」，配置后直接按书名或作者搜索，资源页地址只保留为可选入口。搜索使用 Bing，需要在扩展中授权搜索来源及要访问的网站。普通模式经用户确认后支持手动和模型自主浏览，不强制要求安全组件或独立浏览器；增强保护仍为推荐项。配置会自动开启必要设置，扩展仍需安装、配对及来源授权。普通模式可能使用浏览器登录态，不保证强制网络隔离，不会伪造控制器就绪；自主找书总开关由用户另行开启。详见「帮助与更新」→「浏览器辅助 TXT 获取」。
+本机 TXT 试用版可在「书架」→「＋ 推荐一本书」→「书名或作者获取」选择「浏览器辅助 TXT 获取」，配置后直接按书名或作者搜索，资源页地址只保留为可选入口。搜索使用 Bing，搜索来源随新版扩展安装授权，无需手动添加；其他网站仍按需授权。普通模式经用户确认后支持手动和模型自主浏览，不强制要求安全组件或独立浏览器；增强保护仍为推荐项。配置会自动开启必要设置，扩展仍需安装、配对及来源授权。普通模式可能使用浏览器登录态，不保证强制网络隔离，不会伪造控制器就绪；自主找书总开关由用户另行开启。详见「帮助与更新」→「浏览器辅助 TXT 获取」。
 
 扩展包不包含 85 MB 运行时。一键安装优先使用[国内阿里云 OSS 镜像](https://bookfish-runtime.oss-cn-hangzhou.aliyuncs.com/bookfish-novel-runtime-1.12.0-bf1-win32-x64.zip)，失败时回退 GitHub；Windows x64 运行时、上游源码、SBOM、SHA256SUMS 和许可证说明在 [runtime/README.md](https://github.com/oceanxuhaiao/bookfish/blob/main/runtime/README.md) 与 [runtime-1.12.0-bf1 Release](https://github.com/oceanxuhaiao/bookfish/releases/tag/runtime-1.12.0-bf1)。
 

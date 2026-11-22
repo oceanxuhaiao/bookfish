@@ -17,12 +17,14 @@
   </style>
 </head>
 <body>
-  <h1>BookFish 浏览器桥接</h1>
+  <h1>BookFish 浏览器桥接 · 0.65.1</h1>
   <label for="port">本机端口</label>
   <input id="port" type="number" min="1024" max="65535" placeholder="47823">
   <label for="token">配对令牌</label>
   <input id="token" type="password" spellcheck="false" placeholder="从 BookFish 设置面板复制">
   <button id="save">保存并连接</button>
+  <p id="bing-state">Bing 搜索来源随扩展安装授权，无需手动添加。</p>
+  <button id="bing-toggle">停用 Bing 搜索来源</button>
   <label for="source">允许的资源来源（完整 http/https 地址）</label>
   <input id="source" type="url" placeholder="https://example.com">
   <button id="grant">授权这个来源</button>
