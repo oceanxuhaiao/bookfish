@@ -1,0 +1,7 @@
+{
+  "parentPid": 21208,
+  "protocol": "bookfish-sqlite-writer-v1",
+  "termination": "Stop-Process -Force",
+  "pid": 37180,
+  "backupVerified": true
+}

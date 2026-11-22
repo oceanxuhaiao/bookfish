@@ -1,0 +1,17 @@
+{
+  "version": "0.63.1",
+  "initialIssue": 1061,
+  "followupIssue": 1062,
+  "url": "https://github.com/Pal-AI-Lab/cortico-extensions/issues/1062",
+  "receipt": "https://github.com/Pal-AI-Lab/cortico-extensions/issues/1062#issuecomment-7057578739",
+  "listedVersion": "0.63.1",
+  "detailVersion": "0.63.1",
+  "detailError": null,
+  "changelogIncludes": [
+    "0.63.1",
+    "0.63.0"
+  ],
+  "verifiedDetailUrl": "https://raw.githubusercontent.com/Pal-AI-Lab/cortico-extensions/main/packages/cortico-world-bookfish.json",
+  "workflow": "https://github.com/Pal-AI-Lab/cortico-extensions/actions/runs/44868344293",
+  "uiCacheMayDelayMinutes": 10
+}

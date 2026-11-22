@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+// Isolate protocol fixtures from a running user's fixed-port bridge.
+vi.mock('../src/txt-acquisition/bridge.ts', async original => {
+  const actual = await original<typeof import('../src/txt-acquisition/bridge.ts')>();
+  return { ...actual, BrowserBridge: class extends actual.BrowserBridge {
+    constructor(options: ConstructorParameters<typeof actual.BrowserBridge>[0]) { super({ ...options, port: options.port ?? 0 }); }
+  } };
+});
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

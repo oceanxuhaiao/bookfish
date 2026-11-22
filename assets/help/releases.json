@@ -1,0 +1,243 @@
+{
+  "schema": 1,
+  "updatedAt": "2026-11-21",
+  "currentVersion": "0.65.1",
+  "releases": [
+    {
+      "version": "0.65.1",
+      "releaseDate": "2026-11-21",
+      "type": "patch",
+      "majorAnnouncement": false,
+      "title": "在线动态兜底修复",
+      "summary": "修复部分环境看不到在线动态的问题：浏览器请求失败时由宿主后台再试；失败提示不再伪装成完整版本列表。",
+      "items": [
+        {
+          "kind": "fix",
+          "text": "在线动态增加宿主端 help_online 兜底；WebUI 直连 GitHub 失败时由 World 后台再请求一次。"
+        },
+        {
+          "kind": "improvement",
+          "text": "在线失败时只显示明确标记的「版本更新（内置）」卡和原因，不再把完整版本列表塞进开发动态。"
+        },
+        {
+          "kind": "improvement",
+          "text": "在线条目使用蓝色时间线卡片；失败提示显示超时、HTTP 错误、数据格式异常或无法连接 GitHub。"
+        },
+        {
+          "kind": "note",
+          "text": "不改变在线数据格式、内置版本数据、阅读、SSM、Persona、书库或 Token 策略。"
+        }
+      ],
+      "technical": [
+        "宿主端请求仍使用同一个 announcements.json 和校验/超时逻辑；不新增模型工具或事件。"
+      ]
+    },
+    {
+      "version": "0.65.0",
+      "releaseDate": "2026-11-21",
+      "type": "minor",
+      "majorAnnouncement": false,
+      "title": "在线开发动态",
+      "summary": "更新动态新增「开发动态」，从 GitHub 读取公开动态；无法联网时自动回到安装包内置的版本更新。",
+      "items": [
+        {
+          "kind": "feature",
+          "text": "「更新动态」新增「开发动态」页签，从 GitHub 的 announcements.json 读取最新开发动态，不需要更新扩展版本。"
+        },
+        {
+          "kind": "feature",
+          "text": "打开页面先显示安装包内置的版本更新；在线加载成功后再展示 GitHub 动态，两类来源分别标记。"
+        },
+        {
+          "kind": "improvement",
+          "text": "支持手动刷新、5 秒超时和取消；无网络、GitHub 不可达、HTTP 错误、JSON 错误或字段校验失败时，只显示内置版本更新。"
+        },
+        {
+          "kind": "note",
+          "text": "在线内容按纯文本展示，不执行 HTML/JavaScript，外链只接受 HTTPS；不会缓存失败前的旧在线内容。"
+        },
+        {
+          "kind": "note",
+          "text": "不改变阅读、SSM、Persona、书库、进度、手账或 Token 策略，不新增模型调用。"
+        }
+      ],
+      "technical": [
+        "在线地址：https://raw.githubusercontent.com/oceanxuhaiao/bookfish/main/announcements.json",
+        "内置版本记录仍为 assets/help/releases.json；在线动态文件为 announcements.json，两者独立维护。"
+      ]
+    },
+    {
+      "version": "0.64.9",
+      "releaseDate": "2026-11-21",
+      "type": "patch",
+      "majorAnnouncement": false,
+      "title": "开发进度修正",
+      "summary": "移除没有计划依据的开发进度条目，只保留已发布和有任务书依据的内容。",
+      "items": [
+        {
+          "kind": "fix",
+          "text": "移除「更多书源与页面适配」「Windows 11 实机验证」「移动端与其他宿主适配」；这三项没有任务书或当前计划依据，不再写成开发计划。"
+        },
+        {
+          "kind": "note",
+          "text": "开发进度只保留：已发布的帮助与更新中心、计划中的长篇逐段全量读后感、开发中的浏览器内 TXT 获取。"
+        },
+        {
+          "kind": "note",
+          "text": "本次不改变功能、数据格式、更新提醒或重要公告规则。"
+        }
+      ],
+      "technical": [
+        "只修改 assets/help/progress.json 与版本记录，不改变运行时代码。"
+      ]
+    },
+    {
+      "version": "0.64.8",
+      "releaseDate": "2026-11-21",
+      "type": "minor",
+      "majorAnnouncement": true,
+      "announcementId": "bookfish-help-center-0.64.8",
+      "title": "大肥鱼有新变化啦！",
+      "summary": "帮助与更新中心上线：功能指南、更新动态、变化提示和重大更新提醒，都能在顶部页签找到。",
+      "items": [
+        {
+          "kind": "feature",
+          "text": "「帮助与更新」顶部页签位于「配置」与「阅读环境提示词」之间，可以按分类查看大肥鱼会什么，以及每项功能怎么用。"
+        },
+        {
+          "kind": "improvement",
+          "text": "「功能指南 / 更新动态」页签在标题上方；进入具体功能详情时隐藏，返回帮助首页后才能切换。"
+        },
+        {
+          "kind": "improvement",
+          "text": "去掉帮助页内部的第二条滚动条，只保留宿主页面的一条；返回目录时恢复原位置。"
+        },
+        {
+          "kind": "feature",
+          "text": "普通小更新不弹窗；顶部「帮助与更新」页签显示小蓝点，点进帮助页看过一次后消失。"
+        },
+        {
+          "kind": "feature",
+          "text": "进入帮助页后标出本次变化：功能卡显示「有更新」并自动展开分类，详情高亮改动段落；更新动态条目显示「新」，详情高亮该条。看过后标记移除，刷新后不再高亮旧变化。"
+        },
+        {
+          "kind": "feature",
+          "text": "指南只在点开时加载正文；首页只保留目录和一句话简介，不把全部说明塞进页面。"
+        },
+        {
+          "kind": "feature",
+          "text": "版本更新和开发进度页把当前版本、历史版本和仍在推进的工作分开显示。"
+        },
+        {
+          "kind": "improvement",
+          "text": "自主阅读、找书、分享、阅读限制、小说引擎和数据管理旁增加了「?」快捷说明。"
+        },
+        {
+          "kind": "note",
+          "text": "帮助与更新页面不调用模型，不读取小说正文或阅读历史，也不写入书架、手账或 Persona Memory。"
+        },
+        {
+          "kind": "note",
+          "text": "重要更新提醒只在发布方明确标记时出现，同一公告最多自动提醒一次；普通更新不弹窗。"
+        }
+      ],
+      "featureChanges": [
+        {
+          "featureId": "settings",
+          "summary": "配置项增加了「?」快捷说明",
+          "snippets": [
+            "配置项旁的「?」会直接打开对应说明，不会触发阅读、下载或保存。"
+          ]
+        }
+      ],
+      "technical": [
+        "指南与版本记录随扩展包发布，运行时不访问网络；资源缺失时只影响帮助中心，不阻断书架与阅读。",
+        "更新提醒状态保存在独立的 help-updates.json，与书库、阅读记录、分享预算和备份格式解耦。"
+      ]
+    },
+    {
+      "version": "0.63.1",
+      "releaseDate": "2026-11-21",
+      "type": "patch",
+      "majorAnnouncement": false,
+      "title": "书库写锁修复",
+      "summary": "修复异常退出后残留锁可能让 World 一直提示书库已打开的问题。",
+      "items": [
+        {
+          "kind": "fix",
+          "text": "改用独立 SQLite 写事务管理书库写锁；进程终止后由系统释放，减少残留锁和 PID 复用造成的误判。"
+        },
+        {
+          "kind": "improvement",
+          "text": "旧 JSON 锁迁移会核验真实进程创建时间；无法确认身份时保留锁并显示恢复步骤，不静默删除。"
+        },
+        {
+          "kind": "compatibility",
+          "text": "升级前请退出所有旧 BookFish / Coopanion 实例；运行期间不要手动删除锁数据库。"
+        }
+      ]
+    },
+    {
+      "version": "0.63.0",
+      "releaseDate": "2026-11-20",
+      "type": "minor",
+      "majorAnnouncement": false,
+      "title": "TXT 导入与阅读起点",
+      "summary": "修复少量坏字节导致整本 TXT 无法导入，并新增「从某一章开始读」。",
+      "items": [
+        {
+          "kind": "fix",
+          "text": "整本基本是 UTF-8、只含少量孤立坏字节的 TXT 不再被整本拒绝；成片损坏和末尾截断仍按原规则拒绝。"
+        },
+        {
+          "kind": "improvement",
+          "text": "长连载按书名获取时扩大候选源预算，并允许同一卷内极少量的重复章节标题作为警告。"
+        },
+        {
+          "kind": "feature",
+          "text": "书籍详情新增「从某一章开始读」。前面的章节不会被记成已读，也不会进入手账或读后感。"
+        },
+        {
+          "kind": "compatibility",
+          "text": "声明过阅读起点的书不能直接用 0.62.1 及更早版本打开；降级前请先导出备份。"
+        }
+      ]
+    },
+    {
+      "version": "0.62.0",
+      "releaseDate": "2026-11-16",
+      "type": "minor",
+      "majorAnnouncement": false,
+      "title": "常驻提示词瘦身",
+      "summary": "把每轮都要发送的规则压到更短，把详细操作协议留给按需读取。",
+      "items": [
+        {
+          "kind": "improvement",
+          "text": "常驻环境提示词从约一万字符压到几百字符，只保留身份、真实性、进度和隐私边界。"
+        },
+        {
+          "kind": "improvement",
+          "text": "阅读、手账、检索、分享、书评、选书、讨论和故事记忆的细节改为按需读取。"
+        },
+        {
+          "kind": "fix",
+          "text": "修正书评请求参数和讨论参数说明，并让模型漏填 bookKey 时能从任务号恢复。"
+        }
+      ]
+    },
+    {
+      "version": "0.61.2",
+      "releaseDate": "2026-11-14",
+      "type": "patch",
+      "majorAnnouncement": false,
+      "title": "卸载后的面板轮询",
+      "summary": "修复停用扩展后，面板轮询反复记录「未挂载」错误的问题。",
+      "items": [
+        {
+          "kind": "fix",
+          "text": "未挂载时传输状态直接返回空结果，不再每轮写入一条错误日志；写操作仍然拒绝。"
+        }
+      ]
+    }
+  ]
+}

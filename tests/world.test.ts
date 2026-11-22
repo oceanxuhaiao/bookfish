@@ -6,6 +6,7 @@ import type { ToolCallContext, WorldHost } from 'cortico/core/types.ts';
 import { dryMountWorld, fakeWorldContext } from 'cortico/extensions/dry-mount.ts';
 import { BOOKFISH } from '../src/definition.ts';
 import { FakeHost } from './helpers/fake-host.ts';
+import { Library } from '../src/library.ts';
 let scratchDir: string;
 beforeEach(() => { scratchDir = mkdtempSync(join(tmpdir(), 'bookfish-world-')); });
 afterEach(() => rmSync(scratchDir, { recursive: true, force: true }));
@@ -15,6 +16,26 @@ async function status(world: ReturnType<typeof create>['world']) {
   return JSON.parse(typeof result === 'string' ? result : result.text);
 }
 describe('Bookfish library World', () => {
+  it('retains the latest writer fence when TXT shutdown fails and permits a clean retry', async () => {
+    const { ctx, world } = create();
+    await world.start(new FakeHost());
+    const acquisition = (world as unknown as { txtAcquisition: { stop(): Promise<void> } }).txtAcquisition;
+    const stop = vi.spyOn(acquisition, 'stop').mockRejectedValueOnce(new Error('injected TXT stop failure'));
+    const competitor = new Library({ dataDir: ctx.dataDir });
+    try {
+      await expect(world.stop()).rejects.toThrow(/书库写锁仍保留/);
+      expect(() => competitor.open()).toThrow();
+      await world.stop();
+      competitor.open();
+      competitor.close();
+      await world.start(new FakeHost());
+      const panel = await world.webUi!().invoke!('status', 'get', []) as { status: { txtAcquisition: unknown } };
+      expect(panel.status.txtAcquisition).toMatchObject({ controllerReady: false, browserReady: false });
+    } finally {
+      stop.mockRestore();
+      await world.stop();
+    }
+  });
   it('drives two paced opportunities through actual World hooks, timer, panel and tool handlers', async () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-07T02:00:00Z'));
     const { ctx, world } = create(); ctx.persist({ automaticReading: true, readingMode: 'main' });

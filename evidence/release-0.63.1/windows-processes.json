@@ -1,0 +1,243 @@
+{
+  "platform": "win32",
+  "node": "v24.14.1",
+  "evidence": [
+    {
+      "type": "ready",
+      "pid": 35592
+    },
+    {
+      "type": "ready",
+      "pid": 35680
+    },
+    {
+      "type": "acquired",
+      "pid": 35592,
+      "identity": {
+        "kind": "running",
+        "process": {
+          "identity": "win32:639308305722535860",
+          "startedAtMs": 1795233772253
+        }
+      }
+    },
+    {
+      "type": "denied",
+      "pid": 35680,
+      "error": "Error: Bookfish 书库写锁：存在另一个书库写入者，书库已占用（already open）（PID 35592）。锁文件：C:\\Users\\Administrator\\AppData\\Local\\Temp\\bookfish-library-IfUaIY\\bookfish\\writer-lock.sqlite；兼容标记：C:\\Users\\Administrator\\AppData\\Local\\Temp\\bookfish-library-IfUaIY\\bookfish\\writer.lock。请先关闭使用此书库的其他 Bookfish / Coopanion 实例后重试。若进程身份无法确认，请在任务管理器中核对进程和启动时间；必要时退出全部相关实例并备份书库，再检查或移走 writer.lock。不要删除 SQLite 锁数据库或书库数据。"
+    },
+    {
+      "type": "closed",
+      "pid": 35592
+    },
+    {
+      "type": "acquired",
+      "pid": 35680,
+      "identity": {
+        "kind": "running",
+        "process": {
+          "identity": "win32:639308305727797500",
+          "startedAtMs": 1795233772779
+        }
+      }
+    },
+    {
+      "type": "closed",
+      "pid": 35680
+    },
+    {
+      "type": "ready",
+      "pid": 17440
+    },
+    {
+      "type": "acquired",
+      "pid": 17440,
+      "identity": {
+        "kind": "running",
+        "process": {
+          "identity": "win32:639308305758688090",
+          "startedAtMs": 1795233775868
+        }
+      }
+    },
+    {
+      "scenario": "forced-termination",
+      "ownerPid": 17440,
+      "termination": [
+        null,
+        "SIGKILL"
+      ]
+    },
+    {
+      "type": "ready",
+      "pid": 30980
+    },
+    {
+      "type": "acquired",
+      "pid": 30980,
+      "identity": {
+        "kind": "running",
+        "process": {
+          "identity": "win32:639308305776647550",
+          "startedAtMs": 1795233777664
+        }
+      }
+    },
+    {
+      "type": "closed",
+      "pid": 30980
+    },
+    {
+      "type": "ready",
+      "pid": 33724
+    },
+    {
+      "type": "acquired",
+      "pid": 33724,
+      "identity": {
+        "kind": "running",
+        "process": {
+          "identity": "win32:639308305790017040",
+          "startedAtMs": 1795233779001
+        }
+      }
+    },
+    {
+      "type": "ready",
+      "pid": 9400
+    },
+    {
+      "type": "acquired",
+      "pid": 9400,
+      "identity": {
+        "kind": "running",
+        "process": {
+          "identity": "win32:639308305799022570",
+          "startedAtMs": 1795233779902
+        }
+      }
+    },
+    {
+      "type": "ready",
+      "pid": 36360
+    },
+    {
+      "type": "acquired",
+      "pid": 36360,
+      "identity": {
+        "kind": "running",
+        "process": {
+          "identity": "win32:639308305807506830",
+          "startedAtMs": 1795233780750
+        }
+      }
+    },
+    {
+      "scenario": "legacy-pid-reuse-reconstruction",
+      "oldOwnerPid": 33724,
+      "substitutedPid": 9400,
+      "actualIdentity": {
+        "kind": "running",
+        "process": {
+          "identity": "win32:639308305799022570",
+          "startedAtMs": 1795233779902
+        }
+      },
+      "lockMtime": 1795233769902,
+      "recovered": {
+        "type": "acquired",
+        "pid": 36360,
+        "identity": {
+          "kind": "running",
+          "process": {
+            "identity": "win32:639308305807506830",
+            "startedAtMs": 1795233780750
+          }
+        }
+      }
+    },
+    {
+      "type": "closed",
+      "pid": 36360
+    },
+    {
+      "type": "closed",
+      "pid": 9400
+    },
+    {
+      "type": "ready",
+      "pid": 35960
+    },
+    {
+      "type": "acquired",
+      "pid": 35960,
+      "identity": {
+        "kind": "running",
+        "process": {
+          "identity": "win32:639308305827907510",
+          "startedAtMs": 1795233782790
+        }
+      }
+    },
+    {
+      "type": "ready",
+      "pid": 36376
+    },
+    {
+      "type": "denied",
+      "pid": 36376,
+      "error": "Error: Bookfish 书库写锁：旧版锁没有进程创建身份；该进程在锁文件产生前已启动或处于时间误差范围，不能确认已退出，禁止接管（PID 35960）。锁文件：C:\\Users\\Administrator\\AppData\\Local\\Temp\\bookfish-library-r4EsVY\\bookfish\\writer-lock.sqlite；兼容标记：C:\\Users\\Administrator\\AppData\\Local\\Temp\\bookfish-library-r4EsVY\\bookfish\\writer.lock。请先关闭使用此书库的其他 Bookfish / Coopanion 实例后重试。若进程身份无法确认，请在任务管理器中核对进程和启动时间；必要时退出全部相关实例并备份书库，再检查或移走 writer.lock。不要删除 SQLite 锁数据库或书库数据。"
+    },
+    {
+      "type": "closed",
+      "pid": 35960
+    },
+    {
+      "type": "acquired",
+      "pid": 36376,
+      "identity": {
+        "kind": "running",
+        "process": {
+          "identity": "win32:639308305836285200",
+          "startedAtMs": 1795233783628
+        }
+      }
+    },
+    {
+      "type": "closed",
+      "pid": 36376
+    },
+    {
+      "type": "ready",
+      "pid": 36936
+    },
+    {
+      "type": "ready",
+      "pid": 37052
+    },
+    {
+      "type": "denied",
+      "pid": 37052,
+      "error": "Error: Bookfish 书库写锁：存在另一个书库写入者，书库已占用（already open）。锁文件：C:\\Users\\Administrator\\AppData\\Local\\Temp\\bookfish-library-J8nVw8\\bookfish\\writer-lock.sqlite；兼容标记：C:\\Users\\Administrator\\AppData\\Local\\Temp\\bookfish-library-J8nVw8\\bookfish\\writer.lock。请先关闭使用此书库的其他 Bookfish / Coopanion 实例后重试。若进程身份无法确认，请在任务管理器中核对进程和启动时间；必要时退出全部相关实例并备份书库，再检查或移走 writer.lock。不要删除 SQLite 锁数据库或书库数据。"
+    },
+    {
+      "type": "acquired",
+      "pid": 36936,
+      "identity": {
+        "kind": "running",
+        "process": {
+          "identity": "win32:639308305857007930",
+          "startedAtMs": 1795233785700
+        }
+      }
+    },
+    {
+      "type": "closed",
+      "pid": 37052
+    },
+    {
+      "type": "closed",
+      "pid": 36936
+    }
+  ]
+}

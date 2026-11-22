@@ -1,0 +1,12 @@
+{
+  "issue": 1065,
+  "url": "https://github.com/Pal-AI-Lab/cortico-extensions/issues/1065",
+  "state": "closed",
+  "closedAt": "2026-11-21T08:44:10Z",
+  "commentId": 7060114107,
+  "commentUrl": "https://github.com/Pal-AI-Lab/cortico-extensions/issues/1065#issuecomment-7060114107",
+  "listedVersion": "0.64.8",
+  "workflow": "https://github.com/Pal-AI-Lab/cortico-extensions/actions/runs/44886128900",
+  "workflowConclusion": "success",
+  "note": "Verification used the GitHub contents API because raw.githubusercontent.com still served the previous 0.63.1 snapshot from its CDN cache."
+}

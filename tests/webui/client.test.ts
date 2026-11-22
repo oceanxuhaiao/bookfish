@@ -212,7 +212,7 @@ describe('library panel with real World data plane', () => {
     const {root}=await mount();expect([...root.querySelectorAll('nav button')].map(x=>x.textContent)).toEqual(['正在读','书架','阅读足迹','反馈']);
     expect(root.querySelector('#bf-speed')).toBeNull();expect(root.textContent).not.toContain('开启自主阅读');
     expect(BOOKFISH.defaults().automaticReading).toBe(true);
-    expect(world.webUi!('zh').config).toBeUndefined();expect(world.webUi!('zh').panels?.map(p=>p.id)).toEqual(['status','shelf','trail','support','settings']);
+    expect(world.webUi!('zh').config).toBeUndefined();expect(world.webUi!('zh').panels?.map(p=>p.id)).toEqual(['status','shelf','trail','support','settings','help']);
     expect((await world.webUi!().invoke!('status','get',[]) as any).config.automaticReading).toBe(false);
   });
   it('shows that old confirmations have no recorded mood instead of synthesizing one', async () => {
@@ -389,7 +389,7 @@ it('disables Continue while routine is active and shows the reason even with aut
 });
 
 it.each(['shelf','trail'] as const)('opens the top-level %s panel directly without visible secondary navigation',async panel=>{
- const {root}=await mount(panel);expect(root.querySelector<HTMLElement>('[data-page='+ (panel==='shelf'?'shelf':'trail') +']')!.hidden).toBe(false);expect(root.querySelector('nav')!.hidden).toBe(true);expect(root.querySelector('h2')!.hidden).toBe(true);expect(world.webUi!('zh').panels!.map(p=>p.title)).toEqual(['正在读','书架','阅读足迹','反馈','配置']);
+ const {root}=await mount(panel);expect(root.querySelector<HTMLElement>('[data-page='+ (panel==='shelf'?'shelf':'trail') +']')!.hidden).toBe(false);expect(root.querySelector('nav')!.hidden).toBe(true);expect(root.querySelector('h2')!.hidden).toBe(true);expect(world.webUi!('zh').panels!.map(p=>p.title)).toEqual(['正在读','书架','阅读足迹','反馈','配置','帮助与更新']);
 });
 
 it('lets the panel declare a later chapter as the reading start without marking it read',async()=>{

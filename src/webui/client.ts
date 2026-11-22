@@ -11,6 +11,8 @@ import {coverDesign} from './cover.ts';
 import type { NovelCandidateCheck, NovelFetchStatus, NovelResumeView, NovelSearchJobView, NovelTaskView } from '../novel-fetch.ts';
 import { groupCandidatesByBook, type CandidateMatch, type NovelSearchCandidate } from '../novel-match.ts';
 import { QQ_GROUP_QR } from './qq-group.ts';
+import { HelpCenterView, helpButton, helpStyle, openGuideDrawer, renderHelpBanner } from './help.ts';
+import type { AnnouncementView } from '../help-store.ts';
 
 const supportPanel={ async mount(ctx:WebUiPanelContext) {
   const en=ctx.language!=='zh'&&ctx.language!=='zh-Hant';const say=(zh:string,english:string)=>en?english:zh;
@@ -46,7 +48,7 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   let getRevision=0;
   let state:LibraryPanelState|undefined, update: (()=>Promise<void>)|undefined, disposed=false;
   const root=document.createElement('section');root.className='bf';ctx.root.append(root);
-  const css=document.createElement('style');css.textContent=style;root.append(css);
+  const css=document.createElement('style');css.textContent=style+helpStyle;root.append(css);
   const body=document.createElement('div');root.append(body);
   const handle=await legacy.panels.status.mount({...ctx,root:body,invoke:async <T,>(method:string,args?:unknown[])=>{
     const sequence=method==='get'?++getRevision:0;const result=await ctx.invoke<T>(method,args);if(method==='get'&&sequence===getRevision&&!disposed&&!ctx.signal.aborted){state=result as LibraryPanelState;await update?.();}return result;
@@ -57,7 +59,21 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   const messages=old.querySelector('[role=status]') as HTMLElement;messages.className='messages';nav.after(messages);
   const pages:Record<string,HTMLElement>={};for(const id of ['home','shelf','trail','support','bookDetail','reader']){const el=document.createElement('section');el.dataset.page=id;old.append(el);pages[id]=el;}
   function page(id:string){for(const[key,el]of Object.entries(pages))el.hidden=key!==id;for(const b of nav.querySelectorAll('button'))b.setAttribute('aria-current',(b.dataset.page===id||id==='bookDetail'&&b.dataset.page==='shelf')?'page':'false');}
+  const helpView=new HelpCenterView(ctx,say,()=>{});
   ['正在读','书架','阅读足迹','反馈'].forEach((label,i)=>{const b=document.createElement('button');const id=['home','shelf','trail','support'][i];b.textContent=en?['Reading','Bookshelf','Journal','Support'][i]:label;b.dataset.page=id;b.onclick=()=>{if(id==='support')buildSupport();page(id);};nav.append(b);});
+  function openHelpPanel(tab:'guide'|'updates'){
+    try{sessionStorage.setItem('bookfish:help-tab',tab);}catch{}
+    location.hash='#/provider/'+encodeURIComponent('world:bookfish')+'/help';
+  }
+  let helpBanner:HTMLElement|undefined;
+  function showAnnouncement(announcement:AnnouncementView){
+    if(helpBanner)return;
+    helpBanner=renderHelpBanner(announcement,say,{
+      onView:()=>{helpBanner?.remove();helpBanner=undefined;void helpView.markViewed(announcement.announcementId);openHelpPanel('updates');},
+      onDismiss:()=>{helpBanner?.remove();helpBanner=undefined;void helpView.markDismissed(announcement.announcementId);},
+    });
+    root.insertBefore(helpBanner,body);
+  }
   function el<K extends keyof HTMLElementTagNameMap>(tag:K,text='',parent:HTMLElement=pages.home){const node=document.createElement(tag);node.textContent=text;parent.append(node);return node;}
   let supportBuilt=false;
   function buildSupport(){if(supportBuilt)return;supportBuilt=true;const support=pages.support;
@@ -83,7 +99,7 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   async function perform(action:()=>Promise<unknown>){if(busy||disposed||ctx.signal.aborted)return;busy=true;messages.textContent=say('正在处理…','Working…');try{await action();if(!disposed&&!ctx.signal.aborted){messages.textContent=pages.bookDetail.hidden?say('操作完成。','Done.'):'';const sequence=++getRevision;const fresh=await ctx.invoke<LibraryPanelState>('get',[]);if(sequence===getRevision){state=fresh;await update?.();}}}catch(e){if(!disposed)messages.textContent=String(e).replace(/^(?:(?:WebUiInvokeError|Error):\s*)+/,'');}finally{busy=false;await update?.();}}
   function button(parent:HTMLElement,label:string,fn:()=>Promise<unknown>){const b=el('button',label,parent);b.type='button';b.addEventListener('click',()=>void perform(fn),{signal:ctx.signal});return b;}
   function details(parent:HTMLElement,label:string){const d=el('details','',parent);el('summary',label,d);return d;}
-  const advanced=details(pages.shelf,say('书架数据管理','Bookshelf data management'));
+  const advanced=details(pages.shelf,say('书架数据管理','Bookshelf data management'));advanced.querySelector('summary')!.append(helpButton(ctx,say,'backup-restore',say('书架数据管理','Bookshelf data management')));
   const forms=[...old.querySelectorAll('form')];const importForm=forms[0],remoteForm=forms[1],searchForm=forms[2];
   const shelf=old.querySelector('[data-bookfish=shelf]') as HTMLElement;
   const notebook=old.querySelector('section[aria-label="'+say('阅读手账','Reading journal')+'"]') as HTMLElement;
@@ -113,7 +129,7 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   let runtimeCard:{dispose:()=>void;refresh:()=>Promise<void>}|undefined;
   function showRuntimeGuide(show:boolean){
     runtimeHost.hidden=!show;
-    if(show&&!runtimeCard)runtimeCard=mountRuntimeCard(runtimeHost,ctx,{compact:true,onReady:()=>{void perform(async()=>{await pollNovel();});}});
+    if(show&&!runtimeCard)runtimeCard=mountRuntimeCard(runtimeHost,ctx,{compact:true,onHelp:()=>void openGuideDrawer(ctx,say,'novel-engine'),onReady:()=>{void perform(async()=>{await pollNovel();});}});
     if(!show&&runtimeCard){runtimeCard.dispose();runtimeCard=undefined;runtimeHost.replaceChildren();}
   }
   const novelTitleLabel=document.createElement('label');novelTitleLabel.textContent=say('书名（可只填书名或只填作者）','Title (title or author alone is fine)');const novelTitleInput=document.createElement('input');novelTitleInput.type='text';novelTitleInput.maxLength=200;novelTitleInput.placeholder=say('例如 三国演义','e.g. Romance of the Three Kingdoms');novelTitleLabel.append(novelTitleInput);novelForm.append(novelTitleLabel);
@@ -537,7 +553,31 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
     if(timelineKey!==c?.key){manualUiError='';timelineKey=c?.key??'';before=undefined;timelineRevision='';}const signature=JSON.stringify([c?.key,c?.confirmedSegments,run.habits.restRevision]);if(signature!==timelineRevision){await loadTimeline();timelineRevision=signature;}
     for(const b of reviews.querySelectorAll('button'))if(b.textContent===say('请求写一版全书读后感','Request a full-book review'))b.hidden=!c?.complete;
   };
+  void helpView.prime(true).then(result=>{if(result.announcement)showAnnouncement(result.announcement);});
   const initialPanel=ctx.panelId==='shelf'?'shelf':ctx.panelId==='trail'?'trail':ctx.panelId==='support'?'support':'home';if(initialPanel==='support')buildSupport();page(initialPanel);await update();
-  return {dispose(){disposed=true;if(novelPollTimer!==undefined){clearTimeout(novelPollTimer);novelPollTimer=undefined;}handle.dispose();}};
+  return {dispose(){disposed=true;helpView.dispose();if(novelPollTimer!==undefined){clearTimeout(novelPollTimer);novelPollTimer=undefined;}handle.dispose();}};
 } } satisfies WebUiClientBundle['panels'][string];
-export default {panels:{status:readingPanel,shelf:readingPanel,trail:readingPanel,support:supportPanel,settings:settingsPanel}} satisfies WebUiClientBundle;
+
+const helpPanel={ async mount(ctx:WebUiPanelContext){
+  const en=ctx.language!=='zh'&&ctx.language!=='zh-Hant',say=(zh:string,english:string)=>en?english:zh;
+  const root=document.createElement('section');root.className='bf';ctx.root.append(root);
+  const css=document.createElement('style');css.textContent=style+helpStyle;root.append(css);
+  const host=document.createElement('div');root.append(host);
+  const view=new HelpCenterView(ctx,say,()=>{});
+  const result=await view.prime(true);
+  try{await ctx.invoke('help_opened');await ctx.refresh();}catch{}
+  let initial:'guide'|'updates'='guide';
+  try{if(sessionStorage.getItem('bookfish:help-tab')==='updates')initial='updates';sessionStorage.removeItem('bookfish:help-tab');}catch{}
+  let banner:HTMLElement|undefined;
+  if(result.announcement){
+    banner=renderHelpBanner(result.announcement,say,{
+      onView:()=>{banner?.remove();banner=undefined;void view.markViewed(result.announcement!.announcementId);void view.open(host,'updates');},
+      onDismiss:()=>{banner?.remove();banner=undefined;void view.markDismissed(result.announcement!.announcementId);},
+    });
+    root.insertBefore(banner,host);
+  }
+  await view.open(host,initial);
+  return {dispose(){view.dispose();root.remove();}};
+} };
+
+export default {panels:{status:readingPanel,shelf:readingPanel,trail:readingPanel,support:supportPanel,settings:settingsPanel,help:helpPanel}} satisfies WebUiClientBundle;

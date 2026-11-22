@@ -27,6 +27,9 @@ import { TxtAcquisition } from './txt-acquisition/index.ts';
 import { BOOKFISH_TOOL_DECLS } from './tool-schemas.ts';
 import { HELP_TOPICS } from './protocols.ts';
 import { assertWritableTextStoreDir } from './text-store.ts';
+import { HelpCenter } from './help-center.ts';
+import { loadOnlineAnnouncements } from './help-online.ts';
+import { BOOKFISH_VERSION } from './version.ts';
 
 const ENV_PROMPT_FILE = join(dirname(fileURLToPath(import.meta.url)), 'ENV_PROMPT.md');
 const PROTOCOL_DIR = join(dirname(fileURLToPath(import.meta.url)), 'protocol');
@@ -42,6 +45,8 @@ export class BookfishWorld implements World {
   readonly id = 'bookfish';
   private readonly discussions = new Discussions();
   private host: WorldHost | undefined;
+  private lifecycle: Promise<void> = Promise.resolve();
+  private backgroundNeedsStop = false;
   private readonly library: Library;
   private readonly transfers: BookTransfers;
   private readonly sources: Sources;
@@ -52,6 +57,7 @@ export class BookfishWorld implements World {
   private readonly runtime: NovelRuntimeManager;
   private readonly serialSync: SerialSync;
   private readonly serialScheduler: SerialScheduler;
+  private readonly helpCenter: HelpCenter;
   private selection!: SelectionCoordinator;
   private txtAcquisition!: TxtAcquisition;
   private lifetime = new AbortController();
@@ -87,6 +93,7 @@ export class BookfishWorld implements World {
       onTaskCreated:task=>this.selection.onExternalTaskCreated(task),
       onTaskStateChanged:task=>this.selection.onExternalTaskStateChanged(task),
       onImported: (task, identity) => this.selection?.onExternalImport(task, identity) });
+    this.helpCenter = new HelpCenter({ dataDir: opts.dataDir, currentVersion: BOOKFISH_VERSION });
   }
   private sourceSignal(signal?: AbortSignal): AbortSignal {
     if (!this.host) throw new SourceError('cancelled', 'Bookfish is not mounted');
@@ -358,8 +365,22 @@ export class BookfishWorld implements World {
     return {
       label: en ? 'Bookfish' : '看书吧！大肥鱼',
       lamps: [this.readingLamp(en)],
-      panels: [{id:'status',title:en?'Reading now':'正在读',getMethods:['runtime_status']},{id:'shelf',title:en?'Bookshelf':'书架',getMethods:['runtime_status']},{id:'trail',title:en?'Reading journal':'阅读足迹'},{id:'support',title:en?'Feedback':'反馈'},{id:'settings',title:en?'Settings':'配置',getMethods:['runtime_status']}],
+      panels: [{id:'status',title:en?'Reading now':'正在读',getMethods:['runtime_status']},{id:'shelf',title:en?'Bookshelf':'书架',getMethods:['runtime_status']},{id:'trail',title:en?'Reading journal':'阅读足迹'},{id:'support',title:en?'Feedback':'反馈'},{id:'settings',title:en?'Settings':'配置',getMethods:['runtime_status']},{id:'help',title:(en?'Help & updates':'帮助与更新')+(this.helpCenter.unread()?' 🔵':'')}],
       invoke: async (panel, method, args) => {
+        if (['status','shelf','trail','support','settings','help'].includes(panel)) {
+          if (method==='help_index'&&args.length<=1) return this.helpCenter.index(args[0]===true);
+          if (method==='help_guide'&&args.length===1) return this.helpCenter.guide(requiredText(args[0],'helpId',80));
+          if (method==='help_release'&&args.length<=1) return this.helpCenter.release(args.length===0?undefined:requiredText(args[0],'version',20));
+          if (method==='help_progress'&&args.length===0) return this.helpCenter.progress();
+          if (method==='help_online'&&args.length===0) return loadOnlineAnnouncements();
+          if (method==='help_mark'&&args.length===2) {
+            const action=args[1];
+            if (action!=='viewed'&&action!=='dismissed') throw new Error('Invalid help announcement action');
+            return this.helpCenter.mark(requiredText(args[0],'announcementId',100),action);
+          }
+          if (method==='help_opened'&&args.length===0) return this.helpCenter.markHelpOpened();
+          if (method==='help_updates_viewed'&&args.length===0) return this.helpCenter.markUpdatesViewed();
+        }
         if (panel==='settings'||panel==='shelf'||panel==='status') {
           if (method==='runtime_status'&&args.length===0) return this.runtime.status();
           if (method==='runtime_install'&&args.length<=1) return this.runtime.installOnline(args[0]);
@@ -528,9 +549,22 @@ export class BookfishWorld implements World {
     };
   }
   async start(host: WorldHost): Promise<void> {
+    return this.queueLifecycle(() => this.startMounted(host));
+  }
+  private queueLifecycle(action: () => Promise<void>): Promise<void> {
+    const pending = this.lifecycle.then(action);
+    this.lifecycle = pending.catch(() => {});
+    return pending;
+  }
+  private async startMounted(host: WorldHost): Promise<void> {
     if (this.host) return;
-    this.library.open();try{this.transfers.recover();}catch(error){this.library.close();throw error;} this.host = host; this.lifetime = new AbortController();
+    if (this.backgroundNeedsStop) throw new Error('Bookfish 上次停止尚未完成，写锁仍保留；请先重试停用或退出当前实例');
+    this.library.open();
+    this.backgroundNeedsStop = true;
+    this.lifetime = new AbortController();
     try {
+      this.transfers.recover(); this.host = host;
+      try { this.helpCenter.open(); } catch (error) { host.log.warn('Bookfish help center unavailable', { error: String(error) }); }
       try { await this.runtime.start(); } catch { /* runtime faults stay inside the runtime card, not the whole World */ }
       try { await this.txtAcquisition.init(); } catch { /* acquisition state faults must not block reading */ }
       this.scheduler.start(host);
@@ -545,7 +579,8 @@ export class BookfishWorld implements World {
         text: 'Bookfish library mounted. Previous pending reading tasks were cancelled. Automatic reading is opt-in; sharing uses the saved user configuration. Saved sharing reservations with no reliable result become unknown, never retried. Use bookfish_get_status for reading and sharing gates. Output is Persona-mediated; a tool receipt is not proof of visible display.',
       }, { trigger: 'piggyback' });
     } catch (error) {
-      try { await this.selection.stop(); this.serialScheduler.stop(); this.serialSync.stop(); this.reviewFlow.stop(); this.sharing.stop(); this.scheduler.stop(); await this.novelFetches.stop(); await this.runtime.stop(); } finally { this.lifetime.abort(); this.host = undefined; this.library.close(); }
+      try { await this.stopMounted(); }
+      catch (cleanup) { throw new AggregateError([error, cleanup], `Bookfish 启动失败：${String(error)}；资源清理失败：${String(cleanup)}`); }
       throw error;
     }
   }
@@ -553,6 +588,22 @@ export class BookfishWorld implements World {
   onTurnEnded(): void { this.scheduler.onTurnEnded(); this.sharing.onTurnEnded(); }
   onEventsSettled(events: readonly EventEnvelope[], outcome: 'delivered' | 'discarded'): void { this.scheduler.onEventsSettled(events, outcome); this.sharing.onEventsSettled(events, outcome); }
   async stop(): Promise<void> {
-    try { await this.selection.stop(); this.serialScheduler.stop(); this.serialSync.stop(); this.reviewFlow.stop(); this.sharing.stop(); this.scheduler.stop(); await this.txtAcquisition.stop(); await this.novelFetches.stop(); await this.runtime.stop(); } finally { await this.transfers.shutdown(); this.discussions.clear(); this.lifetime.abort(); this.library.close(); this.host = undefined; }
+    return this.queueLifecycle(() => this.stopMounted());
+  }
+  private async stopMounted(): Promise<void> {
+    this.host = undefined; this.lifetime.abort();
+    if (!this.backgroundNeedsStop) { this.library.close(); return; }
+    const errors: unknown[] = [];
+    for (const stop of [
+      () => this.selection.stop(), () => this.serialScheduler.stop(), () => this.serialSync.stop(),
+      () => this.reviewFlow.stop(), () => this.sharing.stop(), () => this.scheduler.stop(),
+      () => this.txtAcquisition.stop(), () => this.novelFetches.stop(), () => this.runtime.stop(), () => this.transfers.shutdown(),
+      () => this.discussions.clear(),
+    ]) {
+      try { await stop(); } catch (error) { errors.push(error); }
+    }
+    if (errors.length) throw new AggregateError(errors, 'Bookfish 后台资源关闭失败，书库写锁仍保留；请重试停用或退出当前实例');
+    this.backgroundNeedsStop = false;
+    this.library.close();
   }
 }

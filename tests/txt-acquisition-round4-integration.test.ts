@@ -1,4 +1,11 @@
 import {describe,it,expect,afterEach,vi} from 'vitest';
+// Keep the real bridge protocol but ask the OS for a fixture-only endpoint.
+vi.mock('../src/txt-acquisition/bridge.ts', async original => {
+  const actual = await original<typeof import('../src/txt-acquisition/bridge.ts')>();
+  return { ...actual, BrowserBridge: class extends actual.BrowserBridge {
+    constructor(options: ConstructorParameters<typeof actual.BrowserBridge>[0]) { super({ ...options, port: options.port ?? 0 }); }
+  } };
+});
 import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,renameSync,symlinkSync,rmSync,readdirSync,existsSync} from 'node:fs';
 import * as disk from 'node:fs/promises';
 import {createServer} from 'node:http';import {once} from 'node:events';

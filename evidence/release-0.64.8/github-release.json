@@ -1,0 +1,15 @@
+{
+  "tag": "v0.64.8",
+  "target": "main",
+  "commit": "63ac768f76ee178cdbe380d3d3b9e0fddd25f04f",
+  "id": 453545813,
+  "url": "https://github.com/oceanxuhaiao/bookfish/releases/tag/v0.64.8",
+  "publishedAt": "2026-11-21T08:23:43Z",
+  "asset": {
+    "id": 774919011,
+    "name": "cortico-world-bookfish-0.64.8.tgz",
+    "url": "https://github.com/oceanxuhaiao/bookfish/releases/download/v0.64.8/cortico-world-bookfish-0.64.8.tgz",
+    "size": 1587092,
+    "digest": "sha256:6b3bc882419a824d69e557308971f463a393ed3e5bfc7496cdf22ce1918584ed"
+  }
+}

@@ -1,0 +1,46 @@
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/import-worker.mjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/webui.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/zip-worker.mjs', LF will be replaced by CRLF the next time Git touches it
+SSM protected-path guard — working tree vs c440c03 (manifest v1)
+  ok       .gitignore                                           [not-protected]
+  ok       changelog.md                                         [not-protected]
+  ok       readme.md                                            [not-protected]
+  REVIEW  describe.json                                        [describe.json]
+  ok       docs/writer-lock/design.md                           [not-protected]
+  ok       docs/writer-lock/report.md                           [not-protected]
+  ok       evidence/writer-lock/.gitignore                      [not-protected]
+  ok       evidence/writer-lock/sha256sums                      [not-protected]
+  ok       evidence/writer-lock/baseline-tests.log              [not-protected]
+  ok       evidence/writer-lock/coopanion-core.log              [not-protected]
+  ok       evidence/writer-lock/coopanion-host.json             [not-protected]
+  ok       evidence/writer-lock/describe.log                    [not-protected]
+  ok       evidence/writer-lock/extension-check.log             [not-protected]
+  ok       evidence/writer-lock/full-tests.log                  [not-protected]
+  ok       evidence/writer-lock/host-run.log                    [not-protected]
+  ok       evidence/writer-lock/protected-hashes.json           [not-protected]
+  ok       evidence/writer-lock/typecheck-exit.json             [not-protected]
+  ok       evidence/writer-lock/typecheck.log                   [not-protected]
+  ok       evidence/writer-lock/windows-environment.json        [not-protected]
+  ok       evidence/writer-lock/windows-processes.json          [not-protected]
+  ok       lib/zip-worker.mjs                                   [not-protected]
+  ok       package.json                                         [not-protected]
+  ok       scripts/verify-writer-lock-host.mts                  [not-protected]
+  REVIEW  src/library.ts                                       [src/library.ts]
+  ok       src/process-identity.ts                              [not-protected]
+  REVIEW  src/world.ts                                         [src/world.ts]
+  ok       src/writer-lock.ts                                   [not-protected]
+  ok       tests/fixtures/writer-lock-child.ts                  [not-protected]
+  ok       tests/library.test.ts                                [not-protected]
+  ok       evidence/release-0.63.1/live-data-integrity.json     [not-protected]
+  ok       evidence/release-0.63.1/live-force-owner.json        [not-protected]
+  ok       evidence/release-0.63.1/live-force-recovery.json     [not-protected]
+  ok       evidence/release-0.63.1/live-lifecycle.json          [not-protected]
+  ok       evidence/release-0.63.1/live-normal-recovery.json    [not-protected]
+  ok       evidence/release-0.63.1/npm-pack.json                [not-protected]
+  ok       evidence/release-0.63.1/package-audit.json           [not-protected]
+  ok       evidence/release-0.63.1/typecheck-exit.json          [not-protected]
+  ok       evidence/release-0.63.1/windows-processes.json       [not-protected]
+
+结论: blocked=0 review=3 allowed=35
+已登记 review 放行理由：用户授权0.63.1发布；仅锁生命周期与生成说明，9个SSM业务保护文件未变；原始检查日志改名消除保留前缀误报，保护规则未修改

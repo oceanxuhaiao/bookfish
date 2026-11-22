@@ -1,0 +1,55 @@
+[00:57:19.259] INFO  core.bus/paused: 总线已暂停:事件照常落库,不投递
+(node:37316) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[00:57:19.268] INFO  webui: web面板已启动 http://127.0.0.1:17992/
+[00:57:19.270] INFO  core: World 已启动: console
+[00:57:20.071] INFO  core: World 已启动: bookfish
+[00:57:20.076] INFO  core.loop: bootstrap:重启恢复
+[00:57:20.077] INFO  core/started: core已启动
+[00:57:20.171] INFO  core: World 已卸载: bookfish
+[00:57:20.207] WARN  core.loop/prefix-reload: 当前session系统前缀已重载 { keptMessages: 0 }
+[00:57:20.214] WARN  webui: World 激活状态已改 { id: 'bookfish', enabled: false }
+[00:57:20.596] INFO  core: World 已启动: bookfish
+[00:57:20.634] INFO  core: World 已卸载: bookfish
+[00:57:21.087] INFO  core: World 已启动: bookfish
+[00:57:21.120] INFO  core: World 已卸载: bookfish
+[00:57:21.537] INFO  core: World 已启动: bookfish
+[00:57:21.566] WARN  webui: World 已重启 { id: 'bookfish' }
+[00:57:23.532] INFO  core.bus/paused: 总线已暂停:事件照常落库,不投递
+[00:57:23.535] WARN  boot: 已接管无法读取或已失效的实例锁 {
+  stalePid: 37316,
+  staleStartedAt: '2026-11-20T16:57:19.260Z',
+  unreadable: false,
+  file: 'E:\\项目\\桌面宠物\\扩展\\cortina\\state\\packages\\bookfish-issue-2-writer-lock\\evidence\\writer-lock\\host-scratch\\home\\companion\\data\\instance.lock'
+}
+(node:43928) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[00:57:23.542] INFO  webui: web面板已启动 http://127.0.0.1:17992/
+[00:57:23.545] INFO  core: World 已启动: console
+[00:57:24.511] INFO  core: World 已启动: bookfish
+[00:57:24.517] INFO  core.loop: bootstrap:重启恢复
+[00:57:24.518] INFO  core/started: core已启动
+[00:57:24.601] INFO  core: World 已卸载: bookfish
+[00:57:24.629] WARN  core.loop/prefix-reload: 当前session系统前缀已重载 { keptMessages: 0 }
+[00:57:24.634] WARN  webui: World 激活状态已改 { id: 'bookfish', enabled: false }
+[00:57:24.831] WARN  shutdown: 开始关机(应用退出)
+[00:57:24.832] INFO  shutdown: 关机 ✓ 暂停事件投递
+[00:57:24.833] INFO  shutdown: 关机 ✓ 等待扩展装卸结束
+[00:57:24.834] INFO  core: core已停止
+[00:57:24.835] INFO  shutdown: 关机 ✓ 停止 World
+[00:57:24.836] INFO  shutdown: 关机 ✓ 停止 Persona
+[00:57:24.837] INFO  shutdown: 关机 ✓ 停止 Provider 实例
+[00:57:24.838] INFO  shutdown: 关机 ✓ 保存 Core 状态
+[00:57:24.840] INFO  shutdown: 关机 ✓ 关闭 WebUI
+[00:57:24.840] WARN  shutdown/shutdown-summary: 本地关机步骤全部完成 {
+  steps: [
+    '暂停事件投递=ok',
+    '等待扩展装卸结束=ok',
+    '停止 World=ok',
+    '停止 Persona=ok',
+    '停止 Provider 实例=ok',
+    '保存 Core 状态=ok',
+    '关闭 WebUI=ok'
+  ],
+  externalChecks: []
+}

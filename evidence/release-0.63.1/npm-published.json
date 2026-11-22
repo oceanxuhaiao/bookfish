@@ -1,0 +1,30 @@
+{
+  "name": "cortico-world-bookfish",
+  "version": "0.63.1",
+  "latest": "0.63.1",
+  "dist": {
+    "shasum": "8c69ab3b8ec87f1a6be358be5f66c2734dbcbdad",
+    "tarball": "https://registry.npmjs.org/cortico-world-bookfish/-/cortico-world-bookfish-0.63.1.tgz",
+    "fileCount": 93,
+    "integrity": "sha512-bfkZErSvxvRAE3MdXf71sMMM7sGQec4gK20wXIB9dzjD1eSWQ/HI9cIlz25IJX9V9RX38EdgBwTKOVsIRQ0r+A==",
+    "signatures": [
+      {
+        "sig": "MEUCIESIuaWXA+tOzrHX4gjpkBQ5KzsSKnrRjSRl0EhACLr0AiEAo36/mwZTp4Jid5CANFgG9I6cCzR6FzWFwmiNfB0GRBg=",
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+      },
+      {
+        "sig": "MEYCIQDq+cNxmeg8Q4Rmo9WO367Q4cLMI+ANKj9A4XY1JV/LtgIhAKWAFAr+6ArXcKhXJP+sQDdwyUJ4vmpwuawWCBRT2UfU",
+        "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+      }
+    ],
+    "unpackedSize": 2759933
+  },
+  "publishedAt": "2026-11-21T04:45:35.705Z",
+  "verifiedAgainstPack": true,
+  "downloadVerified": true,
+  "downloadBytes": 1544404,
+  "sha256": "96d90802601e472109bfec4a598c13d3fdbb35686862172bf7c0bd31b11af588",
+  "cacheNote": "Fresh query verifies origin metadata and tarball while bare CDN URLs propagate.",
+  "canonicalDownloadVerified": true,
+  "canonicalDownloadBytes": 1544404
+}

@@ -1,0 +1,165 @@
+{
+  "os": "Windows 10 Pro 19045",
+  "coopanion": "0.2.23",
+  "version": "0.63.1",
+  "records": [
+    {
+      "path": "/api/worlds/activation",
+      "status": 200,
+      "value": {
+        "ok": true,
+        "result": "看书吧！大肥鱼（bookfish）已停用"
+      }
+    },
+    {
+      "path": "/api/worlds/activation",
+      "status": 200,
+      "value": {
+        "ok": true,
+        "result": "看书吧！大肥鱼（bookfish）已启用"
+      }
+    },
+    {
+      "path": "/api/worlds/activation",
+      "status": 200,
+      "value": {
+        "ok": true,
+        "result": "看书吧！大肥鱼（bookfish）已停用"
+      }
+    },
+    {
+      "path": "/api/worlds/activation",
+      "status": 200,
+      "value": {
+        "ok": true,
+        "result": "看书吧！大肥鱼（bookfish）已启用"
+      }
+    },
+    {
+      "path": "/api/worlds/restart",
+      "status": 200,
+      "value": {
+        "ok": true,
+        "result": "看书吧！大肥鱼 已重启"
+      }
+    },
+    {
+      "path": "/api/run/restart",
+      "status": 200,
+      "value": {
+        "ok": true,
+        "localComplete": true,
+        "complete": true,
+        "steps": [
+          {
+            "key": "pause",
+            "label": "暂停事件投递",
+            "ok": true,
+            "elapsedMs": 1
+          },
+          {
+            "key": "extensions",
+            "label": "等待扩展装卸结束",
+            "ok": true,
+            "elapsedMs": 0
+          },
+          {
+            "key": "worlds",
+            "label": "停止 World",
+            "ok": true,
+            "elapsedMs": 386
+          },
+          {
+            "key": "core",
+            "label": "停止 Persona",
+            "ok": true,
+            "elapsedMs": 1
+          },
+          {
+            "key": "llm",
+            "label": "停止 Provider 实例",
+            "ok": true,
+            "elapsedMs": 0
+          },
+          {
+            "key": "flush",
+            "label": "保存 Core 状态",
+            "ok": true,
+            "elapsedMs": 1
+          }
+        ],
+        "externalChecks": [],
+        "result": "本地关机完成(6 步全部走完)，进程即将退出,启动器随即重新拉起"
+      }
+    },
+    {
+      "path": "/api/run/pause",
+      "status": 200,
+      "value": {
+        "ok": true,
+        "paused": true,
+        "result": "已暂停:事件照常落库排队,不投递唤醒"
+      }
+    },
+    {
+      "path": "/api/extensions",
+      "status": 200,
+      "value": [
+        {
+          "name": "cortico-world-bookfish",
+          "spec": "link:E:/zcdfy/Coopanion/data/local-extensions/bookfish-0.63.1",
+          "version": "0.63.1",
+          "webUiClient": true,
+          "loaded": true,
+          "description": "你负责安利，大肥鱼负责上头！把喜欢的小说推荐给大肥鱼，让她认真读、尽情吐槽、和你讨论每一个精彩瞬间！反馈 QQ 群：1135570183。",
+          "kind": "world",
+          "api": 6,
+          "webUi": "served",
+          "worldId": "bookfish",
+          "label": "看书吧！大肥鱼",
+          "metadata": {
+            "displayName": "看书吧！大肥鱼",
+            "description": "你负责安利，大肥鱼负责上头！把喜欢的小说推荐给大肥鱼，让她认真读、尽情吐槽、和你讨论每一个精彩瞬间！反馈 QQ 群：1135570183。",
+            "license": "MIT",
+            "engines": ">=22.13",
+            "dependencies": [
+              "cheerio",
+              "ipaddr.js",
+              "unpdf"
+            ],
+            "keywords": [
+              "cortico-world",
+              "cortico"
+            ],
+            "links": {
+              "repository": "https://github.com/oceanxuhaiao/bookfish",
+              "homepage": "https://github.com/oceanxuhaiao/bookfish#readme",
+              "bugs": "https://github.com/oceanxuhaiao/bookfish/issues"
+            }
+          },
+          "author": "oceanxuhaiao",
+          "icon": true,
+          "installedVersion": "0.63.1",
+          "state": "loaded",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "path": "/api/worlds",
+      "status": 200,
+      "value": [
+        {
+          "id": "bookfish",
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "normalCoreRestart": {
+        "previousPid": 35360,
+        "currentPid": 37180
+      }
+    }
+  ]
+}

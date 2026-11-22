@@ -1,0 +1,30 @@
+{
+  "before": {
+    "schema": 6,
+    "bookCount": 11,
+    "committedCount": 1496,
+    "episodeCount": 762,
+    "bookFiles": 13,
+    "bookBytes": 24519096,
+    "semanticHash": "e45600f93de8e744aa4b4a9982b0dcda5395cb6a87f5452296810dcfce2b5705",
+    "integrity": {
+      "integrity_check": "ok"
+    }
+  },
+  "after": {
+    "schema": 6,
+    "bookCount": 11,
+    "committedCount": 1496,
+    "episodeCount": 762,
+    "bookFiles": 13,
+    "bookBytes": 24519096,
+    "semanticHash": "e45600f93de8e744aa4b4a9982b0dcda5395cb6a87f5452296810dcfce2b5705",
+    "integrity": {
+      "integrity_check": "ok"
+    }
+  },
+  "equal": true,
+  "storySidecarPresent": false,
+  "backupFiles": 10011,
+  "backupBytes": 743850720
+}
