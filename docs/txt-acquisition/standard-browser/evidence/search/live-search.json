@@ -1,0 +1,8 @@
+{
+  "status": 200,
+  "finalOrigin": "https://cn.bing.com",
+  "bytes": 107111,
+  "hits": 10,
+  "blocked": false,
+  "scope": "public Bing HTTP response and production parser; not MV3 or installed host end-to-end"
+}

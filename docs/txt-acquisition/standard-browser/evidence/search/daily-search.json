@@ -1,0 +1,15 @@
+{
+  "source": "54e8786d6334b71f3d724a0420baf1c0651b918a",
+  "entry": "title/author only; no resource URL",
+  "query": {
+    "title": "狂人日记",
+    "author": "鲁迅"
+  },
+  "browserReady": true,
+  "controllerReady": false,
+  "isolationVerified": false,
+  "obtainedResults": false,
+  "observedError": "浏览器拒绝了搜索请求。请在 BookFish 扩展中确认已授权 https://cn.bing.com 后重试；已授权仍失败时，请检查浏览器中的拒绝或验证提示。",
+  "sourcePermissionsChanged": false,
+  "scope": "actual installed daily Core and existing browser connection; no simulated browser client on this port"
+}

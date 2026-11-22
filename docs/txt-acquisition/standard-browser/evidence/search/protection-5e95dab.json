@@ -1,0 +1,312 @@
+{
+  "base": "5e95dab",
+  "staged": false,
+  "manifestVersion": 1,
+  "blocked": [],
+  "review": [
+    {
+      "path": "describe.json",
+      "verdict": "review",
+      "rule": "describe.json"
+    },
+    {
+      "path": "src/tool-schemas.ts",
+      "verdict": "review",
+      "rule": "src/tool-schemas.ts"
+    },
+    {
+      "path": "src/world.ts",
+      "verdict": "review",
+      "rule": "src/world.ts"
+    }
+  ],
+  "allowed": [
+    {
+      "path": "readme.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "assets/help/guides/browser-txt.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "assets/help/guides/fetch-book.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "lib/webui-txt-search-0651.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "lib/webui.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "package.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/build-webui.mjs",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/round4-final-host.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/definition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/protocol/selection.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/acquisition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/book-search.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/webui/browser-txt.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/browser-book-search.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-flow.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-tool.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/webui/browser-txt.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/webui/import-method.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/02-书名作者搜索.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/daily-search.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/installed-host.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/isolated-host.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/live-search.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/protection-5e95dab.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/protection-main.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/search-fields.png",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/search-form.png",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    }
+  ],
+  "findings": [
+    {
+      "path": "readme.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "assets/help/guides/browser-txt.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "assets/help/guides/fetch-book.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "describe.json",
+      "verdict": "review",
+      "rule": "describe.json"
+    },
+    {
+      "path": "lib/webui-txt-search-0651.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "lib/webui.js",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "package.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/build-webui.mjs",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "scripts/round4-final-host.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/definition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/protocol/selection.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/tool-schemas.ts",
+      "verdict": "review",
+      "rule": "src/tool-schemas.ts"
+    },
+    {
+      "path": "src/txt-acquisition/acquisition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/book-search.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/webui/browser-txt.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/world.ts",
+      "verdict": "review",
+      "rule": "src/world.ts"
+    },
+    {
+      "path": "tests/browser-book-search.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-flow.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-tool.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/webui/browser-txt.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/webui/import-method.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/02-书名作者搜索.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/daily-search.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/installed-host.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/isolated-host.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/live-search.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/protection-5e95dab.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/protection-main.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/search-fields.png",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/standard-browser/evidence/search/search-form.png",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    }
+  ]
+}

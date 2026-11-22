@@ -1,0 +1,83 @@
+{
+  "source": "347717bd1ff221b351f3e43a86e6231e47e38af2",
+  "records": [
+    {
+      "step": "actual-token",
+      "elevatedAuthorized": true,
+      "medium": false,
+      "high": true,
+      "adminEnabled": true
+    },
+    {
+      "step": "synthetic-backup-restore",
+      "passed": true,
+      "confirmedChars": 0
+    },
+    {
+      "step": "installed-Core-ready",
+      "host": "0.2.23",
+      "pid": 1052,
+      "port": 55196
+    },
+    {
+      "step": "world-active-and-tool-registered",
+      "passed": true
+    },
+    {
+      "step": "latest-help-and-TXT-coexist",
+      "passed": true,
+      "version": "0.65.1"
+    },
+    {
+      "step": "browser-TXT-help-setup-and-server-gate",
+      "passed": true
+    },
+    {
+      "step": "user-visible-unpacked-extension-location",
+      "passed": true
+    },
+    {
+      "step": "settings-status-controller-fail-closed",
+      "passed": true
+    },
+    {
+      "step": "one-click-setup-stops-without-install-or-settings-change",
+      "passed": true
+    },
+    {
+      "step": "title-or-author-search-real-host-public-API",
+      "passed": true,
+      "transport": "protocol fixture, not real MV3"
+    },
+    {
+      "step": "standard-mode-real-host-consent-readiness-persistence-revocation",
+      "passed": true,
+      "controllerReady": false,
+      "isolationVerified": false,
+      "client": "loopback protocol fixture; no real browser claim"
+    },
+    {
+      "step": "network-disabled-rejection",
+      "passed": true
+    },
+    {
+      "step": "actual-panel-import-index-duplicate-no-progress",
+      "passed": true
+    },
+    {
+      "step": "installed-Core-ready",
+      "host": "0.2.23",
+      "pid": 7560,
+      "port": 55212
+    },
+    {
+      "step": "World-and-Core-restart-preservation",
+      "passed": true
+    },
+    {
+      "step": "result",
+      "passed": true,
+      "scope": "installed Coopanion Core and public panel APIs; Electron desktop and manual source permission dialogue not accepted"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/webui/browser-txt.test.ts (17 tests) 368ms
+ ✓ tests/browser-book-search.test.ts (5 tests) 1471ms
+   ✓ browser book search > accepts title only or author only and bounds the query 660ms
+ ✓ tests/txt-panel-gate.test.ts (2 tests) 922ms
+   ✓ actual World browser TXT panel gate > saves user-only ordinary consent, starts transport without a controller, and revokes when enhanced is selected 671ms
+
+ Test Files  3 passed (3)
+      Tests  24 passed (24)
+   Start at  18:01:04
+   Duration  4.97s (transform 998ms, setup 0ms, collect 2.01s, tests 2.76s, environment 1.10s, prepare 298ms)
+
