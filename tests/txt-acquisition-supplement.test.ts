@@ -19,7 +19,7 @@ async function fixture(options:{fetchImpl?:typeof fetch;html?:string;beforeRecei
   let selection!:SelectionCoordinator;let acq!:TxtAcquisition;
   const make=()=>{
     selection=new SelectionCoordinator({library,novelFetches:{persisted:()=>undefined} as any,scheduler:{} as any,cfg:()=>cfg,timezone:'UTC',
-      cancelExternal:(id:string)=>acq.cancelByIntentId(id),isExternalTask:(id:string)=>!!acq.records.get(id),getExternalTask:(id:string)=>acq.records.get(id)} as any);
+      cancelExternal:(id:string,reason?:'restart_interrupted')=>acq.cancelByIntentId(id,reason),isExternalTask:(id:string)=>!!acq.records.get(id),getExternalTask:(id:string)=>acq.records.get(id)} as any);
     acq=new TxtAcquisition({dataDir:dir,library,cfg:()=>cfg,resolve:async()=>['93.184.216.34'],fetchImpl:options.fetchImpl??(async()=>new Response(body)),
       pageLoader:async()=>({html:options.html??'<html></html>',close:async()=>undefined}),
       onTaskCreated:(task:any)=>selection.onExternalTaskCreated(task),onTaskStateChanged:(task:any)=>(selection as any).onExternalTaskStateChanged(task),
@@ -77,6 +77,11 @@ describe('supplement identity provenance',()=>{
   });
 });
 describe('supplement terminal reconciliation',()=>{
+  it('keeps World shutdown distinct from an explicit cancellation through two restarts',async()=>{
+    const started=barrier();const f=await fixture({fetchImpl:async()=>{started.release();return new Response(new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('第一章\n'));}}));}});
+    const running=f.import();await started.promise;await f.selection.stop();await f.acq.stop();const interrupted=await running;
+    expect(interrupted.failure?.code).toBe('restart_interrupted');await f.restart();await f.restart();expect(f.intent().status).toBe('deferred');expect(f.intent().failure?.code).toBe('txt_retry_available');expect(f.library.selection().queue).toHaveLength(0);
+  });
   it('pulls a committed fact after a lost callback without waiting indefinitely for a restart',async()=>{
     const f=await fixture();vi.spyOn(f.selection,'onExternalImport').mockImplementationOnce(()=>{throw Error('lost callback');});
     const done=await f.import();expect(f.acq.records.get(done.taskId)?.selection?.status).toBe('failed');

@@ -80,7 +80,7 @@ export class BookfishWorld implements World {
     });
     this.selection = new SelectionCoordinator({ library: this.library, novelFetches: this.novelFetches,
       scheduler: this.scheduler, cfg: () => this.opts.cfg, timezone: opts.timezone,
-      cancelExternal:id=>this.txtAcquisition?.cancelByIntentId(id),getExternalTask:id=>this.txtAcquisition?.records.get(id),isExternalTask:id=>{try{return!!this.txtAcquisition?.records.get(id);}catch{return true;}} });
+      cancelExternal:(id,reason)=>this.txtAcquisition?.cancelByIntentId(id,reason),getExternalTask:id=>this.txtAcquisition?.records.get(id),isExternalTask:id=>{try{return!!this.txtAcquisition?.records.get(id);}catch{return true;}} });
     // Browser-assisted file acquisition: an independent route into the same Library.
     // It never opens a second shelf and never queues reading on its own.
     this.txtAcquisition = new TxtAcquisition({ dataDir: opts.dataDir, library: this.library, cfg: () => this.opts.cfg,

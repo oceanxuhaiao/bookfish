@@ -253,16 +253,16 @@ export class TxtAcquisition {
     return this.view(task);
   }
 
-  cancel(taskId: string): TaskView {
+  cancel(taskId: string, code: 'cancelled' | 'restart_interrupted' = 'cancelled'): TaskView {
     const task = this.records.get(taskId);
     if (!task) throw new Error(`Unknown acquisition task ${taskId}`);
     if (task.status === 'completed' || task.status === 'completed_with_warning') return this.view(task);
     if (task.status === 'failed_terminal' || task.status === 'failed_recoverable') return this.view(task);
-    this.aborts.get(taskId)?.abort(new Error('cancelled'));
-    return this.view(this.fail(taskId, 'cancelled', 'Cancelled by the model or user'));
+    this.aborts.get(taskId)?.abort(new AcquisitionFailure(code, code === 'cancelled' ? 'Cancelled by the model or user' : 'World stopped before acquisition completed'));
+    return this.view(this.fail(taskId, code, code === 'cancelled' ? 'Cancelled by the model or user' : 'World stopped; retained data can be retried explicitly'));
   }
 
-  cancelByIntentId(intentId:string):void{for(const task of this.records.list())if(task.intentId===intentId&&!isTerminal(task.status))this.cancel(task.id);}
+  cancelByIntentId(intentId:string,reason?:'restart_interrupted'):void{for(const task of this.records.list())if(task.intentId===intentId&&!isTerminal(task.status))this.cancel(task.id,reason);}
   onConfigChanged():void{
     const cfg=this.cfg();for(const [id,abort] of this.aborts){const task=this.records.get(id);if(!cfg.allowNetwork||!cfg.txtAcquisitionEnabled||(task?.origin==='autonomous'&&!cfg.autonomousAcquisition))abort.abort(new Error('Acquisition permission revoked'));}
   }
@@ -440,7 +440,7 @@ export class TxtAcquisition {
       this.addCandidates(taskId, found.links);
       return this.status(taskId) as TaskView;
     } catch (error) {
-      if (controller.signal.aborted) this.fail(taskId, 'cancelled', 'Discovery cancelled'); else this.classifyFailure(taskId, error);
+      if (controller.signal.aborted) this.fail(taskId, controller.signal.reason instanceof AcquisitionFailure ? controller.signal.reason.code : 'cancelled', 'Discovery interrupted'); else this.classifyFailure(taskId, error);
       return this.status(taskId) as TaskView;
     } finally { this.aborts.delete(taskId); await this.prune(); }
   }
@@ -563,7 +563,7 @@ export class TxtAcquisition {
       controller.signal.throwIfAborted();
       return await this.finishImport(taskId, rawRelative, filename, declared);
     } catch (error) {
-      if (controller.signal.aborted) this.fail(taskId, 'cancelled', 'Acquisition cancelled');
+      if (controller.signal.aborted) this.fail(taskId, controller.signal.reason instanceof AcquisitionFailure ? controller.signal.reason.code : 'cancelled', 'Acquisition interrupted');
       else this.classifyFailure(taskId, error);
       return this.status(taskId) as TaskView;
     } finally {
@@ -811,7 +811,7 @@ export class TxtAcquisition {
   async stop(): Promise<void> {
     this.stopped = true;
     if(this.policyTimer)clearInterval(this.policyTimer);this.policyTimer=undefined;
-    for (const abort of this.aborts.values()) abort.abort();
+    for (const abort of this.aborts.values()) abort.abort(new AcquisitionFailure('restart_interrupted','World stopped'));
     const bridge = this.bridge;
     this.bridge = undefined;
     if (bridge?.running) await bridge.stop().catch(() => undefined);

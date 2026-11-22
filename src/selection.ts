@@ -47,7 +47,7 @@ export interface SelectionSummary {
 }
 
 interface SelectionOptions {
-  cancelExternal?: (intentId:string)=>void;
+  cancelExternal?: (intentId:string, reason?:'restart_interrupted')=>void;
   isExternalTask?: (taskId:string)=>boolean;
   getExternalTask?: (taskId: string) => AcquisitionTask | undefined;
   library: Library;
@@ -99,7 +99,7 @@ export class SelectionCoordinator {
 
   async stop(): Promise<void> {
     this.stopped = true;
-    for(const intent of this.state().intents)if(['searching','awaiting_choice','acquiring'].includes(intent.status))this.options.cancelExternal?.(intent.id);
+    for(const intent of this.state().intents)if(['searching','awaiting_choice','acquiring'].includes(intent.status))this.options.cancelExternal?.(intent.id,'restart_interrupted');
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
     this.host = undefined;
