@@ -1,0 +1,52 @@
+git status --short --branch
+## codex/txt-acquisition-round4-final
+?? docs/txt-acquisition/round4-final/
+git branch -vv
++ codex/help-updates                      1fc504f (E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-help-updates) Merge remote-tracking branch 'origin/main' into codex/help-updates
+  codex/issue-2-writer-lock               93c8aec [origin/codex/issue-2-writer-lock] docs: record writer lock validation evidence and pending Windows 11 acceptance
++ codex/release-0.63.1                    c59bdbc (E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-issue-2-writer-lock) docs: record verified npm GitHub and market 0.63.1 release
++ codex/txt-acquisition-hardening         d5878f9 (E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-hardening) [origin/codex/txt-acquisition-hardening] docs(txt): preserve follow-up verification logs for independent review
+  codex/txt-acquisition-round3            c74aa66 fix(verification): check enabled Windows admin token without localized text
+  codex/txt-acquisition-round4            71cf8f3 docs(txt): include raw round4 validation and failure logs
+* codex/txt-acquisition-round4-final      7332574 docs(txt): freeze supplement evidence and independent review reports
+  codex/txt-acquisition-round4-supplement 7332574 docs(txt): freeze supplement evidence and independent review reports
++ main                                    ea9b45b (E:/项目/桌面宠物/扩展/cortina/state/packages/cortico-world-bookfish/output/github-bookfish) [origin/main: behind 35] release: Bookfish 0.62.1 (prompt optimization 0.62.0 + version bump)
+git log --oneline --decorate -25
+7332574 (HEAD -> codex/txt-acquisition-round4-final, codex/txt-acquisition-round4-supplement) docs(txt): freeze supplement evidence and independent review reports
+77a5af8 fix(txt): preserve recoverable shutdown distinct from user cancellation
+fa9568e fix(txt): close identity lineage terminal replay and revocation gaps
+71cf8f3 (codex/txt-acquisition-round4) docs(txt): include raw round4 validation and failure logs
+e35a81c docs(txt): freeze round4 repair evidence and independent review entry
+ed020ae test(txt): preserve terminal decisions after reopen and shelf commit
+9761e47 test(txt): permit fresh isolated real-quality shelves
+dc53793 fix(verify): require expected author in full World search
+c5de064 test(txt): verify raw link and publication failures preserve originals
+12d8a03 fix(txt): close round4 integrity and selection races
+c74aa66 (codex/txt-acquisition-round3) fix(verification): check enabled Windows admin token without localized text
+35e364a test(txt): freeze round three validation and align npm compatibility lock
+8587756 fix(txt): reject uploads after guard loss and normalize real-source whitespace
+d5dc670 docs(txt): preserve the complete third-round acceptance task
+d76fc3d docs(txt): record stage-one recovery evidence and remaining host gate
+13b6149 fix(txt): flag localized decoding damage without discarding readable prose
+022f6de fix(txt): verify retained originals and recover interrupted commits
+d5878f9 (origin/codex/txt-acquisition-hardening, codex/txt-acquisition-hardening) docs(txt): preserve follow-up verification logs for independent review
+44d381e fix(txt): stream reliable imports and verify isolated MV3 boundaries
+40858d9 fix: harden TXT bridge ownership, transport and import recovery
+88e6847 test(txt): verify isolated Chrome WFP egress and real proxy TXT transfer
+e00e9a0 docs(txt): design controlled browser egress and verify pinned TLS feasibility
+669aeb3 docs(txt): record second-round baseline and request-before-connect safety blocker
+08e0c7e (origin/feature/txt-acquisition) docs(txt): bring the acquisition handoff and audit pack into the repo
+81a31c7 feat(txt): fetch files through a browser extension bridge
+git worktree list
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/cortico-world-bookfish/output/github-bookfish"   ea9b45b [main]
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/bookfish-help-updates"                           1fc504f [codex/help-updates]
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/bookfish-help-updates/output/announcements-main" 8080c78 (detached HEAD)
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/bookfish-issue-2-writer-lock"                    c59bdbc [codex/release-0.63.1]
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/bookfish-txt-acquisition-hardening"              d5878f9 [codex/txt-acquisition-hardening]
+"E:/\351\241\271\347\233\256/\346\241\214\351\235\242\345\256\240\347\211\251/\346\211\251\345\261\225/cortina/state/packages/bookfish-txt-acquisition-round3"                 7332574 [codex/txt-acquisition-round4-final]
+git remote -v
+origin	https://github.com/oceanxuhaiao/bookfish.git (fetch)
+origin	https://github.com/oceanxuhaiao/bookfish.git (push)
+git rev-parse origin/main
+1fc504fdd4c478edabf9ddec8f8c3c686850d704
+git merge-base --is-ancestor 77a5af8 7332574

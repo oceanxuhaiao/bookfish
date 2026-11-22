@@ -1,0 +1,71 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/selection.test.ts (8 tests) 5491ms
+   ✓ autonomous selection state machine > fails over to different works, rejects source/edition retries, stops after three, and pauses globally 863ms
+   ✓ autonomous selection state machine > preflights exact candidates and skips a source whose catalog is rejected 391ms
+   ✓ autonomous selection state machine > treats a pet-selected book as an unfinished commitment through pause, switch and restart, and only full confirmation releases it 887ms
+   ✓ autonomous selection state machine > recovers the queue after an import receipt and deduplicates repeated terminal callbacks 531ms
+   ✓ autonomous selection state machine > rejects unknown or expired candidate ids, respects the source allowlist, and pauses on user cancellation 647ms
+   ✓ autonomous selection state machine > pauses an uncommitted autonomous chain when the feature is switched off 333ms
+   ✓ autonomous selection state machine > reports a completed import after cancellation without undoing the book or queuing it 430ms
+   ✓ autonomous selection state machine > does not release the self-selected gate when an ongoing serial is merely caught up 1405ms
+ ✓ tests/txt-acquisition-supplement.test.ts (35 tests) 26460ms
+   ✓ supplement identity provenance > holds contradictory leading metadata for confirmation without rejecting readable prose 821ms
+   ✓ supplement identity provenance > downgrades legacy exact receipts whose independent source declarations are absent 872ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风》.txt 572ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风》作者：小鱼.txt 527ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风（修订版）》作者：小鱼.txt 573ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风续》作者：小鱼.txt 552ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《另一部》作者：小鱼.txt 532ms
+   ✓ supplement identity provenance > keeps discovered anchor lineage independent:  759ms
+   ✓ supplement identity provenance > keeps discovered anchor lineage independent: 《海风》 659ms
+   ✓ supplement identity provenance > keeps discovered anchor lineage independent: 《海风》作者：小鱼 420ms
+   ✓ supplement identity provenance > does not create autonomous receipts for a manual import even if a caller supplies an intent id 329ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: novel.txt 640ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: download?id=1 729ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: 123.txt 720ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: abcdef1234567890abcdef1234567890.txt 723ms
+   ✓ supplement identity provenance > preserves actual filename metadata across an explicit retry 652ms
+   ✓ supplement terminal reconciliation > keeps World shutdown distinct from an explicit cancellation through two restarts 572ms
+   ✓ supplement terminal reconciliation > pulls a committed fact after a lost callback without waiting indefinitely for a restart 1008ms
+   ✓ supplement terminal reconciliation > does not authorize a retry or a new download for an already cancelled intent 526ms
+   ✓ supplement terminal reconciliation > retries a recoverable HTTP failure on the same task and ignores a stale failure event 687ms
+   ✓ supplement terminal reconciliation > reconciles an encoding rejection as terminal without occupying acquiring after two restarts 688ms
+   ✓ supplement terminal reconciliation > reconciles an expired discovered candidate without starting a download 577ms
+   ✓ supplement terminal reconciliation > treats a missing TXT task as unavailable instead of inferring a matching shelved book 625ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after no_candidates, including two storage restarts 558ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after http404, including two storage restarts 595ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after disk, including two storage restarts 684ms
+   ✓ supplement durable policy revocation > preserves a user cancellation when policy revocation and a late callback compete 553ms
+   ✓ supplement durable policy revocation > migrates an old deferred policy_changed record into a persistent revocation fence 758ms
+   ✓ supplement durable policy revocation > requires an explicit permitted plan to resume a revoked committed book 532ms
+   ✓ supplement durable policy revocation > does not revive a deferred intent after allowNetwork is revoked behind the committed shelf barrier 806ms
+   ✓ supplement durable policy revocation > does not revive a deferred intent after autonomousAcquisition is revoked behind the committed shelf barrier 747ms
+   ✓ supplement unsettled receipt retention > replays a committed but unpersisted receipt once after two restarts and 110 histories 1789ms
+   ✓ supplement unsettled receipt retention > makes the receipt backlog observable and refuses new tasks without orphan records 1656ms
+   ✓ supplement unsettled receipt retention > protects a clean pending Selection receipt through 110 terminal records 1512ms
+   ✓ supplement unsettled receipt retention > protects a clean failed Selection receipt through 110 terminal records 1504ms
+ ✓ tests/txt-acquisition-final.test.ts (16 tests) 7456ms
+   ✓ final source display identity > uses declared display identity 《另一部》作者：小鱼.txt 472ms
+   ✓ final source display identity > uses declared display identity 《海风》作者：另一作者.txt 443ms
+   ✓ final source display identity > uses declared display identity 《海风》.txt 395ms
+   ✓ final source display identity > uses declared display identity novel.txt 390ms
+   ✓ final source display identity > uses declared display identity 《海风》作者：小鱼.txt 377ms
+   ✓ final source display identity > uses declared display identity 《海风（修订版）》作者：小鱼.txt 398ms
+   ✓ final source display identity > does not merge two generic files or corrupt an existing wanted book and progress 485ms
+   ✓ final source display identity > retains stable display metadata and original through retry and two restarts 659ms
+   ✓ final awaiting choice guidance > keeps search guidance separate and fails closed for unknown or contradictory stage 330ms
+   ✓ final awaiting choice guidance > announces imported unknown identity safely, survives repeated notification and reopens, then explicitly queues 807ms
+   ✓ final awaiting choice guidance > guidance cannot revive abandoned and never deletes the shelf 507ms
+   ✓ final awaiting choice guidance > guidance cannot revive cancelled and never deletes the shelf 472ms
+   ✓ final awaiting choice guidance > guidance cannot revive deferred and never deletes the shelf 442ms
+   ✓ final awaiting choice guidance > abandon retains the imported book and ends the intent without queueing 425ms
+   ✓ final terminal retry boundary investigation > cannot reactivate an autonomous terminal failure via retry 431ms
+   ✓ final terminal retry boundary investigation > cannot reactivate an autonomous terminal failure via repair 423ms
+
+ Test Files  3 passed (3)
+      Tests  59 passed (59)
+   Start at  13:07:24
+   Duration  35.65s (transform 575ms, setup 0ms, collect 1.86s, tests 39.41s, environment 1ms, prepare 263ms)
+

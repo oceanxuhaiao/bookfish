@@ -1,0 +1,91 @@
+{
+  "base": "7332574",
+  "staged": false,
+  "manifestVersion": 1,
+  "blocked": [],
+  "review": [],
+  "allowed": [
+    {
+      "path": "src/protocol/selection.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/selection.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/acquisition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/selection.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-final.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/webui/client.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-final/task.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-final/evidence/git-start.txt",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    }
+  ],
+  "findings": [
+    {
+      "path": "src/protocol/selection.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/selection.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/acquisition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/selection.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-final.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/webui/client.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-final/task.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-final/evidence/git-start.txt",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    }
+  ]
+}

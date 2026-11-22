@@ -1,0 +1,11 @@
+{
+  "baseline": "7332574",
+  "source": "9a2300bf5637c74c57e342acaa8d002aa61c69a2",
+  "toolSchemaUnchanged": true,
+  "residentPromptUnchanged": true,
+  "onDemandProtocolBefore": 3197,
+  "onDemandProtocolAfter": 3529,
+  "toolCount": 16,
+  "modelCallsAdded": 0,
+  "actualTokens": "NOT_MEASURED"
+}

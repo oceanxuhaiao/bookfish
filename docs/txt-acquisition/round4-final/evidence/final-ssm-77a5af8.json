@@ -1,0 +1,951 @@
+{
+  "base": "77a5af8",
+  "staged": false,
+  "manifestVersion": 1,
+  "blocked": [],
+  "review": [],
+  "allowed": [
+    {
+      "path": "docs/txt-acquisition/progress.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/00-独立审核入口.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/01-身份真实性.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/02-获取终态与恢复.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/03-策略撤销与迟到回调.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/04-历史回执保留.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/05-全量与ssm回归.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/06-版本差异与安全边界.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/07-最终验收摘要.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/task.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/engineering-exitcodes.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/git-start.txt",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/source-freeze.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/source-line-index.txt",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-audit.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-before.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-body-conflict-before.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-build.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-bundle.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-bundle.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-cancel-order-fixed.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-closed-targeted.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-context-final.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-context.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-context.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-crash.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-diff-check.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-expanded.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-build.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-contract.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-describe.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-exitcodes.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-full.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-no-fetch.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-pack.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-runtime.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-08e0c7e.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-12d8a03.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-35e364a.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-40858d9.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-71cf8f3.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-c440c03.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-d5878f9.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-default.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-origin-main.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-tests.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-types.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final2-build.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final2-tests.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final2-types.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-first-fixes.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-freeze-build.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-freeze-contract.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-freeze-describe.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-freeze-tests.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-freeze-types.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-full-initial.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-guard-regression.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-official-check.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-official-describe.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-pack.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-08e0c7e.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-12d8a03.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-35e364a.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-40858d9.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-71cf8f3.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-c440c03.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-d5878f9.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-default.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-origin-main.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-pull-reconcile.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-runtime.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-shutdown-fixed.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-targeted.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-timing-diagnostic-current.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-timing-diagnostic.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-timing-errors.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-timing-frozen.jsonl",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-timing-summary.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-timing.jsonl",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-tool-budget.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-types-first.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-types-second.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-types.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-world-full.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-world-no-fetch.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/protocol/selection.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/selection.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/acquisition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/selection.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-final.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/webui/client.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-final/task.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-final/evidence/git-start.txt",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    }
+  ],
+  "findings": [
+    {
+      "path": "docs/txt-acquisition/progress.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/00-独立审核入口.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/01-身份真实性.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/02-获取终态与恢复.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/03-策略撤销与迟到回调.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/04-历史回执保留.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/05-全量与ssm回归.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/06-版本差异与安全边界.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/07-最终验收摘要.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/task.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/engineering-exitcodes.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/git-start.txt",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/source-freeze.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/source-line-index.txt",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-audit.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-before.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-body-conflict-before.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-build.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-bundle.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-bundle.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-cancel-order-fixed.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-closed-targeted.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-context-final.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-context.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-context.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-crash.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-diff-check.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-expanded.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-build.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-contract.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-describe.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-exitcodes.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-full.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-no-fetch.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-pack.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-runtime.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-08e0c7e.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-12d8a03.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-35e364a.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-40858d9.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-71cf8f3.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-c440c03.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-d5878f9.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-default.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-ssm-origin-main.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-tests.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final-types.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final2-build.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final2-tests.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-final2-types.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-first-fixes.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-freeze-build.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-freeze-contract.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-freeze-describe.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-freeze-tests.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-freeze-types.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-full-initial.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-guard-regression.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-official-check.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-official-describe.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-pack.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-08e0c7e.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-12d8a03.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-35e364a.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-40858d9.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-71cf8f3.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-c440c03.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-d5878f9.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-default.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-protection-origin-main.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-pull-reconcile.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-runtime.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-shutdown-fixed.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-targeted.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-timing-diagnostic-current.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-timing-diagnostic.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-timing-errors.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-timing-frozen.jsonl",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-timing-summary.json",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-timing.jsonl",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-tool-budget.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-types-first.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-types-second.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-types.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-world-full.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/supp-world-no-fetch.log",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/protocol/selection.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/selection.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/acquisition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/selection.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-final.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/webui/client.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-final/task.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-final/evidence/git-start.txt",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    }
+  ]
+}

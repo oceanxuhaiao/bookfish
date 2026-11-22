@@ -1,0 +1,9 @@
+{
+  "ordinarySessionRequired": true,
+  "currentAdminEnabled": true,
+  "interactiveSession": "Administrator",
+  "mediumDesktopFound": false,
+  "hostStarted": false,
+  "systemChanged": false,
+  "actionNeeded": "Existing ordinary Windows login session; no script requested"
+}

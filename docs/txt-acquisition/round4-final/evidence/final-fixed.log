@@ -1,0 +1,85 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ❯ tests/txt-acquisition-final.test.ts (16 tests | 2 failed) 7050ms
+   ✓ final source display identity > uses declared display identity 《另一部》作者：小鱼.txt 461ms
+   ✓ final source display identity > uses declared display identity 《海风》作者：另一作者.txt 417ms
+   ✓ final source display identity > uses declared display identity 《海风》.txt 425ms
+   ✓ final source display identity > uses declared display identity novel.txt 423ms
+   ✓ final source display identity > uses declared display identity 《海风》作者：小鱼.txt 400ms
+   ✓ final source display identity > uses declared display identity 《海风（修订版）》作者：小鱼.txt 427ms
+   ✓ final source display identity > does not merge two generic files or corrupt an existing wanted book and progress 491ms
+   × final source display identity > retains stable display metadata and original through retry and two restarts 584ms
+     → Invalid autonomous selection notification key
+     → Bookfish library is not mounted
+   × final awaiting choice guidance > announces imported unknown identity safely, survives repeated notification and reopens, then explicitly queues 407ms
+     → Invalid autonomous selection notification key
+     → Bookfish library is not mounted
+   ✓ final awaiting choice guidance > guidance cannot revive abandoned and never deletes the shelf 439ms
+   ✓ final awaiting choice guidance > guidance cannot revive cancelled and never deletes the shelf 438ms
+   ✓ final awaiting choice guidance > guidance cannot revive deferred and never deletes the shelf 484ms
+   ✓ final awaiting choice guidance > abandon retains the imported book and ends the intent without queueing 444ms
+   ✓ final terminal retry boundary investigation > cannot reactivate an autonomous terminal failure via retry 426ms
+   ✓ final terminal retry boundary investigation > cannot reactivate an autonomous terminal failure via repair 494ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/txt-acquisition-final.test.ts > final source display identity > retains stable display metadata and original through retry and two restarts
+Error: Invalid autonomous selection notification key
+ ❯ optionalText src/selection-types.ts:154:62
+    152| function optionalText(value: unknown, name: string, max: number): stri…
+    153|   if (value === undefined || value === null) return undefined;
+    154|   if (typeof value !== 'string' || value.length > max) throw new Error…
+       |                                                              ^
+    155|   return value;
+    156| }
+ ❯ validateIntent src/selection-types.ts:223:9
+ ❯ Module.validateSelection src/selection-types.ts:265:33
+ ❯ validateState src/library.ts:148:16
+ ❯ Library.open src/library.ts:248:145
+ ❯ Object.restart tests/txt-acquisition-final.test.ts:34:122
+ ❯ tests/txt-acquisition-final.test.ts:67:50
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/txt-acquisition-final.test.ts > final source display identity > retains stable display metadata and original through retry and two restarts
+ FAIL  tests/txt-acquisition-final.test.ts > final awaiting choice guidance > announces imported unknown identity safely, survives repeated notification and reopens, then explicitly queues
+Error: Bookfish library is not mounted
+ ❯ Library.ensureOpen src/library.ts:280:56
+    278|   storageStats(){return {...this.bookStorage.cache.stats(),history:thi…
+    279|   textStoreStatus(){return {dir:this.bookStorage.dir,defaultDir:join(t…
+    280|   private ensureOpen(): void { if (!this.opened) throw new Error('Book…
+       |                                                        ^
+    281|   private change<T>(action: (draft: LibraryState) => T): T {
+    282|     this.ensureOpen();
+ ❯ Library.selection src/library.ts:694:38
+ ❯ SelectionCoordinator.state src/selection.ts:90:65
+ ❯ SelectionCoordinator.stop src/selection.ts:104:30
+ ❯ tests/txt-acquisition-final.test.ts:30:42
+ ❯ tests/txt-acquisition-final.test.ts:14:87
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/txt-acquisition-final.test.ts > final awaiting choice guidance > announces imported unknown identity safely, survives repeated notification and reopens, then explicitly queues
+Error: Invalid autonomous selection notification key
+ ❯ optionalText src/selection-types.ts:154:62
+    152| function optionalText(value: unknown, name: string, max: number): stri…
+    153|   if (value === undefined || value === null) return undefined;
+    154|   if (typeof value !== 'string' || value.length > max) throw new Error…
+       |                                                              ^
+    155|   return value;
+    156| }
+ ❯ validateIntent src/selection-types.ts:223:9
+ ❯ Module.validateSelection src/selection-types.ts:265:33
+ ❯ validateState src/library.ts:148:16
+ ❯ Library.open src/library.ts:248:145
+ ❯ Object.restart tests/txt-acquisition-final.test.ts:34:122
+ ❯ tests/txt-acquisition-final.test.ts:85:74
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 14 passed (16)
+   Start at  13:06:24
+   Duration  8.24s (transform 450ms, setup 0ms, collect 850ms, tests 7.05s, environment 0ms, prepare 106ms)
+

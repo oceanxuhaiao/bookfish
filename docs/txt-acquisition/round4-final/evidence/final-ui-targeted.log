@@ -1,0 +1,49 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/txt-acquisition-final.test.ts (16 tests) 11621ms
+   ✓ final source display identity > uses declared display identity 《另一部》作者：小鱼.txt 694ms
+   ✓ final source display identity > uses declared display identity 《海风》作者：另一作者.txt 661ms
+   ✓ final source display identity > uses declared display identity 《海风》.txt 697ms
+   ✓ final source display identity > uses declared display identity novel.txt 687ms
+   ✓ final source display identity > uses declared display identity 《海风》作者：小鱼.txt 636ms
+   ✓ final source display identity > uses declared display identity 《海风（修订版）》作者：小鱼.txt 693ms
+   ✓ final source display identity > does not merge two generic files or corrupt an existing wanted book and progress 831ms
+   ✓ final source display identity > retains stable display metadata and original through retry and two restarts 1066ms
+   ✓ final awaiting choice guidance > keeps search guidance separate and fails closed for unknown or contradictory stage 551ms
+   ✓ final awaiting choice guidance > announces imported unknown identity safely, survives repeated notification and reopens, then explicitly queues 1124ms
+   ✓ final awaiting choice guidance > guidance cannot revive abandoned and never deletes the shelf 579ms
+   ✓ final awaiting choice guidance > guidance cannot revive cancelled and never deletes the shelf 505ms
+   ✓ final awaiting choice guidance > guidance cannot revive deferred and never deletes the shelf 1046ms
+   ✓ final awaiting choice guidance > abandon retains the imported book and ends the intent without queueing 627ms
+   ✓ final terminal retry boundary investigation > cannot reactivate an autonomous terminal failure via retry 611ms
+   ✓ final terminal retry boundary investigation > cannot reactivate an autonomous terminal failure via repair 611ms
+ ✓ tests/webui/client.test.ts (29 tests) 19860ms
+   ✓ library panel with real World data plane > renders acquisition source identity from persisted Book metadata instead of the wanted title 893ms
+   ✓ library panel with real World data plane > opens unconfirmed local text with a directory without changing pet selection or progress 585ms
+   ✓ library panel with real World data plane > shows an immediate in-flight source state and a failure result while preserving the URL 445ms
+   ✓ library panel with real World data plane > shows the single recommendation entry and explains a missing engine instead of enabling a fake download 449ms
+   ✓ library panel with real World data plane > lists only search candidates that pass catalog validation and reports when none do 778ms
+   ✓ library panel with real World data plane > reports no successful search results when every searched version fails validation 476ms
+   ✓ library panel with real World data plane > offers a full-title hint when a short title has no exact match 483ms
+   ✓ library panel with real World data plane > reports a likely abridged edition instead of offering it for download 496ms
+   ✓ library panel with real World data plane > displays a reported mood, evidence and stated reason without executing annotation text 6158ms
+   ✓ library panel with real World data plane > shows that old confirmations have no recorded mood instead of synthesizing one 414ms
+   ✓ library panel with real World data plane > imports a UTF-8 file, selects it, shows confirmed progress, pauses and resumes 1070ms
+   ✓ library panel with real World data plane > shows background import progress and cancels without changing the shelf 2089ms
+   ✓ library panel with real World data plane > renders local typographic covers on the home card and shelf without image requests 351ms
+   ✓ library panel with real World data plane > renders hostile metadata as text, asks for removal confirmation, and removes only after confirmation 354ms
+   ✓ library panel with real World data plane > imports a paginated source link and displays chapter-based progress and source identity 407ms
+   ✓ opens real cover details and another book journal without switching the current reading book 368ms
+   ✓ switches between recent and title sorting without pinning the current book 385ms
+   ✓ lets the user request a passage immediately while automatic reading is off and distinguishes queued from confirmed 491ms
+   ✓ does not block Read now on retired character caps and does not fake progress 309ms
+   ✓ shows rest as a mechanical timeline entry without inventing a reading mood 403ms
+   ✓ disables Continue while routine is active and shows the reason even with automatic reading off 380ms
+   ✓ lets the panel declare a later chapter as the reading start without marking it read 377ms
+
+ Test Files  2 passed (2)
+      Tests  45 passed (45)
+   Start at  13:09:34
+   Duration  22.49s (transform 1.32s, setup 0ms, collect 2.21s, tests 31.48s, environment 878ms, prepare 187ms)
+

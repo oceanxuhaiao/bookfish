@@ -1,0 +1,81 @@
+{
+  "head": "9a2300bf5637c74c57e342acaa8d002aa61c69a2",
+  "srcTree": "49de6ce33b3c675e58f53c4d89714d7a35fb3ef3",
+  "libTree": "2300068a0c41daa04e46c597887054f9272f9160",
+  "baselines": [
+    {
+      "base": "7332574",
+      "commit": "73325749cc68b0611cba9becbfdae1ba117292ea",
+      "blocked": 0,
+      "review": 0
+    },
+    {
+      "base": "77a5af8",
+      "commit": "77a5af8094d34ea728b5b731ddfabc6846a0ea00",
+      "blocked": 0,
+      "review": 0
+    },
+    {
+      "base": "71cf8f3",
+      "commit": "71cf8f3b517e141f6893341129f40a5a7b60b383",
+      "blocked": 0,
+      "review": 3
+    },
+    {
+      "base": "12d8a03",
+      "commit": "12d8a03dfbcc96e41f4ccc53d927a4c789d4818c",
+      "blocked": 0,
+      "review": 3
+    },
+    {
+      "base": "35e364a",
+      "commit": "35e364ac9c23e4326367a555caed097bf1853dc6",
+      "blocked": 0,
+      "review": 4
+    },
+    {
+      "base": "d5878f9",
+      "commit": "d5878f92630d98d0f080ba7b27e0d16ecf6bd6e1",
+      "blocked": 0,
+      "review": 4
+    },
+    {
+      "base": "40858d9",
+      "commit": "40858d931641f42fe40c84470f848b1361bb63c1",
+      "blocked": 0,
+      "review": 6
+    },
+    {
+      "base": "08e0c7e",
+      "commit": "08e0c7e590cdb1917c9eeb469088c011fd225407",
+      "blocked": 0,
+      "review": 6
+    },
+    {
+      "base": "c440c03",
+      "commit": "c440c03f2f1aed7ed451659ddf4f38b0d4b9b38d",
+      "blocked": 0,
+      "review": 7
+    },
+    {
+      "base": "origin/main",
+      "commit": "1fc504fdd4c478edabf9ddec8f8c3c686850d704",
+      "blocked": 0,
+      "review": 7
+    }
+  ],
+  "sourceRefs": {
+    "display": "`src/txt-acquisition/acquisition.ts:639`",
+    "facts": "`src/selection.ts:728`",
+    "guide": "`src/selection.ts:740`",
+    "announce": "`src/selection.ts:696`",
+    "summary": "`src/selection.ts:998`",
+    "queue": "`src/selection.ts:846`",
+    "id": "`src/books.ts:32`",
+    "strict": "`src/library.ts:635`",
+    "ui": "`src/webui/client.ts:361`",
+    "retry": "`src/txt-acquisition/acquisition.ts:689`",
+    "repair": "`src/txt-acquisition/acquisition.ts:734`",
+    "terminal": "`src/selection.ts:534`"
+  }
+}

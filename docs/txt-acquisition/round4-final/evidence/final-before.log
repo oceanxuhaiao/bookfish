@@ -1,0 +1,181 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ❯ tests/txt-acquisition-final.test.ts (16 tests | 9 failed) 6989ms
+   × final source display identity > uses declared display identity 《另一部》作者：小鱼.txt 474ms
+     → expected '海风' to be '另一部' // Object.is equality
+   × final source display identity > uses declared display identity 《海风》作者：另一作者.txt 439ms
+     → expected '小鱼' to be '另一作者' // Object.is equality
+   × final source display identity > uses declared display identity 《海风》.txt 413ms
+     → expected '小鱼' to be '' // Object.is equality
+   × final source display identity > uses declared display identity novel.txt 425ms
+     → expected '海风' to match /^未确认作品.*[a-f0-9]{12}/
+   × final source display identity > uses declared display identity 《海风》作者：小鱼.txt 400ms
+     → Cannot read properties of undefined (reading 'wantedIdentity')
+   × final source display identity > uses declared display identity 《海风（修订版）》作者：小鱼.txt 421ms
+     → expected '海风' to be '海风（修订版）' // Object.is equality
+   × final source display identity > does not merge two generic files or corrupt an existing wanted book and progress 491ms
+     → expected 1 to be 3 // Object.is equality
+   ✓ final source display identity > retains stable display metadata and original through retry and two restarts 685ms
+   × final awaiting choice guidance > keeps search guidance separate and fails closed for unknown or contradictory stage 264ms
+     → expected 'Search returned exact candidates. Cal…' to match /diagnostic|unavailable|unclear/i
+   × final awaiting choice guidance > announces imported unknown identity safely, survives repeated notification and reopens, then explicitly queues 416ms
+     → expected undefined to be '2198a3d3-08a9-4ebe-ba25-8f23e6a8425c' // Object.is equality
+   ✓ final awaiting choice guidance > guidance cannot revive abandoned and never deletes the shelf 434ms
+   ✓ final awaiting choice guidance > guidance cannot revive cancelled and never deletes the shelf 436ms
+   ✓ final awaiting choice guidance > guidance cannot revive deferred and never deletes the shelf 421ms
+   ✓ final awaiting choice guidance > abandon retains the imported book and ends the intent without queueing 427ms
+   ✓ final terminal retry boundary investigation > cannot reactivate an autonomous terminal failure via retry 424ms
+   ✓ final terminal retry boundary investigation > cannot reactivate an autonomous terminal failure via repair 417ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/txt-acquisition-final.test.ts > final source display identity > uses declared display identity 《另一部》作者：小鱼.txt
+AssertionError: expected '海风' to be '另一部' // Object.is equality
+
+Expected: "另一部"
+Received: "海风"
+
+ ❯ tests/txt-acquisition-final.test.ts:48:33
+     46|     const f=await fixture();const done=await f.import('https://books.e…
+     47|     expect(done.status).toMatch(/^completed/);const book=f.library.lis…
+     48|     if(title)expect(book.title).toBe(title);else expect(book.title).to…
+       |                                 ^
+     49|     expect(book.author).toBe(author);expect(book.confirmedChars).toBe(…
+     50|     expect(f.library.selection().queue).toHaveLength(identity==='exact…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  tests/txt-acquisition-final.test.ts > final source display identity > uses declared display identity 《海风》作者：另一作者.txt
+AssertionError: expected '小鱼' to be '另一作者' // Object.is equality
+
+Expected: "另一作者"
+Received: "小鱼"
+
+ ❯ tests/txt-acquisition-final.test.ts:49:25
+     47|     expect(done.status).toMatch(/^completed/);const book=f.library.lis…
+     48|     if(title)expect(book.title).toBe(title);else expect(book.title).to…
+     49|     expect(book.author).toBe(author);expect(book.confirmedChars).toBe(…
+       |                         ^
+     50|     expect(f.library.selection().queue).toHaveLength(identity==='exact…
+     51|     const status=f.selection.summary(f.id).intent as any;expect(status…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  tests/txt-acquisition-final.test.ts > final source display identity > uses declared display identity 《海风》.txt
+AssertionError: expected '小鱼' to be '' // Object.is equality
+
+- Expected
++ Received
+
++ 小鱼
+
+ ❯ tests/txt-acquisition-final.test.ts:49:25
+     47|     expect(done.status).toMatch(/^completed/);const book=f.library.lis…
+     48|     if(title)expect(book.title).toBe(title);else expect(book.title).to…
+     49|     expect(book.author).toBe(author);expect(book.confirmedChars).toBe(…
+       |                         ^
+     50|     expect(f.library.selection().queue).toHaveLength(identity==='exact…
+     51|     const status=f.selection.summary(f.id).intent as any;expect(status…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  tests/txt-acquisition-final.test.ts > final source display identity > uses declared display identity novel.txt
+AssertionError: expected '海风' to match /^未确认作品.*[a-f0-9]{12}/
+
+- Expected: 
+/^未确认作品.*[a-f0-9]{12}/
+
++ Received: 
+"海风"
+
+ ❯ tests/txt-acquisition-final.test.ts:48:69
+     46|     const f=await fixture();const done=await f.import('https://books.e…
+     47|     expect(done.status).toMatch(/^completed/);const book=f.library.lis…
+     48|     if(title)expect(book.title).toBe(title);else expect(book.title).to…
+       |                                                                     ^
+     49|     expect(book.author).toBe(author);expect(book.confirmedChars).toBe(…
+     50|     expect(f.library.selection().queue).toHaveLength(identity==='exact…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  tests/txt-acquisition-final.test.ts > final source display identity > uses declared display identity 《海风》作者：小鱼.txt
+TypeError: Cannot read properties of undefined (reading 'wantedIdentity')
+ ❯ tests/txt-acquisition-final.test.ts:51:84
+     49|     expect(book.author).toBe(author);expect(book.confirmedChars).toBe(…
+     50|     expect(f.library.selection().queue).toHaveLength(identity==='exact…
+     51|     const status=f.selection.summary(f.id).intent as any;expect(status…
+       |                                                                                    ^
+     52|     expect(status.txtIdentity.libraryDisplayIdentity).toEqual({title:b…
+     53|     expect(JSON.stringify(status.txtIdentity)).not.toMatch(/https:|tok…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  tests/txt-acquisition-final.test.ts > final source display identity > uses declared display identity 《海风（修订版）》作者：小鱼.txt
+AssertionError: expected '海风' to be '海风（修订版）' // Object.is equality
+
+Expected: "海风（修订版）"
+Received: "海风"
+
+ ❯ tests/txt-acquisition-final.test.ts:48:33
+     46|     const f=await fixture();const done=await f.import('https://books.e…
+     47|     expect(done.status).toMatch(/^completed/);const book=f.library.lis…
+     48|     if(title)expect(book.title).toBe(title);else expect(book.title).to…
+       |                                 ^
+     49|     expect(book.author).toBe(author);expect(book.confirmedChars).toBe(…
+     50|     expect(f.library.selection().queue).toHaveLength(identity==='exact…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  tests/txt-acquisition-final.test.ts > final source display identity > does not merge two generic files or corrupt an existing wanted book and progress
+AssertionError: expected 1 to be 3 // Object.is equality
+
+- Expected
++ Received
+
+- 3
++ 1
+
+ ❯ tests/txt-acquisition-final.test.ts:61:105
+     59|     await f.acq.importFile({url:'https://books.example/novel.txt',titl…
+     60|     await f.acq.importFile({url:'https://books.example/novel.txt',titl…
+     61|     const books=f.library.list();expect(books).toHaveLength(3);expect(…
+       |                                                                                                         ^
+     62|     expect(JSON.stringify(books.filter(b=>b.key===old.book.key))).toBe…
+     63|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+ FAIL  tests/txt-acquisition-final.test.ts > final awaiting choice guidance > keeps search guidance separate and fails closed for unknown or contradictory stage
+AssertionError: expected 'Search returned exact candidates. Cal…' to match /diagnostic|unavailable|unclear/i
+
+- Expected: 
+/diagnostic|unavailable|unclear/i
+
++ Received: 
+"Search returned exact candidates. Call bookfish_acquire(action=\"status\") for server candidate ids, then bookfish_acquire(action=\"start\") with one id, or stop if no edition is suitable."
+
+ ❯ tests/txt-acquisition-final.test.ts:76:121
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/9]⎯
+
+ FAIL  tests/txt-acquisition-final.test.ts > final awaiting choice guidance > announces imported unknown identity safely, survives repeated notification and reopens, then explicitly queues
+AssertionError: expected undefined to be '2198a3d3-08a9-4ebe-ba25-8f23e6a8425c' // Object.is equality
+
+- Expected: 
+"2198a3d3-08a9-4ebe-ba25-8f23e6a8425c"
+
++ Received: 
+undefined
+
+ ❯ tests/txt-acquisition-final.test.ts:82:131
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/9]⎯
+
+ Test Files  1 failed (1)
+      Tests  9 failed | 7 passed (16)
+   Start at  13:05:27
+   Duration  8.09s (transform 411ms, setup 0ms, collect 797ms, tests 6.99s, environment 0ms, prepare 89ms)
+

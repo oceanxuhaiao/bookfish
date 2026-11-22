@@ -1,0 +1,172 @@
+[
+  {
+    "pid": 11140,
+    "name": "cmd",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 20792,
+    "name": "cmd",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 24612,
+    "name": "cmd",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 29764,
+    "name": "cmd",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 41540,
+    "name": "cmd",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 6028,
+    "name": "Coopanion",
+    "integrity": "S-1-16-0"
+  },
+  {
+    "pid": 6360,
+    "name": "Coopanion",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 10904,
+    "name": "Coopanion",
+    "integrity": "S-1-16-4096"
+  },
+  {
+    "pid": 11564,
+    "name": "Coopanion",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 17732,
+    "name": "Coopanion",
+    "integrity": "S-1-16-4096"
+  },
+  {
+    "pid": 20312,
+    "name": "Coopanion",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 20740,
+    "name": "Coopanion",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 20964,
+    "name": "Coopanion",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 24972,
+    "name": "Coopanion",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 25024,
+    "name": "Coopanion",
+    "integrity": "S-1-16-0"
+  },
+  {
+    "pid": 25944,
+    "name": "Coopanion",
+    "integrity": "S-1-16-4096"
+  },
+  {
+    "pid": 26056,
+    "name": "Coopanion",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 27300,
+    "name": "Coopanion",
+    "integrity": "S-1-16-4096"
+  },
+  {
+    "pid": 33592,
+    "name": "Coopanion",
+    "integrity": "S-1-16-0"
+  },
+  {
+    "pid": 37168,
+    "name": "Coopanion",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 4672,
+    "name": "explorer",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 3596,
+    "name": "node",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 6440,
+    "name": "node",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 7416,
+    "name": "node",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 27976,
+    "name": "node",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 35592,
+    "name": "node",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 41568,
+    "name": "node",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 42036,
+    "name": "node",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 1704,
+    "name": "node_repl",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 18480,
+    "name": "node_repl",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 40884,
+    "name": "node_repl",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 41968,
+    "name": "node_repl",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 8776,
+    "name": "powershell",
+    "integrity": "S-1-16-12288"
+  },
+  {
+    "pid": 848,
+    "name": "pwsh",
+    "integrity": "S-1-16-12288"
+  }
+]

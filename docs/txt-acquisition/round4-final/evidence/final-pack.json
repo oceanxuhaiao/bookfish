@@ -1,0 +1,571 @@
+[
+  {
+    "id": "cortico-world-bookfish@0.63.0",
+    "name": "cortico-world-bookfish",
+    "version": "0.63.0",
+    "size": 1614031,
+    "unpackedSize": 2996555,
+    "shasum": "ca8cf3e4e1c6a64750bafc1bf426788d4a20fde2",
+    "integrity": "sha512-L5wqdaQ3QDYUFm7YZ8T7R2uvZgbrJyGrq+H5/Qe9pKi4Q1XLFH65i6o4QWFn3d4oM25KC+B05oi+7c7H2vDHRQ==",
+    "filename": "cortico-world-bookfish-0.63.0.tgz",
+    "files": [
+      {
+        "path": "CHANGELOG.md",
+        "size": 64041,
+        "mode": 420
+      },
+      {
+        "path": "LICENSE",
+        "size": 1328,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 62281,
+        "mode": 420
+      },
+      {
+        "path": "THIRD_PARTY_NOTICES.md",
+        "size": 4917,
+        "mode": 420
+      },
+      {
+        "path": "assets/branding/logo.png",
+        "size": 395524,
+        "mode": 420
+      },
+      {
+        "path": "assets/branding/poster.jpg",
+        "size": 551969,
+        "mode": 420
+      },
+      {
+        "path": "assets/branding/SOURCE.md",
+        "size": 953,
+        "mode": 420
+      },
+      {
+        "path": "describe.json",
+        "size": 36525,
+        "mode": 420
+      },
+      {
+        "path": "extension/background.js",
+        "size": 9214,
+        "mode": 420
+      },
+      {
+        "path": "extension/manifest.json",
+        "size": 649,
+        "mode": 420
+      },
+      {
+        "path": "extension/popup.html",
+        "size": 1770,
+        "mode": 420
+      },
+      {
+        "path": "extension/popup.js",
+        "size": 3764,
+        "mode": 420
+      },
+      {
+        "path": "extension/README.md",
+        "size": 1634,
+        "mode": 420
+      },
+      {
+        "path": "lib/import-worker.mjs",
+        "size": 67574,
+        "mode": 420
+      },
+      {
+        "path": "lib/webui.js",
+        "size": 311878,
+        "mode": 420
+      },
+      {
+        "path": "lib/zip-worker.mjs",
+        "size": 59062,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 2296,
+        "mode": 420
+      },
+      {
+        "path": "src/biquge.ts",
+        "size": 9830,
+        "mode": 420
+      },
+      {
+        "path": "src/book-storage.ts",
+        "size": 18221,
+        "mode": 420
+      },
+      {
+        "path": "src/books.ts",
+        "size": 4580,
+        "mode": 420
+      },
+      {
+        "path": "src/config.ts",
+        "size": 21970,
+        "mode": 420
+      },
+      {
+        "path": "src/definition.ts",
+        "size": 6511,
+        "mode": 420
+      },
+      {
+        "path": "src/discussions.ts",
+        "size": 6857,
+        "mode": 420
+      },
+      {
+        "path": "src/ENV_PROMPT.md",
+        "size": 1758,
+        "mode": 420
+      },
+      {
+        "path": "src/epub.ts",
+        "size": 11259,
+        "mode": 420
+      },
+      {
+        "path": "src/history.ts",
+        "size": 16878,
+        "mode": 420
+      },
+      {
+        "path": "src/import-job.ts",
+        "size": 3834,
+        "mode": 420
+      },
+      {
+        "path": "src/import-metadata.ts",
+        "size": 1103,
+        "mode": 420
+      },
+      {
+        "path": "src/import-worker.ts",
+        "size": 2866,
+        "mode": 420
+      },
+      {
+        "path": "src/index.ts",
+        "size": 152,
+        "mode": 420
+      },
+      {
+        "path": "src/journal.ts",
+        "size": 13691,
+        "mode": 420
+      },
+      {
+        "path": "src/library.ts",
+        "size": 96581,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-bridge/classes/SonovelBridge.class",
+        "size": 9686,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-bridge/SonovelBridge.java",
+        "size": 7740,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-engine.ts",
+        "size": 18146,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-fetch.ts",
+        "size": 49100,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-integrity.ts",
+        "size": 37652,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-match.ts",
+        "size": 4386,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-probe.ts",
+        "size": 8656,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-runtime/archive.ts",
+        "size": 4507,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-runtime/builtin-manifest.ts",
+        "size": 58556,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-runtime/download.ts",
+        "size": 8650,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-runtime/manager.ts",
+        "size": 43652,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-runtime/manifest.ts",
+        "size": 8635,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-runtime/probe.ts",
+        "size": 8959,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-runtime/storage.ts",
+        "size": 3106,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-runtime/types.ts",
+        "size": 4797,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-runtime/update.ts",
+        "size": 4189,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-runtime/upload.ts",
+        "size": 4854,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-runtime/zip-worker.ts",
+        "size": 7046,
+        "mode": 420
+      },
+      {
+        "path": "src/novel-sources.ts",
+        "size": 2842,
+        "mode": 420
+      },
+      {
+        "path": "src/paged-book.ts",
+        "size": 18568,
+        "mode": 420
+      },
+      {
+        "path": "src/pdf.ts",
+        "size": 4017,
+        "mode": 420
+      },
+      {
+        "path": "src/protocol/discussion.md",
+        "size": 3400,
+        "mode": 420
+      },
+      {
+        "path": "src/protocol/journal.md",
+        "size": 3167,
+        "mode": 420
+      },
+      {
+        "path": "src/protocol/reading.md",
+        "size": 7114,
+        "mode": 420
+      },
+      {
+        "path": "src/protocol/retrieval.md",
+        "size": 3135,
+        "mode": 420
+      },
+      {
+        "path": "src/protocol/review.md",
+        "size": 4907,
+        "mode": 420
+      },
+      {
+        "path": "src/protocol/selection.md",
+        "size": 4317,
+        "mode": 420
+      },
+      {
+        "path": "src/protocol/sharing.md",
+        "size": 3485,
+        "mode": 420
+      },
+      {
+        "path": "src/protocol/story.md",
+        "size": 2294,
+        "mode": 420
+      },
+      {
+        "path": "src/protocols.ts",
+        "size": 673,
+        "mode": 420
+      },
+      {
+        "path": "src/remote-books.ts",
+        "size": 12735,
+        "mode": 420
+      },
+      {
+        "path": "src/retrieval.ts",
+        "size": 16768,
+        "mode": 420
+      },
+      {
+        "path": "src/review-flow.ts",
+        "size": 3597,
+        "mode": 420
+      },
+      {
+        "path": "src/reviews.ts",
+        "size": 18194,
+        "mode": 420
+      },
+      {
+        "path": "src/routine.ts",
+        "size": 1469,
+        "mode": 420
+      },
+      {
+        "path": "src/scheduler.ts",
+        "size": 29734,
+        "mode": 420
+      },
+      {
+        "path": "src/selection-types.ts",
+        "size": 13546,
+        "mode": 420
+      },
+      {
+        "path": "src/selection.ts",
+        "size": 65526,
+        "mode": 420
+      },
+      {
+        "path": "src/serial-adapter.ts",
+        "size": 2840,
+        "mode": 420
+      },
+      {
+        "path": "src/serial-scheduler.ts",
+        "size": 2446,
+        "mode": 420
+      },
+      {
+        "path": "src/serial-sync.ts",
+        "size": 20078,
+        "mode": 420
+      },
+      {
+        "path": "src/serial-types.ts",
+        "size": 14610,
+        "mode": 420
+      },
+      {
+        "path": "src/sharing.ts",
+        "size": 18334,
+        "mode": 420
+      },
+      {
+        "path": "src/source-http.ts",
+        "size": 8316,
+        "mode": 420
+      },
+      {
+        "path": "src/source-types.ts",
+        "size": 1576,
+        "mode": 420
+      },
+      {
+        "path": "src/sources.ts",
+        "size": 4656,
+        "mode": 420
+      },
+      {
+        "path": "src/status.ts",
+        "size": 1560,
+        "mode": 420
+      },
+      {
+        "path": "src/story/core.ts",
+        "size": 40487,
+        "mode": 420
+      },
+      {
+        "path": "src/story/store.ts",
+        "size": 45526,
+        "mode": 420
+      },
+      {
+        "path": "src/stream-import.ts",
+        "size": 19362,
+        "mode": 420
+      },
+      {
+        "path": "src/stream-index.ts",
+        "size": 2675,
+        "mode": 420
+      },
+      {
+        "path": "src/text-store.ts",
+        "size": 1859,
+        "mode": 420
+      },
+      {
+        "path": "src/tool-schemas.ts",
+        "size": 10380,
+        "mode": 420
+      },
+      {
+        "path": "src/transfers.ts",
+        "size": 7414,
+        "mode": 420
+      },
+      {
+        "path": "src/txt-acquisition/acquisition.ts",
+        "size": 49443,
+        "mode": 420
+      },
+      {
+        "path": "src/txt-acquisition/bridge.ts",
+        "size": 20676,
+        "mode": 420
+      },
+      {
+        "path": "src/txt-acquisition/browser-client.ts",
+        "size": 14881,
+        "mode": 420
+      },
+      {
+        "path": "src/txt-acquisition/download.ts",
+        "size": 9948,
+        "mode": 420
+      },
+      {
+        "path": "src/txt-acquisition/html-encoding.ts",
+        "size": 1088,
+        "mode": 420
+      },
+      {
+        "path": "src/txt-acquisition/index.ts",
+        "size": 969,
+        "mode": 420
+      },
+      {
+        "path": "src/txt-acquisition/link-discovery.ts",
+        "size": 4118,
+        "mode": 420
+      },
+      {
+        "path": "src/txt-acquisition/pinned-http.ts",
+        "size": 2843,
+        "mode": 420
+      },
+      {
+        "path": "src/txt-acquisition/privacy.ts",
+        "size": 851,
+        "mode": 420
+      },
+      {
+        "path": "src/txt-acquisition/quality.ts",
+        "size": 13669,
+        "mode": 420
+      },
+      {
+        "path": "src/txt-acquisition/records.ts",
+        "size": 5891,
+        "mode": 420
+      },
+      {
+        "path": "src/txt-acquisition/repair.ts",
+        "size": 11433,
+        "mode": 420
+      },
+      {
+        "path": "src/txt-acquisition/staging.ts",
+        "size": 16866,
+        "mode": 420
+      },
+      {
+        "path": "src/txt-acquisition/types.ts",
+        "size": 10256,
+        "mode": 420
+      },
+      {
+        "path": "src/txt-acquisition/url-policy.ts",
+        "size": 5478,
+        "mode": 420
+      },
+      {
+        "path": "src/webui/client.ts",
+        "size": 92093,
+        "mode": 420
+      },
+      {
+        "path": "src/webui/cover.ts",
+        "size": 1799,
+        "mode": 420
+      },
+      {
+        "path": "src/webui/legacy.ts",
+        "size": 44001,
+        "mode": 420
+      },
+      {
+        "path": "src/webui/mood.ts",
+        "size": 1171,
+        "mode": 420
+      },
+      {
+        "path": "src/webui/qq-group.ts",
+        "size": 69824,
+        "mode": 420
+      },
+      {
+        "path": "src/webui/reader.ts",
+        "size": 4125,
+        "mode": 420
+      },
+      {
+        "path": "src/webui/runtime.ts",
+        "size": 22774,
+        "mode": 420
+      },
+      {
+        "path": "src/webui/settings.ts",
+        "size": 25009,
+        "mode": 420
+      },
+      {
+        "path": "src/webui/style.ts",
+        "size": 14228,
+        "mode": 420
+      },
+      {
+        "path": "src/world.ts",
+        "size": 47727,
+        "mode": 420
+      }
+    ],
+    "entryCount": 111,
+    "bundled": []
+  }
+]

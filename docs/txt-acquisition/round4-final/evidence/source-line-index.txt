@@ -1,0 +1,94 @@
+Source 9a2300bf5637c74c57e342acaa8d002aa61c69a2; one-based lines
+
+FILE src/selection.ts
+30:   choiceStage?: string; guidance?: string;
+31:   txtIdentity?: { taskStatus: string; wantedIdentity: { title: string; author?: string }; declaredIdentity: { title?: string; author?: string }; libraryDisplayIdentity?: { title: string; author: string } };
+373:     return allowed.split(',').map((value) => Number(value.trim())).filter((value) => Number.isSafeInteger(value)).includes(sourceId);
+696:   private announce(intent: SelectionIntent, status: string, stage: string): void {
+708:       ...(this.txtIdentity(intent) ? { txtIdentity: this.txtIdentity(intent) } : {}),
+713:           ? this.choiceGuidance(intent, stage)
+728:   private txtIdentity(intent: SelectionIntent): SelectionViewIntent['txtIdentity'] {
+740:   private choiceGuidance(intent: SelectionIntent, stage: string): string {
+746:       const facts=this.txtIdentity(intent);
+754:   private announceOpportunity(): string | null {
+998:     const choiceStage=intent.failure?.code==='identity_mismatch'&&intent.bookKey&&intent.acquisitionTaskId?'import':intent.searchJobId&&intent.candidates.length&&!intent.bookKey?'search':'unknown';
+1000:       ...(intent.status==='awaiting_choice'?{choiceStage,guidance:this.choiceGuidance(intent,choiceStage)}:{}),
+1002:       ...(this.txtIdentity(intent) ? { txtIdentity: this.txtIdentity(intent) } : {}),
+
+FILE src/txt-acquisition/acquisition.ts
+149:   async init(): Promise<void> {
+152:     await this.staging.init();
+487:       filename = decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() ?? 'novel.txt') || 'novel.txt';
+618:       ...(declared.title || declared.author ? { declared } : {}),
+639:           title: declared.title?.trim() || `未确认作品（${filename.slice(0, 80)} · ${task.file!.sha256.slice(0, 12)}）`,
+640:           ...(declared.title?.trim() && declared.author ? { author: declared.author } : {}),
+645:           ...(declared.title || declared.author ? { declared } : {}),
+689:   async retry(taskId: string): Promise<TaskView> {
+734:   async repair(taskId: string, encoding?: DetectedEncoding): Promise<TaskView> {
+
+FILE src/protocol/selection.md
+19: `awaiting_choice`有两种语义：search候选用status查看服务端candidateId，再start；import且identity_mismatch表示TXT已在书架，先status(intentId)检查txtIdentity中的wanted/declared/libraryDisplayIdentity及taskId/bookKey，明确接受该作品后才plan(planAction="queue")，否则abandon且保留书籍。身份不足不编造，目标不能充当来源；不要对此调用搜索start。未知或矛盾stage停止自动动作。metadata exact不证明正文真伪、版权或版本真实性。
+
+FILE tests/txt-acquisition-final.test.ts
+28:   const events:any[]=[];const host={pushEvent:async(e:any)=>{events.push(JSON.parse(e.text));}};make();await acq.init();selection.start(host as any);
+34:     restart:async()=>{await selection.stop();await acq.stop();library.close();library=new Library({dataDir:dir});library.open();make();await acq.init();selection.start(host as any);await acq.resumeSelection();}};
+37: describe('final source display identity',()=>{
+38:   it.each([
+48:     if(title)expect(book.title).toBe(title);else expect(book.title).toMatch(/^未确认作品.*[a-f0-9]{12}/);
+51:     const status=f.selection.summary(f.id).intent as any;expect(status.txtIdentity.wantedIdentity).toEqual({title:'海风',author:'小鱼'});
+52:     expect(status.txtIdentity.libraryDisplayIdentity).toEqual({title:book.title,author:book.author});
+53:     expect(JSON.stringify(status.txtIdentity)).not.toMatch(/https:|token|cookie/i);
+55:   it('does not merge two generic files or corrupt an existing wanted book and progress',async()=>{
+66:   it('retains stable display metadata and original through retry and two restarts',async()=>{
+73: describe('final awaiting choice guidance',()=>{
+74:   it('keeps search guidance separate and fails closed for unknown or contradictory stage',async()=>{
+82:   it('announces imported unknown identity safely, survives repeated notification and reopens, then explicitly queues',async()=>{
+86:     expect(event.txtIdentity.declaredIdentity).toEqual({});expect(f.library.selection().queue).toHaveLength(0);
+91:   it.each(['abandoned','cancelled','deferred'])('guidance cannot revive %s and never deletes the shelf',async status=>{
+95:   it('abandon retains the imported book and ends the intent without queueing',async()=>{
+99: describe('final terminal retry boundary investigation',()=>{
+100:   it.each(['retry','repair'] as const)('cannot reactivate an autonomous terminal failure via %s',async action=>{
+
+FILE tests/selection.test.ts
+96: describe('autonomous selection state machine', () => {
+97:   it('fails over to different works, rejects source/edition retries, stops after three, and pauses globally', async () => {
+140:   it('preflights exact candidates and skips a source whose catalog is rejected', async () => {
+155:   it('treats a pet-selected book as an unfinished commitment through pause, switch and restart, and only full confirmation releases it', async () => {
+211:   it('recovers the queue after an import receipt and deduplicates repeated terminal callbacks', async () => {
+248:   it('rejects unknown or expired candidate ids, respects the source allowlist, and pauses on user cancellation', async () => {
+275:   it('guides multiple real search candidates through status and a valid start without import guidance',async()=>{
+280:       const status=ctx.coordinator.summary(started.intentId);expect(status.intent?.candidateCount).toBe(2);expect(status.intent?.choiceStage).toBe('search');
+288:   it('pauses an uncommitted autonomous chain when the feature is switched off', async () => {
+301:   it('reports a completed import after cancellation without undoing the book or queuing it', async () => {
+324:   it('does not release the self-selected gate when an ongoing serial is merely caught up', async () => {
+
+FILE tests/webui/client.test.ts
+49: describe('library panel with real World data plane', () => {
+50:   it('renders acquisition source identity from persisted Book metadata instead of the wanted title',async()=>{
+60:   it('opens unconfirmed local text with a directory without changing pet selection or progress',async()=>{
+68:   it('shows an immediate in-flight source state and a failure result while preserving the URL',async()=>{
+74:   it('shows the single recommendation entry and explains a missing engine instead of enabling a fake download', async () => {
+89:   it('lists only search candidates that pass catalog validation and reports when none do', async () => {
+110:   it('reports no successful search results when every searched version fails validation', async () => {
+128:   it('offers a full-title hint when a short title has no exact match', async () => {
+149:   it('reports a likely abridged edition instead of offering it for download', async () => {
+168:   it('displays a reported mood, evidence and stated reason without executing annotation text', async () => {
+211:   it('keeps configuration solely in the host group and preserves explicit reading preference',async()=>{
+218:   it('shows that old confirmations have no recorded mood instead of synthesizing one', async () => {
+228:   it('imports a UTF-8 file, selects it, shows confirmed progress, pauses and resumes', async () => {
+251:   it('shows background import progress and cancels without changing the shelf', async () => {
+267:   it('renders local typographic covers on the home card and shelf without image requests', async () => {
+286:   it('renders hostile metadata as text, asks for removal confirmation, and removes only after confirmation', async () => {
+303:   it('does not update the DOM after disposal', async () => {
+310:   it('imports a paginated source link and displays chapter-based progress and source identity', async () => {
+326: it('uses host-persisted reading and quiet settings without duplicate controls',async()=>{
+331: it('opens real cover details and another book journal without switching the current reading book',async()=>{
+338: it('switches between recent and title sorting without pinning the current book',async()=>{
+352: it('renders a compact empty state with one clear call to action', async () => {
+362: it('opens a feedback page with GitHub, QQ group and author links', async () => {
+376: it('lets the user request a passage immediately while automatic reading is off and distinguishes queued from confirmed',async()=>{
+380: it('does not block Read now on retired character caps and does not fake progress',async()=>{
+383: it('shows rest as a mechanical timeline entry without inventing a reading mood',async()=>{
+387: it('disables Continue while routine is active and shows the reason even with automatic reading off',async()=>{
+391: it.each(['shelf','trail'] as const)('opens the top-level %s panel directly without visible secondary navigation',async panel=>{
+395: it('lets the panel declare a later chapter as the reading start without marking it read',async()=>{
