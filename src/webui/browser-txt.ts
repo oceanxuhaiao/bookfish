@@ -16,6 +16,13 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
     const node = document.createElement(tag); node.textContent = text; target.append(node); return node;
   }
   el('p', say('从你有权访问的资源页发现 TXT/Markdown，再选择文件入架。无需小说引擎；获取成功不等于读过。', 'Discover TXT/Markdown on an authorized resource page, then choose a file to import. No novel engine is needed; importing is never reading.'));
+  const progress=el('section','');progress.className='card';progress.setAttribute('aria-label',say('当前配置状态','Current setup status'));
+  const progressTitle=el('h3',say('正在检查配置…','Checking setup…'),progress);progressTitle.setAttribute('role','status');progressTitle.setAttribute('aria-live','polite');
+  const nextSteps=el('ol','',progress);
+  const verify=el('button',say('我已完成连接，重新检查','I have connected the extension; check again'),progress);verify.type='button';
+  const connectionSettings=el('a',say('打开配置页，复制配对信息','Open settings and copy pairing details'),progress);connectionSettings.href='#/provider/world%3Abookfish/settings';connectionSettings.target='_blank';connectionSettings.rel='noopener';
+  const location=el('button',say('查看扩展文件夹位置','Show extension folder'),progress);location.type='button';
+  const locationText=el('p','',progress);locationText.style.overflowWrap='anywhere';
   const setup = el('details', ''); setup.open = true;
   el('summary', say('首次使用：配置浏览器辅助获取', 'First use: set up browser-assisted acquisition'), setup);
   const modeLabel=el('label',say('浏览器使用模式','Browser mode'),setup),mode=el('select','',modeLabel);
@@ -69,17 +76,34 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
       [state.transportConnected, say('扩展已连接', 'Extension connected')],
     ] as const) el('li', (ok ? '✓ ' : '○ ') + label, checks);
     ready = state.browserReady && state.networkEnabled && state.enabled && state.bridgeEnabled && (state.controllerReady || state.standardAccepted===true&&state.protectionMode==='standard') && state.transportConnected;
+    nextSteps.replaceChildren();
+    const localReady=state.networkEnabled&&state.enabled&&state.bridgeEnabled&&(state.controllerReady||state.standardAccepted===true&&state.protectionMode==='standard');
+    progressTitle.textContent=ready?say('配置完成，可以开始获取','Setup complete. You can start acquiring files'):localReady?say('配置尚未完成：还差浏览器扩展连接','Setup incomplete: connect the browser extension'):say('配置尚未完成：请先完成下方模式与权限设置','Setup incomplete: choose a mode and confirm permissions below');
+    const instructions=ready?[
+      say('连接配置已通过。填写下方书名和资源页地址，点击“发现 TXT 文件”。','Connection checks passed. Enter a title and resource page below, then discover TXT files.'),
+      say('每个新网站仍需在扩展弹窗中填写资源页地址，点击“授权这个来源”，并确认浏览器权限；当前页面无法验证你是否已授权某个网站。','Each new website still needs source permission in the extension popup. This page cannot verify individual website grants.'),
+    ]:localReady?[
+      say('本机设置已保存；一键配置还不会自动安装浏览器扩展。','Local settings are saved; setup does not yet install the browser extension automatically.'),
+      say('点击“查看扩展文件夹位置”。在 Edge 地址栏输入 edge://extensions（Chrome 用 chrome://extensions），打开“开发人员模式”，选择“加载解压缩的扩展”，选中该文件夹。','Show the extension folder. Open edge://extensions (chrome://extensions in Chrome), enable developer mode and load that unpacked folder.'),
+      say('打开配置页复制端口和令牌，在浏览器工具栏打开 BookFish 扩展，分别填入后点击“保存并连接”。不要把令牌发到聊天中。','Copy the port and token from settings into the BookFish extension popup, then save and connect. Do not share the token in chat.'),
+      say('在扩展中填写要访问的资源页地址，点击“授权这个来源”，并确认浏览器权限。','Enter the resource page in the extension popup, grant that source and confirm the browser permission.'),
+      say('回到这里点击“我已完成连接，重新检查”。此页每3秒检查连接；只有出现“配置完成，可以开始获取”且下方按钮可用，才表示连接配置完成。','Return here and recheck. Connection is checked every 3 seconds while this view is open. Setup is complete when the completion message appears and discovery is enabled.'),
+    ]:[say('在下方选择使用模式并完成必要确认，然后点击“一键配置浏览器获取”；若提示还需操作，请继续按本清单完成。','Choose a mode and confirm the required permissions below, then run setup and follow the remaining steps here.')];
+    for(const instruction of instructions)el('li',instruction,nextSteps);
+    verify.hidden=ready||!localReady;connectionSettings.hidden=location.hidden=!localReady||ready;
     note.textContent = state.protectionMode==='standard'&&state.standardAccepted
       ? ready?say('普通模式已就绪；未验证强制隔离。','Standard mode is ready; enforced isolation has not been verified.'):say('普通模式已确认，请连接扩展并确认联网及获取权限。','Standard mode has been accepted. Connect the extension and check network/acquisition permissions.')
       : !state.controllerReady
       ? say('当前版本尚未接入正式安全控制器。可选择普通模式并确认后使用；增强保护暂不可用。', 'This version has no production protection controller. Choose and accept standard mode to continue; enhanced protection is unavailable.')
       : ready ? say('检查通过，可以发现资源页上的文件。', 'Checks passed. You can discover files on the resource page.') : say('配置尚未完成，请按说明完成未通过项后重新检查。', 'Setup is incomplete. Complete the missing checks and recheck.');
-    setup.open = !ready; discover.disabled = !ready || busy || configuring; return ready;
+    if(!ready)setup.open=true; discover.disabled = !ready || busy || configuring; return ready;
   }
   async function run(action: () => Promise<void>) {
     try { await action(); } catch (error) { if (!ctx.signal.aborted) message.textContent = say('未完成：', 'Not completed: ') + String(error); }
   }
   refresh.onclick = () => { void run(async () => { await check(); }); };
+  verify.onclick=refresh.onclick;
+  location.onclick=()=>{void run(async()=>{const info=await ctx.invoke<{directory:string}>('txt_extension_location',[]);if(!ctx.signal.aborted)locationText.textContent=say('加载此文件夹：','Load this folder: ')+info.directory;});};
   let configuring = false, needsConsent = false,needsStandardConsent=false;
   consent.onchange = () => { configure.disabled = configuring || (needsConsent && !consent.checked) || (needsStandardConsent && !standardConsent.checked); };
   standardConsent.onchange=()=>{configure.disabled=configuring||(needsConsent&&!consent.checked)||(needsStandardConsent&&!standardConsent.checked);};
@@ -87,6 +111,7 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
   configure.onclick = () => { if (configuring) return; configuring = true; configure.disabled = true; let completed = false;
     void run(async () => {
       note.textContent = say('正在检测并配置…', 'Checking and configuring…');
+      progressTitle.textContent=note.textContent;
       steps.replaceChildren(); discover.disabled = true;
       const grantNetwork = needsConsent && consent.checked;
       consent.checked = false; // Consume this confirmation once; never reuse it after later revocation.
@@ -116,7 +141,7 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
       configure.textContent = needsConsent ? say('同意并继续配置', 'Agree and continue setup') : result.state==='ready' ? say('重新验证配置', 'Verify setup again') : say('重新运行一键配置', 'Run setup again');
       setup.open = result.state !== 'ready';
       completed = true;
-    }).finally(() => { configuring=false; configure.disabled=needsConsent&&!consent.checked||needsStandardConsent&&!standardConsent.checked; if (!completed) ready=false; discover.disabled=!ready||busy; if (!completed && !ctx.signal.aborted) { setup.open=true; note.textContent=say('配置未完成，请重试；也可查看高级配置中的检查结果。', 'Setup did not complete. Retry or inspect advanced diagnostics.'); } });
+    }).finally(() => { configuring=false; configure.disabled=needsConsent&&!consent.checked||needsStandardConsent&&!standardConsent.checked; if (!completed) ready=false; discover.disabled=!ready||busy; if (!completed && !ctx.signal.aborted) { setup.open=true; progressTitle.textContent=say('配置未完成：连接检查失败，请重试','Setup incomplete: connection check failed; retry');note.textContent=say('配置未完成，请重试；也可查看高级配置中的检查结果。', 'Setup did not complete. Retry or inspect advanced diagnostics.'); } });
   };
   function show(task: TaskView) {
     if (ctx.signal.aborted) return;
@@ -152,7 +177,7 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
     try { if (!await check()) return; message.textContent = say('正在浏览器中发现文件…', 'Discovering files in the browser…'); show(await ctx.invoke<TaskView>('txt_discover', [{ title: title.value.trim(), author: author.value.trim() || undefined, url: page.value.trim() }])); cancel.hidden = false; }
     finally { busy = false; discover.disabled = !ready; }
   }); };
-  ctx.interval(async () => { if (!active || !current || ctx.signal.aborted) return; await run(async () => { const task = await ctx.invoke<TaskView>('txt_status', [current!.taskId]); if (!busy) show(task); }); }, 3000);
+  ctx.interval(async () => { if (!active || ctx.signal.aborted||configuring||busy||needsConsent||needsStandardConsent) return; await run(async () => { await check();if(current){const task = await ctx.invoke<TaskView>('txt_status', [current.taskId]); if (!busy) show(task);} }); }, 3000);
   return { activate(value: boolean, identity?: { title: string; author: string }) {
     active = value; root.hidden = !value;
     if (value) { if (!title.value && identity) title.value = identity.title; if (!author.value && identity) author.value = identity.author; void run(async () => { await check(); }); }

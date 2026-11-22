@@ -15,19 +15,28 @@ function mount(state: TxtSetup) {
   let result: BrowserSetupResult = {state:'blocked',reason:'controller_unavailable',changed:false,steps:[{id:'environment',state:'done'},{id:'controller',state:'blocked'}]};
   const invoke = vi.fn(async (method: string, _args?: unknown[]) => {
     if (method === 'txt_setup') return setup;
+    if(method==='txt_extension_location')return {directory:'C:/test/extension'};
     if (method === 'txt_setup_configure') return result;
     if (method === 'txt_discover') return task;
     if (method === 'txt_import') return { task: { ...task, candidates: [], status: 'completed', bookKey: 'b' } };
     return task;
   });
   const controller = new AbortController();
-  const ctx = { invoke, signal: controller.signal, interval: () => ({ dispose() {} }), refresh: vi.fn(async () => {}) } as unknown as WebUiPanelContext;
+  let tick:()=>Promise<void>=async()=>{};
+  const ctx = { invoke, signal: controller.signal, interval: (callback:()=>Promise<void>) => {tick=callback;return { dispose() {} };}, refresh: vi.fn(async () => {}) } as unknown as WebUiPanelContext;
   const view = mountBrowserTxt(root, ctx, zh => zh); view.activate(true);
-  return { root, invoke, change: (next: TxtSetup) => { setup = next; }, setResult:(next:BrowserSetupResult)=>{result=next;}, controller };
+  return { root, invoke, change: (next: TxtSetup) => { setup = next; }, tick:()=>tick(), setResult:(next:BrowserSetupResult)=>{result=next;}, controller };
 }
 function button(root: HTMLElement, text: string) { return [...root.querySelectorAll('button')].find(n => n.textContent === text)!; }
 function fill(root: HTMLElement) { const inputs=root.querySelectorAll<HTMLInputElement>('form input'); inputs[0].value='海风'; inputs[1].value='小鱼'; inputs[2].value='https://example.org/book'; }
 describe('browser TXT setup and acquisition UI', () => {
+  it('shows remaining installation steps and automatically detects connection completion and loss before any task',async()=>{
+    const state={...ready,controllerReady:false,transportConnected:false,browserReady:false,protectionMode:'standard' as const,standardAccepted:true};
+    const {root,change,tick,invoke}=mount(state);await settle();expect(root.querySelector('h3')!.textContent).toContain('还差浏览器扩展连接');expect(root.textContent).toContain('edge://extensions');expect(root.textContent).toContain('保存并连接');
+    button(root,'查看扩展文件夹位置').click();await settle();expect(invoke).toHaveBeenCalledWith('txt_extension_location',[]);expect(root.textContent).toContain('C:/test/extension');
+    change({...state,transportConnected:true,browserReady:true});await tick();expect(root.querySelector('h3')!.textContent).toBe('配置完成，可以开始获取');expect(button(root,'发现 TXT 文件').disabled).toBe(false);expect(root.textContent).toContain('当前页面无法验证');
+    change(state);await tick();expect(root.querySelector('h3')!.textContent).toContain('还差浏览器扩展连接');expect(button(root,'发现 TXT 文件').disabled).toBe(true);
+  });
   it('requires explicit ordinary-mode consent and supports autonomous browsing without inventing controller readiness',async()=>{
     const {root,invoke,setResult,change}=mount({...ready,controllerReady:false,browserReady:false,protectionMode:'enhanced'});await settle();
     const mode=root.querySelector<HTMLSelectElement>('[aria-label="浏览器使用模式"]')!;mode.value='standard';mode.dispatchEvent(new Event('change'));
@@ -44,7 +53,7 @@ describe('browser TXT setup and acquisition UI', () => {
     button(root,'一键配置浏览器获取').click();await settle();
     expect(invoke).toHaveBeenCalledWith('txt_setup_configure',[{allowNetwork:false,mode:'enhanced',acceptStandard:false}]);
     expect(root.textContent).toContain('停在“安全组件”步骤');expect(root.textContent).toContain('无需手动填写端口或令牌');
-    expect(root.textContent).not.toContain('配置完成，可以开始获取');expect(button(root,'发现 TXT 文件').disabled).toBe(true);
+    expect(root.querySelector('h3')!.textContent).not.toContain('配置完成，可以开始获取');expect(button(root,'发现 TXT 文件').disabled).toBe(true);
   });
   it('asks for network consent only when needed and verifies readiness after configuration',async()=>{
     const {root,invoke,setResult,change}=mount({...ready,networkEnabled:false,browserReady:false});await settle();
@@ -59,7 +68,7 @@ describe('browser TXT setup and acquisition UI', () => {
   it('rejects a stale ready result when the final live connection check fails',async()=>{
     const {root,setResult}=mount({...ready,controllerReady:false,browserReady:false});await settle();
     setResult({state:'ready',reason:'ready',changed:true,steps:[{id:'verification',state:'done'}]});button(root,'一键配置浏览器获取').click();await settle();
-    expect(root.textContent).not.toContain('配置完成，可以开始获取');expect(button(root,'发现 TXT 文件').disabled).toBe(true);
+    expect(root.querySelector('h3')!.textContent).not.toContain('配置完成，可以开始获取');expect(button(root,'发现 TXT 文件').disabled).toBe(true);
   });
   it('prevents duplicate setup requests and recovers its button after a connection error',async()=>{
     const {root,invoke}=mount(ready);await settle();let reject!:(e:Error)=>void;
@@ -67,7 +76,7 @@ describe('browser TXT setup and acquisition UI', () => {
     const start=button(root,'一键配置浏览器获取');start.click();start.click();await settle();
     expect(invoke.mock.calls.filter(([method])=>method==='txt_setup_configure')).toHaveLength(1);
     reject(Error('host disconnected'));await settle();expect(start.disabled).toBe(false);expect(root.textContent).toContain('配置未完成，请重试');expect(button(root,'发现 TXT 文件').disabled).toBe(true);
-    expect(root.textContent).not.toContain('配置完成，可以开始获取');
+    expect(root.querySelector('h3')!.textContent).not.toContain('配置完成，可以开始获取');
   });
   it('guides first use without changing permissions or treating extension transport as protection', async () => {
     const { root, invoke } = mount({ ...ready, controllerReady: false }); await settle();

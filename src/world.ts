@@ -414,6 +414,7 @@ export class BookfishWorld implements World {
         if(this.host){if(method==='upload_begin'&&args.length===1)return this.transfers.begin(args[0]);if(method==='upload_chunk'&&args.length===3)return this.transfers.chunk(args[0],args[1],args[2]);if(method==='upload_finish'&&args.length===1)return this.transfers.start(args[0]);if(method==='transfer_cancel'&&args.length===1)return this.transfers.cancel(args[0]);if(method==='backup_begin'&&args.length===0)return this.transfers.download();if(method==='backup_read'&&args.length===2)return this.transfers.read(args[0],args[1]);}
         if (method === 'get' && args.length === 0) return { discussions: this.discussions.list(), config: { ...this.opts.cfg }, status: this.status(), books: this.host ? this.library.list() : [], journal: this.host && this.library.status().current ? this.library.journal() : null, reviews: this.host && this.library.status().current ? this.library.reviews() : null, novel: this.novelFetches.status(), serial: this.serialSync.status(), selection: this.host ? this.selection.view() : this.selection.detachedView() };
         if (!this.host) throw new Error('Bookfish is not mounted');
+        if(method==='txt_extension_location'&&args.length===0)return {directory:join(dirname(fileURLToPath(import.meta.url)),'..','extension')};
         if (method === 'txt_setup' && args.length === 0) {
           const state = this.txtAcquisition.summary();
           return { networkEnabled: this.opts.cfg.allowNetwork, enabled: state.enabled,
