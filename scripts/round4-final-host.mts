@@ -6,6 +6,7 @@ import { join,resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
+import { createServer } from 'node:net';
 import { Library } from '../src/library.ts';
 const root=process.cwd(),evidence=resolve('_verify/host-final-'+randomUUID());mkdirSync(evidence,{recursive:true});
 const groups=execFileSync('whoami.exe',['/groups'],{encoding:'utf8'});
@@ -40,6 +41,17 @@ try{await launch();const worlds=await request('/api/worlds');assert.ok(worlds.wo
  const guide=await panel('help','help_guide',['browser-txt']);assert.ok(guide.markdown.includes('首次配置'));const setup=await panel('shelf','txt_setup');assert.equal(setup.controllerReady,false);assert.equal(setup.browserReady,false);assert.equal('token' in setup,false);const blocked=await panel('shelf','txt_discover',[{title:'验收夹具',url:'https://example.org/resource'}],500);assert.match(JSON.stringify(blocked),/尚未就绪/);records.push({step:'browser-TXT-help-setup-and-server-gate',passed:true});
  const settings=await panel('settings','get');assert.equal(settings.config.allowNetwork,false);const before=await panel('shelf','get');assert.ok(before.books.some((b:any)=>b.key===seed.key));assert.equal(before.status.txtAcquisition.browserReady,false);assert.equal(before.status.txtAcquisition.controllerReady,false);records.push({step:'settings-status-controller-fail-closed',passed:true});
  const configured=await panel('shelf','txt_setup_configure',[{allowNetwork:true}]);assert.equal(configured.state,'blocked');assert.equal(configured.reason,'controller_unavailable');assert.deepEqual(configured.steps.map((s:any)=>s.state),['done','blocked','pending','pending','pending']);assert.deepEqual((await panel('settings','get')).config,settings.config);records.push({step:'one-click-setup-stops-without-install-or-settings-change',passed:true});
+ // Real installed Core and public APIs; hello is a protocol client, not a real browser or OS isolation proof.
+ const probe=createServer();await new Promise<void>(ok=>probe.listen(0,'127.0.0.1',ok));const bridgePort=(probe.address() as {port:number}).port;await new Promise<void>(ok=>probe.close(()=>ok()));
+ await panel('settings','save',[{browserBridgePort:bridgePort}]);
+ const unaccepted=await panel('shelf','txt_setup_configure',[{mode:'standard',allowNetwork:true,acceptStandard:false}]);assert.equal(unaccepted.reason,'standard_consent');
+ const ordinary=await panel('shelf','txt_setup_configure',[{mode:'standard',allowNetwork:true,acceptStandard:true}]);assert.equal(ordinary.state,'waiting_extension');
+ const bridge=await panel('settings','txt_bridge');assert.equal(bridge.controllerReady,false);assert.equal(bridge.isolationVerified,false);
+ const hello=await fetch('http://127.0.0.1:'+bridge.port+'/bridge/hello',{headers:{'x-bookfish-token':bridge.token,'x-bookfish-consumer':'isolated-standard-acceptance'}});assert.equal(hello.status,200);
+ const ordinaryReady=await panel('shelf','txt_setup');assert.equal(ordinaryReady.browserReady,true);assert.equal(ordinaryReady.controllerReady,false);assert.equal(ordinaryReady.isolationVerified,false);assert.equal((await panel('settings','get')).config.autonomousAcquisition,false);
+ await request('/api/worlds/restart',{id:'bookfish'});const kept=await panel('shelf','txt_setup');assert.equal(kept.standardAccepted,true);assert.equal(kept.protectionMode,'standard');
+ const revoked=await panel('shelf','txt_setup_configure',[{mode:'enhanced',allowNetwork:false}]);assert.equal(revoked.changed,true);assert.equal(revoked.reason,'controller_unavailable');assert.equal((await panel('shelf','txt_setup')).browserReady,false);
+ await panel('settings','save',[{allowNetwork:false,browserBridgeEnabled:false}]);records.push({step:'standard-mode-real-host-consent-readiness-persistence-revocation',passed:true,controllerReady:false,isolationVerified:false,client:'loopback protocol fixture; no real browser claim'});
  const refused=await panel('shelf','novel_search_start',[{title:'狂人日记',author:'鲁迅'}],500);assert.match(JSON.stringify(refused),/Network.*disabled/i);records.push({step:'network-disabled-rejection',passed:true});
  const input={filename:'ordinary-import.txt',title:'隔离入口新书',author:'验收夹具',base64:Buffer.from('第1章 来信\n她打开信封，开始读那封迟来的信。'.repeat(70)).toString('base64')};const first=await panel('shelf','import',[input]);const duplicate=await panel('shelf','import',[input]);assert.equal(first.book.key,duplicate.book.key);assert.equal(duplicate.duplicate,true);const after=await panel('shelf','get');assert.equal(after.books.length,2);assert.ok(after.books.every((b:any)=>b.confirmedChars===0));assert.equal(after.selection.queue.length,0);const chapters=await panel('shelf','chapters',[first.book.key]);assert.ok(chapters);records.push({step:'actual-panel-import-index-duplicate-no-progress',passed:true});
  await request('/api/worlds/restart',{id:'bookfish'});await close();await launch();const persisted=await panel('shelf','get');assert.equal(persisted.books.length,2);assert.ok(persisted.books.every((b:any)=>b.confirmedChars===0));records.push({step:'World-and-Core-restart-preservation',passed:true});

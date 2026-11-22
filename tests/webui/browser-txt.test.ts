@@ -28,10 +28,21 @@ function mount(state: TxtSetup) {
 function button(root: HTMLElement, text: string) { return [...root.querySelectorAll('button')].find(n => n.textContent === text)!; }
 function fill(root: HTMLElement) { const inputs=root.querySelectorAll<HTMLInputElement>('form input'); inputs[0].value='海风'; inputs[1].value='小鱼'; inputs[2].value='https://example.org/book'; }
 describe('browser TXT setup and acquisition UI', () => {
+  it('requires explicit ordinary-mode consent and supports autonomous browsing without inventing controller readiness',async()=>{
+    const {root,invoke,setResult,change}=mount({...ready,controllerReady:false,browserReady:false,protectionMode:'enhanced'});await settle();
+    const mode=root.querySelector<HTMLSelectElement>('[aria-label="浏览器使用模式"]')!;mode.value='standard';mode.dispatchEvent(new Event('change'));
+    const consent=root.querySelector<HTMLInputElement>('[data-standard-consent]')!;expect(consent.checked).toBe(false);expect(root.textContent).toContain('模型自主浏览');
+    setResult({state:'consent_required',reason:'standard_consent',changed:false,steps:[{id:'verification',state:'action_required'}]});button(root,'应用模式并一键配置').click();await settle();
+    expect(invoke).toHaveBeenCalledWith('txt_setup_configure',[{mode:'standard',acceptStandard:false,allowNetwork:false}]);
+    expect(button(root,'重新运行一键配置').disabled).toBe(true);consent.checked=true;consent.dispatchEvent(new Event('change'));
+    change({...ready,controllerReady:false,protectionMode:'standard',standardAccepted:true,isolationVerified:false});setResult({state:'ready',reason:'ready',changed:true,steps:[{id:'verification',state:'done'}]});button(root,'重新运行一键配置').click();await settle();
+    expect(invoke).toHaveBeenCalledWith('txt_setup_configure',[{mode:'standard',acceptStandard:true,allowNetwork:false}]);expect(button(root,'发现 TXT 文件').disabled).toBe(false);
+    change({...ready,controllerReady:false,protectionMode:'standard',standardAccepted:false,browserReady:false});fill(root);root.querySelector('form')!.dispatchEvent(new Event('submit',{cancelable:true}));await settle();expect(invoke.mock.calls.some(([method])=>method==='txt_discover')).toBe(false);
+  });
   it('runs one-click setup and reports the actual missing installer without claiming success',async()=>{
     const {root,invoke}=mount({...ready,controllerReady:false,browserReady:false});await settle();
     button(root,'一键配置浏览器获取').click();await settle();
-    expect(invoke).toHaveBeenCalledWith('txt_setup_configure',[{allowNetwork:false}]);
+    expect(invoke).toHaveBeenCalledWith('txt_setup_configure',[{allowNetwork:false,mode:'enhanced',acceptStandard:false}]);
     expect(root.textContent).toContain('停在“安全组件”步骤');expect(root.textContent).toContain('无需手动填写端口或令牌');
     expect(root.textContent).not.toContain('配置完成，可以开始获取');expect(button(root,'发现 TXT 文件').disabled).toBe(true);
   });
@@ -39,11 +50,11 @@ describe('browser TXT setup and acquisition UI', () => {
     const {root,invoke,setResult,change}=mount({...ready,networkEnabled:false,browserReady:false});await settle();
     setResult({state:'consent_required',reason:'network_consent',changed:false,steps:[{id:'verification',state:'action_required'}]});button(root,'一键配置浏览器获取').click();await settle();
     expect(button(root,'同意并继续配置').disabled).toBe(true);
-    const consent=root.querySelector<HTMLInputElement>('input[type=checkbox]')!;consent.checked=true;consent.dispatchEvent(new Event('change'));expect(button(root,'同意并继续配置').disabled).toBe(false);
+    const consent=root.querySelector<HTMLInputElement>('[data-network-consent]')!;consent.checked=true;consent.dispatchEvent(new Event('change'));expect(button(root,'同意并继续配置').disabled).toBe(false);
     change(ready);setResult({state:'ready',reason:'ready',changed:true,steps:[{id:'verification',state:'done'}]});button(root,'同意并继续配置').click();await settle();
-    expect(invoke).toHaveBeenCalledWith('txt_setup_configure',[{allowNetwork:true}]);expect(root.textContent).toContain('配置完成，可以开始获取');
+    expect(invoke).toHaveBeenCalledWith('txt_setup_configure',[{allowNetwork:true,mode:'enhanced',acceptStandard:false}]);expect(root.textContent).toContain('配置完成，可以开始获取');
     change({...ready,networkEnabled:false,browserReady:false});setResult({state:'consent_required',reason:'network_consent',changed:false,steps:[{id:'verification',state:'action_required'}]});button(root,'重新验证配置').click();await settle();
-    expect(invoke.mock.calls.filter(([method])=>method==='txt_setup_configure').at(-1)?.[1]).toEqual([{allowNetwork:false}]);expect(consent.checked).toBe(false);
+    expect(invoke.mock.calls.filter(([method])=>method==='txt_setup_configure').at(-1)?.[1]).toEqual([{allowNetwork:false,mode:'enhanced',acceptStandard:false}]);expect(consent.checked).toBe(false);
   });
   it('rejects a stale ready result when the final live connection check fails',async()=>{
     const {root,setResult}=mount({...ready,controllerReady:false,browserReady:false});await settle();

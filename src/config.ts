@@ -53,6 +53,9 @@ export interface BookfishConfigSection {
   browserBridgeEnabled?: boolean;
   /** Loopback port for that bridge; 0 uses 47823. */
   browserBridgePort?: number;
+  browserProtectionMode?: 'enhanced' | 'standard';
+  /** Explicit user acceptance covers both manual and model-initiated browser jobs. */
+  browserStandardConsent?: boolean;
 }
 export const BOOKFISH_DEFAULTS: BookfishConfigSection = { enabled: false, readingMode: 'auto', allowNetwork: true,
   automaticReading: true, autonomousAcquisition: false, autonomousAcquisitionMode: 'auto', autonomousSourceIds: '', autonomousDiskBudgetMb: 1024, textStoreDir: '',
@@ -60,7 +63,7 @@ export const BOOKFISH_DEFAULTS: BookfishConfigSection = { enabled: false, readin
   readingBatchSegments:2, dailyReadingCap:0,
   automaticSharing: true, automaticReview: true, storyMemoryEnabled: false, shareCooldownMinutes: 60, shareQuietEnabled: true, shareQuietStart: 22, shareQuietEnd: 8, shareMaxSentenceChars: 80, shareQuietStartMinute: -1, shareQuietEndMinute: -1,
   txtAcquisitionEnabled: false, browserDebugPort: 0, txtAcquisitionRetentionMb: 512,
-  browserBridgeEnabled: false, browserBridgePort: 0 };
+  browserBridgeEnabled: false, browserBridgePort: 0, browserProtectionMode: 'enhanced', browserStandardConsent: false };
 export function sharingLimits(cfg: BookfishConfigSection) {
   const integer = (v: unknown, fallback: number, min: number, max: number) => Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max ? v as number : fallback;
   return { cooldownMs: integer(cfg.shareCooldownMinutes, 60, 1, 1440) * 60000,
@@ -131,13 +134,21 @@ export function bookfishConfigGroup(english: boolean): ConfigGroup {
         },
         'worlds.bookfish.browserBridgeEnabled': {
           type: 'boolean', title: english ? 'Use the Edge/Chrome extension' : '使用 Edge/Chrome 扩展',
-          description: english ? 'Off by default. The world listens on 127.0.0.1 only and the extension polls it with a pairing token, A protected isolated browser controller must also be ready; pairing alone does not enable browser acquisition. Never use the everyday browser. Same limits as the debug-port path: no login, paywall, captcha or DRM bypass.' : '默认关闭。世界只在本机 127.0.0.1 监听，扩展凭配对令牌轮询取任务，必须另有就绪的隔离浏览器保护控制器；仅配对不会启用浏览器获取。不得使用日常浏览器。限制与调试端口方式相同：不登录、不付费、不绕过验证码或 DRM。',
+          description: english ? 'Off by default. The world listens on 127.0.0.1 only and the extension polls it with a pairing token, Choose user-approved standard mode or recommended enhanced protection; pairing alone is not proof of isolation. Same limits as the debug-port path: no login, paywall, captcha or DRM bypass.' : '默认关闭。世界只在本机 127.0.0.1 监听，扩展凭配对令牌轮询取任务，可选择用户确认的普通模式，或推荐的增强保护；仅配对不代表隔离验证通过。限制与调试端口方式相同：不登录、不付费、不绕过验证码或 DRM。',
           'x-hot': true,
         },
         'worlds.bookfish.browserBridgePort': {
           type: 'integer', minimum: 0, maximum: 65535, title: english ? 'Extension bridge port (0 = 47823)' : '扩展桥接端口（0 用 47823）',
           description: english ? 'Loopback only. Change it when another program already uses 47823; the extension popup must use the same port and token.' : '只监听本机回环地址。若 47823 已被其他程序占用可改；扩展弹窗里要填同一个端口和令牌。',
           'x-hot': true,
+        },
+        'worlds.bookfish.browserProtectionMode': {
+          type: 'string', enum: ['enhanced','standard'], title: english ? 'Browser protection mode' : '浏览器保护模式',
+          description: english ? 'Enhanced is recommended. Standard permits manual and model-initiated browser access after user consent, without enforced browser isolation.' : '推荐增强保护。用户确认普通模式后，手动与模型自主浏览均不再要求安全组件或独立浏览器；普通模式不提供强制浏览器隔离。', 'x-hot': true,
+        },
+        'worlds.bookfish.browserStandardConsent': {
+          type: 'boolean', title: english ? 'Accept standard browser mode' : '确认普通浏览模式',
+          description: english ? 'User consent for both manual and autonomous browsing, including possible use of the browser login session and weaker network isolation.' : '用户确认允许手动和模型自主浏览使用普通模式，知悉可能携带浏览器登录态且网络隔离保障较弱。', 'x-hot': true,
         },
         'worlds.bookfish.txtAcquisitionRetentionMb': {
           type: 'integer', minimum: 64, maximum: 10240, title: english ? 'Retained original files (MiB)' : '保留原始文件上限（MiB）',
@@ -152,7 +163,7 @@ export function bookfishConfigGroup(english: boolean): ConfigGroup {
 export function bookfishConfigGroups(english: boolean): ConfigGroup[] {
   const all=bookfishConfigGroup(english);const fields=all.schema.properties;
   const main=['realRoutineEnabled','automaticReading','autonomousAcquisition','autonomousAcquisitionMode','autonomousSourceIds','autonomousDiskBudgetMb','speed','readingCharsPerMinute','dailyChapterGoal','readingSessionMinutes','readingBatchSegments','dailyReadingCap','automaticSharing','shareCooldownMinutes','shareMaxSentenceChars','shareQuietEnabled','shareQuietStartMinute','shareQuietEndMinute'];
-  const advanced=['automaticReview','storyMemoryEnabled','allowNetwork','readingMode','textStoreDir','txtAcquisitionEnabled','browserDebugPort','browserBridgeEnabled','browserBridgePort','txtAcquisitionRetentionMb'];
+  const advanced=['automaticReview','storyMemoryEnabled','allowNetwork','readingMode','textStoreDir','txtAcquisitionEnabled','browserDebugPort','browserBridgeEnabled','browserBridgePort','txtAcquisitionRetentionMb','browserProtectionMode','browserStandardConsent'];
   const pick=(names:string[])=>Object.fromEntries(names.map(k=>['worlds.bookfish.'+k,fields['worlds.bookfish.'+k]]));
   return [{...all,schema:{...all.schema,title:english?'Reading and sharing':'阅读与分享',properties:pick(main)}},{...all,id:'world:bookfish:advanced',schema:{...all.schema,title:english?'Advanced reading limits':'高级阅读限制',properties:pick(advanced)}}];
 }

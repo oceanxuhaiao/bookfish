@@ -24,7 +24,7 @@ import { NovelRuntimeManager } from './novel-runtime/manager.ts';
 import { BUILTIN_RUNTIME_MANIFEST } from './novel-runtime/builtin-manifest.ts';
 import { SelectionCoordinator } from './selection.ts';
 import { TxtAcquisition } from './txt-acquisition/index.ts';
-import { configureBrowserSetup } from './txt-acquisition/setup.ts';
+import { configureBrowserSetup, configureStandardBrowserSetup } from './txt-acquisition/setup.ts';
 import { BOOKFISH_TOOL_DECLS } from './tool-schemas.ts';
 import { HELP_TOPICS } from './protocols.ts';
 import { assertWritableTextStoreDir } from './text-store.ts';
@@ -144,7 +144,7 @@ export class BookfishWorld implements World {
           progressUnit: current.progressUnit, complete: current.complete, readiness: current.readiness,
           chapterGoalSupported: current.chapterGoalSupported } : null },
       sharing: this.sharing.summary(),
-      txtFiles: { enabled: txt.enabled, browserConfigured: txt.browserReady, transportConnected: txt.transportConnected, controllerReady: txt.controllerReady, browserReady: txt.browserReady, unavailableReason: txt.unavailableReason, active: txt.active },
+      txtFiles: { enabled: txt.enabled, browserConfigured: txt.browserReady, transportConnected: txt.transportConnected, controllerReady: txt.controllerReady, browserReady: txt.browserReady, protectionMode:txt.protectionMode,isolationVerified:txt.isolationVerified,unavailableReason: txt.unavailableReason, active: txt.active },
     };
   }
   tools(): ToolDef[] {
@@ -418,18 +418,27 @@ export class BookfishWorld implements World {
           const state = this.txtAcquisition.summary();
           return { networkEnabled: this.opts.cfg.allowNetwork, enabled: state.enabled,
             bridgeEnabled: this.opts.cfg.browserBridgeEnabled === true, controllerReady: state.controllerReady,
-            transportConnected: state.transportConnected, browserReady: state.browserReady };
+            transportConnected: state.transportConnected, browserReady: state.browserReady,
+            protectionMode: state.protectionMode, standardAccepted: state.standardAccepted, isolationVerified: state.isolationVerified };
         }
         if (method === 'txt_setup_configure' && args.length === 1) {
           const request = args[0] as Record<string, unknown> | null;
           if (!request || typeof request !== 'object' || Array.isArray(request) || typeof request.allowNetwork !== 'boolean') throw new Error('Invalid browser setup request');
-          return configureBrowserSetup({ platform: process.platform, settings: () => this.opts.cfg,
+          if(request.mode!==undefined&&!['standard','enhanced'].includes(String(request.mode))||request.acceptStandard!==undefined&&typeof request.acceptStandard!=='boolean')throw new Error('Invalid browser protection mode');
+          if(request.mode==='standard')return configureStandardBrowserSetup({platform:process.platform,settings:()=>this.opts.cfg,readiness:()=>this.txtAcquisition.summary(),persist:this.opts.persist,changed:()=>{this.selection.onConfigChanged();this.txtAcquisition.onConfigChanged();}},request.allowNetwork,request.acceptStandard===true,()=>this.txtAcquisition.prepareBridge());
+          const revokedStandard=request.mode==='enhanced'&&this.opts.cfg.browserProtectionMode==='standard';
+          if(revokedStandard){
+            if(!this.opts.persist)throw new Error('Settings persistence unavailable');
+            this.opts.persist({browserProtectionMode:'enhanced',browserStandardConsent:false});this.txtAcquisition.onConfigChanged();
+          }
+          const result=configureBrowserSetup({ platform: process.platform, settings: () => this.opts.cfg,
             readiness: () => this.txtAcquisition.summary(), persist: this.opts.persist,
             changed: () => { this.selection.onConfigChanged(); this.txtAcquisition.onConfigChanged(); } }, request.allowNetwork);
+          return {...result,changed:result.changed||revokedStandard};
         }
         if (method === 'txt_status' && args.length === 1) return this.txtAcquisition.status(requiredText(args[0], 'taskId', 80));
         if (['txt_discover', 'txt_import', 'txt_cancel'].includes(method) && args.length === 1) {
-          if (method !== 'txt_cancel' && !this.txtAcquisition.summary().browserReady) throw new Error('浏览器辅助 TXT 获取尚未就绪，请先完成必要配置；安全控制器未就绪时不能开始。');
+          if (method !== 'txt_cancel' && !this.txtAcquisition.summary().browserReady) throw new Error('浏览器辅助 TXT 获取尚未就绪，请选择已确认的普通模式或增强保护，并连接扩展。');
           if (method === 'txt_discover') {
             const value = args[0] as Record<string, unknown> | null;
             if (!value || typeof value !== 'object') throw new Error('Invalid TXT discovery request');

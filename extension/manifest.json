@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "BookFish Browser Bridge",
   "version": "0.63.0",
-  "description": "Fetch authorized TXT resources through a protected isolated Chrome/Edge profile. Pairing alone does not enable acquisition.",
+  "description": "Fetch authorized TXT resources in user-approved standard mode or recommended enhanced protection mode. Pairing alone is not isolation.",
   "minimum_chrome_version": "116",
   "permissions": [
     "storage",

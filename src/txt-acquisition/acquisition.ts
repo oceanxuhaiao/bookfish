@@ -24,6 +24,7 @@ import {
 } from './types.ts';
 import { checkUrl, hostOf, isPolicyError, type HostResolver } from './url-policy.ts';
 import { redactMessage, sourceReference } from './privacy.ts';
+import { browserPolicy } from './browser-policy.ts';
 
 export interface PageLoadResult { html: string; close: () => Promise<void> }
 export type PageLoader = (url: string, options: { allowNetwork: boolean; port: number; resolve?: HostResolver; signal?: AbortSignal }) => Promise<PageLoadResult>;
@@ -108,6 +109,7 @@ export class TxtAcquisition {
   private bridge: BrowserBridge | undefined;
   private readonly controllerReady: () => boolean;
   private readonly browserGuard?: (url: string) => Promise<void>;
+  private lastBrowserPolicy = '';
   private readonly pageUrls = new Map<string, string>();
   private readonly onImported?: (task: AcquisitionTask, identity: IdentityMatch) => void | Promise<void>;
   private stopped = false;
@@ -132,13 +134,12 @@ export class TxtAcquisition {
     this.fetchImpl = options.fetchImpl;
     this.resolve = options.resolve;
     this.pageLoader = options.pageLoader ?? (async (url, settings) => {
-      if (!this.browserGuard) throw new BrowserError('policy_blocked', 'A protected browser controller is required');
-      if (!this.controllerReady()) throw new BrowserError('policy_blocked', 'Protected controller is not ready');
-      await this.browserGuard(url); return defaultPageLoader(options.fetchImpl)(url, settings);
+      await this.authorizeBrowser(url); return defaultPageLoader(options.fetchImpl)(url, settings);
     });
     this.bridge = options.bridge;
     this.browserGuard = options.browserGuard;
     this.controllerReady = () => Boolean(options.browserGuard) && options.controllerReady?.() === true;
+    this.lastBrowserPolicy = this.policyKey();
     if (options.onImported) this.onImported = options.onImported;
   }
 
@@ -181,8 +182,8 @@ export class TxtAcquisition {
     if (!this.bridge) {
       this.bridge = new BrowserBridge({
         dataDir: this.root,
-        authorize: this.browserGuard ? async url => { if (!this.controllerReady()) throw new BrowserError('policy_blocked', 'Protected controller is not ready'); await this.browserGuard!(url); } : undefined,
-        networkAllowed: () => this.cfg().allowNetwork && this.controllerReady(),
+        authorize: url => this.authorizeBrowser(url),
+        networkAllowed: () => this.cfg().allowNetwork && this.cfg().txtAcquisitionEnabled === true && this.browserPolicy.browserAccessAllowed,
         ...(typeof cfg.browserBridgePort === 'number' && cfg.browserBridgePort > 0 ? { port: cfg.browserBridgePort } : {}),
         ...(this.resolve ? { resolve: this.resolve } : {}),
       });
@@ -194,9 +195,21 @@ export class TxtAcquisition {
   private get readiness() {
     const transportConnected = this.bridge?.connected === true;
     const controllerReady = this.controllerReady();
-    const browserReady = !this.initializationError && this.cfg().allowNetwork && this.cfg().txtAcquisitionEnabled === true && this.cfg().browserBridgeEnabled === true && transportConnected && controllerReady;
-    return { transportConnected, controllerReady, browserReady, unavailableReason: !controllerReady ? 'Protected isolated browser controller is not ready' : !transportConnected ? 'Extension transport is disconnected' : !browserReady ? 'Network or acquisition is disabled' : null };
+    const policy = this.browserPolicy;
+    const browserReady = !this.initializationError && this.cfg().allowNetwork && this.cfg().txtAcquisitionEnabled === true && this.cfg().browserBridgeEnabled === true && transportConnected && policy.browserAccessAllowed;
+    return { transportConnected, controllerReady, ...policy, browserReady, unavailableReason: !policy.browserAccessAllowed ? 'Choose enhanced protection or explicitly accept standard browser mode' : !transportConnected ? 'Extension transport is disconnected' : !browserReady ? 'Network or acquisition is disabled' : null };
   }
+  private get browserPolicy() { return browserPolicy(this.cfg(), this.controllerReady()); }
+  private policyKey() { const cfg=this.cfg(); return `${cfg.browserProtectionMode ?? 'enhanced'}:${cfg.browserStandardConsent === true}`; }
+  private async authorizeBrowser(url: string) {
+    const key=this.policyKey();
+    if (!this.browserPolicy.browserAccessAllowed) throw new BrowserError('policy_blocked', 'Protected controller unavailable and standard mode has not been accepted');
+    await checkUrl(url, { allowNetwork: this.cfg().allowNetwork, ...(this.resolve ? { resolve: this.resolve } : {}) });
+    if (this.browserPolicy.protectionMode === 'enhanced') { if (!this.controllerReady() || !this.browserGuard) throw new BrowserError('policy_blocked','Protected controller is not ready'); await this.browserGuard(url); }
+    if(key!==this.policyKey()||!this.cfg().allowNetwork||!this.cfg().txtAcquisitionEnabled||!this.browserPolicy.browserAccessAllowed)throw new BrowserError('policy_blocked','Browser permission changed before dispatch');
+  }
+  /** Start the configured local transport without cancelling other acquisitions. */
+  async prepareBridge() { return this.ensureBridge(); }
 
   /** Pairing details for the extension popup; the token never reaches the model. */
   get bridgeInfo() {
@@ -264,7 +277,7 @@ export class TxtAcquisition {
 
   cancelByIntentId(intentId:string,reason?:'restart_interrupted'):void{for(const task of this.records.list())if(task.intentId===intentId&&!isTerminal(task.status))this.cancel(task.id,reason);}
   onConfigChanged():void{
-    const cfg=this.cfg();for(const [id,abort] of this.aborts){const task=this.records.get(id);if(!cfg.allowNetwork||!cfg.txtAcquisitionEnabled||(task?.origin==='autonomous'&&!cfg.autonomousAcquisition))abort.abort(new Error('Acquisition permission revoked'));}
+    const cfg=this.cfg(), policyChanged=this.lastBrowserPolicy!==this.policyKey();this.lastBrowserPolicy=this.policyKey();for(const [id,abort] of this.aborts){const task=this.records.get(id);if(policyChanged)abort.abort(new AcquisitionFailure('policy_blocked','Browser protection policy changed'));else if(!cfg.allowNetwork||!cfg.txtAcquisitionEnabled||(task?.origin==='autonomous'&&!cfg.autonomousAcquisition))abort.abort(new Error('Acquisition permission revoked'));}
   }
 
   private view(task: AcquisitionTask): TaskView {
@@ -419,7 +432,8 @@ export class TxtAcquisition {
       const bridge = await this.ensureBridge();
       let html: string;
       if (bridge) {
-        // Only the protected isolated browser may supply its own authorized login state.
+        // The user-selected browser mode may carry its authorized session;
+        // standard mode explicitly makes no enforced-isolation claim.
         const page = await bridge.fetchPage(checked.toString(), { allowNetwork: cfg.allowNetwork, signal: controller.signal });
         html = page.html;
       } else {

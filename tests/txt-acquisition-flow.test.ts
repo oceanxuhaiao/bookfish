@@ -249,11 +249,11 @@ describe('browser-assisted acquisition flow', () => {
     expect(acquisition.list()).toHaveLength(1);
   });
 
-  it('rejects an already leased upload when the simulated controller loses protection', async () => {
+  it.each(['enhanced','standard'] as const)('rejects an already leased upload after %s protection or consent is revoked', async mode => {
     // Test-only injected guard; this is protocol evidence, never OS isolation evidence.
     let protectedNow=true;
-    cfg={...cfg,browserBridgeEnabled:true,browserBridgePort:0};
-    const acquisition=new TxtAcquisition({dataDir:dir,library,cfg:()=>cfg,resolve,browserGuard:async()=>undefined,controllerReady:()=>protectedNow});
+    cfg={...cfg,browserBridgeEnabled:true,browserBridgePort:0,browserProtectionMode:mode,browserStandardConsent:mode==='standard'};
+    const acquisition=new TxtAcquisition({dataDir:dir,library,cfg:()=>cfg,resolve,...(mode==='enhanced'?{browserGuard:async()=>undefined,controllerReady:()=>protectedNow}:{})});
     await acquisition.init();const {port,token}=acquisition.bridgeInfo;
     const auth={'x-bookfish-token':token,'x-bookfish-consumer':'round3-guard-loss'};
     try{
@@ -262,23 +262,23 @@ describe('browser-assisted acquisition flow', () => {
       const polled=await fetch(`http://127.0.0.1:${port}/bridge/jobs`,{headers:auth});
       const {job}=await polled.json() as any;expect(job).toBeTruthy();
       protectedNow=false;
+      if(mode==='standard') {cfg.browserStandardConsent=false;acquisition.onConfigChanged();}
       const uploaded=await fetch(`http://127.0.0.1:${port}/bridge/jobs/${job.id}/chunk`,{method:'POST',headers:{...auth,'x-bookfish-lease':job.lease,'x-bookfish-sequence':'0','content-type':'application/octet-stream'},body:Buffer.from(novel())});
       // Settle the old implementation too, so a failed assertion never leaves a job hanging.
       await acquisition.stop();const result=await importing;
-      expect(uploaded.status).toBe(400);expect(await uploaded.json()).toMatchObject({ok:false,code:'policy_blocked'});expect(result.status).not.toBe('completed');expect(library.list()).toHaveLength(0);
+      expect(uploaded.status).toBe(mode==='standard'?409:400);expect(await uploaded.json()).not.toMatchObject({ok:true});expect(result.status).not.toBe('completed');expect(library.list()).toHaveLength(0);
     }finally{await acquisition.stop();}
   });
 
-  it('opens the page and downloads through the connected browser extension', async () => {
+  it.each(['enhanced','standard'] as const)('opens the page and downloads through the connected browser extension in %s mode', async mode => {
     // No debug port and no direct fetch: the extension must carry both jobs.
-    cfg = { ...cfg, browserDebugPort: 0, browserBridgeEnabled: true, browserBridgePort: 0 };
+    cfg = { ...cfg, autonomousAcquisition:true,browserDebugPort: 0, browserBridgeEnabled: true, browserBridgePort: 0,browserProtectionMode:mode,browserStandardConsent:mode==='standard' };
     const acquisition = new TxtAcquisition({
       dataDir: dir,
       library,
       cfg: () => cfg,
       resolve,
-      browserGuard: async () => undefined,
-      controllerReady: () => true,
+      ...(mode==='enhanced'?{browserGuard: async () => undefined,controllerReady: () => true}:{}),
       pageLoader: async () => { throw new Error('the debug port must not be used when the extension is connected'); },
       fetchImpl: (async () => { throw new Error('the world must not fetch directly when the extension is connected'); }) as typeof fetch,
     });
@@ -314,11 +314,13 @@ describe('browser-assisted acquisition flow', () => {
       }
     })();
     try {
-      const found = await acquisition.discover({ pageUrl: PAGE, title: '海风', author: '小鱼' });
+      const found = await acquisition.discover({ pageUrl: PAGE, title: '海风', author: '小鱼',origin:'autonomous' });
       expect(found.status).toBe('candidate_ready');
+      expect(found.origin).toBe('autonomous');expect(acquisition.summary().controllerReady).toBe(mode==='enhanced');expect(acquisition.summary().isolationVerified).toBe(mode==='enhanced');expect(acquisition.summary().browserReady).toBe(true);
       const done = await acquisition.importFile({ taskId: found.taskId, candidateId: (found.candidates ?? [])[0]!.candidateId });
       expect(done.status).toBe('completed');
       expect(library.list()).toHaveLength(1);
+      expect(library.list()[0].confirmedChars).toBe(0);
     } finally {
       controller.abort();
       await serving.catch(() => undefined);

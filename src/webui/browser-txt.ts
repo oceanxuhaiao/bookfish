@@ -6,6 +6,7 @@ import type { BrowserSetupResult } from '../txt-acquisition/setup.ts';
 export interface TxtSetup {
   networkEnabled: boolean; enabled: boolean; bridgeEnabled: boolean;
   controllerReady: boolean; transportConnected: boolean; browserReady: boolean;
+  protectionMode?:'enhanced'|'standard'; standardAccepted?:boolean; isolationVerified?:boolean;
 }
 
 /** A user-facing client of the guarded acquisition path; never enables a guard. */
@@ -17,11 +18,19 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
   el('p', say('从你有权访问的资源页发现 TXT/Markdown，再选择文件入架。无需小说引擎；获取成功不等于读过。', 'Discover TXT/Markdown on an authorized resource page, then choose a file to import. No novel engine is needed; importing is never reading.'));
   const setup = el('details', ''); setup.open = true;
   el('summary', say('首次使用：配置浏览器辅助获取', 'First use: set up browser-assisted acquisition'), setup);
-  el('p', say('点击“一键配置”检查环境、准备安全连接并验证可用性。端口和令牌由支持的配置流程处理；需要联网授权时会单独提示。', 'Use one-click setup to check the environment, prepare the protected connection and verify readiness. Supported setup handles ports and pairing; network permission is requested when needed.'), setup);
+  const modeLabel=el('label',say('浏览器使用模式','Browser mode'),setup),mode=el('select','',modeLabel);
+  mode.setAttribute('aria-label',say('浏览器使用模式','Browser mode'));
+  for(const [value,label]of [['enhanced',say('增强保护（推荐）','Enhanced protection (recommended)')],['standard',say('普通模式（含模型自主浏览）','Standard mode (including autonomous browsing)')]]){const option=el('option',label,mode);option.value=value;}
+  const standardRow=el('label','',setup);standardRow.hidden=true;
+  const standardConsent=el('input','',standardRow);standardConsent.type='checkbox';standardConsent.dataset.standardConsent='true';
+  standardRow.append(document.createTextNode(say('我允许手动及模型自主浏览使用普通模式，知悉日常浏览器可能携带登录态、无法保证完整网络隔离；仍建议安全组件和独立浏览器。','I allow manual and autonomous browsing in standard mode, including possible browser login-session use and weaker network isolation. Protection components and a separate browser remain recommended.')));
+  const modeWarning=el('p','',setup);modeWarning.setAttribute('role','status');
+  el('p', say('选择模式后点击“一键配置”。普通模式自动开启必要设置，扩展仍需安装、配对和来源授权；缺少联网权限时会单独提示。', 'Choose a mode, then run setup. Standard mode enables the required settings; extension installation, pairing and source permission are still required. Network permission is requested separately.'), setup);
   const configure = el('button', say('一键配置浏览器获取', 'Set up browser acquisition')); configure.type='button'; setup.append(configure);
   const steps = el('ol', '', setup); steps.setAttribute('aria-label', say('一键配置进度', 'Setup progress'));
   const consentRow = el('label', '', setup); consentRow.hidden = true;
   const consent = el('input', '', consentRow); consent.type='checkbox';
+  consent.dataset.networkConsent='true';
   consentRow.append(document.createTextNode(say('允许大肥鱼联网（此权限也用于其他联网功能）', 'Allow Bookfish network access (also used by other network features)')));
   const advanced = el('details', '', setup); el('summary', say('高级配置与诊断（可选）', 'Advanced configuration and diagnostics (optional)'), advanced);
   const checks = el('ul', '', advanced);
@@ -29,6 +38,7 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
   const settings = el('a', say('打开必要设置', 'Open required settings'), advanced);
   settings.href = '#/provider/world%3Abookfish/settings';
   const help = el('button', say('查看配置与使用说明', 'Setup and usage guide'), setup); help.type = 'button';
+  const pairing=el('a',say('连接 Edge/Chrome 扩展','Connect the Edge/Chrome extension'),setup);pairing.href=settings.href;pairing.hidden=true;
   help.onclick = () => { void openGuideDrawer(ctx, say, 'browser-txt'); };
   const refresh = el('button', say('重新检查配置', 'Recheck settings'), advanced); refresh.type = 'button';
   const form = el('form', ''); form.className = 'novel-form';
@@ -42,10 +52,14 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
   const discover = el('button', say('发现 TXT 文件', 'Discover TXT files'), form); discover.type = 'submit'; discover.disabled = true;
   const message = el('p', ''); message.setAttribute('role', 'status'); message.setAttribute('aria-live', 'polite');
   const results = el('div', ''); let ready = false, busy = false, active = false, current: TaskView | undefined;
+  let modeInitialized=false,standardAccepted=false;
+  function renderMode(){standardRow.hidden=mode.value!=='standard'||standardAccepted;modeWarning.textContent=mode.value==='standard'?say('普通模式不要求安全组件或独立浏览器。确认后，模型自主浏览同样可用；这是较弱保障，来源权限和下载检查仍保留。','Standard mode needs no controller or isolated browser and also permits autonomous browsing after consent. It provides weaker protection; source permissions and download checks remain.'):say('增强保护需要安全组件和独立浏览器；推荐使用。','Enhanced protection requires a controller and isolated browser and is recommended.');}
   async function check() {
     ready = false; discover.disabled = true;
     const state = await ctx.invoke<TxtSetup>('txt_setup', []);
     if (ctx.signal.aborted) return false;
+    if(!modeInitialized){mode.value=state.protectionMode??'enhanced';modeInitialized=true;}
+    standardAccepted=state.standardAccepted===true;renderMode();
     checks.replaceChildren();
     for (const [ok, label] of [
       [state.networkEnabled, say('允许联网', 'Network access allowed')],
@@ -54,9 +68,11 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
       [state.bridgeEnabled, say('Edge/Chrome 扩展桥接已开启', 'Edge/Chrome extension bridge enabled')],
       [state.transportConnected, say('扩展已连接', 'Extension connected')],
     ] as const) el('li', (ok ? '✓ ' : '○ ') + label, checks);
-    ready = state.browserReady && state.networkEnabled && state.enabled && state.bridgeEnabled && state.controllerReady && state.transportConnected;
-    note.textContent = !state.controllerReady
-      ? say('当前版本尚未接入正式安全控制器，浏览器获取暂不可用。仅开启开关或安装扩展不能完成配置；可先使用本地文件导入或小说引擎。', 'This version has no production protection controller, so browser acquisition is unavailable. Switches or extension installation alone cannot complete setup. Use local file import or the novel engine meanwhile.')
+    ready = state.browserReady && state.networkEnabled && state.enabled && state.bridgeEnabled && (state.controllerReady || state.standardAccepted===true&&state.protectionMode==='standard') && state.transportConnected;
+    note.textContent = state.protectionMode==='standard'&&state.standardAccepted
+      ? ready?say('普通模式已就绪；未验证强制隔离。','Standard mode is ready; enforced isolation has not been verified.'):say('普通模式已确认，请连接扩展并确认联网及获取权限。','Standard mode has been accepted. Connect the extension and check network/acquisition permissions.')
+      : !state.controllerReady
+      ? say('当前版本尚未接入正式安全控制器。可选择普通模式并确认后使用；增强保护暂不可用。', 'This version has no production protection controller. Choose and accept standard mode to continue; enhanced protection is unavailable.')
       : ready ? say('检查通过，可以发现资源页上的文件。', 'Checks passed. You can discover files on the resource page.') : say('配置尚未完成，请按说明完成未通过项后重新检查。', 'Setup is incomplete. Complete the missing checks and recheck.');
     setup.open = !ready; discover.disabled = !ready || busy || configuring; return ready;
   }
@@ -64,37 +80,43 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
     try { await action(); } catch (error) { if (!ctx.signal.aborted) message.textContent = say('未完成：', 'Not completed: ') + String(error); }
   }
   refresh.onclick = () => { void run(async () => { await check(); }); };
-  let configuring = false, needsConsent = false;
-  consent.onchange = () => { configure.disabled = configuring || (needsConsent && !consent.checked); };
+  let configuring = false, needsConsent = false,needsStandardConsent=false;
+  consent.onchange = () => { configure.disabled = configuring || (needsConsent && !consent.checked) || (needsStandardConsent && !standardConsent.checked); };
+  standardConsent.onchange=()=>{configure.disabled=configuring||(needsConsent&&!consent.checked)||(needsStandardConsent&&!standardConsent.checked);};
+  mode.onchange=()=>{needsConsent=false;needsStandardConsent=false;consent.checked=false;standardConsent.checked=false;configure.disabled=configuring;renderMode();configure.textContent=say('应用模式并一键配置','Apply mode and set up');};
   configure.onclick = () => { if (configuring) return; configuring = true; configure.disabled = true; let completed = false;
     void run(async () => {
       note.textContent = say('正在检测并配置…', 'Checking and configuring…');
       steps.replaceChildren(); discover.disabled = true;
       const grantNetwork = needsConsent && consent.checked;
       consent.checked = false; // Consume this confirmation once; never reuse it after later revocation.
-      const result = await ctx.invoke<BrowserSetupResult>('txt_setup_configure', [{ allowNetwork: grantNetwork }]);
+      const result = await ctx.invoke<BrowserSetupResult>('txt_setup_configure', [{ allowNetwork: grantNetwork,mode:mode.value,acceptStandard:standardConsent.checked }]);
+      if(result.reason!=='network_consent'&&result.reason!=='standard_consent')standardConsent.checked=false;
       if (ctx.signal.aborted) return;
       await check(); steps.replaceChildren();
       if (result.state === 'ready' && !ready) { result.state='blocked'; result.reason='verification_failed'; result.steps[result.steps.length-1].state='blocked'; }
       const labels = { environment: say('检查运行环境', 'Check environment'), controller: say('安全组件', 'Protection component'), browser: say('独立浏览器', 'Isolated browser'), extension: say('扩展连接', 'Extension connection'), verification: say('验证并启用', 'Verify and enable') };
-      const states = { done: say('已完成', 'Done'), pending: say('等待前一步', 'Waiting'), blocked: say('暂不能继续', 'Blocked'), action_required: say('需要你的确认', 'Needs your confirmation') };
+      const states = { done: say('已完成', 'Done'), pending: say('等待前一步', 'Waiting'), blocked: say('暂不能继续', 'Blocked'), action_required: say('需要你的确认', 'Needs your confirmation'),not_required:say('普通模式可选，推荐增强保护','Optional in standard mode; enhanced protection recommended') };
       for (const step of result.steps) el('li', labels[step.id] + '：' + states[step.state], steps);
       const reasons: Record<BrowserSetupResult['reason'], string> = {
         ready: say('配置完成，可以开始获取。', 'Setup complete. You can start acquiring files.'),
         unsupported_platform: say('当前一键配置仅支持 Windows，请先使用本地文件导入或小说引擎。', 'One-click setup currently supports Windows. Use local file import or the novel engine meanwhile.'),
         controller_unavailable: say('检测完成：当前版本尚未提供正式安全组件安装器，停在“安全组件”步骤。无需手动填写端口或令牌；浏览器获取暂不可用，可先使用本地文件导入或小说引擎。', 'Checks finished: this version does not include a production protection installer. Setup stopped at Protection component. No manual ports or tokens are needed. Use local file import or the novel engine meanwhile.'),
         pairing_unavailable: say('尚未建立可验证的独立浏览器连接，当前版本无法自动创建或配对。请使用受支持的安全组件安装流程后重试。', 'A verified isolated browser connection is missing. This version cannot automatically create or pair one. Complete a supported protection installation and retry.'),
-        network_consent: say('安全连接已检查。继续需要允许大肥鱼联网，请确认后继续。', 'The protected connection has been checked. Confirm network access to continue.'),
+        network_consent: say('继续需要允许大肥鱼联网，请确认后继续。', 'Confirm network access to continue.'),
         settings_unavailable: say('配置无法保存，请重试或查看高级配置。', 'Settings could not be saved. Retry or inspect advanced configuration.'),
         verification_failed: say('最终验证未通过，浏览器获取保持关闭。请重新检查配置。', 'Final verification failed. Browser acquisition remains unavailable; check setup again.'),
+        standard_consent:say('请先确认普通模式适用于手动及模型自主浏览，且保障较弱。','Confirm standard mode for both manual and autonomous browsing, with weaker protection.'),
+        extension_connection:say('普通模式已启用，不需要安全组件或独立浏览器。请安装并配对扩展、授予来源权限；连接后重新检查即可使用。','Standard mode is enabled without a controller or isolated browser. Install and pair the extension, grant source permissions, then recheck once connected.'),
+        bridge_unavailable:say('浏览器连接准备失败，已尝试撤回本次设置，请检查端口或重试。','Browser connection setup failed. Changes were rolled back where possible; check the port or retry.'),
       };
       note.textContent = reasons[result.reason];
       if (result.state==='failed' && result.changed) note.textContent += say(' 部分设置可能已保存，请在高级配置中核对。', ' Some settings may have been saved; review them in advanced configuration.');
-      needsConsent = result.state === 'consent_required'; consentRow.hidden = !needsConsent;
+      needsConsent = result.reason === 'network_consent';needsStandardConsent=result.reason==='standard_consent';consentRow.hidden = !needsConsent;pairing.hidden=result.state!=='waiting_extension';
       configure.textContent = needsConsent ? say('同意并继续配置', 'Agree and continue setup') : result.state==='ready' ? say('重新验证配置', 'Verify setup again') : say('重新运行一键配置', 'Run setup again');
       setup.open = result.state !== 'ready';
       completed = true;
-    }).finally(() => { configuring=false; configure.disabled=needsConsent&&!consent.checked; if (!completed) ready=false; discover.disabled=!ready||busy; if (!completed && !ctx.signal.aborted) { setup.open=true; note.textContent=say('配置未完成，请重试；也可查看高级配置中的检查结果。', 'Setup did not complete. Retry or inspect advanced diagnostics.'); } });
+    }).finally(() => { configuring=false; configure.disabled=needsConsent&&!consent.checked||needsStandardConsent&&!standardConsent.checked; if (!completed) ready=false; discover.disabled=!ready||busy; if (!completed && !ctx.signal.aborted) { setup.open=true; note.textContent=say('配置未完成，请重试；也可查看高级配置中的检查结果。', 'Setup did not complete. Retry or inspect advanced diagnostics.'); } });
   };
   function show(task: TaskView) {
     if (ctx.signal.aborted) return;
@@ -127,7 +149,7 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
   form.onsubmit = event => { event.preventDefault(); void run(async () => {
     if (busy || !form.reportValidity()) return;
     busy = true; discover.disabled = true;
-    try { if (!await check()) return; message.textContent = say('正在独立浏览器中发现文件…', 'Discovering files in the isolated browser…'); show(await ctx.invoke<TaskView>('txt_discover', [{ title: title.value.trim(), author: author.value.trim() || undefined, url: page.value.trim() }])); cancel.hidden = false; }
+    try { if (!await check()) return; message.textContent = say('正在浏览器中发现文件…', 'Discovering files in the browser…'); show(await ctx.invoke<TaskView>('txt_discover', [{ title: title.value.trim(), author: author.value.trim() || undefined, url: page.value.trim() }])); cancel.hidden = false; }
     finally { busy = false; discover.disabled = !ready; }
   }); };
   ctx.interval(async () => { if (!active || !current || ctx.signal.aborted) return; await run(async () => { const task = await ctx.invoke<TaskView>('txt_status', [current!.taskId]); if (!busy) show(task); }); }, 3000);
