@@ -1,0 +1,13 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/context-budget.test.ts (12 tests) 22ms
+ ✓ tests/txt-acquisition-supplement-tool.test.ts (2 tests) 965ms
+   ✓ model-visible precise intent termination > cancel reaches the actual TXT abort path without cancelling an unrelated intent 524ms
+   ✓ model-visible precise intent termination > abandon reaches the actual TXT abort path without cancelling an unrelated intent 440ms
+
+ Test Files  2 passed (2)
+      Tests  14 passed (14)
+   Start at  11:40:11
+   Duration  3.24s (transform 813ms, setup 0ms, collect 1.70s, tests 988ms, environment 0ms, prepare 168ms)
+

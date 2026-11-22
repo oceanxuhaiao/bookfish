@@ -1,0 +1,30 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ❯ tests/txt-acquisition-supplement.test.ts (34 tests | 1 failed | 33 skipped) 588ms
+   × supplement identity provenance > holds contradictory leading metadata for confirmation without rejecting readable prose 586ms
+     → expected 'exact' to be 'partial' // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/txt-acquisition-supplement.test.ts > supplement identity provenance > holds contradictory leading metadata for confirmation without rejecting readable prose
+AssertionError: expected 'exact' to be 'partial' // Object.is equality
+
+Expected: "partial"
+Received: "exact"
+
+ ❯ tests/txt-acquisition-supplement.test.ts:40:107
+     38|   it('holds contradictory leading metadata for confirmation without re…
+     39|     const f=await fixture({fetchImpl:async()=>new Response('书名：另一…
+     40|     expect(done.status).toMatch(/^completed/);expect(f.acq.records.get…
+       |                                                                                                           ^
+     41|     await f.restart();await f.restart();expect(f.intent().status).toBe…
+     42|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 33 skipped (34)
+   Start at  11:54:36
+   Duration  1.76s (transform 457ms, setup 0ms, collect 831ms, tests 588ms, environment 0ms, prepare 113ms)
+

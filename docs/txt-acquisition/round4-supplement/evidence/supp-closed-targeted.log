@@ -1,0 +1,71 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/selection.test.ts (8 tests) 6468ms
+   ✓ autonomous selection state machine > fails over to different works, rejects source/edition retries, stops after three, and pauses globally 846ms
+   ✓ autonomous selection state machine > preflights exact candidates and skips a source whose catalog is rejected 377ms
+   ✓ autonomous selection state machine > treats a pet-selected book as an unfinished commitment through pause, switch and restart, and only full confirmation releases it 910ms
+   ✓ autonomous selection state machine > recovers the queue after an import receipt and deduplicates repeated terminal callbacks 1547ms
+   ✓ autonomous selection state machine > rejects unknown or expired candidate ids, respects the source allowlist, and pauses on user cancellation 632ms
+   ✓ autonomous selection state machine > pauses an uncommitted autonomous chain when the feature is switched off 331ms
+   ✓ autonomous selection state machine > reports a completed import after cancellation without undoing the book or queuing it 441ms
+   ✓ autonomous selection state machine > does not release the self-selected gate when an ongoing serial is merely caught up 1382ms
+ ✓ tests/txt-acquisition-round4-integration.test.ts (22 tests) 5807ms
+   ✓ round4 controlled raw races > serializes dropRaw with a new same-hash publication 314ms
+   ✓ round4 authenticated consumed bytes > preserves an already committed unread book when cancel arrives before the shelf receipt 558ms
+   ✓ round4 authenticated consumed bytes > preserves an already committed unread book when abandon arrives before the shelf receipt 484ms
+   ✓ round4 authenticated consumed bytes > refuses a canonical-file replacement before the actual index consumes it 424ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot replace between verification and decoder open 402ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot remove between verification and decoder open 424ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through cancel and preserves no false shelf result 446ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through abandon and preserves no false shelf result 434ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through autonomous-off and preserves no false shelf result 443ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through network-off and preserves no false shelf result 460ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through stop and preserves no false shelf result 385ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > revokes a browser lease after Selection cancellation without using a production guard stub 442ms
+ ✓ tests/txt-acquisition-import.test.ts (19 tests) 4215ms
+   ✓ lenient TXT import across encodings > imports a utf8-bom novel and keeps the prose intact 730ms
+ ✓ tests/txt-acquisition-supplement.test.ts (34 tests) 25311ms
+   ✓ supplement identity provenance > holds contradictory leading metadata for confirmation without rejecting readable prose 777ms
+   ✓ supplement identity provenance > downgrades legacy exact receipts whose independent source declarations are absent 886ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风》.txt 547ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风》作者：小鱼.txt 1601ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风（修订版）》作者：小鱼.txt 629ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风续》作者：小鱼.txt 652ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《另一部》作者：小鱼.txt 534ms
+   ✓ supplement identity provenance > keeps discovered anchor lineage independent:  760ms
+   ✓ supplement identity provenance > keeps discovered anchor lineage independent: 《海风》 587ms
+   ✓ supplement identity provenance > keeps discovered anchor lineage independent: 《海风》作者：小鱼 470ms
+   ✓ supplement identity provenance > does not create autonomous receipts for a manual import even if a caller supplies an intent id 363ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: novel.txt 717ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: download?id=1 750ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: 123.txt 699ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: abcdef1234567890abcdef1234567890.txt 651ms
+   ✓ supplement identity provenance > preserves actual filename metadata across an explicit retry 676ms
+   ✓ supplement terminal reconciliation > pulls a committed fact after a lost callback without waiting indefinitely for a restart 531ms
+   ✓ supplement terminal reconciliation > does not authorize a retry or a new download for an already cancelled intent 536ms
+   ✓ supplement terminal reconciliation > retries a recoverable HTTP failure on the same task and ignores a stale failure event 651ms
+   ✓ supplement terminal reconciliation > reconciles an encoding rejection as terminal without occupying acquiring after two restarts 1147ms
+   ✓ supplement terminal reconciliation > reconciles an expired discovered candidate without starting a download 639ms
+   ✓ supplement terminal reconciliation > treats a missing TXT task as unavailable instead of inferring a matching shelved book 646ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after no_candidates, including two storage restarts 601ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after http404, including two storage restarts 635ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after disk, including two storage restarts 718ms
+   ✓ supplement durable policy revocation > preserves a user cancellation when policy revocation and a late callback compete 514ms
+   ✓ supplement durable policy revocation > migrates an old deferred policy_changed record into a persistent revocation fence 588ms
+   ✓ supplement durable policy revocation > requires an explicit permitted plan to resume a revoked committed book 541ms
+   ✓ supplement durable policy revocation > does not revive a deferred intent after allowNetwork is revoked behind the committed shelf barrier 756ms
+   ✓ supplement durable policy revocation > does not revive a deferred intent after autonomousAcquisition is revoked behind the committed shelf barrier 727ms
+   ✓ supplement unsettled receipt retention > replays a committed but unpersisted receipt once after two restarts and 110 histories 1278ms
+   ✓ supplement unsettled receipt retention > makes the receipt backlog observable and refuses new tasks without orphan records 1248ms
+   ✓ supplement unsettled receipt retention > protects a clean pending Selection receipt through 110 terminal records 1101ms
+   ✓ supplement unsettled receipt retention > protects a clean failed Selection receipt through 110 terminal records 1151ms
+ ✓ tests/txt-acquisition-supplement-tool.test.ts (2 tests) 738ms
+   ✓ model-visible precise intent termination > cancel reaches the actual TXT abort path without cancelling an unrelated intent 407ms
+   ✓ model-visible precise intent termination > abandon reaches the actual TXT abort path without cancelling an unrelated intent 330ms
+
+ Test Files  5 passed (5)
+      Tests  85 passed (85)
+   Start at  11:55:04
+   Duration  28.35s (transform 1.02s, setup 0ms, collect 3.15s, tests 42.54s, environment 1ms, prepare 435ms)
+

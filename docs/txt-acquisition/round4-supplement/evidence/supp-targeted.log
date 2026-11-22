@@ -1,0 +1,67 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/txt-acquisition-flow.test.ts (13 tests) 4778ms
+   ✓ browser-assisted acquisition flow > downloads a candidate, imports it and drops the clean original 427ms
+   ✓ browser-assisted acquisition flow > keeps the original bytes when the copy has warnings, and still lets it be read 372ms
+   ✓ browser-assisted acquisition flow > retries a recoverable download failure without duplicating the task 449ms
+   ✓ browser-assisted acquisition flow > marks interrupted work recoverable after a restart and keeps the page for rediscovery 317ms
+   ✓ browser-assisted acquisition flow > repairs a damaged file into a new revision without touching the first one 490ms
+   ✓ browser-assisted acquisition flow > does not import the same file twice as two books 505ms
+   ✓ browser-assisted acquisition flow > keeps the original bytes when the file is not a book, so it can be retried later 408ms
+   ✓ browser-assisted acquisition flow > rejects an already leased upload when the simulated controller loses protection 355ms
+   ✓ browser-assisted acquisition flow > opens the page and downloads through the connected browser extension 417ms
+ ✓ tests/selection.test.ts (8 tests) 5201ms
+   ✓ autonomous selection state machine > fails over to different works, rejects source/edition retries, stops after three, and pauses globally 896ms
+   ✓ autonomous selection state machine > preflights exact candidates and skips a source whose catalog is rejected 343ms
+   ✓ autonomous selection state machine > treats a pet-selected book as an unfinished commitment through pause, switch and restart, and only full confirmation releases it 857ms
+   ✓ autonomous selection state machine > recovers the queue after an import receipt and deduplicates repeated terminal callbacks 506ms
+   ✓ autonomous selection state machine > rejects unknown or expired candidate ids, respects the source allowlist, and pauses on user cancellation 642ms
+   ✓ autonomous selection state machine > pauses an uncommitted autonomous chain when the feature is switched off 332ms
+   ✓ autonomous selection state machine > reports a completed import after cancellation without undoing the book or queuing it 422ms
+   ✓ autonomous selection state machine > does not release the self-selected gate when an ongoing serial is merely caught up 1202ms
+ ✓ tests/txt-acquisition-reliability.test.ts (18 tests) 7029ms
+   ✓ second-round reliability regressions > recovers a retained post-download import failure through retry without changing old progress 633ms
+   ✓ second-round reliability regressions > recovers a retained post-download import failure through repair without changing old progress 538ms
+   ✓ second-round reliability regressions > keeps committed shelf success separate from an async queue callback failure 388ms
+   ✓ second-round reliability regressions > automatically prunes after init and completion but protects warning originals 349ms
+   ✓ second-round reliability regressions > does not trim the only retained-original references when the task cap is exceeded 1135ms
+   ✓ second-round reliability regressions > keeps a protected original loadable when active candidate tasks reach the cap 1212ms
+   ✓ second-round reliability regressions > preserves the confidently decoded opening when processing utf8-first 455ms
+   ✓ second-round reliability regressions > preserves the confidently decoded opening when processing gb-first 427ms
+ ✓ tests/txt-acquisition-round3.test.ts (22 tests) 9001ms
+   ✓ third-round original integrity > preserves the retained original and existing shelf entry when repair fails 460ms
+   ✓ third-round original integrity > finishes a pending raw commit on retry without requiring a World restart 388ms
+   ✓ third-round original integrity > shares raw bytes safely across simultaneous tasks and duplicate shelf imports 733ms
+   ✓ third-round original integrity > does not let a retained retry consume a 101st active slot 1066ms
+   ✓ third-round original integrity > reports read permission failure as storage, preserving the original digest 315ms
+   ✓ third-round original integrity > does not mark completion or queue when cancelled just before shelf metadata commits 623ms
+   ✓ third-round original integrity > retains a retryable original when shelf persistence fails, preserving earlier shelf data 413ms
+   ✓ third-round original integrity > retries idempotently if the task receipt fails after the shelf commit 410ms
+   ✓ third-round original integrity > recovers a raw commit interrupted before linking without a second download 552ms
+   ✓ third-round original integrity > replays only queue integration after restart, preserving one unread shelf item 482ms
+   ✓ third-round original integrity > keeps persistent pending success when writing the queue receipt fails 442ms
+   ✓ third-round original integrity > World stop during async queue integration leaves a replayable receipt 410ms
+   ✓ third-round original integrity > does not clean originals when task records are corrupt 450ms
+   ✓ third-round original integrity > refuses byte mutation without importing or changing original digest 371ms
+   ✓ third-round original integrity > refuses truncate mutation without importing or changing original digest 308ms
+ ✓ tests/context-budget.test.ts (12 tests) 25ms
+ ✓ tests/txt-acquisition-supplement.test.ts (12 tests) 9208ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: novel.txt 650ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: download?id=1 527ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: 123.txt 722ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: abcdef1234567890abcdef1234567890.txt 584ms
+   ✓ supplement identity provenance > preserves actual filename metadata across an explicit retry 660ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after no_candidates, including two storage restarts 573ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after http404, including two storage restarts 580ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after disk, including two storage restarts 685ms
+   ✓ supplement durable policy revocation > does not revive a deferred intent after allowNetwork is revoked behind the committed shelf barrier 750ms
+   ✓ supplement durable policy revocation > does not revive a deferred intent after autonomousAcquisition is revoked behind the committed shelf barrier 749ms
+   ✓ supplement unsettled receipt retention > protects a clean pending Selection receipt through 110 terminal records 1564ms
+   ✓ supplement unsettled receipt retention > protects a clean failed Selection receipt through 110 terminal records 1164ms
+
+ Test Files  6 passed (6)
+      Tests  85 passed (85)
+   Start at  11:37:13
+   Duration  25.34s (transform 1.46s, setup 0ms, collect 3.81s, tests 35.24s, environment 1ms, prepare 554ms)
+

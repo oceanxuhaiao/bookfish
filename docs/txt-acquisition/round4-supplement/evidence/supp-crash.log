@@ -1,0 +1,6 @@
+{"phase":"recover","books":1,"queue":1,"confirmedChars":0,"downloads":1,"selection":"completed"}
+{"phase":"recover","books":1,"queue":1,"confirmedChars":0,"downloads":1,"selection":"completed"}
+book exit=23 two-restarts=PASS
+{"phase":"recover","books":1,"queue":1,"confirmedChars":0,"downloads":1,"selection":"completed"}
+{"phase":"recover","books":1,"queue":1,"confirmedChars":0,"downloads":1,"selection":"completed"}
+receipt exit=23 two-restarts=PASS

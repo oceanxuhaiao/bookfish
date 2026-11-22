@@ -1,3 +1,5 @@
+> 2026-11-22 当前补充修复以round4-supplement/00-独立审核入口.md及07-最终验收摘要.md为准；源码77a5af8，全量945通过/1跳过，SSM待独立审核，完整world失败。保持controllerReady=false/browserReady=false；未运行宿主脚本，未合并/发布。历史main c440c03不是当前远程main，当前远程1fc504f（0.65.1）。
+
 > 2026-11-21 第四阶段当前状态：以 round4/00-审核入口.md 和 round4/15-最终验收摘要.md 为准。以下旧版真机操作步骤属于历史记录，当前不得绕过 controllerReady=false/browserReady=false；不安排用户现在运行宿主脚本。第三轮审核对象35e364a、此前生产代码8587756、本轮候选12d8a03分别标识，不继承旧测试通过结论。
 
 # TXT 获取模块 · 进度说明（跨机器接力用）

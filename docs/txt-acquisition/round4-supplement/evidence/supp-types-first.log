@@ -1,0 +1,2 @@
+tests/txt-acquisition-supplement.test.ts(28,16): error TS2454: Variable 'acq' is used before being assigned.
+tests/txt-acquisition-supplement.test.ts(28,27): error TS2454: Variable 'selection' is used before being assigned.

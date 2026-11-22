@@ -1,0 +1,14 @@
+{
+  "sourceFreeze": "77a5af8094d34ea728b5b731ddfabc6846a0ea00",
+  "npmTest": 0,
+  "typecheck": 0,
+  "buildWebui": 0,
+  "tests": {
+    "files": 84,
+    "passed": 945,
+    "skipped": 1,
+    "total": 946
+  },
+  "sourceAndLibDiffSinceFreeze": "",
+  "bundleSha256": "e7130b26ee5749ef65316ff6fe4cf327401eb89f7721b4e5bf45d752e95ae2ab"
+}

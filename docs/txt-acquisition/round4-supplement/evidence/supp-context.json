@@ -1,0 +1,21 @@
+{
+  "baseline": "71cf8f3",
+  "tools": {
+    "countBefore": 16,
+    "countAfter": 16,
+    "charsBefore": 13150,
+    "charsAfter": 13224,
+    "delta": 74
+  },
+  "residentPrompt": {
+    "unchanged": true,
+    "charsBefore": 680,
+    "charsAfter": 680
+  },
+  "onDemandSelection": {
+    "charsBefore": 2870,
+    "charsAfter": 3217
+  },
+  "actualModelTokens": "NOT_MEASURED; exact model tokenizer is endpoint-dependent; no model call was made",
+  "modelCallsAdded": 0
+}

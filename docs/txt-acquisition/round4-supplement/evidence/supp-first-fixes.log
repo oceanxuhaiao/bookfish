@@ -1,0 +1,24 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/txt-acquisition-selection.test.ts (14 tests) 3449ms
+   ✓ acquisition results entering autonomous selection > keeps an uncertain identity out of the queue through two fresh coordinator starts 390ms
+ ✓ tests/txt-acquisition-supplement.test.ts (12 tests) 9205ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: novel.txt 793ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: download?id=1 548ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: 123.txt 530ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: abcdef1234567890abcdef1234567890.txt 695ms
+   ✓ supplement identity provenance > preserves actual filename metadata across an explicit retry 644ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after no_candidates, including two storage restarts 580ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after http404, including two storage restarts 599ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after disk, including two storage restarts 626ms
+   ✓ supplement durable policy revocation > does not revive a deferred intent after allowNetwork is revoked behind the committed shelf barrier 582ms
+   ✓ supplement durable policy revocation > does not revive a deferred intent after autonomousAcquisition is revoked behind the committed shelf barrier 760ms
+   ✓ supplement unsettled receipt retention > protects a clean pending Selection receipt through 110 terminal records 1557ms
+   ✓ supplement unsettled receipt retention > protects a clean failed Selection receipt through 110 terminal records 1290ms
+
+ Test Files  2 passed (2)
+      Tests  26 passed (26)
+   Start at  11:34:34
+   Duration  14.61s (transform 441ms, setup 0ms, collect 1.21s, tests 12.65s, environment 0ms, prepare 240ms)
+

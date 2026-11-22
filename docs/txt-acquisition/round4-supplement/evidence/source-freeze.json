@@ -1,0 +1,57 @@
+{
+  "sourceFreeze": "77a5af8094d34ea728b5b731ddfabc6846a0ea00",
+  "sourceTree": "7693581f149ef60c8c7e759265c617eb16722a5c",
+  "libTree": "2300068a0c41daa04e46c597887054f9272f9160",
+  "baselines": [
+    {
+      "base": "71cf8f3",
+      "commit": "71cf8f3b517e141f6893341129f40a5a7b60b383",
+      "blocked": 0,
+      "review": 3
+    },
+    {
+      "base": "12d8a03",
+      "commit": "12d8a03dfbcc96e41f4ccc53d927a4c789d4818c",
+      "blocked": 0,
+      "review": 3
+    },
+    {
+      "base": "35e364a",
+      "commit": "35e364ac9c23e4326367a555caed097bf1853dc6",
+      "blocked": 0,
+      "review": 4
+    },
+    {
+      "base": "d5878f9",
+      "commit": "d5878f92630d98d0f080ba7b27e0d16ecf6bd6e1",
+      "blocked": 0,
+      "review": 4
+    },
+    {
+      "base": "40858d9",
+      "commit": "40858d931641f42fe40c84470f848b1361bb63c1",
+      "blocked": 0,
+      "review": 6
+    },
+    {
+      "base": "08e0c7e",
+      "commit": "08e0c7e590cdb1917c9eeb469088c011fd225407",
+      "blocked": 0,
+      "review": 6
+    },
+    {
+      "base": "c440c03",
+      "commit": "c440c03f2f1aed7ed451659ddf4f38b0d4b9b38d",
+      "blocked": 0,
+      "review": 7
+    },
+    {
+      "base": "origin/main",
+      "commit": "1fc504fdd4c478edabf9ddec8f8c3c686850d704",
+      "blocked": 0,
+      "review": 7
+    }
+  ],
+  "changes": "M\tdescribe.json\nA\tscripts/round4-supplement-timing.mts\nM\tsrc/definition.ts\nM\tsrc/protocol/selection.md\nM\tsrc/selection-types.ts\nM\tsrc/selection.ts\nM\tsrc/tool-schemas.ts\nM\tsrc/txt-acquisition/acquisition.ts\nM\tsrc/txt-acquisition/quality.ts\nM\tsrc/txt-acquisition/records.ts\nM\tsrc/world.ts\nA\ttests/fixtures/txt-supplement-crash.mts\nM\ttests/txt-acquisition-flow.test.ts\nM\ttests/txt-acquisition-reliability.test.ts\nM\ttests/txt-acquisition-round3.test.ts\nA\ttests/txt-acquisition-supplement-tool.test.ts\nA\ttests/txt-acquisition-supplement.test.ts",
+  "permissionBoundary": "no push/merge/deploy/host/system changes"
+}

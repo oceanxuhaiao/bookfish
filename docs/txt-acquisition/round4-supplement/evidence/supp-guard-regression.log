@@ -1,0 +1,41 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/txt-acquisition-supplement-tool.test.ts (2 tests) 903ms
+   ✓ model-visible precise intent termination > cancel reaches the actual TXT abort path without cancelling an unrelated intent 495ms
+   ✓ model-visible precise intent termination > abandon reaches the actual TXT abort path without cancelling an unrelated intent 407ms
+ ✓ tests/txt-acquisition-supplement.test.ts (28 tests) 17395ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风》.txt 477ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风》作者：小鱼.txt 505ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风（修订版）》作者：小鱼.txt 446ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风续》作者：小鱼.txt 387ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《另一部》作者：小鱼.txt 396ms
+   ✓ supplement identity provenance > keeps discovered anchor lineage independent:  759ms
+   ✓ supplement identity provenance > keeps discovered anchor lineage independent: 《海风》 756ms
+   ✓ supplement identity provenance > keeps discovered anchor lineage independent: 《海风》作者：小鱼 484ms
+   ✓ supplement identity provenance > does not create autonomous receipts for a manual import even if a caller supplies an intent id 365ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: novel.txt 542ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: download?id=1 550ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: 123.txt 615ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: abcdef1234567890abcdef1234567890.txt 558ms
+   ✓ supplement identity provenance > preserves actual filename metadata across an explicit retry 519ms
+   ✓ supplement terminal reconciliation > retries a recoverable HTTP failure on the same task and ignores a stale failure event 501ms
+   ✓ supplement terminal reconciliation > reconciles an encoding rejection as terminal without occupying acquiring after two restarts 514ms
+   ✓ supplement terminal reconciliation > reconciles an expired discovered candidate without starting a download 440ms
+   ✓ supplement terminal reconciliation > treats a missing TXT task as unavailable instead of inferring a matching shelved book 504ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after no_candidates, including two storage restarts 459ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after http404, including two storage restarts 480ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after disk, including two storage restarts 601ms
+   ✓ supplement durable policy revocation > requires an explicit permitted plan to resume a revoked committed book 470ms
+   ✓ supplement durable policy revocation > does not revive a deferred intent after allowNetwork is revoked behind the committed shelf barrier 599ms
+   ✓ supplement durable policy revocation > does not revive a deferred intent after autonomousAcquisition is revoked behind the committed shelf barrier 588ms
+   ✓ supplement unsettled receipt retention > replays a committed but unpersisted receipt once after two restarts and 110 histories 1262ms
+   ✓ supplement unsettled receipt retention > makes the receipt backlog observable and refuses new tasks without orphan records 1049ms
+   ✓ supplement unsettled receipt retention > protects a clean pending Selection receipt through 110 terminal records 1360ms
+   ✓ supplement unsettled receipt retention > protects a clean failed Selection receipt through 110 terminal records 1207ms
+
+ Test Files  2 passed (2)
+      Tests  30 passed (30)
+   Start at  11:41:11
+   Duration  18.45s (transform 904ms, setup 0ms, collect 1.80s, tests 18.30s, environment 0ms, prepare 171ms)
+

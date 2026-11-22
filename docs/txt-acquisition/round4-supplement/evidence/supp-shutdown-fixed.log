@@ -1,0 +1,80 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/txt-acquisition-round4-integration.test.ts (22 tests) 5960ms
+   ✓ round4 controlled raw races > serializes dropRaw with a new same-hash publication 397ms
+   ✓ round4 authenticated consumed bytes > preserves an already committed unread book when cancel arrives before the shelf receipt 571ms
+   ✓ round4 authenticated consumed bytes > preserves an already committed unread book when abandon arrives before the shelf receipt 497ms
+   ✓ round4 authenticated consumed bytes > refuses a canonical-file replacement before the actual index consumes it 387ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot replace between verification and decoder open 440ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot remove between verification and decoder open 443ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through cancel and preserves no false shelf result 463ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through abandon and preserves no false shelf result 441ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through autonomous-off and preserves no false shelf result 481ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through network-off and preserves no false shelf result 434ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through stop and preserves no false shelf result 377ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > revokes a browser lease after Selection cancellation without using a production guard stub 429ms
+ ✓ tests/txt-acquisition-round3.test.ts (22 tests) 9153ms
+   ✓ third-round original integrity > preserves the retained original and existing shelf entry when repair fails 605ms
+   ✓ third-round original integrity > finishes a pending raw commit on retry without requiring a World restart 383ms
+   ✓ third-round original integrity > shares raw bytes safely across simultaneous tasks and duplicate shelf imports 619ms
+   ✓ third-round original integrity > does not let a retained retry consume a 101st active slot 981ms
+   ✓ third-round original integrity > reports read permission failure as storage, preserving the original digest 382ms
+   ✓ third-round original integrity > rejects a symlink identity before opening its target (filesystem fault fixture) 350ms
+   ✓ third-round original integrity > does not mark completion or queue when cancelled just before shelf metadata commits 459ms
+   ✓ third-round original integrity > retains a retryable original when shelf persistence fails, preserving earlier shelf data 475ms
+   ✓ third-round original integrity > retries idempotently if the task receipt fails after the shelf commit 450ms
+   ✓ third-round original integrity > recovers a raw commit interrupted before linking without a second download 461ms
+   ✓ third-round original integrity > replays only queue integration after restart, preserving one unread shelf item 397ms
+   ✓ third-round original integrity > keeps persistent pending success when writing the queue receipt fails 334ms
+   ✓ third-round original integrity > World stop during async queue integration leaves a replayable receipt 380ms
+   ✓ third-round original integrity > does not clean originals when task records are corrupt 329ms
+   ✓ third-round original integrity > refuses byte mutation without importing or changing original digest 474ms
+   ✓ third-round original integrity > refuses truncate mutation without importing or changing original digest 435ms
+   ✓ third-round original integrity > refuses missing mutation without importing or changing original digest 452ms
+   ✓ third-round original integrity > rolls back in-memory task changes when record persistence fails 438ms
+ ✓ tests/txt-acquisition-supplement.test.ts (35 tests) 23526ms
+   ✓ supplement identity provenance > holds contradictory leading metadata for confirmation without rejecting readable prose 812ms
+   ✓ supplement identity provenance > downgrades legacy exact receipts whose independent source declarations are absent 831ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风》.txt 548ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风》作者：小鱼.txt 507ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风（修订版）》作者：小鱼.txt 492ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《海风续》作者：小鱼.txt 470ms
+   ✓ supplement identity provenance > uses only independent filename declarations 《另一部》作者：小鱼.txt 554ms
+   ✓ supplement identity provenance > keeps discovered anchor lineage independent:  833ms
+   ✓ supplement identity provenance > keeps discovered anchor lineage independent: 《海风》 722ms
+   ✓ supplement identity provenance > keeps discovered anchor lineage independent: 《海风》作者：小鱼 455ms
+   ✓ supplement identity provenance > does not create autonomous receipts for a manual import even if a caller supplies an intent id 355ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: novel.txt 697ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: download?id=1 629ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: 123.txt 701ms
+   ✓ supplement identity provenance > never fills independent identity from wanted fields: abcdef1234567890abcdef1234567890.txt 609ms
+   ✓ supplement identity provenance > preserves actual filename metadata across an explicit retry 647ms
+   ✓ supplement terminal reconciliation > keeps World shutdown distinct from an explicit cancellation through two restarts 501ms
+   ✓ supplement terminal reconciliation > pulls a committed fact after a lost callback without waiting indefinitely for a restart 507ms
+   ✓ supplement terminal reconciliation > does not authorize a retry or a new download for an already cancelled intent 535ms
+   ✓ supplement terminal reconciliation > retries a recoverable HTTP failure on the same task and ignores a stale failure event 637ms
+   ✓ supplement terminal reconciliation > reconciles an encoding rejection as terminal without occupying acquiring after two restarts 626ms
+   ✓ supplement terminal reconciliation > reconciles an expired discovered candidate without starting a download 595ms
+   ✓ supplement terminal reconciliation > treats a missing TXT task as unavailable instead of inferring a matching shelved book 638ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after no_candidates, including two storage restarts 648ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after http404, including two storage restarts 646ms
+   ✓ supplement terminal reconciliation > does not hold acquiring after disk, including two storage restarts 766ms
+   ✓ supplement durable policy revocation > preserves a user cancellation when policy revocation and a late callback compete 563ms
+   ✓ supplement durable policy revocation > migrates an old deferred policy_changed record into a persistent revocation fence 578ms
+   ✓ supplement durable policy revocation > requires an explicit permitted plan to resume a revoked committed book 404ms
+   ✓ supplement durable policy revocation > does not revive a deferred intent after allowNetwork is revoked behind the committed shelf barrier 567ms
+   ✓ supplement durable policy revocation > does not revive a deferred intent after autonomousAcquisition is revoked behind the committed shelf barrier 633ms
+   ✓ supplement unsettled receipt retention > replays a committed but unpersisted receipt once after two restarts and 110 histories 1300ms
+   ✓ supplement unsettled receipt retention > makes the receipt backlog observable and refuses new tasks without orphan records 1341ms
+   ✓ supplement unsettled receipt retention > protects a clean pending Selection receipt through 110 terminal records 1104ms
+   ✓ supplement unsettled receipt retention > protects a clean failed Selection receipt through 110 terminal records 1071ms
+ ✓ tests/txt-acquisition-supplement-tool.test.ts (2 tests) 799ms
+   ✓ model-visible precise intent termination > cancel reaches the actual TXT abort path without cancelling an unrelated intent 382ms
+   ✓ model-visible precise intent termination > abandon reaches the actual TXT abort path without cancelling an unrelated intent 416ms
+
+ Test Files  4 passed (4)
+      Tests  81 passed (81)
+   Start at  12:00:28
+   Duration  26.53s (transform 989ms, setup 0ms, collect 2.63s, tests 39.44s, environment 1ms, prepare 335ms)
+

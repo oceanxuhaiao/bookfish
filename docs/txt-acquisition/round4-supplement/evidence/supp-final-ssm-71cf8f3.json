@@ -1,0 +1,202 @@
+{
+  "base": "71cf8f3",
+  "staged": false,
+  "manifestVersion": 1,
+  "blocked": [],
+  "review": [
+    {
+      "path": "describe.json",
+      "verdict": "review",
+      "rule": "describe.json"
+    },
+    {
+      "path": "src/tool-schemas.ts",
+      "verdict": "review",
+      "rule": "src/tool-schemas.ts"
+    },
+    {
+      "path": "src/world.ts",
+      "verdict": "review",
+      "rule": "src/world.ts"
+    }
+  ],
+  "allowed": [
+    {
+      "path": "scripts/round4-supplement-timing.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/definition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/protocol/selection.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/selection-types.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/selection.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/acquisition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/quality.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/records.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/fixtures/txt-supplement-crash.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-flow.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-reliability.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-round3.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-supplement-tool.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-supplement.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/task.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/git-start.txt",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    }
+  ],
+  "findings": [
+    {
+      "path": "describe.json",
+      "verdict": "review",
+      "rule": "describe.json"
+    },
+    {
+      "path": "scripts/round4-supplement-timing.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/definition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/protocol/selection.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/selection-types.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/selection.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/tool-schemas.ts",
+      "verdict": "review",
+      "rule": "src/tool-schemas.ts"
+    },
+    {
+      "path": "src/txt-acquisition/acquisition.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/quality.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/txt-acquisition/records.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "src/world.ts",
+      "verdict": "review",
+      "rule": "src/world.ts"
+    },
+    {
+      "path": "tests/fixtures/txt-supplement-crash.mts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-flow.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-reliability.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-round3.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-supplement-tool.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "tests/txt-acquisition-supplement.test.ts",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/task.md",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    },
+    {
+      "path": "docs/txt-acquisition/round4-supplement/evidence/git-start.txt",
+      "verdict": "allowed",
+      "rule": "not-protected"
+    }
+  ]
+}

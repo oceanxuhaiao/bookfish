@@ -1,0 +1,136 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ❯ tests/txt-acquisition-supplement.test.ts (12 tests | 12 failed) 6919ms
+   × supplement identity provenance > never fills independent identity from wanted fields: novel.txt 447ms
+     → expected 'exact' not to be 'exact' // Object.is equality
+   × supplement identity provenance > never fills independent identity from wanted fields: download?id=1 395ms
+     → expected 'exact' not to be 'exact' // Object.is equality
+   × supplement identity provenance > never fills independent identity from wanted fields: 123.txt 387ms
+     → expected 'exact' not to be 'exact' // Object.is equality
+   × supplement identity provenance > never fills independent identity from wanted fields: abcdef1234567890abcdef1234567890.txt 377ms
+     → expected 'exact' not to be 'exact' // Object.is equality
+   × supplement identity provenance > preserves actual filename metadata across an explicit retry 586ms
+     → expected 'unknown' to be 'exact' // Object.is equality
+   × supplement terminal reconciliation > does not hold acquiring after no_candidates, including two storage restarts 317ms
+     → expected 'acquiring' not to be 'acquiring' // Object.is equality
+   × supplement terminal reconciliation > does not hold acquiring after http404, including two storage restarts 323ms
+     → expected 'acquiring' not to be 'acquiring' // Object.is equality
+   × supplement terminal reconciliation > does not hold acquiring after disk, including two storage restarts 419ms
+     → expected 'acquiring' not to be 'acquiring' // Object.is equality
+   × supplement durable policy revocation > does not revive a deferred intent after allowNetwork is revoked behind the committed shelf barrier 549ms
+     → expected 'reading' to be 'deferred' // Object.is equality
+   × supplement durable policy revocation > does not revive a deferred intent after autonomousAcquisition is revoked behind the committed shelf barrier 540ms
+     → expected 'reading' to be 'deferred' // Object.is equality
+   × supplement unsettled receipt retention > protects a clean pending Selection receipt through 110 terminal records 1497ms
+     → expected undefined to be 'pending' // Object.is equality
+   × supplement unsettled receipt retention > protects a clean failed Selection receipt through 110 terminal records 1082ms
+     → expected undefined to be 'failed' // Object.is equality
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 12 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/txt-acquisition-supplement.test.ts > supplement identity provenance > never fills independent identity from wanted fields: novel.txt
+ FAIL  tests/txt-acquisition-supplement.test.ts > supplement identity provenance > never fills independent identity from wanted fields: download?id=1
+ FAIL  tests/txt-acquisition-supplement.test.ts > supplement identity provenance > never fills independent identity from wanted fields: 123.txt
+ FAIL  tests/txt-acquisition-supplement.test.ts > supplement identity provenance > never fills independent identity from wanted fields: abcdef1234567890abcdef1234567890.txt
+AssertionError: expected 'exact' not to be 'exact' // Object.is equality
+ ❯ tests/txt-acquisition-supplement.test.ts:40:115
+     38|   it.each(['novel.txt','download?id=1','123.txt','abcdef1234567890abcd…
+     39|     const f=await fixture();const result=await f.import('https://books…
+     40|     expect(result.status).toMatch(/^completed/);expect(f.acq.records.g…
+       |                                                                                                                   ^
+     41|     expect(f.intent().status).toBe('awaiting_choice');expect(f.library…
+     42|     await f.restart();await f.restart();expect(f.intent().queueOnImpor…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/12]⎯
+
+ FAIL  tests/txt-acquisition-supplement.test.ts > supplement identity provenance > preserves actual filename metadata across an explicit retry
+AssertionError: expected 'unknown' to be 'exact' // Object.is equality
+
+Expected: "exact"
+Received: "unknown"
+
+ ❯ tests/txt-acquisition-supplement.test.ts:47:111
+     45|     const f=await fixture();const fault=vi.spyOn(f.library,'importFile…
+     46|     const first=await f.import();fault.mockRestore();const retried=awa…
+     47|     expect(retried.status).toMatch(/^completed/);expect(f.acq.records.…
+       |                                                                                                               ^
+     48|   });
+     49| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/12]⎯
+
+ FAIL  tests/txt-acquisition-supplement.test.ts > supplement terminal reconciliation > does not hold acquiring after no_candidates, including two storage restarts
+ FAIL  tests/txt-acquisition-supplement.test.ts > supplement terminal reconciliation > does not hold acquiring after http404, including two storage restarts
+ FAIL  tests/txt-acquisition-supplement.test.ts > supplement terminal reconciliation > does not hold acquiring after disk, including two storage restarts
+AssertionError: expected 'acquiring' not to be 'acquiring' // Object.is equality
+ ❯ tests/txt-acquisition-supplement.test.ts:55:76
+     53|     if(failure==='disk')vi.spyOn(f.library,'importFileBestEffort').moc…
+     54|     const result=failure==='no_candidates'?await f.acq.discover({pageU…
+     55|     expect(result.status).toMatch(/^failed/);expect(f.intent().status)…
+       |                                                                            ^
+     56|     await f.restart();await f.restart();expect(f.intent().status).not.…
+     57|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/12]⎯
+
+ FAIL  tests/txt-acquisition-supplement.test.ts > supplement durable policy revocation > does not revive a deferred intent after allowNetwork is revoked behind the committed shelf barrier
+ FAIL  tests/txt-acquisition-supplement.test.ts > supplement durable policy revocation > does not revive a deferred intent after autonomousAcquisition is revoked behind the committed shelf barrier
+AssertionError: expected 'reading' to be 'deferred' // Object.is equality
+
+Expected: "deferred"
+Received: "reading"
+
+ ❯ tests/txt-acquisition-supplement.test.ts:64:31
+     62|     const running=f.import();await entered.promise;expect(f.library.li…
+     63|     f.cfg[key]=false;f.selection.onConfigChanged();f.acq.onConfigChang…
+     64|     expect(f.intent().status).toBe('deferred');expect(f.intent().queue…
+       |                               ^
+     65|     f.cfg[key]=true;f.selection.onConfigChanged();f.selection.onExtern…
+     66|     await f.restart();await f.restart();expect(f.intent().status).toBe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/12]⎯
+
+ FAIL  tests/txt-acquisition-supplement.test.ts > supplement unsettled receipt retention > protects a clean pending Selection receipt through 110 terminal records
+AssertionError: expected undefined to be 'pending' // Object.is equality
+
+- Expected: 
+"pending"
+
++ Received: 
+undefined
+
+ ❯ tests/txt-acquisition-supplement.test.ts:74:65
+     72|     f.acq.records.update(result.taskId,t=>{t.file!.retained=false;t.se…
+     73|     for(let i=0;i<110;i++)f.acq.records.put({...template,id:randomUUID…
+     74|     expect(f.acq.records.get(result.taskId)?.selection?.status).toBe(s…
+       |                                                                 ^
+     75|   });
+     76| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/12]⎯
+
+ FAIL  tests/txt-acquisition-supplement.test.ts > supplement unsettled receipt retention > protects a clean failed Selection receipt through 110 terminal records
+AssertionError: expected undefined to be 'failed' // Object.is equality
+
+- Expected: 
+"failed"
+
++ Received: 
+undefined
+
+ ❯ tests/txt-acquisition-supplement.test.ts:74:65
+     72|     f.acq.records.update(result.taskId,t=>{t.file!.retained=false;t.se…
+     73|     for(let i=0;i<110;i++)f.acq.records.put({...template,id:randomUUID…
+     74|     expect(f.acq.records.get(result.taskId)?.selection?.status).toBe(s…
+       |                                                                 ^
+     75|   });
+     76| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/12]⎯
+
+ Test Files  1 failed (1)
+      Tests  12 failed (12)
+   Start at  11:31:54
+   Duration  18.72s (transform 1.47s, setup 0ms, collect 10.55s, tests 6.92s, environment 0ms, prepare 835ms)
+

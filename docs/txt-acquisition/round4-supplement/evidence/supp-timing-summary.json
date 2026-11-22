@@ -1,0 +1,21 @@
+{
+  "source": "77a5af8094d34ea728b5b731ddfabc6846a0ea00",
+  "baseline": "71cf8f3",
+  "baselineStats": {
+    "n": 5,
+    "medianMs": 1542.6358,
+    "p95Ms": 1627.7458000000001,
+    "peakRssMiB": 111.9140625
+  },
+  "currentStats": {
+    "n": 5,
+    "medianMs": 1523.3604999999998,
+    "p95Ms": 1650.9652999999998,
+    "peakRssMiB": 130.83203125
+  },
+  "sha256": "cf4500dcba368ddae40accf39cf3639a6c5ec04eaa80b2f0a5170c93f3255f77",
+  "bytes": 1048532,
+  "node": "24.15.0",
+  "p95Method": "nearest rank, n=5, therefore maximum; not a population estimate",
+  "scope": "1MiB acquisition including source identity, raw hash/snapshot, import and Selection receipt; deterministic injected response, no real network/model"
+}

@@ -1,0 +1,277 @@
+Final source 77a5af8094d34ea728b5b731ddfabc6846a0ea00; one-based lines
+
+FILE scripts/round4-supplement-timing.mts
+17: acq=new TxtAcquisition({dataDir,library,cfg:()=>cfg,resolve:async()=>['93.184.216.34'],fetchImpl:async()=>new Response(bytes),onTaskCreated:(t:any)=>selection.onExternalTaskCreated(t),onTaskStateChanged:(t:any)=>selection.onExternalTaskStateChanged(t),onImported:(t:any,i:any)=>selection.onExternalImport(t,i)} as any);
+18: await acq.init();selection.start({pushEvent:async()=>undefined} as any);const id=randomUUID(),now=Date.now();library.updateSelection((s:any)=>s.intents.push({id,title:'海风',author:'小鱼',reason:'本地性能夹具',status:'proposed',origin:'autonomous',candidates:[],queueOnImport:true,createdAt:now,updatedAt:now}));
+
+FILE src/definition.ts
+
+FILE src/protocol/selection.md
+
+FILE src/selection-types.ts
+35:   | 'restart_interrupted'
+74:   selectedCandidateId?: string;
+76:   acquisitionKind?: 'txt';
+81:   externalPolicyRevokedAt?: number;
+171:   if (!/^[a-f0-9-]{36}$/u.test(id)) throw new Error('Invalid autonomous selection candidate id');
+176:   if (!/^[a-f0-9]{8,64}$/u.test(revision)) throw new Error('Invalid autonomous selection candidate revision');
+192:   if (!/^[a-f0-9-]{36}$/u.test(id)) throw new Error('Invalid autonomous selection intent id');
+199:   if (value.acquisitionKind !== undefined && value.acquisitionKind !== 'txt') throw new Error('Invalid autonomous selection acquisition kind');
+205:   const revokedAt = optionalStamp(value.externalPolicyRevokedAt, 'external policy revocation')
+216:     ...(optionalText(value.selectedCandidateId, 'selected candidate id', 80) ? { selectedCandidateId: value.selectedCandidateId as string } : {}),
+218:     ...(value.acquisitionKind === 'txt' ? { acquisitionKind: 'txt' as const } : {}),
+221:     ...(revokedAt !== undefined ? { externalPolicyRevokedAt: revokedAt } : {}),
+230:   if (!/^[a-f0-9-]{36}$/u.test(id)) throw new Error('Invalid autonomous selection queue id');
+
+FILE src/selection.ts
+11: import { identityMatch } from './txt-acquisition/quality.ts';
+50:   cancelExternal?: (intentId:string, reason?:'restart_interrupted')=>void;
+102:     for(const intent of this.state().intents)if(['searching','awaiting_choice','acquiring'].includes(intent.status))this.options.cancelExternal?.(intent.id,'restart_interrupted');
+128:             if (intent.acquisitionKind === 'txt' || external || this.options.isExternalTask?.(intent.acquisitionTaskId)) {
+129:               if (external) this.onExternalTaskStateChanged(external);
+151:             this.deferIntent(intent.id, 'restart_interrupted', '扩展重启中断了获取，未自动续传；之后需重新自主搜索或由用户手动继续。');
+182:             if (task) this.onExternalTaskStateChanged(task);
+183:             else if (intent.acquisitionKind === 'txt') this.deferIntent(intent.id,'txt_state_unavailable','TXT任务记录不可用，未安排阅读。');
+316:     if (/ENOSPC|no space|disk full|磁盘|空间不足/iu.test(text)) return { code: 'disk_full', global: true, message: '磁盘空间不足，自动获取已暂停。' };
+317:     if (/engine unavailable|runtime|java|spawn|引擎|Too many novel fetch tasks/iu.test(text)) return { code: 'engine_unavailable', global: true, message: '小说引擎或获取队列不可用，自动获取已暂停。' };
+318:     if (/Bookfish is stopping/iu.test(text)) return { code: 'cancelled', global: true, message: '扩展正在停止，自动获取已暂停。' };
+319:     if (/network|offline|ENOTFOUND|EAI_AGAIN|ECONN|ETIMEDOUT|fetch failed|网络/iu.test(text)) return { code: 'network_disabled', global: true, message: '网络请求失败，自动获取已暂停，不连续换书。' };
+320:     if (/cancel|取消/iu.test(text)) return { code: 'cancelled', global: true, message: '任务被取消，自动获取已暂停。' };
+321:     if (/Catalog gate|catalog.*reject|目录/iu.test(text)) return { code: 'catalog_rejected', global: false, message: '书源目录未通过校验。' };
+322:     if (/Integrity gate|完整性|校验/iu.test(text)) return { code: 'integrity_failed', global: false, message: '正文未通过完整性校验。' };
+370:     return allowed.split(',').map((value) => Number(value.trim())).filter((value) => Number.isSafeInteger(value)).includes(sourceId);
+465:       target.status = 'acquiring'; target.selectedCandidateId = candidate.id;
+512:   onExternalTaskCreated(task:{id:string;intentId?:string;origin?:string}):void{
+516:     if (intent.externalPolicyRevokedAt !== undefined || !this.cfg.allowNetwork || !this.cfg.autonomousAcquisition) {
+519:     this.update(draft=>{const target=draft.intents.find(row=>row.id===intent.id)!;target.acquisitionTaskId=task.id;target.acquisitionKind='txt';target.status='acquiring';target.updatedAt=this.now();});
+523:   onExternalTaskStateChanged(event: AcquisitionTask): void {
+531:     if (TERMINAL_INTENTS.has(intent.status) || intent.externalPolicyRevokedAt !== undefined) {
+541:       const source=task.candidates.find(row=>row.id===task.selectedCandidateId);
+542:       const identity=task.selection?.identity==='exact'?identityMatch(task.target,source):task.selection?.identity??'unknown';
+543:       this.onExternalImport(task,identity);return;
+547:         this.cancel(intent.id); return;
+560:   onExternalImport(task: { id: string; intentId?: string; bookKey?: string; origin?: string }, identity: 'exact' | 'partial' | 'unknown'): void {
+570:     if (intent.acquisitionKind === 'txt' && intent.acquisitionTaskId !== task.id) return;
+571:     if (intent.acquisitionKind === 'txt' && this.options.getExternalTask) {
+575:     if (intent.externalPolicyRevokedAt !== undefined || !this.cfg.allowNetwork || !this.cfg.autonomousAcquisition) {
+576:       if (intent.externalPolicyRevokedAt === undefined) this.deferIntent(intent.id, 'policy_changed', '策略已关闭，保留已入架作品，不自动排队。');
+658:       if (code === 'policy_changed') {target.externalPolicyRevokedAt=now;target.queueOnImport=false;}
+672:       if (!target||TERMINAL_INTENTS.has(target.status)||target.externalPolicyRevokedAt!==undefined||(target.status==='awaiting_choice'&&!target.queueOnImport)) return;
+797:         try { this.options.novelFetches.cancel(intent.acquisitionTaskId); } catch { /* terminal already */ }
+827:     if (intent.externalPolicyRevokedAt !== undefined) {
+843:         if (target) {target.queueOnImport = true;delete target.externalPolicyRevokedAt;if(target.status==='awaiting_choice'||target.status==='deferred')target.status='reading';}
+865:   abandon(intentId: unknown, by: 'user' | 'pet' = 'user'): SelectionSummary {
+878:     const task=this.state().intents.find(entry=>entry.id===id)?.acquisitionTaskId;if(task){try{this.options.novelFetches.cancel(task);}catch{/* already terminal */}}
+882:   cancel(intentId: unknown): Record<string, unknown> {
+889:     if (['fulfilled', 'reading'].includes(intent.status)) return { abandoned: true, intent: this.abandon(id) };
+891:       try { this.options.novelFetches.cancel(intent.acquisitionTaskId); } catch { /* terminal already */ }
+953:     const candidate = intent.candidates.find((entry) => entry.id === intent.selectedCandidateId) ?? intent.candidates[0];
+
+FILE src/tool-schemas.ts
+
+FILE src/txt-acquisition/acquisition.ts
+17: import { assessText, identityMatch, type Assessment, type IdentityMatch } from './quality.ts';
+149:   async init(): Promise<void> {
+152:     await this.staging.init();
+219:       this.fail(task.id, 'restart_interrupted', 'The extension restarted before this acquisition finished');
+240:       history: { records: tasks.length, softLimit: MAX_TASKS, retainedOriginals: tasks.filter(task => task.file?.retained).length, protectedOverflow: Math.max(0, tasks.length - MAX_TASKS), pendingSelectionReceipts: tasks.filter(task => ['pending','failed'].includes(task.selection?.status ?? '')).length, newTaskReceiptLimit: MAX_TASKS },
+256:   cancel(taskId: string, code: 'cancelled' | 'restart_interrupted' = 'cancelled'): TaskView {
+265:   cancelByIntentId(intentId:string,reason?:'restart_interrupted'):void{for(const task of this.records.list())if(task.intentId===intentId&&!isTerminal(task.status))this.cancel(task.id,reason);}
+342:     void this.integrateSelection(updated);
+365:     try{if(created.origin==='autonomous'&&created.intentId)this.onTaskCreated?.(created);}catch(error){this.cancel(created.id);throw error;}
+475:     this.records.update(task.id, (draft) => { draft.selectedCandidateId = candidate.id; });
+487:       filename = decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() ?? 'novel.txt') || 'novel.txt';
+489:     if (!/\.(txt|md|markdown)$/iu.test(filename)) filename = `${filename.replace(/[./\\]+$/gu, '')}.txt`;
+492:       id: randomUUID(), filename, format: /\.md$|\.markdown$/iu.test(filename) ? 'md' : 'txt', host: hostOf(url),
+497:     this.records.update(task.id, (draft) => { draft.candidates = [candidate]; draft.selectedCandidateId = candidate.id; }, { status: 'candidate_ready', note: 'direct file address' });
+544:         path: join('raw', downloaded.sha256 + (/\.md$|\.markdown$/iu.test(filename) ? '.md' : '.txt')),
+549:       rawRelative = await this.staging.commitRaw(downloaded.partPath, downloaded.sha256, /\.md$|\.markdown$/iu.test(filename) ? 'md' : 'txt',(path,phase)=>{
+670:     this.urls.delete(task.selectedCandidateId ?? '');
+672:     await this.integrateSelection(updated);
+692:       if (task.selection?.status !== 'completed') await this.integrateSelection(task);
+701:       const known = task.selectedCandidateId ? this.urls.get(task.selectedCandidateId) : undefined;
+702:       const candidate = task.candidates.find((entry) => entry.id === task.selectedCandidateId);
+720:     const candidate = task.candidates.find(row => row.id === task.selectedCandidateId);
+751:     const candidate = task.candidates.find(row => row.id === task.selectedCandidateId);
+773:     if (/library is full/iu.test(message)) { this.fail(taskId, 'library_full', message); return; }
+774:     if (/Book must be between|exceeds 100 MiB/iu.test(message)) { this.fail(taskId, 'too_large', message); return; }
+784:         if (!/^work[\\/][a-f0-9-]+\.part$/u.test(pending)) throw new OriginalFileError('original_integrity', 'Invalid pending original path');
+814:     for (const abort of this.aborts.values()) abort.abort(new AcquisitionFailure('restart_interrupted','World stopped'));
+823:     for (const task of this.records.list()) if (isTerminal(task.status) && task.selection?.status !== 'completed') await this.integrateSelection(task);
+826:   private async integrateSelection(task: AcquisitionTask): Promise<void> {
+831:     const candidate = task.candidates.find(row => row.id === task.selectedCandidateId);
+834:     const sourceIdentity = identityMatch(task.target, candidate);
+
+FILE src/txt-acquisition/quality.ts
+20:   if(/^\d+$/u.test(normalized))return Number(normalized);
+22:   if(!/[十百千万]/u.test(raw))return Number([...raw].map(c=>digits[c]).join(''));
+66:   for (const char of text) { total++; if (/[\p{L}\p{N}\p{P}\p{M}\p{Z}\p{S}\s]/u.test(char) || char === '\ufffd') supported++; }
+72:   for (const line of text.split('\n')) {
+75:     if (CHAPTER_LINE.test(trimmed)) found.push(trimmed);
+80: export function identityMatch(wanted?: { title?: string; author?: string }, declared?: { title?: string; author?: string }): IdentityMatch {
+107:     m.hasLetter ||= /\p{L}/u.test(text);
+108:     const parts = text.split('\n');
+120:     if (this.length <= 60 && CHAPTER_LINE.test(trimmed)) { if (m.headings.length < 10000) m.headings.push(trimmed); else m.headingsCapped = true; }
+168:     const styles = new Set(headings.map((line) => (/^#/u.test(line) ? 'markdown' : ARABIC_CHAPTER.test(line) ? 'arabic' : 'chinese')));
+203:   if (tail.length > 40 && !/[。！？…”』」】)\]!?."'~～]$/u.test(tail)) {
+208:   let identity = identityMatch(input.wanted, input.declared);
+212:     const leading = metrics.head.split('\n').slice(0, 8);
+218:       warnings.push({code:'identity_header_conflict',message:'Explicit opening metadata conflicts with the source declaration; confirmation required, prose retained'});
+
+FILE src/txt-acquisition/records.ts
+69:   latest(): AcquisitionTask | undefined {
+
+FILE src/world.ts
+87:       onTaskCreated:task=>this.selection.onExternalTaskCreated(task),
+88:       onTaskStateChanged:task=>this.selection.onExternalTaskStateChanged(task),
+89:       onImported: (task, identity) => this.selection?.onExternalImport(task, identity) });
+221:             return this.txtAcquisition.cancel(requiredText(taskId, 'taskId', 80));
+259:           case 'cancel': return this.selection.cancel(args.intentId);
+263:             return this.selection.abandon(args.intentId, 'pet');
+366:           if (method==='runtime_cancel'&&args.length===0) return this.runtime.cancel() ?? this.runtime.status();
+392:         if(this.host){if(method==='upload_begin'&&args.length===1)return this.transfers.begin(args[0]);if(method==='upload_chunk'&&args.length===3)return this.transfers.chunk(args[0],args[1],args[2]);if(method==='upload_finish'&&args.length===1)return this.transfers.start(args[0]);if(method==='transfer_cancel'&&args.length===1)return this.transfers.cancel(args[0]);if(method==='backup_begin'&&args.length===0)return this.transfers.download();if(method==='backup_read'&&args.length===2)return this.transfers.read(args[0],args[1]);}
+400:         if (method === 'selection_cancel' && args.length === 1) return this.selection.cancel(args[0]);
+401:         if (method === 'selection_abandon' && args.length === 1) { const result = this.selection.abandon(args[0]); this.scheduler.changed(); return result; }
+437:         if (method === 'novel_cancel' && args.length === 1) return this.novelFetches.cancel(args[0]);
+455:         if (method === 'serial_cancel' && args.length === 1) return this.serialSync.cancel(args[0]);
+470:           let event;try { event = await this.host.pushEvent({ source: this.id, ts: nowIso(this.opts.timezone), type: 'bookfish.discussion', origin: 'internal', senderKey: 'bookfish-user', text: JSON.stringify({ discussionId: discussion.id, userQuestion: question, bookKey: book.key, episodeId: episode.id, episode: { trigger: episode.content.trigger, interpretation: episode.content.interpretation, mood: episode.content.mood, evidence: episode.content.evidence.map(e => ({ segmentId: e.segmentId, quote: e.quote })).slice(0, 3) }, citedSource: [...new Set(episode.content.evidence.map(e => e.segmentId))].slice(0, 2).map(id => { try { const seg = this.library.reread(book.key, id).segment; return { segmentId: id, start: seg.start, end: seg.end, text: Array.from(seg.text).slice(0, 400).join("") }; } catch { return null; } }).filter(Boolean), guidance: `User asks to discuss this saved episode. This event already carries the saved episode and its cited source excerpt (citedSource); do not call bookfish_lookup or bookfish_get_status first unless the user asks about something outside it. Answer on the desktop pet as a friend, not only in the reading panel. Split the answer into 1-${DISCUSSION_SEGMENT_COUNT} chat bubbles by meaning and breath, not by character count. Keep one complete sentence together even when it has several comma-linked clauses; never split a sentence merely to make it shorter. Start a new bubble only at a real sentence boundary or a clear change of thought. Each bubble may be up to ${DISCUSSION_SEGMENT_LIMIT} code points and the whole reply up to ${DISCUSSION_TOTAL_LIMIT}; if a sentence is too long, shorten it instead of cutting it. Never cut a name or clause with an ellipsis; if unsure of a name, describe the person instead of writing "库...". Call pet_say once per bubble in order and wait for each call to succeed. Immediately after each successful pet_say, call bookfish_discussion(action="append") with discussionId and segment set to the exact spoken line, so the panel can show it before the next bubble. After each bubble except the last, call bookfish_discussion(action="pace") with that exact previous segment and wait for it to return before the next pet_say; this only adds a gap between bubbles, never changes the typing speed. Then call bookfish_discussion(action="reply") with this discussionId, delivery "spoken", and all exact segments in the same order; the panel only mirrors what you actually said. If pet_say is missing or any call fails, do not invent spoken lines: call bookfish_discussion(action="reply") with delivery "unavailable" and a short reason. Unread plot can only be an explicitly labelled guess; do not read ahead or invent past feelings.` }) }, { trigger: 'flush' }); } catch(error) {this.discussions.cancel(discussion.id);throw error;}
+535:       try { await this.txtAcquisition.init(); } catch { /* acquisition state faults must not block reading */ }
+
+FILE tests/fixtures/txt-supplement-crash.mts
+14: acq=new TxtAcquisition({dataDir,library,cfg:()=>cfg,resolve:async()=>['93.184.216.34'],fetchImpl:async()=>new Response('她把信折好，走向窗边。'.repeat(100)),onTaskCreated:t=>selection.onExternalTaskCreated(t),onTaskStateChanged:t=>selection.onExternalTaskStateChanged(t),onImported:(t,i)=>{selection.onExternalImport(t,i);if(phase==='receipt')process.exit(23);}});
+15: await acq.init();selection.start({pushEvent:async()=>undefined} as any);
+18:    await acq.resumeSelection();const task=acq.records.latest()!;const done=await acq.retry(task.id);
+22:    if(phase==='book'){const original=library.importFileBestEffort.bind(library);library.importFileBestEffort=(...args)=>{original(...args);process.exit(23);};}
+
+FILE tests/txt-acquisition-flow.test.ts
+86: describe('browser-assisted acquisition flow', () => {
+87:   it('discovers TXT and Markdown candidates and keeps only digests on disk', async () => {
+89:     await acquisition.init();
+101:   it('downloads a candidate, imports it and drops the clean original', async () => {
+103:     await acquisition.init();
+115:   it('keeps the original bytes when the copy has warnings, and still lets it be read', async () => {
+117:     await acquisition.init();
+128:   it('retries a recoverable download failure without duplicating the task', async () => {
+136:     await acquisition.init();
+150:   it('marks interrupted work recoverable after a restart and keeps the page for rediscovery', async () => {
+152:     await acquisition.init();
+157:     await restarted.init();
+160:     expect(task.failure?.code).toBe('restart_interrupted');
+165:   it('cancels a pending task, keeps it recoverable and leaves no partial file', async () => {
+167:     await acquisition.init();
+169:     const cancelled = acquisition.cancel(found.taskId);
+180:   it('repairs a damaged file into a new revision without touching the first one', async () => {
+183:     await acquisition.init();
+198:   it('does not import the same file twice as two books', async () => {
+200:     await acquisition.init();
+209:   it('refuses to touch the network when the world has network access disabled', async () => {
+212:     await acquisition.init();
+217:   it('requires an explicit browser debug port instead of probing for one', async () => {
+220:     await acquisition.init();
+227:   it('keeps the original bytes when the file is not a book, so it can be retried later', async () => {
+230:     await acquisition.init();
+245:   it('rejects an already leased upload when the simulated controller loses protection', async () => {
+250:     await acquisition.init();const {port,token}=acquisition.bridgeInfo;
+265:   it('opens the page and downloads through the connected browser extension', async () => {
+278:     await acquisition.init();
+
+FILE tests/txt-acquisition-reliability.test.ts
+22: describe('second-round reliability regressions', () => {
+25:     const acq = acquisition(); const quota = vi.spyOn(acq.staging, 'enforceQuota'); await acq.init(); const failed = await acq.importFile({ url: 'https://books.example/book.txt', title: '海风' });
+31:   it('keeps committed shelf success separate from an async queue callback failure', async () => {
+32:     const acq = acquisition(undefined, async () => { throw Error('queue unavailable https://secret.example/token?signed=private'); }); await acq.init();
+35:   it('automatically prunes after init and completion but protects warning originals', async () => {
+36:     const acq = acquisition(); await acq.staging.init(); const orphan = join(acq.staging.rawDir, 'a'.repeat(64)+'.txt'); writeFileSync(orphan, Buffer.alloc(1024));
+37:     const spy = vi.spyOn(acq.staging, 'enforceQuota'); await acq.init(); expect(spy).toHaveBeenCalledOnce();
+41:   it('does not trim the only retained-original references when the task cap is exceeded', async () => {
+42:     const acq = acquisition(); await acq.init(); const done = await acq.importFile({ url: 'https://books.example/book.txt', title: '海风' }); const task = acq.records.get(done.taskId)!;
+47:   it('keeps a protected original loadable when active candidate tasks reach the cap', async () => {
+48:     const acq = acquisition(); await acq.init(); const done = await acq.importFile({url:'https://books.example/book.txt',title:'海风'}); const template=acq.records.get(done.taskId)!;
+53:   it('does not advertise a merely running transport as a ready protected browser', async () => {
+55:     const acq = new TxtAcquisition({ dataDir:dir, library, bridge, cfg:()=>({...BOOKFISH_DEFAULTS,txtAcquisitionEnabled:true,browserBridgeEnabled:true}), browserGuard:async()=>undefined }); await acq.init();
+64:   it('does not let the UTF-8 damage allowance misclassify a tiny valid GBK text', () => {
+67:   it('keeps streaming normalization and quality equivalent across tiny chunk boundaries', () => {
+
+FILE tests/txt-acquisition-round3.test.ts
+20:   const acq = acquisition(); await acq.init(); const spy = vi.spyOn(library, 'importFileBestEffort').mockImplementationOnce(() => { throw Error('disk temporarily unavailable'); });
+24: describe('third-round original integrity', () => {
+25:   it('preserves the retained original and existing shelf entry when repair fails', async () => {
+26:     const acq=acquisition();await acq.init();const done=await acq.importFile({url:'https://books.example/a.txt',title:'海风'});const originalPath=acq.staging.resolveInside(acq.records.get(done.taskId)!.file!.path!);const originalBytes=readFileSync(originalPath);const shelfBefore=library.list();
+30:   it('finishes a pending raw commit on retry without requiring a World restart', async () => {
+31:     const acq=acquisition();await acq.init();const fault=vi.spyOn(acq.staging,'commitRaw').mockRejectedValueOnce(Object.assign(Error('busy'),{code:'EBUSY'}));
+34:   it('shares raw bytes safely across simultaneous tasks and duplicate shelf imports', async () => {
+35:     const acq=acquisition();await acq.init();const results=await Promise.all([1,2,3].map(()=>acq.importFile({url:'https://books.example/a.txt',title:'海风'})));
+39:   it('refuses a new task if its initial durable record cannot be written', async () => {
+40:     const acq=acquisition();await acq.init();mkdirSync(acq.records.file+'.'+process.pid+'.tmp');
+43:   it('does not let a retained retry consume a 101st active slot', async () => {
+48:   it('reports read permission failure as storage, preserving the original digest', async () => {
+52:   it('rejects a symlink identity before opening its target (filesystem fault fixture)', async () => {
+56:   it('does not mark completion or queue when cancelled just before shelf metadata commits', async () => {
+58:     library = new Library({dataDir:dir,beforeMetadataCommit:()=>{ if(armed) { armed=false; acq.cancel(acq.records.latest()!.id); } }}); library.open();
+59:     const callback=vi.fn(); acq=acquisition(callback);await acq.init();armed=true;
+64:   it('retains a retryable original when shelf persistence fails, preserving earlier shelf data', async () => {
+66:     const acq=acquisition();await acq.init();fail=true;const result=await acq.importFile({url:'https://books.example/a.txt',title:'海风'});
+69:   it('retries idempotently if the task receipt fails after the shelf commit', async () => {
+70:     const acq=acquisition();await acq.init();const original=acq.records.update.bind(acq.records);let fault=true;
+75:   it('recovers a raw commit interrupted before linking without a second download', async () => {
+76:     const acq = acquisition(); await acq.init(); const fault = vi.spyOn(acq.staging, 'commitRaw').mockRejectedValueOnce(Object.assign(Error('busy'), { code: 'EBUSY' }));
+79:     const restarted = acquisition(); await restarted.init(); expect(restarted.records.get(failed.taskId)?.file?.pendingPart).toBeUndefined();
+82:   it('replays only queue integration after restart, preserving one unread shelf item', async () => {
+83:     const acq = acquisition(() => { throw Error('queue unavailable'); }); await acq.init();
+85:     const callback = vi.fn(); const restarted = acquisition(callback); await restarted.init(); await restarted.resumeSelection(); await restarted.resumeSelection();
+88:   it('keeps persistent pending success when writing the queue receipt fails', async () => {
+90:     acq = acquisition(callback); await acq.init(); const done = await acq.importFile({ url: 'https://books.example/a.txt', title: '海风', origin: 'autonomous', intentId: randomUUID() });
+93:   it('World stop during async queue integration leaves a replayable receipt', async () => {
+95:     const acq = acquisition(async () => { entered(); await new Promise<void>(r => { release = r; }); }); await acq.init(); const running = acq.importFile({ url: 'https://books.example/a.txt', title: '海风', origin: 'autonomous', intentId: randomUUID() });
+98:   it('does not clean originals when task records are corrupt', async () => {
+100:     const restarted = acquisition(); await expect(restarted.init()).rejects.toThrow(/original.*preserved/);
+103:   it('surfaces statfs failure rather than claiming free disk space', async () => {
+104:     const staging = new AcquisitionStaging(join(dir, 'staging')); await staging.init();
+108:   it('distinguishes deletion permissions from quota pressure and nothing to do', async () => {
+109:     const staging = new AcquisitionStaging(join(dir, 'staging')); await staging.init(); const hash = 'a'.repeat(64); writeFileSync(join(staging.rawDir, hash + '.txt'), 'original');
+114:   it('rechecks live references before deleting either extension of the same hash', async () => {
+115:     const staging = new AcquisitionStaging(join(dir, 'staging')); await staging.init(); const hash = 'a'.repeat(64);
+126:   it('rolls back in-memory task changes when record persistence fails', async () => {
+
+FILE tests/txt-acquisition-supplement-tool.test.ts
+11: describe('model-visible precise intent termination',()=>{
+16:     library.open();await acq.init();selection.start({pushEvent:async()=>undefined});
+21:     acq.resolve=async()=>['93.184.216.34'];acq.fetchImpl=async()=>{started();return new Response(new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode('第一章\n'));},cancel(){bodyCancelled=true;}}));};
+
+FILE tests/txt-acquisition-supplement.test.ts
+22:       cancelExternal:(id:string,reason?:'restart_interrupted')=>acq.cancelByIntentId(id,reason),isExternalTask:(id:string)=>!!acq.records.get(id),getExternalTask:(id:string)=>acq.records.get(id)} as any);
+25:       onTaskCreated:(task:any)=>selection.onExternalTaskCreated(task),onTaskStateChanged:(task:any)=>(selection as any).onExternalTaskStateChanged(task),
+26:       onImported:async(task:any,identity:any)=>{await options.beforeReceipt?.();selection.onExternalImport(task,identity);}} as any);
+28:   make();await acq.init();selection.start({pushEvent:async()=>undefined} as any);
+34:     restart:async()=>{await selection.stop();await acq.stop();library.close();library=new Library({dataDir:dir});library.open();make();await acq.init();selection.start({pushEvent:async()=>undefined} as any);await acq.resumeSelection();}};
+37: describe('supplement identity provenance',()=>{
+38:   it('holds contradictory leading metadata for confirmation without rejecting readable prose',async()=>{
+43:   it('downgrades legacy exact receipts whose independent source declarations are absent',async()=>{
+63:   it('does not create autonomous receipts for a manual import even if a caller supplies an intent id',async()=>{
+73:   it('preserves actual filename metadata across an explicit retry',async()=>{
+79: describe('supplement terminal reconciliation',()=>{
+80:   it('keeps World shutdown distinct from an explicit cancellation through two restarts',async()=>{
+83:     expect(interrupted.failure?.code).toBe('restart_interrupted');await f.restart();await f.restart();expect(f.intent().status).toBe('deferred');expect(f.intent().failure?.code).toBe('txt_retry_available');expect(f.library.selection().queue).toHaveLength(0);
+85:   it('pulls a committed fact after a lost callback without waiting indefinitely for a restart',async()=>{
+86:     const f=await fixture();vi.spyOn(f.selection,'onExternalImport').mockImplementationOnce(()=>{throw Error('lost callback');});
+91:   it('does not authorize a retry or a new download for an already cancelled intent',async()=>{
+93:     const first=await f.import();f.selection.cancel(f.id);const before=request.mock.calls.length;
+97:   it('retries a recoverable HTTP failure on the same task and ignores a stale failure event',async()=>{
+101:     f.selection.onExternalTaskStateChanged(old);expect(f.intent().status).toBe('reading');expect(f.library.selection().queue).toHaveLength(1);expect(f.library.list()[0].confirmedChars).toBe(0);
+103:   it('reconciles an encoding rejection as terminal without occupying acquiring after two restarts',async()=>{
+107:   it('reconciles an expired discovered candidate without starting a download',async()=>{
+114:   it('treats a missing TXT task as unavailable instead of inferring a matching shelved book',async()=>{
+128: describe('supplement durable policy revocation',()=>{
+129:   it('preserves a user cancellation when policy revocation and a late callback compete',async()=>{
+131:     const running=f.import();await entered.promise;f.selection.cancel(f.id);f.cfg.allowNetwork=false;f.selection.onConfigChanged();resume.release();await running;
+134:   it('migrates an old deferred policy_changed record into a persistent revocation fence',async()=>{
+136:     f.library.updateSelection(state=>{const intent=state.intents[0];intent.status='deferred';intent.failure={code:'policy_changed',message:'legacy policy',at:Date.now()};delete intent.externalPolicyRevokedAt;state.queue=[];});
+137:     await f.restart();await f.restart();f.selection.onExternalImport({id:result.taskId,intentId:f.id,bookKey:f.library.list()[0].key},'exact');
+138:     expect(f.intent().externalPolicyRevokedAt).toBeDefined();expect(f.intent().status).toBe('deferred');expect(f.library.selection().queue).toHaveLength(0);
+140:   it('requires an explicit permitted plan to resume a revoked committed book',async()=>{
+144:     expect(f.library.selection().queue).toHaveLength(0);f.selection.plan(f.id,'queue');expect(f.library.selection().queue).toHaveLength(1);expect(f.intent().externalPolicyRevokedAt).toBeUndefined();
+151:     f.cfg[key]=true;f.selection.onConfigChanged();f.selection.onExternalImport({id:result.taskId,intentId:f.id,bookKey:f.library.list()[0].key},'exact');
+155: describe('supplement unsettled receipt retention',()=>{
+156:   it('replays a committed but unpersisted receipt once after two restarts and 110 histories',async()=>{
+165:   it('makes the receipt backlog observable and refuses new tasks without orphan records',async()=>{
+168:     const before=f.acq.records.list().length;expect(f.acq.summary().history.pendingSelectionReceipts).toBe(100);
