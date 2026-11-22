@@ -42,7 +42,7 @@ it('groups the three import methods in one selector and marks experiments', asyn
   add.click();
   expect(recommend.hidden).toBe(false);
   const forms = [...recommend.querySelectorAll('form')];
-  expect(forms).toHaveLength(3);
+  expect(forms).toHaveLength(4); // Three import methods; title/author now has two acquisition routes.
   expect(forms[0].parentElement?.hidden).toBe(false);
   expect(forms[1].parentElement?.hidden).toBe(true);
   expect(root.querySelector<HTMLElement>('#bf-novel-fetch')?.hidden).toBe(true);
@@ -60,4 +60,9 @@ it('groups the three import methods in one selector and marks experiments', asyn
   expect(gate.hidden).toBe(false);
   expect(gate.textContent).toContain('需要先安装小说获取引擎');
   expect(gate.compareDocumentPosition(forms[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  const route = recommend.querySelector<HTMLSelectElement>('select[aria-label="获取渠道"]')!;
+  expect([...route.options].map(option => option.textContent)).toEqual(['小说引擎','浏览器辅助 TXT 获取']);
+  route.value='browser';route.dispatchEvent(new Event('change',{bubbles:true}));
+  expect(root.querySelector<HTMLElement>('#bf-browser-txt')!.hidden).toBe(false);
+  expect(forms[2].parentElement!.hidden).toBe(true);
 });

@@ -47,6 +47,16 @@ async function mount(panelId='status') {
 function action(root: HTMLElement, label: string) { return [...root.querySelectorAll('button')].find(b => b.textContent === label)!; }
 async function settle() { await new Promise(resolve => setTimeout(resolve, 25)); }
 describe('library panel with real World data plane', () => {
+  it('offers browser TXT beside the engine and opens first-use guidance even when the engine is missing',async()=>{
+    const {root}=await mount('shelf');
+    action(root,'＋ 推荐一本书').click();await settle();
+    const picker=root.querySelector<HTMLSelectElement>('select[aria-label="导入方式"]')!;picker.value='title';picker.dispatchEvent(new Event('change',{bubbles:true}));await settle();
+    const route=root.querySelector<HTMLSelectElement>('select[aria-label="获取渠道"]')!;
+    expect(route.disabled).toBe(false);route.value='browser';route.dispatchEvent(new Event('change',{bubbles:true}));await settle();
+    const browser=root.querySelector<HTMLElement>('#bf-browser-txt')!;expect(browser.hidden).toBe(false);
+    expect(browser.querySelector('details')!.open).toBe(true);expect(browser.textContent).toContain('尚未接入正式安全控制器');
+    expect(action(browser,'发现 TXT 文件').disabled).toBe(true);
+  });
   it('renders acquisition source identity from persisted Book metadata instead of the wanted title',async()=>{
     persist({txtAcquisitionEnabled:true,allowNetwork:true});const acq=(world as any).txtAcquisition;
     acq.resolve=async()=>['93.184.216.34'];acq.fetchImpl=async()=>new Response('她把信放进抽屉，听海风吹过窗口。'.repeat(80));

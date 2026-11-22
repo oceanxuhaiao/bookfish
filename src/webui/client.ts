@@ -12,6 +12,7 @@ import type { NovelCandidateCheck, NovelFetchStatus, NovelResumeView, NovelSearc
 import { groupCandidatesByBook, type CandidateMatch, type NovelSearchCandidate } from '../novel-match.ts';
 import { QQ_GROUP_QR } from './qq-group.ts';
 import { HelpCenterView, helpButton, helpStyle, openGuideDrawer, renderHelpBanner } from './help.ts';
+import { mountBrowserTxt } from './browser-txt.ts';
 import type { AnnouncementView } from '../help-store.ts';
 
 const supportPanel={ async mount(ctx:WebUiPanelContext) {
@@ -122,7 +123,12 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   pages.shelf.append(shelf);shelf.hidden=true;
   const novel=el('section','',methodPanel);novel.className='card';novel.id='bf-novel-fetch';novel.hidden=true;
   el('h3',say('按书名或作者获取','Fetch by title or author'),novel);
-  el('p',say('书名或作者至少填一个，也可同时填写。搜索完成后会先校验每个候选版本的目录，只列出通过校验的版本；都不通过时显示无成功搜索结果。获取全本时仍会再次校验目录连续性、缺章、页数探针与版本一致性，全部通过才加入书架。','Enter a title, an author, or both. After searching, every candidate edition is checked first and only versions that pass are listed; if none pass, the panel reports no successful search results. Fetching still re-checks catalog continuity, missing chapters, page probes and edition consistency before a book enters the shelf.'),novel);
+  const routeLabel=el('label',say('获取渠道','Acquisition route'),novel);
+  const route=document.createElement('select');route.setAttribute('aria-label',say('获取渠道','Acquisition route'));routeLabel.append(route);
+  for(const [value,label] of [['engine',say('小说引擎','Novel engine')],['browser',say('浏览器辅助 TXT 获取','Browser-assisted TXT acquisition')]]){const option=document.createElement('option');option.value=value;option.textContent=label;route.append(option);}
+  const enginePanel=el('div','',novel);
+  const browserTxt=mountBrowserTxt(novel,ctx,say);
+  el('p',say('书名或作者至少填一个，也可同时填写。搜索完成后会先校验每个候选版本的目录，只列出通过校验的版本；都不通过时显示无成功搜索结果。获取全本时仍会再次校验目录连续性、缺章、页数探针与版本一致性，全部通过才加入书架。','Enter a title, an author, or both. After searching, every candidate edition is checked first and only versions that pass are listed; if none pass, the panel reports no successful search results. Fetching still re-checks catalog continuity, missing chapters, page probes and edition consistency before a book enters the shelf.'),enginePanel);
   const novelGate=el('p',say('按书名或作者获取前，需要先安装小说获取引擎。点下方“一键安装小说引擎”，或导入离线运行时包；安装完成后搜索会自动启用。文件导入和链接获取不受影响。','Before fetching by title or author, install the novel fetch engine. Use “Install novel engine” below, or import an offline runtime ZIP; search enables automatically when ready. File import and link fetching are unaffected.'),novel);novelGate.className='novel-engine-gate';novelGate.hidden=true;novelGate.setAttribute('role','status');
   const novelForm=document.createElement('form');novelForm.className='novel-form';novel.append(novelForm);
   const runtimeHost=document.createElement('div');runtimeHost.className='runtime-guide';runtimeHost.hidden=true;novelForm.before(runtimeHost);
@@ -140,7 +146,8 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   const novelProgressText=el('small','',novelForm);novelProgressText.hidden=true;
   function selectImportMethod(method:string,focus=false){
     filePanel.hidden=method!=='file';linkPanel.hidden=method!=='link';novel.hidden=method!=='title';
-    if(method==='title')void pollNovel();
+    browserTxt.activate(method==='title'&&route.value==='browser',{title:novelTitleInput.value,author:novelAuthorInput.value});
+    if(method==='title'&&route.value==='engine')void pollNovel();
     if(!focus)return;
     if(method==='file')(importForm.querySelector('input[type=file]') as HTMLInputElement|null)?.focus();
     else if(method==='link')(remoteForm.querySelector('input') as HTMLInputElement|null)?.focus();
@@ -154,6 +161,9 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   const novelResume=el('div','',novel);novelResume.className='novel-resume';
   const novelList=el('div','',novel);novelList.className='novel-candidates';
   const novelTasks=el('div','',novel);novelTasks.className='novel-task-list';
+  // Keep the route picker usable even when the optional novel engine is absent.
+  for(const node of [novelGate,novelForm,runtimeHost,novelHint,novelNote,novelResult,novelResume,novelList,novelTasks])if(node.parentElement===novel)enginePanel.append(node);
+  route.addEventListener('change',()=>{const browser=route.value==='browser';enginePanel.hidden=browser;browserTxt.activate(browser,{title:novelTitleInput.value,author:novelAuthorInput.value});},{signal:ctx.signal});
   const serial=el('section','',recommend);serial.className='card';serial.id='bf-serial-follow';
   const serialHead=el('h3',say('作为连载追更','Follow a serial'),serial);const serialExperimental=el('span',say('实验功能','Experimental'),serialHead);serialExperimental.className='badge experimental';
   el('p',say('先读取完整目录，确认来源、连载状态和章数，再建立一个可增量追加的连载条目。它与“下载当前版本”不同：只追加新章，不清空已读进度。','Read the full catalog first, confirm source, status and chapter count, then create an incremental serial entry. Unlike “download this version”, it only appends new chapters and never resets reading progress.'),serial);

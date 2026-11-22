@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-21",
+  "updatedAt": "2026-11-22",
   "categories": [
     {
       "id": "start",
@@ -34,6 +34,16 @@
           "contentPath": "guides/fetch-book.md",
           "minVersion": null,
           "enabled": true
+        },
+        {
+          "id": "browser-txt",
+          "title": "浏览器辅助 TXT 获取",
+          "summary": "从资源页发现文件，检查配置并保留导入质量报告。",
+          "icon": "🌐",
+          "contentPath": "guides/browser-txt.md",
+          "minVersion": null,
+          "enabled": true,
+          "experimental": true
         },
         {
           "id": "serial-follow",

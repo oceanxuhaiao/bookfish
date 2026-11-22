@@ -413,6 +413,28 @@ export class BookfishWorld implements World {
         if(this.host){if(method==='upload_begin'&&args.length===1)return this.transfers.begin(args[0]);if(method==='upload_chunk'&&args.length===3)return this.transfers.chunk(args[0],args[1],args[2]);if(method==='upload_finish'&&args.length===1)return this.transfers.start(args[0]);if(method==='transfer_cancel'&&args.length===1)return this.transfers.cancel(args[0]);if(method==='backup_begin'&&args.length===0)return this.transfers.download();if(method==='backup_read'&&args.length===2)return this.transfers.read(args[0],args[1]);}
         if (method === 'get' && args.length === 0) return { discussions: this.discussions.list(), config: { ...this.opts.cfg }, status: this.status(), books: this.host ? this.library.list() : [], journal: this.host && this.library.status().current ? this.library.journal() : null, reviews: this.host && this.library.status().current ? this.library.reviews() : null, novel: this.novelFetches.status(), serial: this.serialSync.status(), selection: this.host ? this.selection.view() : this.selection.detachedView() };
         if (!this.host) throw new Error('Bookfish is not mounted');
+        if (method === 'txt_setup' && args.length === 0) {
+          const state = this.txtAcquisition.summary();
+          return { networkEnabled: this.opts.cfg.allowNetwork, enabled: state.enabled,
+            bridgeEnabled: this.opts.cfg.browserBridgeEnabled === true, controllerReady: state.controllerReady,
+            transportConnected: state.transportConnected, browserReady: state.browserReady };
+        }
+        if (method === 'txt_status' && args.length === 1) return this.txtAcquisition.status(requiredText(args[0], 'taskId', 80));
+        if (['txt_discover', 'txt_import', 'txt_cancel'].includes(method) && args.length === 1) {
+          if (method !== 'txt_cancel' && !this.txtAcquisition.summary().browserReady) throw new Error('浏览器辅助 TXT 获取尚未就绪，请先完成必要配置；安全控制器未就绪时不能开始。');
+          if (method === 'txt_discover') {
+            const value = args[0] as Record<string, unknown> | null;
+            if (!value || typeof value !== 'object') throw new Error('Invalid TXT discovery request');
+            return this.txtAcquisition.discover({ pageUrl: requiredText(value.url, 'resource page URL', 2000),
+              title: requiredText(value.title, 'title', 200), ...(value.author ? { author: requiredText(value.author, 'author', 100) } : {}), origin: 'manual' });
+          }
+          const value = args[0] as Record<string, unknown>;
+          const taskId = requiredText(method === 'txt_cancel' ? args[0] : value?.taskId, 'taskId', 80);
+          const task = this.txtAcquisition.records.get(taskId);
+          if (!task || task.origin !== 'manual') throw new Error('Only a manual TXT task may be changed from this entry');
+          if (method === 'txt_cancel') return this.txtAcquisition.cancel(taskId);
+          return this.txtAcquisition.importFile({ taskId, candidateId: requiredText(value.candidateId, 'candidateId', 80) });
+        }
         if (method === 'book' && args.length === 1) { const key = requiredText(args[0], 'bookKey', 150); const book = this.library.list().find(b=>b.key===key); if (!book) throw new Error('Book not found'); return { book, journal: this.library.journal(key), reviews: this.library.reviews(key) }; }
         if (method === 'timeline' && args.length === 1) { const o = args[0] as { bookKey?: unknown; before?: unknown }; if (!o || typeof o !== 'object') throw new Error('Invalid timeline request'); return this.library.timeline(o.bookKey, o.before); }
         if (method === 'novel_status' && args.length === 0) return this.novelFetches.status();

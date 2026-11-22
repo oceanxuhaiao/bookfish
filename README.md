@@ -16,6 +16,8 @@ Coopanion / Cortico World 扩展，0.65.1 整体测试版。给大肥鱼一本�
 
 ## 小说引擎运行时
 
+本机 TXT 试用版还可在「书架」→「＋ 推荐一本书」→「书名或作者获取」的「获取渠道」选择「浏览器辅助 TXT 获取」。首次选择显示必要配置检查，并提供帮助和配置入口。此通道从有权访问的资源页发现具体作品的 TXT/Markdown；当前正式安全控制器尚未接入，配置向导会保持不可用提示，不会仅凭扩展连接解除保护。使用说明在「帮助与更新」→「浏览器辅助 TXT 获取」。
+
 扩展包不包含 85 MB 运行时。一键安装优先使用[国内阿里云 OSS 镜像](https://bookfish-runtime.oss-cn-hangzhou.aliyuncs.com/bookfish-novel-runtime-1.12.0-bf1-win32-x64.zip)，失败时回退 GitHub；Windows x64 运行时、上游源码、SBOM、SHA256SUMS 和许可证说明在 [runtime/README.md](https://github.com/oceanxuhaiao/bookfish/blob/main/runtime/README.md) 与 [runtime-1.12.0-bf1 Release](https://github.com/oceanxuhaiao/bookfish/releases/tag/runtime-1.12.0-bf1)。
 
 ## 非原创内容与第三方组件

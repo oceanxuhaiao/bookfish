@@ -21,8 +21,8 @@ describe('help content catalog', () => {
     expect(catalog.currentVersion).toBe('0.65.1');
     expect(catalog.currentVersion).toBe(BOOKFISH_VERSION);
     expect(catalog.categories).toHaveLength(7);
-    expect(allFeatures(catalog)).toHaveLength(19);
-    expect(new Set(allFeatures(catalog).map((feature) => feature.id)).size).toBe(19);
+    expect(allFeatures(catalog)).toHaveLength(20);
+    expect(new Set(allFeatures(catalog).map((feature) => feature.id)).size).toBe(20);
     for (const feature of allFeatures(catalog)) {
       expect(readGuide(catalog, feature.id).markdown.length).toBeGreaterThan(80);
     }

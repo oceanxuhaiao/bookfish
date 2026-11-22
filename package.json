@@ -36,7 +36,7 @@
       "memory"
     ],
     "describe": "describe.json",
-    "webUiClient": "lib/webui-txt-0651.js"
+    "webUiClient": "lib/webui-txt-setup-0651.js"
   },
   "files": [
     "assets",

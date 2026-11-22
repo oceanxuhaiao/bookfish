@@ -63,7 +63,7 @@ describe('help center view', () => {
     const host = document.createElement('div');
     await view.open(host);
     expect(calls.map((call) => call.method)).toEqual(['help_index']);
-    expect(host.querySelectorAll('.bf-help-item').length).toBe(19);
+    expect(host.querySelectorAll('.bf-help-item').length).toBe(20);
     expect(host.textContent).toContain('大肥鱼 · 功能指南');
 
     const first = host.querySelector<HTMLButtonElement>('.bf-help-item')!;
