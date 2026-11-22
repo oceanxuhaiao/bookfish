@@ -42,7 +42,7 @@ it('groups the three import methods in one selector and marks experiments', asyn
   add.click();
   expect(recommend.hidden).toBe(false);
   const forms = [...recommend.querySelectorAll('form')];
-  expect(forms).toHaveLength(4); // Three import methods; title/author now has two acquisition routes.
+  expect(forms).toHaveLength(5); // Three import methods; browser route has search plus optional manual discovery.
   expect(forms[0].parentElement?.hidden).toBe(false);
   expect(forms[1].parentElement?.hidden).toBe(true);
   expect(root.querySelector<HTMLElement>('#bf-novel-fetch')?.hidden).toBe(true);

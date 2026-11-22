@@ -31,7 +31,7 @@ describe('bookfish_import_txt tool surface', () => {
     expect(tool!.description).toContain('discover');
     expect(tool!.description).toContain('repair');
     const actions = (tool!.parameters as { properties: { action: { enum: string[] } } }).properties.action.enum;
-    expect(actions).toEqual(['discover', 'import', 'status', 'retry', 'repair', 'cancel']);
+    expect(actions).toEqual(['search', 'discover', 'import', 'status', 'retry', 'repair', 'cancel']);
 
     const described = BOOKFISH.describe?.tools.find((entry) => entry.name === 'bookfish_import_txt');
     expect(described?.summary).toBeTruthy();

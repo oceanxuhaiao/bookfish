@@ -200,6 +200,8 @@ export class BookfishWorld implements World {
         const intentId = args.intentId === undefined ? undefined : requiredText(args.intentId, 'intentId', 80);
         const origin = intentId ? 'autonomous' as const : 'manual' as const;
         switch (action) {
+          case 'search':
+            return this.txtAcquisition.searchBooks({...(args.title?{title:requiredText(args.title,'title',200)}:{}),...(args.author?{author:requiredText(args.author,'author',100)}:{})});
           case 'discover':
             return this.txtAcquisition.discover({ pageUrl: requiredText(args.pageUrl, 'pageUrl', 2000),
               title: requiredText(args.title, 'title', 200),
@@ -228,7 +230,7 @@ export class BookfishWorld implements World {
           case 'cancel':
             return this.txtAcquisition.cancel(requiredText(taskId, 'taskId', 80));
           default:
-            throw new Error('bookfish_import_txt action must be discover, import, status, retry, repair or cancel');
+            throw new Error('bookfish_import_txt action must be search, discover, import, status, retry, repair or cancel');
         }
       },
     };
@@ -438,8 +440,12 @@ export class BookfishWorld implements World {
           return {...result,changed:result.changed||revokedStandard};
         }
         if (method === 'txt_status' && args.length === 1) return this.txtAcquisition.status(requiredText(args[0], 'taskId', 80));
-        if (['txt_discover', 'txt_import', 'txt_cancel'].includes(method) && args.length === 1) {
+        if (['txt_search','txt_discover', 'txt_import', 'txt_cancel'].includes(method) && args.length === 1) {
           if (method !== 'txt_cancel' && !this.txtAcquisition.summary().browserReady) throw new Error('浏览器辅助 TXT 获取尚未就绪，请选择已确认的普通模式或增强保护，并连接扩展。');
+          if(method==='txt_search'){
+            const value=args[0] as Record<string,unknown>|null;if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Invalid book search');
+            return this.txtAcquisition.searchBooks({...(value.title?{title:requiredText(value.title,'title',200)}:{}),...(value.author?{author:requiredText(value.author,'author',100)}:{})});
+          }
           if (method === 'txt_discover') {
             const value = args[0] as Record<string, unknown> | null;
             if (!value || typeof value !== 'object') throw new Error('Invalid TXT discovery request');

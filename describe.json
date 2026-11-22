@@ -1009,7 +1009,7 @@
     },
     {
       "name": "bookfish_import_txt",
-      "description": "TXT/MD files via browser: discover, import, status, retry, repair, cancel. Loose import reports warnings; no login or paywall bypass.",
+      "description": "TXT/MD via browser: search title or author for page hints; discover a selected page; import, status, retry, repair, cancel. Search labels are not verified book identity. No login/paywall bypass.",
       "parameters": {
         "type": "object",
         "additionalProperties": false,
@@ -1017,6 +1017,7 @@
           "action": {
             "type": "string",
             "enum": [
+              "search",
               "discover",
               "import",
               "status",
@@ -1062,8 +1063,8 @@
         "write"
       ],
       "summary": {
-        "zh": "浏览器辅助获取现成 TXT/Markdown 文件：发现候选、下载并宽松导入、查询状态、重试或补正；不绕过登录与付费限制。",
-        "en": "Browser-assisted TXT/Markdown acquisition: discovers candidates, downloads and imports leniently, reports status, retries or repairs; never bypasses logins or paywalls."
+        "zh": "浏览器辅助获取现成 TXT/Markdown 文件：按书名或作者搜索、发现候选、下载并宽松导入、查询状态、重试或补正；不绕过登录与付费限制。",
+        "en": "Browser-assisted TXT/Markdown acquisition: searches by title or author, discovers candidates, downloads and imports leniently, reports status, retries or repairs; never bypasses logins or paywalls."
       }
     },
     {

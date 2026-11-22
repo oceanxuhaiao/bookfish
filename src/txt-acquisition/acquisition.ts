@@ -25,6 +25,7 @@ import {
 import { checkUrl, hostOf, isPolicyError, type HostResolver } from './url-policy.ts';
 import { redactMessage, sourceReference } from './privacy.ts';
 import { browserPolicy } from './browser-policy.ts';
+import { bookSearchUrl,parseBookSearch,BOOK_SEARCH_ORIGIN } from './book-search.ts';
 
 export interface PageLoadResult { html: string; close: () => Promise<void> }
 export type PageLoader = (url: string, options: { allowNetwork: boolean; port: number; resolve?: HostResolver; signal?: AbortSignal }) => Promise<PageLoadResult>;
@@ -110,6 +111,7 @@ export class TxtAcquisition {
   private readonly controllerReady: () => boolean;
   private readonly browserGuard?: (url: string) => Promise<void>;
   private lastBrowserPolicy = '';
+  private readonly searches=new Set<AbortController>();
   private readonly pageUrls = new Map<string, string>();
   private readonly onImported?: (task: AcquisitionTask, identity: IdentityMatch) => void | Promise<void>;
   private stopped = false;
@@ -277,6 +279,7 @@ export class TxtAcquisition {
 
   cancelByIntentId(intentId:string,reason?:'restart_interrupted'):void{for(const task of this.records.list())if(task.intentId===intentId&&!isTerminal(task.status))this.cancel(task.id,reason);}
   onConfigChanged():void{
+    if(this.lastBrowserPolicy!==this.policyKey()||!this.cfg().allowNetwork||!this.cfg().txtAcquisitionEnabled)for(const abort of this.searches)abort.abort(new Error('Browser search permission revoked'));
     const cfg=this.cfg(), policyChanged=this.lastBrowserPolicy!==this.policyKey();this.lastBrowserPolicy=this.policyKey();for(const [id,abort] of this.aborts){const task=this.records.get(id);if(policyChanged)abort.abort(new AcquisitionFailure('policy_blocked','Browser protection policy changed'));else if(!cfg.allowNetwork||!cfg.txtAcquisitionEnabled||(task?.origin==='autonomous'&&!cfg.autonomousAcquisition))abort.abort(new Error('Acquisition permission revoked'));}
   }
 
@@ -403,6 +406,27 @@ export class TxtAcquisition {
     }, { status: 'candidate_ready', note: `${records.length} candidate(s)` });
   }
 
+  /** Read-only search: no shelf entry, download or reading commitment is created. */
+  async searchBooks(input:{title?:string;author?:string}) {
+    this.requireEnabled();if(this.stopped)throw Error('World stopped');
+    const url=bookSearchUrl(input.title??'',input.author??'');
+    if(this.searches.size>=2)throw Error('搜索正在进行，请稍后重试。');
+    const abort=new AbortController();this.searches.add(abort);
+    const signal=AbortSignal.any([abort.signal,AbortSignal.timeout(30000)]);
+    try{
+      await this.authorizeBrowser(url);signal.throwIfAborted();
+      const bridge=await this.ensureBridge();let html:string;
+      if(bridge)html=(await bridge.fetchPage(url,{allowNetwork:this.cfg().allowNetwork,signal})).html;
+      else {const port=this.cfg().browserDebugPort??0;if(!port)throw new BrowserError('browser_unavailable','请先连接浏览器扩展。');const page=await this.pageLoader(url,{allowNetwork:this.cfg().allowNetwork,port,signal,...(this.resolve?{resolve:this.resolve}:{})});try{html=page.html;}finally{await page.close().catch(()=>undefined);}}
+      signal.throwIfAborted();await this.authorizeBrowser(url);signal.throwIfAborted();
+      const result=parseBookSearch(html);return {provider:'Bing',authorizationOrigin:BOOK_SEARCH_ORIGIN,...result};
+    }catch(error){
+      if(signal.aborted)throw new Error('搜索已中止或超时，请检查连接后重试。');
+      if(error instanceof BridgeError&&['permission_missing','policy_blocked'].includes(error.code))throw new Error('请在 BookFish 浏览器扩展中授权 '+BOOK_SEARCH_ORIGIN+'，再返回搜索。');
+      throw error;
+    }finally{this.searches.delete(abort);}
+  }
+
   async discover(input: { pageUrl: string; title: string; author?: string; origin?: AcquisitionOrigin; intentId?: string }): Promise<TaskView> {
     await this.maintenance;
     this.requireEnabled();
@@ -412,6 +436,17 @@ export class TxtAcquisition {
     const title = String(input.title ?? '').trim();
     if (!pageUrl || !title) throw new AcquisitionFailure('invalid_input', 'pageUrl and title are required');
     const task = this.newTask({ title, ...(input.author ? { author: input.author } : {}), origin: input.origin ?? 'manual', ...(input.intentId ? { intentId: input.intentId } : {}) });
+    if(this.records.get(task.id)?.failure?.code==='cancelled')return this.status(task.id) as TaskView;
+    let directFile=false;try{directFile=/\.(txt|md|markdown)$/iu.test(new URL(pageUrl).pathname);}catch{/* Normal discovery records invalid URLs as task failures. */}
+    if(directFile){
+      this.setStatus(task.id,'discovering');
+      try{const checked=await checkUrl(pageUrl,{allowNetwork:cfg.allowNetwork,...(this.resolve?{resolve:this.resolve}:{})});let filename=checked.pathname.split('/').at(-1)!;try{filename=decodeURIComponent(filename);}catch{/* Keep escaped filename. */}
+        if(this.records.get(task.id)?.failure?.code==='cancelled')return this.status(task.id) as TaskView;
+        if(!this.cfg().allowNetwork||!this.cfg().txtAcquisitionEnabled)throw new AcquisitionFailure('policy_blocked','Acquisition permission changed');
+        this.records.update(task.id,draft=>{draft.sourceHost=checked.hostname;});
+        return this.view(this.addCandidates(task.id,[{url:checked.href,filename,format:/\.(md|markdown)$/iu.test(filename)?'md':'txt',...extractIdentity(filename)}]));
+      }catch(error){this.classifyFailure(task.id,error);return this.status(task.id) as TaskView;}
+    }
     return await this.runDiscovery(task.id, pageUrl);
   }
 
@@ -826,6 +861,7 @@ export class TxtAcquisition {
 
   /** Release the loopback port when the world stops. */
   async stop(): Promise<void> {
+    for(const abort of this.searches)abort.abort(new Error('World stopped'));
     this.stopped = true;
     if(this.policyTimer)clearInterval(this.policyTimer);this.policyTimer=undefined;
     for (const abort of this.aborts.values()) abort.abort(new AcquisitionFailure('restart_interrupted','World stopped'));

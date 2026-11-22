@@ -2,6 +2,7 @@ import type { WebUiPanelContext } from 'cortico/web/shared/client-panel.ts';
 import type { TaskView } from '../txt-acquisition/types.ts';
 import { openGuideDrawer } from './help.ts';
 import type { BrowserSetupResult } from '../txt-acquisition/setup.ts';
+import type { BookSearchHit } from '../txt-acquisition/book-search.ts';
 
 export interface TxtSetup {
   networkEnabled: boolean; enabled: boolean; bridgeEnabled: boolean;
@@ -48,7 +49,14 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
   const pairing=el('a',say('连接 Edge/Chrome 扩展','Connect the Edge/Chrome extension'),setup);pairing.href=settings.href;pairing.hidden=true;
   help.onclick = () => { void openGuideDrawer(ctx, say, 'browser-txt'); };
   const refresh = el('button', say('重新检查配置', 'Recheck settings'), advanced); refresh.type = 'button';
-  const form = el('form', ''); form.className = 'novel-form';
+  const searchForm=el('form','');searchForm.className='novel-form';searchForm.dataset.bookSearch='true';
+  const searchTitleLabel=el('label',say('书名（可只填作者）','Title (or search by author)'),searchForm),searchTitle=el('input','',searchTitleLabel);searchTitle.type='text';searchTitle.maxLength=200;
+  const searchAuthorLabel=el('label',say('作者（可只填书名）','Author (or search by title)'),searchForm),searchAuthor=el('input','',searchAuthorLabel);searchAuthor.type='text';searchAuthor.maxLength=100;
+  el('small',say('书名或作者至少填一个。通过 Bing 搜索 TXT 资源，搜索词会发送给 Bing；先在浏览器扩展中授权 https://cn.bing.com。搜索结果不代表已经验证作品身份或版权授权。','Enter a title or author. Queries are sent to Bing to search for TXT resources; grant https://cn.bing.com in the extension first. Results do not verify work identity or access rights.'),searchForm);
+  const search=el('button',say('搜索书籍','Search books'),searchForm);search.type='submit';search.disabled=true;
+  const searchResults=el('div','');
+  const manual=el('details','');el('summary',say('已有资源页地址？手动发现（可选）','Already have a resource page? Manual discovery (optional)'),manual);
+  const form = el('form', '',manual); form.className = 'novel-form';form.dataset.resource='true';
   function input(label: string, type: string, max: number) {
     const row = el('label', label, form), node = el('input', '', row); node.type = type; node.maxLength = max; return node;
   }
@@ -62,7 +70,7 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
   let modeInitialized=false,standardAccepted=false;
   function renderMode(){standardRow.hidden=mode.value!=='standard'||standardAccepted;modeWarning.textContent=mode.value==='standard'?say('普通模式不要求安全组件或独立浏览器。确认后，模型自主浏览同样可用；这是较弱保障，来源权限和下载检查仍保留。','Standard mode needs no controller or isolated browser and also permits autonomous browsing after consent. It provides weaker protection; source permissions and download checks remain.'):say('增强保护需要安全组件和独立浏览器；推荐使用。','Enhanced protection requires a controller and isolated browser and is recommended.');}
   async function check() {
-    ready = false; discover.disabled = true;
+    ready = false; discover.disabled = search.disabled = true;
     const state = await ctx.invoke<TxtSetup>('txt_setup', []);
     if (ctx.signal.aborted) return false;
     if(!modeInitialized){mode.value=state.protectionMode??'enhanced';modeInitialized=true;}
@@ -80,13 +88,13 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
     const localReady=state.networkEnabled&&state.enabled&&state.bridgeEnabled&&(state.controllerReady||state.standardAccepted===true&&state.protectionMode==='standard');
     progressTitle.textContent=ready?say('配置完成，可以开始获取','Setup complete. You can start acquiring files'):localReady?say('配置尚未完成：还差浏览器扩展连接','Setup incomplete: connect the browser extension'):say('配置尚未完成：请先完成下方模式与权限设置','Setup incomplete: choose a mode and confirm permissions below');
     const instructions=ready?[
-      say('连接配置已通过。填写下方书名和资源页地址，点击“发现 TXT 文件”。','Connection checks passed. Enter a title and resource page below, then discover TXT files.'),
+      say('连接配置已通过。填写下方书名或作者，点击“搜索书籍”，选择作品后查看 TXT 候选并导入。无需先找资源页地址。','Connection checks passed. Search by title or author, choose a work, then find TXT candidates and import. No resource page URL is required.'),
       say('每个新网站仍需在扩展弹窗中填写资源页地址，点击“授权这个来源”，并确认浏览器权限；当前页面无法验证你是否已授权某个网站。','Each new website still needs source permission in the extension popup. This page cannot verify individual website grants.'),
     ]:localReady?[
       say('本机设置已保存；一键配置还不会自动安装浏览器扩展。','Local settings are saved; setup does not yet install the browser extension automatically.'),
       say('点击“查看扩展文件夹位置”。在 Edge 地址栏输入 edge://extensions（Chrome 用 chrome://extensions），打开“开发人员模式”，选择“加载解压缩的扩展”，选中该文件夹。','Show the extension folder. Open edge://extensions (chrome://extensions in Chrome), enable developer mode and load that unpacked folder.'),
       say('打开配置页复制端口和令牌，在浏览器工具栏打开 BookFish 扩展，分别填入后点击“保存并连接”。不要把令牌发到聊天中。','Copy the port and token from settings into the BookFish extension popup, then save and connect. Do not share the token in chat.'),
-      say('在扩展中填写要访问的资源页地址，点击“授权这个来源”，并确认浏览器权限。','Enter the resource page in the extension popup, grant that source and confirm the browser permission.'),
+      say('先在扩展中填写 https://cn.bing.com，点击“授权这个来源”并确认权限，用于搜书；打开搜索结果里的新网站时，再授权相应来源。','First grant https://cn.bing.com in the extension for book search. Grant additional sources before opening search results.'),
       say('回到这里点击“我已完成连接，重新检查”。此页每3秒检查连接；只有出现“配置完成，可以开始获取”且下方按钮可用，才表示连接配置完成。','Return here and recheck. Connection is checked every 3 seconds while this view is open. Setup is complete when the completion message appears and discovery is enabled.'),
     ]:[say('在下方选择使用模式并完成必要确认，然后点击“一键配置浏览器获取”；若提示还需操作，请继续按本清单完成。','Choose a mode and confirm the required permissions below, then run setup and follow the remaining steps here.')];
     for(const instruction of instructions)el('li',instruction,nextSteps);
@@ -96,7 +104,7 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
       : !state.controllerReady
       ? say('当前版本尚未接入正式安全控制器。可选择普通模式并确认后使用；增强保护暂不可用。', 'This version has no production protection controller. Choose and accept standard mode to continue; enhanced protection is unavailable.')
       : ready ? say('检查通过，可以发现资源页上的文件。', 'Checks passed. You can discover files on the resource page.') : say('配置尚未完成，请按说明完成未通过项后重新检查。', 'Setup is incomplete. Complete the missing checks and recheck.');
-    if(!ready)setup.open=true; discover.disabled = !ready || busy || configuring; return ready;
+    if(!ready)setup.open=true; discover.disabled = search.disabled = !ready || busy || configuring; return ready;
   }
   async function run(action: () => Promise<void>) {
     try { await action(); } catch (error) { if (!ctx.signal.aborted) message.textContent = say('未完成：', 'Not completed: ') + String(error); }
@@ -141,7 +149,7 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
       configure.textContent = needsConsent ? say('同意并继续配置', 'Agree and continue setup') : result.state==='ready' ? say('重新验证配置', 'Verify setup again') : say('重新运行一键配置', 'Run setup again');
       setup.open = result.state !== 'ready';
       completed = true;
-    }).finally(() => { configuring=false; configure.disabled=needsConsent&&!consent.checked||needsStandardConsent&&!standardConsent.checked; if (!completed) ready=false; discover.disabled=!ready||busy; if (!completed && !ctx.signal.aborted) { setup.open=true; progressTitle.textContent=say('配置未完成：连接检查失败，请重试','Setup incomplete: connection check failed; retry');note.textContent=say('配置未完成，请重试；也可查看高级配置中的检查结果。', 'Setup did not complete. Retry or inspect advanced diagnostics.'); } });
+    }).finally(() => { configuring=false; configure.disabled=needsConsent&&!consent.checked||needsStandardConsent&&!standardConsent.checked; if (!completed) ready=false; search.disabled=discover.disabled=!ready||busy; if (!completed && !ctx.signal.aborted) { setup.open=true; progressTitle.textContent=say('配置未完成：连接检查失败，请重试','Setup incomplete: connection check failed; retry');note.textContent=say('配置未完成，请重试；也可查看高级配置中的检查结果。', 'Setup did not complete. Retry or inspect advanced diagnostics.'); } });
   };
   function show(task: TaskView) {
     if (ctx.signal.aborted) return;
@@ -165,21 +173,39 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
         if (busy) return;
         busy = true; discover.disabled = true; use.disabled = true;
         try { if (!await check()) return; message.textContent = say('正在获取并校验文件…', 'Acquiring and checking the file…'); const imported = await ctx.invoke<{ task: TaskView }>('txt_import', [{ taskId: task.taskId, candidateId: candidate.candidateId }]); show(imported.task); await ctx.refresh(); }
-        finally { busy = false; discover.disabled = !ready; }
+        finally { busy = false; discover.disabled = search.disabled = !ready; }
       }); };
     }
   }
   const cancel = el('button', say('取消当前 TXT 任务', 'Cancel current TXT task')); cancel.type = 'button'; cancel.hidden = true;
+  searchForm.onsubmit=event=>{event.preventDefault();void run(async()=>{
+    if(busy||configuring)return;const query={title:searchTitle.value.trim(),author:searchAuthor.value.trim()};
+    if(!query.title&&!query.author){message.textContent=say('请至少填写书名或作者。','Enter a title or author.');return;}
+    busy=true;search.disabled=discover.disabled=true;searchResults.replaceChildren();
+    try{if(!await check())return;message.textContent=say('正在搜索书籍…最多等待30秒。','Searching for books… up to 30 seconds.');
+      const found=await ctx.invoke<{hits:BookSearchHit[];blocked:boolean}>('txt_search',[query]);if(ctx.signal.aborted)return;
+      message.textContent=found.blocked?say('搜索页要求验证，已停止；请在浏览器中正常完成验证后重试，或使用手动资源页入口。','The search page requires verification. Complete it normally in the browser and retry, or use manual discovery.'):found.hits.length?say('请选择作品或来源，再确认候选文件。搜索结果未验证书名、作者或全本完整性。','Choose a work or source, then check the file candidates. Search results do not verify work identity or completeness.'):say('没有找到可用搜索结果。可换关键词重试，或展开手动资源页入口。','No usable search results. Try other keywords or manual discovery.');
+      for(const hit of found.hits){const card=el('article','',searchResults);card.className='novel-candidate';el('strong',hit.title,card);el('small',hit.host+' · '+hit.snippet,card);
+        const label=el('label',say('检索目标书名（可修改）','Target title (editable)'),card),target=el('input','',label);target.type='text';target.maxLength=200;target.required=true;target.value=query.title||hit.suggestedTitle||hit.title.slice(0,200);
+        el('small',say('打开此来源前，请在扩展中授权：','Before opening, grant this source in the extension: ')+new URL(hit.url).origin,card);
+        const choose=el('button',say('确认作品，查找 TXT','Choose work and find TXT'),card);choose.type='button';
+        choose.onclick=()=>{void run(async()=>{if(busy||configuring||!target.value.trim()||!target.reportValidity())return;busy=true;search.disabled=discover.disabled=true;
+          try{if(!await check())return;message.textContent=say('正在查找该作品的 TXT 文件…','Finding TXT files for this work…');show(await ctx.invoke<TaskView>('txt_discover',[{title:target.value.trim(),author:query.author||undefined,url:hit.url}]));cancel.hidden=false;}
+          finally{busy=false;search.disabled=discover.disabled=!ready;}
+        });};
+      }
+    }finally{busy=false;search.disabled=discover.disabled=!ready;}
+  });};
   cancel.onclick = () => { void run(async () => { if (current) show(await ctx.invoke<TaskView>('txt_cancel', [current.taskId])); }); };
   form.onsubmit = event => { event.preventDefault(); void run(async () => {
     if (busy || !form.reportValidity()) return;
     busy = true; discover.disabled = true;
     try { if (!await check()) return; message.textContent = say('正在浏览器中发现文件…', 'Discovering files in the browser…'); show(await ctx.invoke<TaskView>('txt_discover', [{ title: title.value.trim(), author: author.value.trim() || undefined, url: page.value.trim() }])); cancel.hidden = false; }
-    finally { busy = false; discover.disabled = !ready; }
+    finally { busy = false; discover.disabled = search.disabled = !ready; }
   }); };
   ctx.interval(async () => { if (!active || ctx.signal.aborted||configuring||busy||needsConsent||needsStandardConsent) return; await run(async () => { await check();if(current){const task = await ctx.invoke<TaskView>('txt_status', [current.taskId]); if (!busy) show(task);} }); }, 3000);
   return { activate(value: boolean, identity?: { title: string; author: string }) {
     active = value; root.hidden = !value;
-    if (value) { if (!title.value && identity) title.value = identity.title; if (!author.value && identity) author.value = identity.author; void run(async () => { await check(); }); }
+    if (value) { if (!title.value && identity) title.value = identity.title; if (!author.value && identity) author.value = identity.author;if(identity&&!searchTitle.value)searchTitle.value=identity.title;if(identity&&!searchAuthor.value)searchAuthor.value=identity.author; void run(async () => { await check(); }); }
   } };
 }

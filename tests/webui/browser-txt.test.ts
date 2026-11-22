@@ -15,6 +15,7 @@ function mount(state: TxtSetup) {
   let result: BrowserSetupResult = {state:'blocked',reason:'controller_unavailable',changed:false,steps:[{id:'environment',state:'done'},{id:'controller',state:'blocked'}]};
   const invoke = vi.fn(async (method: string, _args?: unknown[]) => {
     if (method === 'txt_setup') return setup;
+    if(method==='txt_search')return {blocked:false,hits:[{title:'《海风》下载',suggestedTitle:'海风',host:'example.org',url:'https://example.org/sea',snippet:'未经验证的搜索摘要'}]};
     if(method==='txt_extension_location')return {directory:'C:/test/extension'};
     if (method === 'txt_setup_configure') return result;
     if (method === 'txt_discover') return task;
@@ -28,8 +29,13 @@ function mount(state: TxtSetup) {
   return { root, invoke, change: (next: TxtSetup) => { setup = next; }, tick:()=>tick(), setResult:(next:BrowserSetupResult)=>{result=next;}, controller };
 }
 function button(root: HTMLElement, text: string) { return [...root.querySelectorAll('button')].find(n => n.textContent === text)!; }
-function fill(root: HTMLElement) { const inputs=root.querySelectorAll<HTMLInputElement>('form input'); inputs[0].value='海风'; inputs[1].value='小鱼'; inputs[2].value='https://example.org/book'; }
+function fill(root: HTMLElement) { const inputs=root.querySelectorAll<HTMLInputElement>('form[data-resource] input'); inputs[0].value='海风'; inputs[1].value='小鱼'; inputs[2].value='https://example.org/book'; }
 describe('browser TXT setup and acquisition UI', () => {
+  it.each([{title:'海风',author:''},{title:'',author:'小鱼'}])('searches without a resource URL: %j',async query=>{
+    const {root,invoke}=mount(ready);await settle();const form=root.querySelector<HTMLFormElement>('form[data-book-search]')!,inputs=form.querySelectorAll('input');inputs[0].value=query.title;inputs[1].value=query.author;form.dispatchEvent(new Event('submit',{cancelable:true}));await settle();
+    expect(invoke).toHaveBeenCalledWith('txt_search',[query]);expect(invoke.mock.calls.some(([method])=>method==='txt_discover')).toBe(false);expect(root.querySelector<HTMLDetailsElement>('form[data-resource]')!.parentElement!.tagName).toBe('DETAILS');
+    button(root,'确认作品，查找 TXT').click();await settle();expect(invoke).toHaveBeenCalledWith('txt_discover',[{title:'海风',author:query.author||undefined,url:'https://example.org/sea'}]);
+  });
   it('shows remaining installation steps and automatically detects connection completion and loss before any task',async()=>{
     const state={...ready,controllerReady:false,transportConnected:false,browserReady:false,protectionMode:'standard' as const,standardAccepted:true};
     const {root,change,tick,invoke}=mount(state);await settle();expect(root.querySelector('h3')!.textContent).toContain('还差浏览器扩展连接');expect(root.textContent).toContain('edge://extensions');expect(root.textContent).toContain('保存并连接');
@@ -46,7 +52,7 @@ describe('browser TXT setup and acquisition UI', () => {
     expect(button(root,'重新运行一键配置').disabled).toBe(true);consent.checked=true;consent.dispatchEvent(new Event('change'));
     change({...ready,controllerReady:false,protectionMode:'standard',standardAccepted:true,isolationVerified:false});setResult({state:'ready',reason:'ready',changed:true,steps:[{id:'verification',state:'done'}]});button(root,'重新运行一键配置').click();await settle();
     expect(invoke).toHaveBeenCalledWith('txt_setup_configure',[{mode:'standard',acceptStandard:true,allowNetwork:false}]);expect(button(root,'发现 TXT 文件').disabled).toBe(false);
-    change({...ready,controllerReady:false,protectionMode:'standard',standardAccepted:false,browserReady:false});fill(root);root.querySelector('form')!.dispatchEvent(new Event('submit',{cancelable:true}));await settle();expect(invoke.mock.calls.some(([method])=>method==='txt_discover')).toBe(false);
+    change({...ready,controllerReady:false,protectionMode:'standard',standardAccepted:false,browserReady:false});fill(root);root.querySelector('form[data-resource]')!.dispatchEvent(new Event('submit',{cancelable:true}));await settle();expect(invoke.mock.calls.some(([method])=>method==='txt_discover')).toBe(false);
   });
   it('runs one-click setup and reports the actual missing installer without claiming success',async()=>{
     const {root,invoke}=mount({...ready,controllerReady:false,browserReady:false});await settle();
@@ -91,21 +97,21 @@ describe('browser TXT setup and acquisition UI', () => {
   });
   it('rechecks protection at submission and does not dispatch after revocation', async () => {
     const { root, invoke, change }=mount(ready);await settle();fill(root);change({...ready,controllerReady:false,browserReady:false});
-    root.querySelector('form')!.dispatchEvent(new Event('submit',{cancelable:true}));await settle();
+    root.querySelector('form[data-resource]')!.dispatchEvent(new Event('submit',{cancelable:true}));await settle();
     expect(invoke.mock.calls.some(([method])=>method==='txt_discover')).toBe(false);
     expect(root.querySelector('details')!.open).toBe(true);
   });
   it('uses discovered candidate ids, escapes source text and keeps a completed import distinct from reading', async () => {
     const {root,invoke}=mount(ready);await settle();fill(root);
-    root.querySelector('form')!.dispatchEvent(new Event('submit',{cancelable:true}));await settle();
+    root.querySelector('form[data-resource]')!.dispatchEvent(new Event('submit',{cancelable:true}));await settle();
     expect(root.querySelector('script')).toBeNull();expect(root.textContent).toContain('<script>海风</script>');
     button(root,'导入此 TXT 文件').click();await settle();
     expect(invoke).toHaveBeenCalledWith('txt_import',[{taskId:'fixture',candidateId:'c'}]);
     expect(root.textContent).toContain('阅读进度不会因导入而增加');
   });
   it('requires a specific work rather than substituting its author as a title', async () => {
-    const {root,invoke}=mount(ready);await settle();fill(root);root.querySelector<HTMLInputElement>('form input')!.value='';
-    root.querySelector('form')!.dispatchEvent(new Event('submit',{cancelable:true}));await settle();
+    const {root,invoke}=mount(ready);await settle();fill(root);root.querySelector<HTMLInputElement>('form[data-resource] input')!.value='';
+    root.querySelector('form[data-resource]')!.dispatchEvent(new Event('submit',{cancelable:true}));await settle();
     expect(invoke.mock.calls.some(([method])=>method==='txt_discover')).toBe(false);
   });
 });

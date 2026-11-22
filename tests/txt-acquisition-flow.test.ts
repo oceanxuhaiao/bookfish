@@ -299,11 +299,15 @@ describe('browser-assisted acquisition flow', () => {
         } catch {
           return;
         }
-        const body = await response.json() as { job?: { id: string; kind: string; lease: string } | null };
+        const body = await response.json() as { job?: { id: string; kind: string; lease: string;url:string } | null };
         if (!body.job) continue;
         const base = `http://127.0.0.1:${port}/bridge/jobs/${body.job.id}`;
         const leaseAuth = { ...auth, 'x-bookfish-lease': body.job.lease };
         if (body.job.kind === 'page') {
+          if(new URL(body.job.url).hostname==='cn.bing.com'){
+            const searchHtml='<li class="b_algo"><h2><a href="'+PAGE+'">《海风》作者：小鱼 TXT</a></h2></li>';
+            await fetch(`${base}/page`,{method:'POST',headers:{...leaseAuth,'content-type':'application/json'},body:JSON.stringify({html:searchHtml,finalUrl:body.job.url})});continue;
+          }
           await fetch(`${base}/page`, { method: 'POST', headers: { ...leaseAuth, 'content-type': 'application/json' }, body: JSON.stringify({ html, finalUrl: PAGE }) });
           continue;
         }
@@ -314,7 +318,8 @@ describe('browser-assisted acquisition flow', () => {
       }
     })();
     try {
-      const found = await acquisition.discover({ pageUrl: PAGE, title: '海风', author: '小鱼',origin:'autonomous' });
+      const searched=await acquisition.searchBooks({author:'小鱼'});expect(searched.hits[0].url).toBe(PAGE);expect(acquisition.list()).toHaveLength(0);
+      const found = await acquisition.discover({ pageUrl: searched.hits[0].url, title: '海风', author: '小鱼',origin:'autonomous' });
       expect(found.status).toBe('candidate_ready');
       expect(found.origin).toBe('autonomous');expect(acquisition.summary().controllerReady).toBe(mode==='enhanced');expect(acquisition.summary().isolationVerified).toBe(mode==='enhanced');expect(acquisition.summary().browserReady).toBe(true);
       const done = await acquisition.importFile({ taskId: found.taskId, candidateId: (found.candidates ?? [])[0]!.candidateId });

@@ -17,7 +17,7 @@ export const BOOKFISH: WorldDefinition<BookfishConfigSection> = {
       bookfish_record_reflection: { zh: '追加现在的反思或修订，保留原判断和时间。', en: 'Appends a present-day reflection or revision while preserving the original and its time.' },
       bookfish_defer_reading: { zh: '延后本次机会或休息，保留已确认进度。', en: 'Defers this opportunity or takes a rest without losing confirmed progress.' },
       bookfish_acquire: { zh: '解析链接、自主搜索、按候选获取、安排队列或取消、放弃准确意图。', en: 'Resolves sources, searches, acquires, plans reading or terminates an exact intent.' },
-      bookfish_import_txt: { zh: '浏览器辅助获取现成 TXT/Markdown 文件：发现候选、下载并宽松导入、查询状态、重试或补正；不绕过登录与付费限制。', en: 'Browser-assisted TXT/Markdown acquisition: discovers candidates, downloads and imports leniently, reports status, retries or repairs; never bypasses logins or paywalls.' },
+      bookfish_import_txt: { zh: '浏览器辅助获取现成 TXT/Markdown 文件：按书名或作者搜索、发现候选、下载并宽松导入、查询状态、重试或补正；不绕过登录与付费限制。', en: 'Browser-assisted TXT/Markdown acquisition: searches by title or author, discovers candidates, downloads and imports leniently, reports status, retries or repairs; never bypasses logins or paywalls.' },
       bookfish_share: { zh: '提名、分页查询、放弃分享候选，或登记实际输出回执。', en: 'Nominates, pages, drops a sharing candidate, or records the actual output receipt.' },
       bookfish_claim_share: { zh: '校验机会后预留一次分享尝试，过期或拒绝不得输出。', en: 'Reserves one output attempt after checking the opportunity.' },
       bookfish_review: { zh: '开始、分页回查、保存或结束全书读后感任务，并查看历史版本。', en: 'Starts, pages, saves or ends a full-book review job and lists versions.' },

@@ -68,8 +68,8 @@ export const BOOKFISH_TOOL_DECLS: ReadonlyArray<Omit<ToolDef, 'handler'>> = [
     segments: { type: 'array', minItems: 1, maxItems: 8, description: 'reply: every spoken line in order.', items: { type: 'string', minLength: 1, maxLength: 480 } }, segment: { type: 'string', maxLength: 480, description: 'append/pace: the one exact line just spoken.' }, reason: str(300),
     previousSegment: { type: 'string', minLength: 1, maxLength: 480 },
   }, required: ['action'] } },
-  { name: 'bookfish_import_txt', tags: ['write'], barrierAfter: true, description: 'TXT/MD files via browser: discover, import, status, retry, repair, cancel. Loose import reports warnings; no login or paywall bypass.', parameters: { type: 'object', additionalProperties: false, properties: {
-    action: { type: 'string', enum: ['discover', 'import', 'status', 'retry', 'repair', 'cancel'] },
+  { name: 'bookfish_import_txt', tags: ['write'], barrierAfter: true, description: 'TXT/MD via browser: search title or author for page hints; discover a selected page; import, status, retry, repair, cancel. Search labels are not verified book identity. No login/paywall bypass.', parameters: { type: 'object', additionalProperties: false, properties: {
+    action: { type: 'string', enum: ['search', 'discover', 'import', 'status', 'retry', 'repair', 'cancel'] },
     pageUrl: str(2000), fileUrl: str(2000), title: str(200), author: str(100),
     taskId: str(80), candidateId: str(80), intentId: str(80),
   }, required: ['action'] } },
