@@ -1,0 +1,59 @@
+{
+  "work": "E:\\项目\\桌面宠物\\扩展\\cortina\\state\\packages\\bookfish-txt-acquisition-round3\\_verify\\host-final-dabcb5e1-e563-4b4f-baeb-375afb393e0e\\3e2260f5-1442-4f84-8ab4-d8654cc2fa7c",
+  "records": [
+    {
+      "step": "actual-token",
+      "elevatedAuthorized": true,
+      "medium": false,
+      "high": true,
+      "adminEnabled": true
+    },
+    {
+      "step": "synthetic-backup-restore",
+      "passed": true,
+      "confirmedChars": 0
+    },
+    {
+      "step": "installed-Core-ready",
+      "host": "0.2.23",
+      "pid": 43860,
+      "port": 63603
+    },
+    {
+      "step": "world-active-and-tool-registered",
+      "passed": true
+    },
+    {
+      "step": "latest-help-and-TXT-coexist",
+      "passed": true,
+      "version": "0.65.1"
+    },
+    {
+      "step": "settings-status-controller-fail-closed",
+      "passed": true
+    },
+    {
+      "step": "network-disabled-rejection",
+      "passed": true
+    },
+    {
+      "step": "actual-panel-import-index-duplicate-no-progress",
+      "passed": true
+    },
+    {
+      "step": "installed-Core-ready",
+      "host": "0.2.23",
+      "pid": 44432,
+      "port": 63616
+    },
+    {
+      "step": "World-and-Core-restart-preservation",
+      "passed": true
+    },
+    {
+      "step": "result",
+      "passed": true,
+      "scope": "installed Coopanion Core and public panel APIs; Electron desktop and manual source permission dialogue not accepted"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "version": "0.65.1",
+  "latestMain": "1fc504fdd4c478edabf9ddec8f8c3c686850d704",
+  "integrity": "sha512-0ckuKZQzdon97EtL33wkLNyPYDMNtR6HFGmLQbDSrJXGbdDb6LlVSrhx3tTBGQFOHZtvGi31AyLdlE2H8TwlMQ==",
+  "files": 143,
+  "runtimeDependencies": {
+    "cheerio": "1.2.0",
+    "ipaddr.js": "2.2.0",
+    "unpdf": "2.1.0"
+  },
+  "yauzlBundled": "3.2.1",
+  "client": "lib/webui-txt-0651.js"
+}

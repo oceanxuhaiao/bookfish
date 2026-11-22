@@ -1,0 +1,18 @@
+{
+  "source": "c9f24b494b83ac45439e35b737298e77bfe8a404",
+  "version": "0.65.1",
+  "host": "Coopanion 0.2.23",
+  "passed": true,
+  "books": 12,
+  "confirmedChars": 1833748,
+  "tasks": 1670,
+  "episodes": 823,
+  "historyChecksum": "cf696205b318a3bb169be5d18bd5ee9bf70fc8059d67f0d15f83ff1e7700b061",
+  "helpVersion": "0.65.1",
+  "txtToolRegistered": true,
+  "controllerReady": false,
+  "browserReady": false,
+  "browserBridgeEnabled": false,
+  "originalPreferencesPreserved": true,
+  "loopResumed": true
+}
