@@ -1,0 +1,52 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/webui/browser-txt.test.ts (15 tests) 260ms
+ ✓ tests/webui/help.test.ts (9 tests) 547ms
+ ✓ tests/webui/settings.test.ts (9 tests) 877ms
+ ✓ tests/webui/help-client.test.ts (2 tests) 1441ms
+   ✓ help center entry and contextual help > declares help as a top-level panel between settings and the prompt docs 1024ms
+   ✓ help center entry and contextual help > opens contextual help in a drawer and preserves unsaved settings edits 416ms
+ ✓ tests/webui/runtime.test.ts (5 tests) 4154ms
+   ✓ runtime settings card > polls after a one-click install so the card does not freeze at the first byte count 2687ms
+   ✓ runtime settings card > renders measured download progress and a cancel action, then hides progress when ready 1284ms
+ ✓ tests/webui/import-method.test.ts (1 test) 345ms
+   ✓ groups the three import methods in one selector and marks experiments 345ms
+ ✓ tests/webui/announcements.test.ts (6 tests) 24ms
+ ✓ tests/txt-panel-gate.test.ts (2 tests) 1032ms
+   ✓ actual World browser TXT panel gate > saves user-only ordinary consent, starts transport without a controller, and revokes when enhanced is selected 747ms
+ ✓ tests/webui/offline-panel.test.ts (1 test) 12ms
+ ✓ tests/webui/client.test.ts (30 tests) 21124ms
+   ✓ library panel with real World data plane > offers browser TXT beside the engine and opens first-use guidance even when the engine is missing 1108ms
+   ✓ library panel with real World data plane > renders acquisition source identity from persisted Book metadata instead of the wanted title 636ms
+   ✓ library panel with real World data plane > opens unconfirmed local text with a directory without changing pet selection or progress 527ms
+   ✓ library panel with real World data plane > shows an immediate in-flight source state and a failure result while preserving the URL 335ms
+   ✓ library panel with real World data plane > shows the single recommendation entry and explains a missing engine instead of enabling a fake download 340ms
+   ✓ library panel with real World data plane > lists only search candidates that pass catalog validation and reports when none do 689ms
+   ✓ library panel with real World data plane > reports no successful search results when every searched version fails validation 379ms
+   ✓ library panel with real World data plane > offers a full-title hint when a short title has no exact match 387ms
+   ✓ library panel with real World data plane > reports a likely abridged edition instead of offering it for download 468ms
+   ✓ library panel with real World data plane > displays a reported mood, evidence and stated reason without executing annotation text 6016ms
+   ✓ library panel with real World data plane > keeps configuration solely in the host group and preserves explicit reading preference 353ms
+   ✓ library panel with real World data plane > shows that old confirmations have no recorded mood instead of synthesizing one 425ms
+   ✓ library panel with real World data plane > imports a UTF-8 file, selects it, shows confirmed progress, pauses and resumes 1087ms
+   ✓ library panel with real World data plane > shows background import progress and cancels without changing the shelf 2354ms
+   ✓ library panel with real World data plane > renders local typographic covers on the home card and shelf without image requests 380ms
+   ✓ library panel with real World data plane > renders hostile metadata as text, asks for removal confirmation, and removes only after confirmation 415ms
+   ✓ library panel with real World data plane > does not update the DOM after disposal 325ms
+   ✓ library panel with real World data plane > imports a paginated source link and displays chapter-based progress and source identity 440ms
+   ✓ opens real cover details and another book journal without switching the current reading book 416ms
+   ✓ switches between recent and title sorting without pinning the current book 462ms
+   ✓ opens a feedback page with GitHub, QQ group and author links 306ms
+   ✓ lets the user request a passage immediately while automatic reading is off and distinguishes queued from confirmed 515ms
+   ✓ does not block Read now on retired character caps and does not fake progress 352ms
+   ✓ shows rest as a mechanical timeline entry without inventing a reading mood 447ms
+   ✓ disables Continue while routine is active and shows the reason even with automatic reading off 449ms
+   ✓ lets the panel declare a later chapter as the reading start without marking it read 436ms
+ ✓ tests/webui/mood.test.ts (15 tests) 4ms
+
+ Test Files  11 passed (11)
+      Tests  95 passed (95)
+   Start at  17:41:39
+   Duration  24.84s (transform 2.29s, setup 0ms, collect 6.00s, tests 29.82s, environment 7.85s, prepare 1.10s)
+
