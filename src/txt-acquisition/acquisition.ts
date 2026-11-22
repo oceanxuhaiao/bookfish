@@ -14,7 +14,7 @@ import { BrowserClient, BrowserError } from './browser-client.ts';
 import { BridgeError, BrowserBridge } from './bridge.ts';
 import { DownloadError, downloadFile } from './download.ts';
 import { discoverLinks, extractIdentity } from './link-discovery.ts';
-import { assessText, type Assessment, type IdentityMatch } from './quality.ts';
+import { assessText, identityMatch, type Assessment, type IdentityMatch } from './quality.ts';
 import { AcquisitionRecords } from './records.ts';
 import { AcquisitionStaging, OriginalFileError, maintenanceFailure, type MaintenanceResult } from './staging.ts';
 import {
@@ -30,6 +30,8 @@ export type PageLoader = (url: string, options: { allowNetwork: boolean; port: n
 
 export interface AcquisitionOptions {
   onTaskCreated?: (task:AcquisitionTask)=>void;
+  /** Durable task facts are replayable; notification failure never undoes a shelf insert. */
+  onTaskStateChanged?: (task: AcquisitionTask) => void | Promise<void>;
   dataDir: string;
   library: Library;
   cfg: () => BookfishConfigSection;
@@ -115,6 +117,7 @@ export class TxtAcquisition {
   private readonly urls = new Map<string, { taskId: string; url: string }>();
   private readonly aborts = new Map<string, AbortController>();
   private readonly onTaskCreated?:AcquisitionOptions['onTaskCreated'];
+  private readonly onTaskStateChanged?:AcquisitionOptions['onTaskStateChanged'];
   private policyTimer?:ReturnType<typeof setInterval>;
 
   constructor(options: AcquisitionOptions) {
@@ -122,6 +125,7 @@ export class TxtAcquisition {
     this.staging = new AcquisitionStaging(this.root);
     this.records = new AcquisitionRecords(this.root,initialize=>initialize?this.staging.initializeDirectories():this.staging.assertSafeDirectories());
     this.onTaskCreated=options.onTaskCreated;
+    this.onTaskStateChanged=options.onTaskStateChanged;
     this.library = options.library;
     this.cfg = options.cfg;
     this.now = options.now ?? Date.now;
@@ -212,9 +216,7 @@ export class TxtAcquisition {
     for (const task of this.records.list()) {
       if (task.status === 'completed' || task.status === 'completed_with_warning' || task.status === 'failed_terminal') continue;
       if (task.status === 'failed_recoverable') continue;
-      this.records.update(task.id, (draft) => {
-        draft.failure = { code: 'restart_interrupted', message: 'The extension restarted before this acquisition finished', recoverable: true, at: this.now() };
-      }, { status: 'failed_recoverable', note: 'interrupted by restart' });
+      this.fail(task.id, 'restart_interrupted', 'The extension restarted before this acquisition finished');
       void this.staging.clearPrepared(task.id);
     }
   }
@@ -235,7 +237,7 @@ export class TxtAcquisition {
       selectionPersistenceError: this.selectionPersistenceError ?? null,
       initializationError: this.initializationError ?? null,
       active: tasks.filter((task) => !isTerminal(task.status)).length,
-      history: { records: tasks.length, softLimit: MAX_TASKS, retainedOriginals: tasks.filter(task => task.file?.retained).length, protectedOverflow: Math.max(0, tasks.length - MAX_TASKS) },
+      history: { records: tasks.length, softLimit: MAX_TASKS, retainedOriginals: tasks.filter(task => task.file?.retained).length, protectedOverflow: Math.max(0, tasks.length - MAX_TASKS), pendingSelectionReceipts: tasks.filter(task => ['pending','failed'].includes(task.selection?.status ?? '')).length, newTaskReceiptLimit: MAX_TASKS },
       tasks: tasks.slice(-5).map((task) => ({
         taskId: task.id, status: task.status, title: task.target.title, updatedAt: task.updatedAt,
         ...(task.bookKey ? { bookKey: task.bookKey } : {}),
@@ -257,9 +259,7 @@ export class TxtAcquisition {
     if (task.status === 'completed' || task.status === 'completed_with_warning') return this.view(task);
     if (task.status === 'failed_terminal' || task.status === 'failed_recoverable') return this.view(task);
     this.aborts.get(taskId)?.abort(new Error('cancelled'));
-    return this.view(this.records.update(taskId, (draft) => {
-      draft.failure = { code: 'cancelled', message: 'Cancelled by the model or user', recoverable: true, at: this.now() };
-    }, { status: 'failed_recoverable', note: 'cancelled' }));
+    return this.view(this.fail(taskId, 'cancelled', 'Cancelled by the model or user'));
   }
 
   cancelByIntentId(intentId:string):void{for(const task of this.records.list())if(task.intentId===intentId&&!isTerminal(task.status))this.cancel(task.id);}
@@ -323,17 +323,28 @@ export class TxtAcquisition {
     if (!task) throw new Error(`Unknown acquisition task ${taskId}`);
     if (isTerminal(task.status) && !isTerminal(status) && this.records.list().filter(entry => !isTerminal(entry.status)).length >= MAX_TASKS) throw new AcquisitionFailure('busy', 'Active acquisition task limit reached');
     assertTransition(task.status, status);
-    return this.records.update(taskId, () => undefined, { status, ...(note ? { note } : {}) });
+    const updated = this.records.update(taskId, () => undefined, { status, ...(note ? { note } : {}) });
+    // Active state notifications are synchronous in production. Async failures are
+    // observed, and restart reconciliation consults the durable task rather than an event.
+    if (updated.origin === 'autonomous' && updated.intentId) {
+      try { Promise.resolve(this.onTaskStateChanged?.(updated)).catch(() => { this.selectionPersistenceError = 'Task state notification failed; durable task will be reconciled'; }); }
+      catch { this.selectionPersistenceError = 'Task state notification failed; durable task will be reconciled'; }
+    }
+    return updated;
   }
 
   private fail(taskId: string, code: string, message: string): AcquisitionTask {
     const recoverable = failureRecoverable(code);
-    return this.records.update(taskId, (draft) => {
+    const updated = this.records.update(taskId, (draft) => {
       draft.failure = { code, message: redactMessage(message), recoverable, at: this.now() };
+      if (draft.origin === 'autonomous' && draft.intentId && this.onTaskStateChanged) draft.selection = { status: 'pending', identity: draft.selection?.identity ?? 'unknown' };
     }, { status: recoverable ? 'failed_recoverable' : 'failed_terminal', note: code });
+    void this.integrateSelection(updated);
+    return updated;
   }
 
   private newTask(input: { title: string; author?: string; pageUrl?: string; origin: AcquisitionOrigin; intentId?: string }): AcquisitionTask {
+    if (input.origin === 'autonomous' && input.intentId && this.records.list().filter(task => ['pending','failed'].includes(task.selection?.status ?? '')).length >= MAX_TASKS) throw new AcquisitionFailure('selection_backlog_full', 'Selection receipt backlog is full; reconcile existing tasks before creating another autonomous acquisition');
     if (this.records.list().filter(task => !isTerminal(task.status)).length >= MAX_TASKS) throw new AcquisitionFailure('busy', 'Finish or cancel existing candidate tasks before creating another acquisition');
     const now = this.now();
     const task: AcquisitionTask = {
@@ -351,7 +362,7 @@ export class TxtAcquisition {
       history: [{ at: now, status: 'queued' }],
     };
     const created=this.records.put(task);
-    try{this.onTaskCreated?.(created);}catch(error){this.cancel(created.id);throw error;}
+    try{if(created.origin==='autonomous'&&created.intentId)this.onTaskCreated?.(created);}catch(error){this.cancel(created.id);throw error;}
     return this.records.get(created.id)!;
   }
 
@@ -476,14 +487,15 @@ export class TxtAcquisition {
       filename = decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() ?? 'novel.txt') || 'novel.txt';
     } catch { /* keep the default */ }
     if (!/\.(txt|md|markdown)$/iu.test(filename)) filename = `${filename.replace(/[./\\]+$/gu, '')}.txt`;
+    const identity = extractIdentity(filename);
     const candidate: CandidateRecord = {
       id: randomUUID(), filename, format: /\.md$|\.markdown$/iu.test(filename) ? 'md' : 'txt', host: hostOf(url),
       urlHash: createHash('sha256').update(url).digest('hex'), discoveredAt: this.now(), expiresAt: this.now() + CANDIDATE_TTL_MS,
+      ...identity,
     };
     this.urls.set(candidate.id, { taskId: task.id, url });
     this.records.update(task.id, (draft) => { draft.candidates = [candidate]; draft.selectedCandidateId = candidate.id; }, { status: 'candidate_ready', note: 'direct file address' });
-    const identity = extractIdentity(filename);
-    return this.runPipeline(task.id, url, filename, { title: identity.title ?? title, author: identity.author ?? input.author });
+    return this.runPipeline(task.id, url, filename, identity);
   }
 
   /** download -> validate -> repair -> import, with the original file kept on any trouble. */
@@ -498,6 +510,7 @@ export class TxtAcquisition {
     this.aborts.set(taskId, controller);
     try {
       this.setStatus(taskId, 'downloading');
+      controller.signal.throwIfAborted();
       this.records.update(taskId, (draft) => { draft.attempts.downloads += 1; });
       const checked = await checkUrl(url, { allowNetwork: cfg.allowNetwork, resolve: this.resolve });
       const bridge = await this.ensureBridge();
@@ -649,7 +662,7 @@ export class TxtAcquisition {
       draft.duplicate = result.duplicate;
       if (draft.file) draft.file.retained = !clean;
       draft.failure = undefined;
-      if (this.onImported) draft.selection = { status: 'pending', identity: result.identity };
+      if (this.onImported && draft.origin === 'autonomous' && draft.intentId) draft.selection = { status: 'pending', identity: result.identity };
     }, {
       status: clean ? 'completed' : 'completed_with_warning',
       note: `${quality.quality}${result.duplicate ? ', duplicate' : ''}`,
@@ -704,7 +717,8 @@ export class TxtAcquisition {
     await this.recoverRawCommits(taskId);
     this.records.update(taskId, (draft) => { draft.failure = undefined; draft.rejection = undefined; });
     this.setStatus(taskId, 'validating', 'retry from retained file');
-    const declared = { title: task.candidates[0]?.title, author: task.candidates[0]?.author };
+    const candidate = task.candidates.find(row => row.id === task.selectedCandidateId);
+    const declared = { title: candidate?.title, author: candidate?.author };
     return await this.finishImport(taskId, task.file.path, task.file.filename, declared);
     } catch (error) { this.classifyFailure(taskId, error); return this.status(taskId) as TaskView; }
     finally { this.aborts.delete(taskId); await this.prune(); }
@@ -734,7 +748,8 @@ export class TxtAcquisition {
     } else {
       this.setStatus(taskId, 'validating', 'repair');
     }
-    return await this.finishImport(taskId, task.file.path, task.file.filename, { title: task.candidates[0]?.title, author: task.candidates[0]?.author }, encoding);
+    const candidate = task.candidates.find(row => row.id === task.selectedCandidateId);
+    return await this.finishImport(taskId, task.file.path, task.file.filename, { title: candidate?.title, author: candidate?.author }, encoding);
     } catch (error) { this.classifyFailure(taskId, error); return this.status(taskId) as TaskView; }
     finally { this.aborts.delete(taskId); await this.prune(); }
   }
@@ -805,18 +820,27 @@ export class TxtAcquisition {
   /** Called only after SelectionCoordinator is started; never downloads or imports again. */
   async resumeSelection(): Promise<void> {
     if (this.initializationError) return;
-    for (const task of this.records.list()) if (task.bookKey && ['completed', 'completed_with_warning'].includes(task.status) && task.selection?.status !== 'completed') await this.integrateSelection(task);
+    for (const task of this.records.list()) if (isTerminal(task.status) && task.selection?.status !== 'completed') await this.integrateSelection(task);
   }
 
   private async integrateSelection(task: AcquisitionTask): Promise<void> {
-    if (!this.onImported || this.stopped) return;
+    if (this.stopped || task.origin !== 'autonomous' || !task.intentId) return;
+    task = this.records.get(task.id) ?? task;
+    const success = ['completed','completed_with_warning'].includes(task.status);
+    if (success ? !this.onImported : !this.onTaskStateChanged) return;
+    const candidate = task.candidates.find(row => row.id === task.selectedCandidateId);
+    // Recheck persisted source lineage, including old pending receipts created by
+    // the earlier wanted-field fallback. Missing provenance cannot become exact.
+    const sourceIdentity = identityMatch(task.target, candidate);
+    const identity = task.selection?.identity === 'exact' ? sourceIdentity : task.selection?.identity ?? 'unknown';
     let result: NonNullable<AcquisitionTask['selection']>;
     try {
-      await this.onImported(task, task.selection?.identity ?? 'unknown');
+      if (success) await this.onImported!(task, identity);
+      else await this.onTaskStateChanged!(task);
       if (this.stopped) return; // persistent pending receipt is replayed after the next mount
-      result = { status: 'completed', identity: task.selection?.identity ?? 'unknown' };
-    } catch (error) { result = { status: 'failed', identity: task.selection?.identity ?? 'unknown', message: redactMessage((error as Error)?.message ?? 'Queue integration failed') }; }
-    try { this.records.update(task.id, draft => { draft.selection = result; }); }
+      result = { status: 'completed', identity };
+    } catch (error) { result = { status: 'failed', identity, message: redactMessage((error as Error)?.message ?? 'Queue integration failed') }; }
+    try { this.records.update(task.id, draft => { if (draft.status === task.status && draft.updatedAt === task.updatedAt && JSON.stringify(draft.attempts) === JSON.stringify(task.attempts)) draft.selection = result; }); }
     catch { this.selectionPersistenceError = 'Queue integration receipt could not be persisted; pending shelf success will be reconciled after restart'; }
   }
 

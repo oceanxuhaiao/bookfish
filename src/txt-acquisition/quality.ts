@@ -77,7 +77,7 @@ function chapterLines(text: string): string[] {
   return found;
 }
 
-function identityMatch(wanted?: { title?: string; author?: string }, declared?: { title?: string; author?: string }): IdentityMatch {
+export function identityMatch(wanted?: { title?: string; author?: string }, declared?: { title?: string; author?: string }): IdentityMatch {
   const wantedTitle = normalizeTitle(wanted?.title ?? '');
   const declaredTitle = normalizeTitle(declared?.title ?? '');
   if (!wantedTitle || !declaredTitle) return 'unknown';
@@ -205,7 +205,19 @@ export function assessText(input: AssessInput): Assessment {
     warnings.push({ code: 'possible_truncation', message: 'The text stops without an ending sentence mark; the copy may be incomplete' });
   }
 
-  const identity = identityMatch(input.wanted, input.declared);
+  let identity = identityMatch(input.wanted, input.declared);
+  // A bounded, explicit header contradiction can disprove a filename claim.
+  // Absence of a header never proves the narrative's identity, and no prose is rejected.
+  if (identity === 'exact') {
+    const leading = metrics.head.split('\n').slice(0, 8);
+    const title = leading.map(line => /^\s*(?:书名|标题|作品)\s*[:：]\s*(.{1,80}?)\s*$/u.exec(line)?.[1]).find(Boolean);
+    const author = leading.map(line => /^\s*(?:作者|著者)\s*[:：]\s*(.{1,40}?)\s*$/u.exec(line)?.[1]).find(Boolean);
+    if ((title && normalizeTitle(title.replace(/\s+(?:作者|著者)\s*[:：].*$/u, '')) !== normalizeTitle(input.wanted?.title ?? ''))
+      || (author && normalizeAuthor(author) !== normalizeAuthor(input.wanted?.author ?? ''))) {
+      identity = 'partial';
+      warnings.push({code:'identity_header_conflict',message:'Explicit opening metadata conflicts with the source declaration; confirmation required, prose retained'});
+    }
+  }
   if (identity === 'partial' && (input.wanted?.title || input.declared?.title)) {
     warnings.push({ code: 'identity_mismatch', message: 'Title or author on the page does not exactly match the requested book' });
   }

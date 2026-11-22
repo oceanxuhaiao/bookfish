@@ -80,11 +80,12 @@ export class BookfishWorld implements World {
     });
     this.selection = new SelectionCoordinator({ library: this.library, novelFetches: this.novelFetches,
       scheduler: this.scheduler, cfg: () => this.opts.cfg, timezone: opts.timezone,
-      cancelExternal:id=>this.txtAcquisition?.cancelByIntentId(id),isExternalTask:id=>{try{return!!this.txtAcquisition?.records.get(id);}catch{return true;}} });
+      cancelExternal:id=>this.txtAcquisition?.cancelByIntentId(id),getExternalTask:id=>this.txtAcquisition?.records.get(id),isExternalTask:id=>{try{return!!this.txtAcquisition?.records.get(id);}catch{return true;}} });
     // Browser-assisted file acquisition: an independent route into the same Library.
     // It never opens a second shelf and never queues reading on its own.
     this.txtAcquisition = new TxtAcquisition({ dataDir: opts.dataDir, library: this.library, cfg: () => this.opts.cfg,
       onTaskCreated:task=>this.selection.onExternalTaskCreated(task),
+      onTaskStateChanged:task=>this.selection.onExternalTaskStateChanged(task),
       onImported: (task, identity) => this.selection?.onExternalImport(task, identity) });
   }
   private sourceSignal(signal?: AbortSignal): AbortSignal {
@@ -255,7 +256,13 @@ export class BookfishWorld implements World {
           case 'start': return handlers.bookfish_acquire_book(args);
           case 'status': return handlers.bookfish_get_acquisition(args);
           case 'plan': return this.selection.plan(args.intentId, args.planAction, args.notBefore);
-          default: throw new Error('bookfish_acquire action must be resolve, find, start, status or plan');
+          case 'cancel': return this.selection.cancel(args.intentId);
+          case 'abandon': {
+            const intent=this.library.selection().intents.find(row=>row.id===args.intentId);
+            if (intent && ['fulfilled','reading'].includes(intent.status)) throw new Error('Ending an existing reading commitment requires an explicit user cancellation');
+            return this.selection.abandon(args.intentId, 'pet');
+          }
+          default: throw new Error('bookfish_acquire action must be resolve, find, start, status, plan, cancel or abandon');
         }
       },
       bookfish_share: (args) => {

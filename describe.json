@@ -622,7 +622,7 @@
     },
     {
       "name": "bookfish_acquire",
-      "description": "resolve=import explicit 02345 URL; find=search title+author+reason; start=acquire candidateId; status=summary; plan=queue/defer. No login, paywall or script execution.",
+      "description": "resolve=import explicit 02345 URL; find=search title+author+reason; start=candidateId; status=summary; plan=queue/defer; cancel=user request; abandon=unfulfilled intent. Both require intentId. No login, paywall or scripts.",
       "parameters": {
         "type": "object",
         "additionalProperties": false,
@@ -634,7 +634,9 @@
               "find",
               "start",
               "status",
-              "plan"
+              "plan",
+              "cancel",
+              "abandon"
             ]
           },
           "url": {
@@ -682,8 +684,8 @@
         "write"
       ],
       "summary": {
-        "zh": "解析链接、自主搜索、按候选获取、读取摘要或安排阅读队列。",
-        "en": "Resolves a source, searches, acquires a candidate, reads a summary or plans the reading queue."
+        "zh": "解析链接、自主搜索、按候选获取、安排队列或取消、放弃准确意图。",
+        "en": "Resolves sources, searches, acquires, plans reading or terminates an exact intent."
       }
     },
     {

@@ -113,7 +113,8 @@ export class AcquisitionRecords {
     const overflow = this.state.tasks.length - MAX_TASKS;
     const removable = this.state.tasks
       .map((task, index) => ({ task, index }))
-      .filter((entry) => isTerminal(entry.task.status) && !entry.task.file?.retained && entry.task.id !== preserveId)
+      .filter((entry) => isTerminal(entry.task.status) && !entry.task.file?.retained
+        && !['pending', 'failed'].includes(entry.task.selection?.status ?? '') && entry.task.id !== preserveId)
       .sort((left, right) => left.task.updatedAt - right.task.updatedAt)
       .slice(0, overflow);
     for (const entry of removable.sort((a, b) => b.index - a.index)) this.state.tasks.splice(entry.index, 1);

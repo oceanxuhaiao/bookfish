@@ -17,7 +17,7 @@ const gb = Buffer.from('cbfdb0d1d0c5d5dbbac3b7c5bdf8b3e9cceba3acbaa3b7e7b4d3b4b0
 let dir: string; let library: Library;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'bf-reliability-')); library = new Library({ dataDir: dir }); library.open(); });
 afterEach(() => { vi.restoreAllMocks(); library.close(); rmSync(dir, { recursive: true, force: true }); });
-function acquisition(bytes = Buffer.from(prose.repeat(80)), callback?: () => void | Promise<void>) { return new TxtAcquisition({ dataDir: dir, library, cfg: () => ({ ...BOOKFISH_DEFAULTS, txtAcquisitionEnabled: true }), resolve: async () => ['93.184.216.34'], fetchImpl: (async () => new Response(bytes)) as typeof fetch, onImported: callback }); }
+function acquisition(bytes = Buffer.from(prose.repeat(80)), callback?: () => void | Promise<void>) { return new TxtAcquisition({ dataDir: dir, library, cfg: () => ({ ...BOOKFISH_DEFAULTS, txtAcquisitionEnabled: true, autonomousAcquisition: !!callback }), resolve: async () => ['93.184.216.34'], fetchImpl: (async () => new Response(bytes)) as typeof fetch, onImported: callback }); }
 function raw(acq: TxtAcquisition) { return readdirSync(acq.staging.rawDir).filter(f => !f.includes('prepared')); }
 describe('second-round reliability regressions', () => {
   it.each(['retry', 'repair'] as const)('recovers a retained post-download import failure through %s without changing old progress', async action => {
@@ -30,7 +30,7 @@ describe('second-round reliability regressions', () => {
   });
   it('keeps committed shelf success separate from an async queue callback failure', async () => {
     const acq = acquisition(undefined, async () => { throw Error('queue unavailable https://secret.example/token?signed=private'); }); await acq.init();
-    const done = await acq.importFile({ url: 'https://books.example/book.txt', title: '海风' }); expect(done.status).toMatch(/^completed/); expect(done.failure).toBeUndefined(); expect(done.selection?.status).toBe('failed'); expect(done.selection?.message).not.toContain('private'); expect(library.list().some(b => b.key === done.bookKey)).toBe(true);
+    const done = await acq.importFile({ url: 'https://books.example/book.txt', title: '海风', origin: 'autonomous', intentId: 'callback-test' }); expect(done.status).toMatch(/^completed/); expect(done.failure).toBeUndefined(); expect(done.selection?.status).toBe('failed'); expect(done.selection?.message).not.toContain('private'); expect(library.list().some(b => b.key === done.bookKey)).toBe(true);
   });
   it('automatically prunes after init and completion but protects warning originals', async () => {
     const acq = acquisition(); await acq.staging.init(); const orphan = join(acq.staging.rawDir, 'a'.repeat(64)+'.txt'); writeFileSync(orphan, Buffer.alloc(1024));

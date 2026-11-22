@@ -7,6 +7,8 @@ import type { Library } from './library.ts';
 import type { ReadingScheduler } from './scheduler.ts';
 import type { NovelFetches, NovelSearchJobView, NovelTaskView } from './novel-fetch.ts';
 import { normalizeTitle as normalizeIdentity, normalizeAuthor, type NovelSearchCandidate } from './novel-match.ts';
+import type { AcquisitionTask } from './txt-acquisition/types.ts';
+import { identityMatch } from './txt-acquisition/quality.ts';
 import {
   workKey, type FailedWork, type ReadingQueueItem, type SelectionCandidate,
   type SelectionFailure, type SelectionIntent, type SelectionRound, type SelectionState,
@@ -47,6 +49,7 @@ export interface SelectionSummary {
 interface SelectionOptions {
   cancelExternal?: (intentId:string)=>void;
   isExternalTask?: (taskId:string)=>boolean;
+  getExternalTask?: (taskId: string) => AcquisitionTask | undefined;
   library: Library;
   novelFetches: NovelFetches;
   scheduler: ReadingScheduler;
@@ -72,6 +75,7 @@ export class SelectionCoordinator {
   private idleSince = 0;
   private stopped = true;
   private suppressingEvents = false;
+  private reconcilingExternal = false;
   private readonly now: () => number;
 
   constructor(private readonly options: SelectionOptions) {
@@ -119,7 +123,17 @@ export class SelectionCoordinator {
           continue;
         }
         if (intent.status === 'acquiring' && intent.acquisitionTaskId) {
-          if(this.options.isExternalTask?.(intent.acquisitionTaskId))continue; // TXT has its own authenticated recovery receipt.
+          try {
+            const external = this.options.getExternalTask?.(intent.acquisitionTaskId);
+            if (intent.acquisitionKind === 'txt' || external || this.options.isExternalTask?.(intent.acquisitionTaskId)) {
+              if (external) this.onExternalTaskStateChanged(external);
+              else this.deferIntent(intent.id, 'txt_state_unavailable', 'TXT任务状态不可用，未推断导入成功；请检查任务记录。');
+              continue;
+            }
+          } catch {
+            this.deferIntent(intent.id, 'txt_state_unavailable', 'TXT任务状态无法读取，未安排阅读。');
+            continue;
+          }
           // The importer may have committed the book just before the process died,
           // before the task record or intent receipt was written. Match the exact
           // normalized work and queue that existing book instead of downloading it again.
@@ -158,6 +172,21 @@ export class SelectionCoordinator {
 
   /** Refresh derived commitment/queue facts. Writes only when a meaning changed. */
   refresh(): SelectionState {
+    if (!this.stopped && !this.reconcilingExternal && this.options.getExternalTask) {
+      this.reconcilingExternal = true;
+      try {
+        for (const intent of this.state().intents) {
+          if (!intent.acquisitionTaskId || !(intent.status === 'acquiring' || (intent.status === 'deferred' && intent.failure?.code === 'txt_retry_available'))) continue;
+          try {
+            const task=this.options.getExternalTask(intent.acquisitionTaskId);
+            if (task) this.onExternalTaskStateChanged(task);
+            else if (intent.acquisitionKind === 'txt') this.deferIntent(intent.id,'txt_state_unavailable','TXT任务记录不可用，未安排阅读。');
+          } catch {
+            this.deferIntent(intent.id,'txt_state_unavailable','TXT状态协调失败，保留任务供恢复，未安排阅读。');
+          }
+        }
+      } finally { this.reconcilingExternal = false; }
+    }
     const before = this.state();
     let changed = false;
     const next = structuredClone(before);
@@ -480,15 +509,56 @@ export class SelectionCoordinator {
    * Browser-assisted file acquisition finished for an autonomous intent. Manual
    * imports never reach here: they carry no intentId and change no selection state.
    */
-  onExternalTaskCreated(task:{id:string;intentId?:string}):void{
-    if(!task.intentId)return;
+  onExternalTaskCreated(task:{id:string;intentId?:string;origin?:string}):void{
+    if(!task.intentId||task.origin==='manual')return;
     const intent=this.state().intents.find(row=>row.id===task.intentId);
-    if(!intent||TERMINAL_INTENTS.has(intent.status)||this.stopped){this.options.cancelExternal?.(task.intentId);return;}
-    this.update(draft=>{const target=draft.intents.find(row=>row.id===intent.id)!;target.acquisitionTaskId=task.id;target.status='acquiring';target.updatedAt=this.now();});
+    if(!intent||TERMINAL_INTENTS.has(intent.status)||this.stopped){this.options.cancelExternal?.(task.intentId);throw new Error('Selection intent is not active');}
+    if (intent.externalPolicyRevokedAt !== undefined || !this.cfg.allowNetwork || !this.cfg.autonomousAcquisition) {
+      this.options.cancelExternal?.(intent.id); throw new Error('Selection policy does not authorize this intent');
+    }
+    this.update(draft=>{const target=draft.intents.find(row=>row.id===intent.id)!;target.acquisitionTaskId=task.id;target.acquisitionKind='txt';target.status='acquiring';target.updatedAt=this.now();});
   }
 
-  onExternalImport(task: { id: string; intentId?: string; bookKey?: string }, identity: 'exact' | 'partial' | 'unknown'): void {
-    if (!task.intentId || !task.bookKey) return;
+  /** Consult authoritative facts so duplicated or late notifications cannot regress a newer attempt. */
+  onExternalTaskStateChanged(event: AcquisitionTask): void {
+    if (event.origin !== 'autonomous' || !event.intentId) return;
+    if (this.stopped) throw new Error('Selection stopped; TXT fact remains replayable');
+    const task = this.options.getExternalTask ? this.options.getExternalTask(event.id) : event;
+    if (!task) throw new Error('TXT task record unavailable');
+    const intent = this.state().intents.find(row => row.id === task.intentId);
+    if (!intent || intent.acquisitionTaskId !== task.id) return;
+    const active = !['completed','completed_with_warning','failed_recoverable','failed_terminal'].includes(task.status);
+    if (TERMINAL_INTENTS.has(intent.status) || intent.externalPolicyRevokedAt !== undefined) {
+      if (active) this.options.cancelExternal?.(intent.id);
+      return;
+    }
+    if (!this.cfg.allowNetwork || !this.cfg.autonomousAcquisition) {
+      this.deferIntent(intent.id, 'policy_changed', '策略已关闭，TXT结果仅保留，未安排阅读。');
+      if (active) this.options.cancelExternal?.(intent.id);
+      return;
+    }
+    if (task.status === 'completed' || task.status === 'completed_with_warning') {
+      const source=task.candidates.find(row=>row.id===task.selectedCandidateId);
+      const identity=task.selection?.identity==='exact'?identityMatch(task.target,source):task.selection?.identity??'unknown';
+      this.onExternalImport(task,identity);return;
+    }
+    if (task.status === 'failed_recoverable' || task.status === 'failed_terminal') {
+      if (task.failure?.code === 'cancelled') {
+        this.cancel(intent.id); return;
+      }
+      const code = task.failure?.code ?? 'txt_state_unavailable';
+      if (task.status === 'failed_terminal' && !['browser_unavailable','storage_unavailable','library_full','policy_blocked','network_disabled','disabled'].includes(code)) this.recordFailure(intent.id, {code, global:false, message:task.failure?.message ?? 'TXT获取终止，未安排阅读。'}, 'txt');
+      else if (!(intent.status === 'deferred' && intent.failure?.code === 'txt_retry_available'))
+        this.deferIntent(intent.id, 'txt_retry_available', `TXT获取失败（${code}），可显式重试同一任务；未自动换书。`);
+      return;
+    }
+    if (intent.status === 'deferred' && intent.failure?.code === 'txt_retry_available') {
+      this.update(state => {const target=state.intents.find(row=>row.id===intent.id)!;target.status='acquiring';delete target.failure;target.updatedAt=this.now();});
+    }
+  }
+
+  onExternalImport(task: { id: string; intentId?: string; bookKey?: string; origin?: string }, identity: 'exact' | 'partial' | 'unknown'): void {
+    if (!task.intentId || !task.bookKey || task.origin === 'manual') return;
     if (this.stopped) throw new Error('Selection coordinator is stopped; shelf import remains pending for reconciliation');
     const bookKey = task.bookKey;
     const state = this.refresh();
@@ -497,6 +567,16 @@ export class SelectionCoordinator {
     if(TERMINAL_INTENTS.has(intent.status)&&intent.status!=='cancelled')return;
     if(intent.bookKey===bookKey&&['fulfilled','reading'].includes(intent.status))return;
     if(intent.acquisitionTaskId&&this.options.isExternalTask?.(intent.acquisitionTaskId)&&intent.acquisitionTaskId!==task.id)return;
+    if (intent.acquisitionKind === 'txt' && intent.acquisitionTaskId !== task.id) return;
+    if (intent.acquisitionKind === 'txt' && this.options.getExternalTask) {
+      const durable = this.options.getExternalTask(task.id);
+      if (!durable || !['completed','completed_with_warning'].includes(durable.status) || durable.bookKey !== bookKey) throw new Error('No durable TXT shelf receipt matches this callback');
+    }
+    if (intent.externalPolicyRevokedAt !== undefined || !this.cfg.allowNetwork || !this.cfg.autonomousAcquisition) {
+      if (intent.externalPolicyRevokedAt === undefined) this.deferIntent(intent.id, 'policy_changed', '策略已关闭，保留已入架作品，不自动排队。');
+      this.update(draft => {const target=draft.intents.find(row=>row.id===intent.id)!;if(this.bookExists(bookKey)&&(!target.bookKey||target.bookKey===bookKey))target.bookKey=bookKey;});
+      return;
+    }
     if (!this.bookExists(bookKey)) {
       this.recordFailure(intent.id, { code: 'import_failed', global: false, message: '文件已导入但未找到持久化书籍，未安排阅读。' }, 'import');
       return;
@@ -575,6 +655,7 @@ export class SelectionCoordinator {
       const target = draft.intents.find((entry) => entry.id === intentId);
       if (!target || ['completed', 'abandoned', 'cancelled'].includes(target.status)) return;
       target.status = 'deferred'; target.updatedAt = now;
+      if (code === 'policy_changed') {target.externalPolicyRevokedAt=now;target.queueOnImport=false;}
       target.failure = { code, message, at: now };
       if (draft.round?.day === this.day()) draft.round.status = 'paused';
       announced = structuredClone(target);
@@ -588,7 +669,7 @@ export class SelectionCoordinator {
     let announced: SelectionIntent | undefined;
     this.update((draft) => {
       const target = draft.intents.find((entry) => entry.id === intentId);
-      if (!target||TERMINAL_INTENTS.has(target.status)||(target.status==='awaiting_choice'&&!target.queueOnImport)) return;
+      if (!target||TERMINAL_INTENTS.has(target.status)||target.externalPolicyRevokedAt!==undefined||(target.status==='awaiting_choice'&&!target.queueOnImport)) return;
       target.bookKey = bookKey; target.updatedAt = now;
       target.status = book?.complete ? 'completed' : 'reading';
       if (target.queueOnImport && book) {
@@ -743,6 +824,10 @@ export class SelectionCoordinator {
     const intent = state.intents.find((entry) => entry.id === id);
     if (!intent) throw new Error('Selection intent not found');
     if(TERMINAL_INTENTS.has(intent.status))throw new Error('Terminal selection intent cannot be reactivated; create a new intent');
+    if (intent.externalPolicyRevokedAt !== undefined) {
+      if (!this.cfg.allowNetwork || !this.cfg.autonomousAcquisition) throw new Error('Selection policy is disabled');
+      if (action !== 'queue' || !intent.bookKey) throw new Error('An imported book and explicit queue decision are required to resume this revoked intent');
+    }
     if (action === 'defer') {
       const item = state.queue.find((entry) => entry.intentId === id);
       if (!item) throw new Error('No queued reading item exists for this intent');
@@ -755,7 +840,7 @@ export class SelectionCoordinator {
       if (book.complete) throw new Error('Book is already complete');
       this.update((draft) => {
         const target = draft.intents.find((entry) => entry.id === id);
-        if (target) {target.queueOnImport = true;if(target.status==='awaiting_choice')target.status='reading';}
+        if (target) {target.queueOnImport = true;delete target.externalPolicyRevokedAt;if(target.status==='awaiting_choice'||target.status==='deferred')target.status='reading';}
         const existing = draft.queue.find((entry) => entry.intentId === id);
         if (existing) {
           if (existing.status === 'cancelled' || existing.status === 'done') { existing.status = 'queued'; existing.updatedAt = this.now(); }
@@ -777,7 +862,7 @@ export class SelectionCoordinator {
     return this.summary(id);
   }
 
-  abandon(intentId: unknown): SelectionSummary {
+  abandon(intentId: unknown, by: 'user' | 'pet' = 'user'): SelectionSummary {
     const id = clampText(intentId, 'intentId', 80);
     this.update((draft) => {
       const target = draft.intents.find((entry) => entry.id === id);
@@ -785,7 +870,7 @@ export class SelectionCoordinator {
       if(TERMINAL_INTENTS.has(target.status))return;
       target.status = 'abandoned'; target.updatedAt = this.now();
       target.queueOnImport=false;
-      target.failure = { code: 'cancelled', message: '用户明确放弃这本自选书，承诺结束。', at: this.now() };
+      target.failure = { code: 'cancelled', message: by === 'pet' ? '大肥鱼放弃尚未形成阅读承诺的这次找书。' : '用户明确放弃这本自选书，承诺结束。', at: this.now() };
       for (const item of draft.queue) if (item.intentId === id) { item.status = 'cancelled'; item.updatedAt = this.now(); }
       if (draft.round?.day === this.day()) draft.round.status = 'paused';
     });
@@ -796,7 +881,8 @@ export class SelectionCoordinator {
 
   cancel(intentId: unknown): Record<string, unknown> {
     const id = clampText(intentId, 'intentId', 80);
-    const state = this.refresh();
+    // The explicit cancellation wins before a recovery pull can create a queue item.
+    const state = this.state();
     const intent = state.intents.find((entry) => entry.id === id);
     if (!intent) throw new Error('Selection intent not found');
     if(TERMINAL_INTENTS.has(intent.status))return {cancelled:false,intent:this.summary(id)};

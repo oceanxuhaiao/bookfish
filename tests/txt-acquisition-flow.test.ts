@@ -109,7 +109,7 @@ describe('browser-assisted acquisition flow', () => {
     expect(done.bookKey).toBeTruthy();
     expect(textOf(done.bookKey!)).toContain('她把信折好');
     expect(rawFiles()).toEqual([]);
-    expect(imported.map((entry) => entry.identity)).toEqual(['exact']);
+    expect(imported).toEqual([]); // Manual imports create no autonomous Selection receipt.
   });
 
   it('keeps the original bytes when the copy has warnings, and still lets it be read', async () => {

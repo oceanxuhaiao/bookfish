@@ -16,7 +16,7 @@ export const BOOKFISH: WorldDefinition<BookfishConfigSection> = {
       bookfish_lookup: { zh: '回查已读原文、手账、感想与修订；不改变进度，不返回未读正文。', en: 'Looks up confirmed text, journal, episodes and revisions without advancing progress or returning unread text.' },
       bookfish_record_reflection: { zh: '追加现在的反思或修订，保留原判断和时间。', en: 'Appends a present-day reflection or revision while preserving the original and its time.' },
       bookfish_defer_reading: { zh: '延后本次机会或休息，保留已确认进度。', en: 'Defers this opportunity or takes a rest without losing confirmed progress.' },
-      bookfish_acquire: { zh: '解析链接、自主搜索、按候选获取、读取摘要或安排阅读队列。', en: 'Resolves a source, searches, acquires a candidate, reads a summary or plans the reading queue.' },
+      bookfish_acquire: { zh: '解析链接、自主搜索、按候选获取、安排队列或取消、放弃准确意图。', en: 'Resolves sources, searches, acquires, plans reading or terminates an exact intent.' },
       bookfish_import_txt: { zh: '浏览器辅助获取现成 TXT/Markdown 文件：发现候选、下载并宽松导入、查询状态、重试或补正；不绕过登录与付费限制。', en: 'Browser-assisted TXT/Markdown acquisition: discovers candidates, downloads and imports leniently, reports status, retries or repairs; never bypasses logins or paywalls.' },
       bookfish_share: { zh: '提名、分页查询、放弃分享候选，或登记实际输出回执。', en: 'Nominates, pages, drops a sharing candidate, or records the actual output receipt.' },
       bookfish_claim_share: { zh: '校验机会后预留一次分享尝试，过期或拒绝不得输出。', en: 'Reserves one output attempt after checking the opportunity.' },

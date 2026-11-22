@@ -15,7 +15,7 @@ let dir: string, library: Library;
 const prose = '她把信折好放进抽屉，海风从窗口吹进来。'.repeat(80);
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'bf-r3-')); library = new Library({ dataDir: dir }); library.open(); });
 afterEach(() => { vi.restoreAllMocks(); library.close(); rmSync(dir, { recursive: true, force: true }); });
-function acquisition(onImported?: () => void | Promise<void>) { return new TxtAcquisition({ dataDir: dir, library, cfg: () => ({ ...BOOKFISH_DEFAULTS, txtAcquisitionEnabled: true }), resolve: async () => ['93.184.216.34'], fetchImpl: (async () => new Response(prose)) as typeof fetch, onImported }); }
+function acquisition(onImported?: () => void | Promise<void>) { return new TxtAcquisition({ dataDir: dir, library, cfg: () => ({ ...BOOKFISH_DEFAULTS, txtAcquisitionEnabled: true, autonomousAcquisition: !!onImported }), resolve: async () => ['93.184.216.34'], fetchImpl: (async () => new Response(prose)) as typeof fetch, onImported }); }
 async function failedOriginal() {
   const acq = acquisition(); await acq.init(); const spy = vi.spyOn(library, 'importFileBestEffort').mockImplementationOnce(() => { throw Error('disk temporarily unavailable'); });
   const failed = await acq.importFile({ url: 'https://books.example/a.txt', title: '海风' }); spy.mockRestore();
@@ -81,18 +81,18 @@ describe('third-round original integrity', () => {
   });
   it('replays only queue integration after restart, preserving one unread shelf item', async () => {
     const acq = acquisition(() => { throw Error('queue unavailable'); }); await acq.init();
-    const done = await acq.importFile({ url: 'https://books.example/a.txt', title: '海风' }); expect(done.selection?.status).toBe('failed'); await acq.stop();
+    const done = await acq.importFile({ url: 'https://books.example/a.txt', title: '海风', origin: 'autonomous', intentId: randomUUID() }); expect(done.selection?.status).toBe('failed'); await acq.stop();
     const callback = vi.fn(); const restarted = acquisition(callback); await restarted.init(); await restarted.resumeSelection(); await restarted.resumeSelection();
     expect(callback).toHaveBeenCalledOnce(); expect(restarted.records.get(done.taskId)?.selection?.status).toBe('completed'); expect(library.list()).toHaveLength(1); expect(library.list()[0].confirmedChars).toBe(0);
   });
   it('keeps persistent pending success when writing the queue receipt fails', async () => {
     let acq: TxtAcquisition; const callback = () => { mkdirSync(acq.records.file + '.' + process.pid + '.tmp'); };
-    acq = acquisition(callback); await acq.init(); const done = await acq.importFile({ url: 'https://books.example/a.txt', title: '海风' });
+    acq = acquisition(callback); await acq.init(); const done = await acq.importFile({ url: 'https://books.example/a.txt', title: '海风', origin: 'autonomous', intentId: randomUUID() });
     expect(done.status).toMatch(/^completed/); expect(done.selection?.status).toBe('pending'); expect(acq.selectionPersistenceError).toBeTruthy(); expect(library.list()[0].confirmedChars).toBe(0);
   });
   it('World stop during async queue integration leaves a replayable receipt', async () => {
     let release!: () => void; let entered!: () => void; const started = new Promise<void>(r => { entered = r; });
-    const acq = acquisition(async () => { entered(); await new Promise<void>(r => { release = r; }); }); await acq.init(); const running = acq.importFile({ url: 'https://books.example/a.txt', title: '海风' });
+    const acq = acquisition(async () => { entered(); await new Promise<void>(r => { release = r; }); }); await acq.init(); const running = acq.importFile({ url: 'https://books.example/a.txt', title: '海风', origin: 'autonomous', intentId: randomUUID() });
     await started; await acq.stop(); release(); const done = await running; expect(done.status).toMatch(/^completed/); expect(done.selection?.status).toBe('pending'); expect(library.list()).toHaveLength(1);
   });
   it('does not clean originals when task records are corrupt', async () => {

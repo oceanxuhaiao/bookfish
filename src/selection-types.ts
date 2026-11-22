@@ -73,9 +73,12 @@ export interface SelectionIntent {
   searchJobId?: string;
   selectedCandidateId?: string;
   acquisitionTaskId?: string;
+  acquisitionKind?: 'txt';
   bookKey?: string;
   /** Automatic mode queues on import; the model may still confirm the queue. */
   queueOnImport: boolean;
+  /** Persistent fence: enabling a switch again does not authorize an old attempt. */
+  externalPolicyRevokedAt?: number;
   failure?: SelectionFailure;
   /** Last terminal fact already announced to the model; prevents duplicate wakeups. */
   notified?: string;
@@ -193,11 +196,14 @@ function validateIntent(raw: unknown): SelectionIntent {
   if (!Array.isArray(candidates) || candidates.length > CANDIDATE_LIMIT) throw new Error('Invalid autonomous selection candidate list');
   const createdAt = stamp(value.createdAt, 'intent created time');
   const updatedAt = stamp(value.updatedAt, 'intent updated time');
+  if (value.acquisitionKind !== undefined && value.acquisitionKind !== 'txt') throw new Error('Invalid autonomous selection acquisition kind');
   let failure: SelectionFailure | undefined;
   if (value.failure !== undefined) {
     const f = record(value.failure);
     failure = { code: text(f.code, 'failure code', 80), message: text(f.message, 'failure message', 1000), at: stamp(f.at, 'failure time') };
   }
+  const revokedAt = optionalStamp(value.externalPolicyRevokedAt, 'external policy revocation')
+    ?? (status === 'deferred' && failure?.code === 'policy_changed' ? failure.at : undefined);
   return {
     id, createdAt, updatedAt,
     title: text(value.title, 'intent title', 200),
@@ -209,8 +215,10 @@ function validateIntent(raw: unknown): SelectionIntent {
     ...(optionalText(value.searchJobId, 'search job id', 80) ? { searchJobId: value.searchJobId as string } : {}),
     ...(optionalText(value.selectedCandidateId, 'selected candidate id', 80) ? { selectedCandidateId: value.selectedCandidateId as string } : {}),
     ...(optionalText(value.acquisitionTaskId, 'acquisition task id', 80) ? { acquisitionTaskId: value.acquisitionTaskId as string } : {}),
+    ...(value.acquisitionKind === 'txt' ? { acquisitionKind: 'txt' as const } : {}),
     ...(optionalText(value.bookKey, 'book key', 150) ? { bookKey: value.bookKey as string } : {}),
-    queueOnImport: value.queueOnImport !== false,
+    queueOnImport: revokedAt === undefined && value.queueOnImport !== false,
+    ...(revokedAt !== undefined ? { externalPolicyRevokedAt: revokedAt } : {}),
     ...(failure ? { failure } : {}),
     ...(optionalText(value.notified, 'notification key', 200) ? { notified: value.notified as string } : {}),
   };
