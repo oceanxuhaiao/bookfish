@@ -1,0 +1,47 @@
+
+ RUN  v2.1.9 E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-txt-acquisition-round3
+
+ ✓ tests/txt-acquisition-flow.test.ts (13 tests) 7416ms
+   ✓ browser-assisted acquisition flow > discovers TXT and Markdown candidates and keeps only digests on disk 737ms
+   ✓ browser-assisted acquisition flow > downloads a candidate, imports it and drops the clean original 616ms
+   ✓ browser-assisted acquisition flow > keeps the original bytes when the copy has warnings, and still lets it be read 550ms
+   ✓ browser-assisted acquisition flow > retries a recoverable download failure without duplicating the task 511ms
+   ✓ browser-assisted acquisition flow > marks interrupted work recoverable after a restart and keeps the page for rediscovery 332ms
+   ✓ browser-assisted acquisition flow > cancels a pending task, keeps it recoverable and leaves no partial file 445ms
+   ✓ browser-assisted acquisition flow > repairs a damaged file into a new revision without touching the first one 858ms
+   ✓ browser-assisted acquisition flow > does not import the same file twice as two books 896ms
+   ✓ browser-assisted acquisition flow > refuses to touch the network when the world has network access disabled 337ms
+   ✓ browser-assisted acquisition flow > requires an explicit browser debug port instead of probing for one 413ms
+   ✓ browser-assisted acquisition flow > keeps the original bytes when the file is not a book, so it can be retried later 649ms
+   ✓ browser-assisted acquisition flow > rejects an already leased upload when the simulated controller loses protection 480ms
+   ✓ browser-assisted acquisition flow > opens the page and downloads through the connected browser extension 589ms
+ ✓ tests/world.test.ts (11 tests) 7519ms
+   ✓ Bookfish library World > retains the latest writer fence when TXT shutdown fails and permits a clean retry 1071ms
+   ✓ Bookfish library World > drives two paced opportunities through actual World hooks, timer, panel and tool handlers 1208ms
+   ✓ Bookfish library World > reports stopped before mount and after stop; mounting does not enable automatic reading 482ms
+   ✓ Bookfish library World > reads current cognition availability and hot configuration without requesting a model 476ms
+   ✓ Bookfish library World > mounts and closes the optional story sidecar without enabling it by default 679ms
+   ✓ Bookfish library World > captures a story fact through the optional tool without advancing reading 966ms
+   ✓ Bookfish library World > keeps the model-facing status compact while the panel keeps the full shape 571ms
+   ✓ Bookfish library World > rolls back state when event persistence fails, allowing a clean subsequent mount 664ms
+   ✓ Bookfish library World > rejects an aborted confirmation and serializes concurrent retries into one confirmed range 700ms
+   ✓ Bookfish library World > exposes the declared reading start to the panel only, and rejects an invalid start 696ms
+ ✓ tests/txt-acquisition-round4-integration.test.ts (22 tests) 6864ms
+   ✓ round4 controlled raw races > serializes dropRaw with a new same-hash publication 800ms
+   ✓ round4 authenticated consumed bytes > preserves an already committed unread book when cancel arrives before the shelf receipt 639ms
+   ✓ round4 authenticated consumed bytes > preserves an already committed unread book when abandon arrives before the shelf receipt 643ms
+   ✓ round4 authenticated consumed bytes > refuses a canonical-file replacement before the actual index consumes it 497ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot replace between verification and decoder open 530ms
+   ✓ round4 authenticated consumed bytes > rejects snapshot remove between verification and decoder open 514ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through cancel and preserves no false shelf result 479ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through abandon and preserves no false shelf result 458ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through autonomous-off and preserves no false shelf result 454ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through network-off and preserves no false shelf result 484ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > aborts a silent body through stop and preserves no false shelf result 413ms
+   ✓ round4 cancellation propagation with actual slow loopback HTTP > revokes a browser lease after Selection cancellation without using a production guard stub 454ms
+
+ Test Files  3 passed (3)
+      Tests  46 passed (46)
+   Start at  14:54:10
+   Duration  16.57s (transform 1.03s, setup 0ms, collect 2.35s, tests 21.80s, environment 1ms, prepare 305ms)
+
