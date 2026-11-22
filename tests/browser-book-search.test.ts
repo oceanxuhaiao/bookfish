@@ -3,6 +3,7 @@ import {mkdtempSync,rmSync} from 'node:fs';import {tmpdir} from 'node:os';import
 import {bookSearchUrl,parseBookSearch} from '../src/txt-acquisition/book-search.ts';
 import {TxtAcquisition,type PageLoader} from '../src/txt-acquisition/acquisition.ts';
 import {BOOKFISH_DEFAULTS} from '../src/config.ts';import {Library} from '../src/library.ts';
+import {DownloadError} from '../src/txt-acquisition/download.ts';
 const html='<ol><li class="b_algo"><h2><a href="https://books.example/sea">《海风》作者：小鱼 TXT</a></h2><div class="b_caption"><p>下载说明</p></div></li></ol>';
 describe('browser book search',()=>{
   it('accepts title only or author only and bounds the query',()=>{
@@ -19,6 +20,10 @@ describe('browser book search',()=>{
   afterEach(async()=>{await acq.stop();library.close();rmSync(dir,{recursive:true,force:true});});
   it('searches by author without creating acquisition tasks, books or progress',async()=>{
     expect((await acq.searchBooks({author:'小鱼'})).hits).toHaveLength(1);expect(acq.list()).toHaveLength(0);expect(library.list()).toHaveLength(0);expect(acq.summary().controllerReady).toBe(false);
+  });
+  it('turns the real bridge permission failure type into actionable search authorization guidance',async()=>{
+    loader=async()=>{throw new DownloadError('policy_blocked','The browser could not complete the transfer',false);};
+    await expect(acq.searchBooks({title:'海风'})).rejects.toThrow('https://cn.bing.com');expect(acq.list()).toHaveLength(0);
   });
   it('refuses search without ordinary consent and aborts a pending search on revocation',async()=>{
     cfg.browserStandardConsent=false;await expect(acq.searchBooks({title:'海风'})).rejects.toThrow();cfg.browserStandardConsent=true;acq.onConfigChanged();

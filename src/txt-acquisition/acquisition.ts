@@ -422,7 +422,7 @@ export class TxtAcquisition {
       const result=parseBookSearch(html);return {provider:'Bing',authorizationOrigin:BOOK_SEARCH_ORIGIN,...result};
     }catch(error){
       if(signal.aborted)throw new Error('搜索已中止或超时，请检查连接后重试。');
-      if(error instanceof BridgeError&&['permission_missing','policy_blocked'].includes(error.code))throw new Error('请在 BookFish 浏览器扩展中授权 '+BOOK_SEARCH_ORIGIN+'，再返回搜索。');
+      if((error instanceof BridgeError||error instanceof DownloadError)&&['permission_missing','policy_blocked'].includes(error.code))throw new Error('浏览器拒绝了搜索请求。请在 BookFish 扩展中确认已授权 '+BOOK_SEARCH_ORIGIN+' 后重试；已授权仍失败时，请检查浏览器中的拒绝或验证提示。');
       throw error;
     }finally{this.searches.delete(abort);}
   }
