@@ -1,0 +1,15 @@
+{
+  "source": "7b4616921f991725bcdb2da741c61e4c1e535dac",
+  "version": "0.65.1",
+  "books": 12,
+  "confirmedChars": 1847639,
+  "episodes": 828,
+  "tasks": 1682,
+  "historyChecksum": "8923ac6104f15624d2d052b2c3458c42179d82138249d80c21a907c9d36b95e9",
+  "settingsUnchangedBySetup": true,
+  "coreResumed": true,
+  "controllerReady": false,
+  "browserReady": false,
+  "browserBridgeEnabled": false,
+  "actualUI": "one-click button clicked; environment done, controller blocked, remaining steps pending"
+}

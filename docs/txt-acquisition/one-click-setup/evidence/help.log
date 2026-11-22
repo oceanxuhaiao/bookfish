@@ -1,0 +1,5 @@
+
+> cortico-world-bookfish@0.65.1 check:help
+> node --import tsx scripts/check-help-content.mts
+
+help content ok: package 0.65.1, 7 categories, 20 guides, 8 releases, 3 progress items, 9 online announcements, current-version post present

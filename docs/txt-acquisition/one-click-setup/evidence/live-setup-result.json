@@ -1,0 +1,27 @@
+{
+  "state": "blocked",
+  "reason": "controller_unavailable",
+  "steps": [
+    {
+      "id": "environment",
+      "state": "done"
+    },
+    {
+      "id": "controller",
+      "state": "blocked"
+    },
+    {
+      "id": "browser",
+      "state": "pending"
+    },
+    {
+      "id": "extension",
+      "state": "pending"
+    },
+    {
+      "id": "verification",
+      "state": "pending"
+    }
+  ],
+  "changed": false
+}

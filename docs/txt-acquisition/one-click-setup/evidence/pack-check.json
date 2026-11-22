@@ -1,0 +1,7 @@
+{
+  "version": "0.65.1",
+  "integrity": "sha512-fnA6vT0EptIsSuCH5/QwP9SCMSQfUfL41TvEXL64pJs0t7Ypg2aR6fjLUYditcjXNqYGME6z2o6nMXEmjjkmsA==",
+  "files": 146,
+  "client": "lib/webui-txt-onboarding-0651.js",
+  "setup": true
+}
