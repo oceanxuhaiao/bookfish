@@ -1,0 +1,23 @@
+{
+  "passed": true,
+  "source": "9a2300b",
+  "installedVersion": "0.63.0",
+  "install": "E:/zcdfy/Coopanion/data/local-extensions/bookfish-txt-trial-9a2300b",
+  "backup": "E:/zcdfy/Coopanion/data/backups/bookfish-txt-trial-2026-11-22T06-35-19-546Z-7d3cfc61",
+  "books": 12,
+  "confirmedChars": 1828948,
+  "history": {
+    "version": 3667,
+    "tasks": 1666,
+    "episodes": 821,
+    "sum": "31552efcbabaf122144c82af8a3c2d24a6e4e209fd2ccca760ddd5f38f3ac85e"
+  },
+  "txtToolRegistered": true,
+  "txtAcquisitionEnabled": true,
+  "networkEnabled": true,
+  "browserBridgeEnabled": false,
+  "controllerReady": false,
+  "browserReady": false,
+  "originalPreferencesPreserved": true,
+  "oldVersion": "0.65.1"
+}
