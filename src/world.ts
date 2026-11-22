@@ -24,6 +24,7 @@ import { NovelRuntimeManager } from './novel-runtime/manager.ts';
 import { BUILTIN_RUNTIME_MANIFEST } from './novel-runtime/builtin-manifest.ts';
 import { SelectionCoordinator } from './selection.ts';
 import { TxtAcquisition } from './txt-acquisition/index.ts';
+import { configureBrowserSetup } from './txt-acquisition/setup.ts';
 import { BOOKFISH_TOOL_DECLS } from './tool-schemas.ts';
 import { HELP_TOPICS } from './protocols.ts';
 import { assertWritableTextStoreDir } from './text-store.ts';
@@ -418,6 +419,13 @@ export class BookfishWorld implements World {
           return { networkEnabled: this.opts.cfg.allowNetwork, enabled: state.enabled,
             bridgeEnabled: this.opts.cfg.browserBridgeEnabled === true, controllerReady: state.controllerReady,
             transportConnected: state.transportConnected, browserReady: state.browserReady };
+        }
+        if (method === 'txt_setup_configure' && args.length === 1) {
+          const request = args[0] as Record<string, unknown> | null;
+          if (!request || typeof request !== 'object' || Array.isArray(request) || typeof request.allowNetwork !== 'boolean') throw new Error('Invalid browser setup request');
+          return configureBrowserSetup({ platform: process.platform, settings: () => this.opts.cfg,
+            readiness: () => this.txtAcquisition.summary(), persist: this.opts.persist,
+            changed: () => { this.selection.onConfigChanged(); this.txtAcquisition.onConfigChanged(); } }, request.allowNetwork);
         }
         if (method === 'txt_status' && args.length === 1) return this.txtAcquisition.status(requiredText(args[0], 'taskId', 80));
         if (['txt_discover', 'txt_import', 'txt_cancel'].includes(method) && args.length === 1) {

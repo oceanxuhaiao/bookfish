@@ -17,6 +17,10 @@ describe('actual World browser TXT panel gate',()=>{
       const setup=await invoke('shelf','txt_setup',[]);
       expect(setup).toEqual({networkEnabled:true,enabled:true,bridgeEnabled:false,controllerReady:false,transportConnected:false,browserReady:false});
       expect(setup).not.toHaveProperty('token');
+      const before=await invoke('settings','get',[]);
+      expect(await invoke('shelf','txt_setup_configure',[{allowNetwork:true}])).toMatchObject({state:'blocked',reason:'controller_unavailable',changed:false});
+      expect(await invoke('settings','get',[])).toEqual(before);
+      await expect(invoke('shelf','txt_setup_configure',[{allowNetwork:'true'}])).rejects.toThrow('Invalid browser setup');
       await expect(invoke('shelf','txt_discover',[{title:'海风',url:'https://example.org'}])).rejects.toThrow('尚未就绪');
       await expect(invoke('shelf','txt_import',[{taskId:'x',candidateId:'c'}])).rejects.toThrow('尚未就绪');
       const view=await invoke('shelf','get',[]) as any;expect(view.status.txtAcquisition.active).toBe(0);expect(view.books).toHaveLength(0);
