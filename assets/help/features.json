@@ -145,8 +145,8 @@
       "features": [
         {
           "id": "reading-trail",
-          "title": "阅读足迹",
-          "summary": "按现实时间看她读到哪里、当时想了什么。",
+          "title": "阅读足迹看板",
+          "summary": "跨书浏览、排序、关键词搜索与新足迹提醒。",
           "icon": "🧾",
           "contentPath": "guides/reading-trail.md",
           "minVersion": null,
