@@ -1,4 +1,4 @@
-﻿import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, copyFileSync, readdirSync, lstatSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, copyFileSync, readdirSync, lstatSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { WriterLock } from './writer-lock.ts';
@@ -1263,14 +1263,22 @@ export class Library {
     return this.historyRef ? this.history.countRows('episodes', this.historyRef.version, filter) : historyCount(this.state.episodes, filter);
   }
   private selectEpisodes(filter: HistoryFilter, order: BrowseOrder, limit: number, terms: readonly string[] = []): ReadingEpisode[] {
-    if (terms.length && this.historyRef) return this.history.searchRows<ReadingEpisode>(this.historyRef.version, filter, terms, order, limit);
+    if (this.historyRef) {
+      return terms.length
+        ? this.history.searchRows<ReadingEpisode>(this.historyRef.version, filter, terms, order, limit)
+        : this.history.windowRows<ReadingEpisode>('episodes', this.historyRef.version, filter, order, limit);
+    }
     const rows = terms.length
       ? historySelect(this.state.episodes, filter).filter((episode) => footprintMatches(episode, terms))
       : historySelect(this.state.episodes, filter);
     return rows.sort((a, b) => (order === 'asc' ? a.sequence - b.sequence : b.sequence - a.sequence)).slice(0, limit);
   }
   private episodeExtremes(filter: HistoryFilter, terms: readonly string[] = []): { head: number | null; tail: number | null } {
-    if (terms.length && this.historyRef) return this.history.searchExtremes(this.historyRef.version, filter, terms);
+    if (this.historyRef) {
+      return terms.length
+        ? this.history.searchExtremes(this.historyRef.version, filter, terms)
+        : this.history.sequenceExtremes(this.historyRef.version, filter);
+    }
     const rows = terms.length
       ? historySelect(this.state.episodes, filter).filter((episode) => footprintMatches(episode, terms))
       : historySelect(this.state.episodes, filter);
