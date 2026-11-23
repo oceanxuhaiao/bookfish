@@ -352,15 +352,18 @@ export function mountFootprint(ctx: WebUiPanelContext, say: Say): FootprintHandl
   }, { signal: ctx.signal });
   orderSelect.addEventListener('change', () => {
     state.order = orderSelect.value === 'asc' ? 'asc' : 'desc';
-    const anchor = page?.page.firstSequence ?? state.anchor;
+    // Picking an order starts at that order's first page: earliest records for asc, newest for desc.
+    // Keeping the previous page anchor would land "earliest first" on the newest page instead.
+    state.anchor = null;
     preview = null; renderPreview(); save();
-    void browse({ anchor });
+    void browse({});
   }, { signal: ctx.signal });
   limitSelect.addEventListener('change', () => {
     const value = Number(limitSelect.value);
     if (!isLimit(value)) return;
     state.limit = value;
-    const anchor = page?.page.firstSequence ?? state.anchor;
+    // Anchor on the last committed page, not on a page whose order is still switching.
+    const anchor = state.anchor;
     preview = null; renderPreview(); save();
     void browse({ anchor });
   }, { signal: ctx.signal });

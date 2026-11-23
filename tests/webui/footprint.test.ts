@@ -160,13 +160,30 @@ describe('reading footprint browser', () => {
     expect(metatexts(root)).toEqual(firstPage);
   });
 
+  it('starts at the earliest record when oldest-first is selected', async () => {
+    await seed('甲书', 4); await seed('乙书', 4); await seed('丙书', 4);
+    const { root } = await mount();
+    await vi.waitFor(() => expect(cards(root).length).toBe(10));
+    expect(pagerText(root)).toContain('第 1 / 2 页');
+    expect(metatexts(root)[0]).toContain('丙书 第 3 次回想');
+    const order = root.querySelector<HTMLSelectElement>('select[aria-label="足迹排序"]')!;
+    order.value = 'asc'; order.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(order.value).toBe('asc'));
+    await vi.waitFor(() => expect(metatexts(root)[0]).toContain('甲书 第一次感想'));
+    expect(pagerText(root)).toContain('第 1 / 2 页');
+    order.value = 'desc'; order.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(metatexts(root)[0]).toContain('丙书 第 3 次回想'));
+    expect(pagerText(root)).toContain('第 1 / 2 页');
+  });
+
   it('returns to the real last page when oldest-first is selected', async () => {
     await seed('甲书', 4); await seed('乙书', 4); await seed('丙书', 4);
     const { root } = await mount();
     await vi.waitFor(() => expect(cards(root).length).toBe(10));
     const order = root.querySelector<HTMLSelectElement>('select[aria-label="足迹排序"]')!;
     order.value = 'asc'; order.dispatchEvent(new Event('change', { bubbles: true }));
-    await vi.waitFor(() => expect(pagerText(root)).toContain('第 2 / 2 页'));
+    await vi.waitFor(() => expect(pagerText(root)).toContain('第 1 / 2 页'));
+    expect(cards(root)).toHaveLength(10);
     action(root, '回到最新').click(); await settle();
     await vi.waitFor(() => expect(pagerText(root)).toContain('第 2 / 2 页'));
     expect(cards(root)).toHaveLength(2);
@@ -183,11 +200,13 @@ describe('reading footprint browser', () => {
     const order = first.root.querySelector<HTMLSelectElement>('select[aria-label="足迹排序"]')!;
     const size = first.root.querySelector<HTMLSelectElement>('select[aria-label="每页数量"]')!;
     order.value = 'asc'; order.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(pagerText(first.root)).toContain('第 1 / 2 页'));
+    await vi.waitFor(() => expect(metatexts(first.root)[0]).toContain('甲书 第一次感想'));
     size.value = '5'; size.dispatchEvent(new Event('change', { bubbles: true }));
     await settle();
-    // Switching order keeps the current anchor, so the newest record's page becomes the last page.
-    await vi.waitFor(() => expect(pagerText(first.root)).toContain('第 3 / 3 页'));
-    action(first.root, '上一页').click(); await settle();
+    // Switching order starts at page 1; changing the page size keeps the current (oldest) record.
+    await vi.waitFor(() => expect(pagerText(first.root)).toContain('第 1 / 3 页'));
+    action(first.root, '下一页').click(); await settle();
     await vi.waitFor(() => expect(pagerText(first.root)).toContain('第 2 / 3 页'));
     const anchorPage = metatexts(first.root);
     const list = first.root.querySelector<HTMLElement>('.bf-fp-list')!;
