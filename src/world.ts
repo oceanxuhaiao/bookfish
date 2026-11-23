@@ -555,6 +555,11 @@ export class BookfishWorld implements World {
           return method === 'search' ? this.library.search(options as Record<string, unknown>) : this.library.context(options as Record<string, unknown>);
         }
         if (method === 'episode' && args.length === 1) return this.library.episode(args[0]);
+        // Read-only footprint browser for the WebUI. It never writes and never touches the model tools.
+        if (method === 'journal_browse' && args.length === 1) return this.library.journalBrowse(args[0]);
+        if (method === 'journal_books' && args.length === 0) return this.library.journalBooks();
+        if (method === 'journal_probe' && args.length === 1) return this.library.journalProbe(args[0]);
+        if (method === 'journal_new' && args.length === 1) return this.library.journalNew(args[0]);
         if (method === 'import' && args.length === 1) return this.library.import(args[0]);
         if (method === 'resolve' && args.length === 1) {
           this.requireNetwork(); return this.sources.resolve(requiredText(args[0], 'url', 2000), this.sourceSignal());

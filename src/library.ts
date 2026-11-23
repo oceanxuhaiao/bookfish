@@ -1,8 +1,9 @@
-import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, copyFileSync, readdirSync, lstatSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+﻿import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, copyFileSync, readdirSync, lstatSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { WriterLock } from './writer-lock.ts';
-import { HistoryStore, historyFork, historySelect, historyFind, historyPage, historyCount, isHistory, plainHistory, type HistoryRef } from './history.ts';
+import { HistoryStore, historyFork, historySelect, historyFind, historyPage, historyCount, isHistory, plainHistory, type HistoryRef, type HistoryFilter } from './history.ts';
+import { browseItem, browseWindow, parseBrowseQuery, parseNewQuery, parseProbeQuery, type BrowseOrder, type BrowseQuery, type BrowsePage, type BrowseBooks, type BrowseProbe, type BrowseNew } from './journal-browse.ts';
 import { BookStorage, type ArchiveHooks } from './book-storage.ts';import { isPagedBook, chapterSpan, chapterEndIds, remoteLayout, readerChapters } from './paged-book.ts';
 import { buildBook, decodeFile, digest, requiredText, type Book } from './books.ts';
 import { BestEffortRejected } from './stream-import.ts';
@@ -1142,6 +1143,146 @@ export class Library {
       evidence: episode.content.evidence.map(e => evidenceView(entry, e)),
       revisions: historySelect(this.state.episodes,{revises:episode.id}).map(e => ({ id: e.id, recordedAt: e.recordedAt })),
       authorship: 'model-reported-reading-journal', interpretationVerified: false, recordedAtMeaning: 'time-recorded-not-recovered-past-feeling' });
+  }
+  /** Read-only cross-book footprint browser: same visible fields as journal().items, plus book metadata. */
+  journalBrowse(input: unknown): BrowsePage {
+    this.ensureOpen();
+    const query = parseBrowseQuery(input);
+    this.requireBookScope(query.bookKey);
+    const filter: HistoryFilter = query.bookKey ? { bookKey: query.bookKey } : {};
+    const total = this.countEpisodes(filter);
+    const extremes = this.episodeExtremes(filter);
+    const window = this.browseWindowFor(query, filter);
+    const fetched = this.selectEpisodes(window.filter, window.queryOrder, query.limit + 1);
+    let page = fetched.slice(0, query.limit);
+    // The SQL direction follows the cursor edge; the display direction follows the user's order.
+    if (window.queryOrder !== query.order) page = [...page].reverse();
+    const first = page[0], last = page[page.length - 1];
+    let start = 0, end = 0;
+    if (page.length) {
+      start = 1 + (query.order === 'desc'
+        ? this.countEpisodes({ ...filter, after: first!.sequence })
+        : this.countEpisodes({ ...filter, before: first!.sequence }));
+      end = start + page.length - 1;
+    }
+    const entries = new Map(this.state.books.map((entry) => [entry.book.key, entry]));
+    return {
+      scope: { bookKey: query.bookKey }, order: query.order, limit: query.limit, total,
+      position: { start, end },
+      page: { count: page.length, firstSequence: first?.sequence ?? null, lastSequence: last?.sequence ?? null },
+      headSequence: extremes.head, tailSequence: extremes.tail,
+      hasPrev: start > 1, hasNext: page.length > 0 && end < total,
+      prevCursor: page.length ? { edge: query.order === 'desc' ? 'after' : 'before', sequence: first!.sequence } : null,
+      nextCursor: page.length ? { edge: query.order === 'desc' ? 'before' : 'after', sequence: last!.sequence } : null,
+      items: page.map((episode) => browseItem(episode, this.entryForEpisode(episode.bookKey, entries))),
+    };
+  }
+  /**
+   * Page window for one request. An anchor means "the page that contains this record", aligned to
+   * the page-size grid: its rank is counted, the offset inside its page is filled from the nearest
+   * neighbours, and the query starts at that page's first record. Restoring a saved page anchor
+   * (which is always a page's first record) therefore lands on the same page, while "back to latest"
+   * in ascending order returns the real last page instead of a one-record tail.
+   */
+  private browseWindowFor(query: BrowseQuery, filter: HistoryFilter): { filter: HistoryFilter; queryOrder: BrowseOrder } {
+    if (query.cursor || query.anchor === null) return browseWindow(query);
+    const anchor = query.anchor;
+    const rank = 1 + (query.order === 'desc'
+      ? this.countEpisodes({ ...filter, after: anchor })
+      : this.countEpisodes({ ...filter, before: anchor }));
+    const offset = (rank - 1) % query.limit;
+    let start = anchor;
+    if (offset > 0) {
+      const neighbours = query.order === 'desc'
+        ? this.selectEpisodes({ ...filter, after: anchor }, 'asc', offset)
+        : this.selectEpisodes({ ...filter, before: anchor }, 'desc', offset);
+      // A deleted anchor may sit near a boundary; fall back to the anchor-as-start window.
+      if (neighbours.length < offset) return browseWindow(query);
+      start = neighbours[neighbours.length - 1]!.sequence;
+    }
+    return { filter: { ...filter, ...(query.order === 'desc' ? { upTo: start } : { downTo: start }) }, queryOrder: query.order };
+  }
+  /** One aggregate query for the book selector; never a per-book journal() loop. */
+  journalBooks(): BrowseBooks {
+    this.ensureOpen();
+    const aggregates = this.historyRef ? this.history.bookAggregates(this.historyRef.version) : this.episodeBookAggregates();
+    const entries = new Map(this.state.books.map((entry) => [entry.book.key, entry]));
+    const books: BrowseBooks['books'] = [];
+    let total = 0;
+    for (const aggregate of aggregates) {
+      const entry = entries.get(aggregate.bookKey);
+      if (!entry || !aggregate.count) continue;
+      total += aggregate.count;
+      books.push({ bookKey: entry.book.key, id: entry.book.id, revision: entry.book.revision,
+        title: entry.book.title, author: entry.book.author, count: aggregate.count, lastSequence: aggregate.head });
+    }
+    return { total, books };
+  }
+  /** Lightweight new-footprint probe for the 2s trail tick; returns aggregates only. */
+  journalProbe(input: unknown): BrowseProbe {
+    this.ensureOpen();
+    const query = parseProbeQuery(input);
+    this.requireBookScope(query.bookKey);
+    const filter: HistoryFilter = query.bookKey ? { bookKey: query.bookKey } : {};
+    const extremes = this.episodeExtremes(filter);
+    return {
+      total: this.countEpisodes(filter), headSequence: extremes.head, tailSequence: extremes.tail,
+      count: query.since === null ? 0 : this.countEpisodes({ ...filter, after: query.since }),
+    };
+  }
+  /** One new-footprint batch for the temporary preview; the batch boundary is fixed at query time. */
+  journalNew(input: unknown): BrowseNew {
+    this.ensureOpen();
+    const query = parseNewQuery(input);
+    this.requireBookScope(query.bookKey);
+    const filter: HistoryFilter = query.bookKey ? { bookKey: query.bookKey } : {};
+    const count = this.countEpisodes({ ...filter, after: query.since });
+    const extremes = this.episodeExtremes(filter);
+    // The preview always shows at most 50 records; `truncated` tells the UI when the batch was larger.
+    const rows = this.selectEpisodes({ ...filter, after: query.since }, query.order, 50);
+    const entries = new Map(this.state.books.map((entry) => [entry.book.key, entry]));
+    return {
+      count, maxSequence: extremes.head,
+      items: rows.map((episode) => browseItem(episode, this.entryForEpisode(episode.bookKey, entries))),
+      truncated: count > rows.length,
+    };
+  }
+  private requireBookScope(bookKey: string | null): void {
+    if (bookKey && !this.state.books.some((entry) => entry.book.key === bookKey)) throw new Error('Book revision is not in the library');
+  }
+  private entryForEpisode(bookKey: string, entries: Map<string, BookEntry>): BookEntry {
+    const entry = entries.get(bookKey);
+    if (!entry) throw new Error('Episode references a missing book revision');
+    return entry;
+  }
+  private countEpisodes(filter: HistoryFilter): number {
+    return this.historyRef ? this.history.countRows('episodes', this.historyRef.version, filter) : historyCount(this.state.episodes, filter);
+  }
+  private selectEpisodes(filter: HistoryFilter, order: BrowseOrder, limit: number): ReadingEpisode[] {
+    if (this.historyRef) return this.history.windowRows<ReadingEpisode>('episodes', this.historyRef.version, filter, order, limit);
+    return historySelect(this.state.episodes, filter)
+      .sort((a, b) => (order === 'asc' ? a.sequence - b.sequence : b.sequence - a.sequence))
+      .slice(0, limit);
+  }
+  private episodeExtremes(filter: HistoryFilter): { head: number | null; tail: number | null } {
+    if (this.historyRef) return this.history.sequenceExtremes(this.historyRef.version, filter);
+    let head: number | null = null, tail: number | null = null;
+    for (const episode of historySelect(this.state.episodes, filter)) {
+      if (head === null || episode.sequence > head) head = episode.sequence;
+      if (tail === null || episode.sequence < tail) tail = episode.sequence;
+    }
+    return { head, tail };
+  }
+  private episodeBookAggregates(): Array<{ bookKey: string; count: number; head: number; tail: number }> {
+    const map = new Map<string, { bookKey: string; count: number; head: number; tail: number }>();
+    for (const episode of historySelect(this.state.episodes)) {
+      const row = map.get(episode.bookKey) ?? { bookKey: episode.bookKey, count: 0, head: episode.sequence, tail: episode.sequence };
+      row.count += 1;
+      if (episode.sequence > row.head) row.head = episode.sequence;
+      if (episode.sequence < row.tail) row.tail = episode.sequence;
+      map.set(episode.bookKey, row);
+    }
+    return [...map.values()].sort((a, b) => b.head - a.head);
   }
   reread(key: unknown, index: unknown) {
     this.ensureOpen();

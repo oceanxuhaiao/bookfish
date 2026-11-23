@@ -8,7 +8,7 @@ import type { ReadingEpisode } from './journal.ts';
 type Row = ReadingTask | ReadingEpisode;
 type Kind = 'tasks'|'episodes';
 export interface HistoryRef {version:number;tasks:number;episodes:number;sum:string}
-export interface HistoryFilter {id?:unknown;bookKey?:unknown;status?:string;kind?:string;requestId?:string;taskId?:string;revises?:string;before?:number;hasMood?:boolean}
+export interface HistoryFilter {id?:unknown;bookKey?:unknown;status?:string;kind?:string;requestId?:string;taskId?:string;revises?:string;before?:number;after?:number;upTo?:number;downTo?:number;hasMood?:boolean}
 const MAX_DB=512*1024*1024,MAX_ROW=64*1024,MOD=1n<<256n;
 const sha=(v:string)=>createHash('sha256').update(v).digest('hex');
 const add=(a:bigint,b:bigint)=>(a+b+MOD)%MOD;
@@ -18,7 +18,7 @@ const visibility='v<=? AND (until_v IS NULL OR until_v>?)';
 export function isHistory(v:unknown):boolean{return !!v&&typeof v==='object'&&views.has(v);}
 export function historyFork<T>(rows:T[]):T[]{return views.get(rows)?.fork()??structuredClone(rows);}
 export function historySelect<T extends Row>(rows:readonly T[],filter:HistoryFilter={}):T[]{const view=views.get(rows);if(view)return view.select(filter);return (rows as T[]).filter(r=>matches(r,filter));}
-function matches(r:any,f:HistoryFilter){return Object.entries(f).every(([k,v])=>k==='before'?(r.sequence??r.segmentId)<v!:k==='hasMood'?!!r.content?.mood===v:k==='kind'?r.kind===v:r[k]===v);}
+function matches(r:any,f:HistoryFilter){return Object.entries(f).every(([k,v])=>{const at=r.sequence??r.segmentId;return k==='before'?at<v:k==='after'?at>v:k==='upTo'?at<=v:k==='downTo'?at>=v:k==='hasMood'?!!r.content?.mood===v:k==='kind'?r.kind===v:r[k]===v;});}
 export function historyCount<T extends Row>(rows:readonly T[],filter:HistoryFilter={}):number{const view=views.get(rows);return view?view.count(filter):historySelect(rows,filter).length;}
 export function historyPage<T extends Row>(rows:readonly T[],filter:HistoryFilter,limit:number):T[]{const view=views.get(rows);return view?view.page(filter,limit):historySelect(rows,filter).sort((a:any,b:any)=>(b.sequence??b.segmentId)-(a.sequence??a.segmentId)).slice(0,limit);}
 export function historyFind<T extends Row>(rows:readonly T[],filter:HistoryFilter):T|undefined{return historySelect(rows,filter)[0];}
@@ -71,6 +71,7 @@ export class HistoryStore{
    CREATE INDEX IF NOT EXISTS history_id ON history(kind,id,v);
    CREATE INDEX IF NOT EXISTS history_mood ON history(kind,bookKey,mood,sequence,n,v);
    CREATE INDEX IF NOT EXISTS history_page_episode ON history(kind,bookKey,sequence,n,v);
+   CREATE INDEX IF NOT EXISTS history_sequence ON history(kind,sequence,n,v,until_v);
    CREATE INDEX IF NOT EXISTS history_page_task ON history(kind,bookKey,state,segment,n,v);
    CREATE INDEX IF NOT EXISTS history_book ON history(kind,bookKey,state,sequence,segment,v);
    CREATE INDEX IF NOT EXISTS history_request ON history(kind,requestId,v);
@@ -83,12 +84,44 @@ export class HistoryStore{
  clearCache(){this.cache.clear();this.cacheBytes=0;}
  stats(){return {bytes:this.cacheBytes,limit:this.cacheLimit,pages:this.cache.size,reads:this.reads};}
  maximum(kind:Kind){return Number((this.sql.prepare('SELECT COALESCE(MAX(n),-1) AS n FROM history WHERE kind=?').get(kind) as any).n);}
+ private clauses(kind:Kind,version:number,filter:HistoryFilter){
+  const conditions=['kind=?',visibility],args:any[]=[kind,version,version];
+  const names:Record<string,string>={id:'id',bookKey:'bookKey',status:'state',kind:'state',requestId:'requestId',taskId:'taskId',revises:'revises',hasMood:'mood'};
+  const column=kind==='episodes'?'sequence':'segment';
+  const compare:Record<string,string>={before:'<',after:'>',upTo:'<=',downTo:'>='};
+  for(const [key,value]of Object.entries(filter)){
+   if(key in compare){conditions.push(column+compare[key]+'?');args.push(value);continue;}
+   const name=names[key];if(!name)throw Error('Invalid history filter');conditions.push(name+'=?');args.push(typeof value==='boolean'?Number(value):value);
+  }
+  return {conditions,args};
+ }
  positions(kind:Kind,version:number,filter:HistoryFilter={},limit?:number):number[]{
   if(Object.values(filter).some(v=>v===undefined||v===null||typeof v==='object'))return [];
-  const conditions=['kind=?',visibility],args:any[]=[kind,version,version];const names:Record<string,string>={id:'id',bookKey:'bookKey',status:'state',kind:'state',requestId:'requestId',taskId:'taskId',revises:'revises',hasMood:'mood'};
-  for(const [key,value]of Object.entries(filter)){if(key==='before'){conditions.push((kind==='episodes'?'sequence':'segment')+'<?');args.push(value);}else{const name=names[key];if(!name)throw Error('Invalid history filter');conditions.push(name+'=?');args.push(typeof value==='boolean'?Number(value):value);}}
+  const {conditions,args}=this.clauses(kind,version,filter);
   if(limit===-1)return [Number(this.sql.prepare('SELECT COUNT(*) AS n FROM history WHERE '+conditions.join(' AND ')).get(...args)!.n)];
   return Array.from(this.sql.prepare('SELECT n FROM history WHERE '+conditions.join(' AND ')+(limit===undefined?' ORDER BY n':' ORDER BY '+(kind==='episodes'?'sequence':'segment')+' DESC LIMIT '+limit)).iterate(...args),r=>Number(r.n));
+ }
+ /** Rows matching the filter, ordered by the record's own sequence (episodes) or segment (tasks). */
+ windowRows<T extends Row>(kind:Kind,version:number,filter:HistoryFilter,order:'asc'|'desc',limit:number):T[]{
+  if(!Number.isSafeInteger(limit)||limit<1)throw Error('Invalid history window');
+  const {conditions,args}=this.clauses(kind,version,filter);
+  const column=kind==='episodes'?'sequence':'segment';
+  return Array.from(this.sql.prepare('SELECT n FROM history WHERE '+conditions.join(' AND ')+' ORDER BY '+column+(order==='asc'?' ASC':' DESC')+' LIMIT '+limit).iterate(...args),r=>this.row(kind,version,Number(r.n)) as T);
+ }
+ countRows(kind:Kind,version:number,filter:HistoryFilter={}):number{
+  const {conditions,args}=this.clauses(kind,version,filter);
+  return Number(this.sql.prepare('SELECT COUNT(*) AS n FROM history WHERE '+conditions.join(' AND ')).get(...args)!.n);
+ }
+ /** Real MIN/MAX sequence for the visible episode rows; never derived from row counts. */
+ sequenceExtremes(version:number,filter:HistoryFilter={}):{head:number|null;tail:number|null}{
+  const {conditions,args}=this.clauses('episodes',version,filter);
+  const row=this.sql.prepare('SELECT MIN(sequence) AS tail, MAX(sequence) AS head FROM history WHERE '+conditions.join(' AND ')).get(...args) as any;
+  return {head:row?.head===null||row?.head===undefined?null:Number(row.head),tail:row?.tail===null||row?.tail===undefined?null:Number(row.tail)};
+ }
+ /** Per-book footprint counts in one aggregate query (no per-book list query). */
+ bookAggregates(version:number,filter:HistoryFilter={}):Array<{bookKey:string;count:number;head:number;tail:number}>{
+  const {conditions,args}=this.clauses('episodes',version,filter);
+  return Array.from(this.sql.prepare('SELECT bookKey, COUNT(*) AS n, MAX(sequence) AS head, MIN(sequence) AS tail FROM history WHERE '+conditions.join(' AND ')+' GROUP BY bookKey ORDER BY head DESC').iterate(...args),r=>({bookKey:String(r.bookKey),count:Number(r.n),head:Number(r.head),tail:Number(r.tail)}));
  }
  private decode(r:any):Row{if(typeof r.json!=='string'||Buffer.byteLength(r.json)>MAX_ROW)throw Error('History record oversized');if(sha(r.kind+':'+r.n+':'+r.json)!==r.hash)throw Error('History row checksum mismatch');const row=JSON.parse(r.json);if(JSON.stringify(column(row))!==JSON.stringify([r.id,r.bookKey,r.segment,r.sequence,r.state,r.requestId,r.taskId,r.revises,r.mood]))throw Error('History index mismatch');return row;}
  row(kind:Kind,version:number,n:number):Row{

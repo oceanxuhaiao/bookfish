@@ -1,4 +1,4 @@
-import {settingsPanel} from './settings.ts';
+﻿import {settingsPanel} from './settings.ts';
 import type { WebUiClientBundle,WebUiPanelContext } from 'cortico/web/shared/client-panel.ts';
 import type { LibraryPanelState } from '../status.ts';
 import type { Library } from '../library.ts';
@@ -14,6 +14,7 @@ import { QQ_GROUP_QR } from './qq-group.ts';
 import { HelpCenterView, helpButton, helpStyle, openGuideDrawer, renderHelpBanner } from './help.ts';
 import { mountBrowserTxt } from './browser-txt.ts';
 import type { AnnouncementView } from '../help-store.ts';
+import { mountFootprint, type FootprintHandle } from './footprint.ts';
 
 const supportPanel={ async mount(ctx:WebUiPanelContext) {
   const en=ctx.language!=='zh'&&ctx.language!=='zh-Hant';const say=(zh:string,english:string)=>en?english:zh;
@@ -47,6 +48,7 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   const en = ctx.language !== 'zh' && ctx.language !== 'zh-Hant';
   const say = (zh:string, english:string) => en ? english : zh;
   let getRevision=0;
+  let footprint:FootprintHandle|undefined;
   let state:LibraryPanelState|undefined, update: (()=>Promise<void>)|undefined, disposed=false;
   const root=document.createElement('section');root.className='bf';ctx.root.append(root);
   const css=document.createElement('style');css.textContent=style+helpStyle;root.append(css);
@@ -59,7 +61,7 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   const nav=document.createElement('nav');nav.hidden=true;nav.setAttribute('aria-label',say('阅读导航','Reading navigation'));heading.after(nav);
   const messages=old.querySelector('[role=status]') as HTMLElement;messages.className='messages';nav.after(messages);
   const pages:Record<string,HTMLElement>={};for(const id of ['home','shelf','trail','support','bookDetail','reader']){const el=document.createElement('section');el.dataset.page=id;old.append(el);pages[id]=el;}
-  function page(id:string){for(const[key,el]of Object.entries(pages))el.hidden=key!==id;for(const b of nav.querySelectorAll('button'))b.setAttribute('aria-current',(b.dataset.page===id||id==='bookDetail'&&b.dataset.page==='shelf')?'page':'false');}
+  function page(id:string){for(const[key,el]of Object.entries(pages))el.hidden=key!==id;for(const b of nav.querySelectorAll('button'))b.setAttribute('aria-current',(b.dataset.page===id||id==='bookDetail'&&b.dataset.page==='shelf')?'page':'false');if(id==='trail')footprint?.activate();else footprint?.deactivate();}
   const helpView=new HelpCenterView(ctx,say,()=>{});
   ['正在读','书架','阅读足迹','反馈'].forEach((label,i)=>{const b=document.createElement('button');const id=['home','shelf','trail','support'][i];b.textContent=en?['Reading','Bookshelf','Journal','Support'][i]:label;b.dataset.page=id;b.onclick=()=>{if(id==='support')buildSupport();page(id);};nav.append(b);});
   function openHelpPanel(tab:'guide'|'updates'){
@@ -374,8 +376,10 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   const conversation=el('div','',chat);conversation.className='conversation';chat.prepend(conversation);let conversationSignature='';
   el('small',say('本次运行的近期讨论会显示在这里；重启后清空，不写入阅读手账。','Recent replies in this run appear here; cleared on restart, not saved as journal entries.'),chat);
   button(chat,say('发送给大肥鱼','Send to companion'),async()=>{if(!discussionEpisode)throw Error('Select a thought first');await ctx.invoke('discuss',[{episodeId:discussionEpisode,text:question.value}]);question.value='';context.textContent=say('已发送。大肥鱼会在桌面用几条短句回复，记录会同步到这里。未读内容只能明确猜测。','Sent. She will reply on the desktop in short bubbles; the transcript mirrors here. Unread plot may only be explicitly guessed.');});
-  async function discuss(id:string,text:string,key=state?.status.library.current?.key){discussionEpisode=id;conversationSignature='';context.textContent=(state?.books.find(b=>b.key===key)?.title??'')+' · '+Array.from(text).slice(0,150).join('');chat.hidden=false;page('trail');trailKey=key;trailChoice.value=key??'';const different=key!==state?.status.library.current?.key;notebook.hidden=different;episodeDetail.hidden=different;searchForm.hidden=different;otherTrail.hidden=!different;if(different&&key)await showOtherTrail(key);await update?.();question.focus();}
-  root.addEventListener('bookfish-discuss',event=>{const data=(event as CustomEvent<{id:string;text:string}>).detail;void perform(()=>discuss(data.id,data.text));},{signal:ctx.signal});
+  // The record's own book is the discussion context. This never changes the persisted browse
+  // position (scope/order/size/anchor), so coming back to the trail keeps the reader where they were.
+  async function discuss(id:string,text:string,bookKey=state?.status.library.current?.key,bookTitle?:string){discussionEpisode=id;conversationSignature='';const title=bookTitle??state?.books.find(b=>b.key===bookKey)?.title;context.textContent=(title?'《'+title+'》':'')+' · '+Array.from(text).slice(0,150).join('');chat.dataset.bookKey=bookKey??'';chat.hidden=false;episodeDetail.hidden=false;searchForm.hidden=false;page('trail');await update?.();question.focus();}
+  root.addEventListener('bookfish-discuss',event=>{const data=(event as CustomEvent<{id?:unknown;text?:unknown;bookKey?:unknown;bookTitle?:unknown}>).detail;if(!data||typeof data.id!=='string'||!data.id||typeof data.text!=='string')return;const id=data.id;const text=data.text;const bookKey=typeof data.bookKey==='string'&&data.bookKey?data.bookKey:undefined;const bookTitle=typeof data.bookTitle==='string'&&data.bookTitle?data.bookTitle:undefined;void perform(()=>discuss(id,text,bookKey,bookTitle));},{signal:ctx.signal});
   const bookDetail=el('section','',pages.bookDetail);bookDetail.className='card';bookDetail.hidden=true;
   let browsingBook:string|undefined;
   const humanReader=readerPanel(ctx,pages.reader,()=>page('bookDetail'));
@@ -390,7 +394,7 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
     button(detailActions,say('阅读正文','Read the novel'),async()=>{page('reader');await humanReader.open(key);}).className='primary';
     if(state?.status.library.current?.key===key)button(detailActions,say('回到正在读','Back to reading'),async()=>page('home'));
     if(!data.book.complete)button(detailActions,say('现在开始读这本','Start reading this book now'),async()=>{if(state?.status.library.current?.key!==key)await ctx.invoke('select',[key]);page('home');await requestReading(key);}).className='bf-start-reading';
-    button(detailActions,say('查看阅读足迹','View reading journal'),async()=>{trailKey=key;trailChoice.value=key;const different=key!==state?.status.library.current?.key;notebook.hidden=different;episodeDetail.hidden=different;searchForm.hidden=different;otherTrail.hidden=!different;page('trail');if(different)await showOtherTrail(key);});
+    button(detailActions,say('查看阅读足迹','View reading journal'),async()=>{footprint?.selectScope(key);page('trail');});
     const remove=el('button',say('移除这本书','Remove this book'),detailActions);remove.type='button';remove.className='danger';remove.dataset.action='remove-book';
     remove.addEventListener('click',()=>{void (async()=>{
       if(busy||disposed||ctx.signal.aborted)return;
@@ -458,14 +462,18 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
     for(const version of [...data.reviews.versions].reverse())button(bookDetail,'v'+version.version+' · '+version.title,async()=>{const saved=await ctx.invoke<ReturnType<Library['review']>>('review',[version.id]);if(disposed||browsingBook!==key)return;article.replaceChildren();el('h3',saved.review.title,article);el('p',saved.review.text,article);const sources=details(article,say('查看写作依据','View writing sources'));for(const quote of saved.evidence)el('blockquote',quote.quote,sources);});
   }
   root.addEventListener('bookfish-book',event=>{const data=(event as CustomEvent<{key:string}>).detail;void perform(()=>showBook(data.key));},{signal:ctx.signal});
-  const trailChoice=el('select','',pages.trail);trailChoice.setAttribute('aria-label',say('选择足迹书籍','Choose journal book'));pages.trail.prepend(trailChoice);
-  const otherTrail=el('section','',pages.trail);otherTrail.hidden=true;let trailKey:string|undefined,trailSignature='';
+  // The legacy single-book journal stays mounted but hidden; the browser above it owns the trail page.
+  const legacyTrail=document.createElement('div');legacyTrail.hidden=true;pages.trail.append(legacyTrail);
+  const trailChoice=el('select','',legacyTrail);trailChoice.setAttribute('aria-label',say('选择足迹书籍','Choose journal book'));
+  const otherTrail=el('section','',legacyTrail);otherTrail.hidden=true;let trailKey:string|undefined,trailSignature='';
   async function showOtherTrail(key:string,before?:number){const data=await ctx.invoke<NonNullable<LibraryPanelState['journal']>>('journal',[{bookKey:key,before,limit:5}]);if(disposed||ctx.signal.aborted||trailKey!==key)return;otherTrail.replaceChildren();
     for(const item of data.items){const card=el('article','',otherTrail);card.className='card';el('small',new Date(item.recordedAt).toLocaleString()+' · '+item.chapters.join(' / '),card);el('p',moodPrefix(item.mood?.label)+item.interpretation,card);button(card,say('聊聊这一段','Discuss this passage'),async()=>discuss(item.id,item.interpretation,key));const evidence=details(card,say('查看原文依据与理由','View evidence and explanation'));button(evidence,say('载入原文依据','Load evidence'),async()=>{const record=await ctx.invoke<ReturnType<Library['episode']>>('episode',[item.id]);if(disposed||trailKey!==key)return;for(const quote of record.evidence)el('blockquote',quote.quote,evidence);el('p',record.episode.content.reason??say('未记录当时理由。','No reason recorded.'),evidence);});}
     if(!data.items.length)el('p',say('这本书还没有感想足迹。','No journal entries for this book.'),otherTrail);
     if(data.nextBefore)button(otherTrail,say('更早的记录','Earlier records'),()=>showOtherTrail(key,data.nextBefore!));if(before!==undefined)button(otherTrail,say('返回最新记录','Latest records'),()=>showOtherTrail(key));
   }
   trailChoice.addEventListener('change',()=>{trailKey=trailChoice.value;const different=trailKey!==state?.status.library.current?.key;notebook.hidden=different;episodeDetail.hidden=different;searchForm.hidden=different;otherTrail.hidden=!different;if(different)void perform(()=>showOtherTrail(trailKey!));},{signal:ctx.signal});
+  legacyTrail.append(notebook);
+  footprint=mountFootprint(ctx,say);pages.trail.prepend(footprint.el);
   const discussLatest=button(thought,say('聊聊这一段','Discuss this passage'),async()=>{const e=state?.journal?.items[0];if(e)await discuss(e.id,e.interpretation);});button(thought,say('查看阅读足迹 →','View journal →'),async()=>page('trail'));
   for(const b of [...controls.querySelectorAll('button')]){const t=b.textContent;if(t===say('暂停阅读','Pause')||t===say('继续阅读','Resume')||t===say('结束休息','End rest'))continue;if(t===say('请求写一版全书读后感','Request a full-book review'))reviews.append(b);else advanced.append(b);}
   for(const child of [...old.children]){if(child===heading||child===nav||child===messages||Object.values(pages).includes(child as HTMLElement))continue;advanced.append(child);}
@@ -565,7 +573,7 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   };
   void helpView.prime(true).then(result=>{if(result.announcement)showAnnouncement(result.announcement);});
   const initialPanel=ctx.panelId==='shelf'?'shelf':ctx.panelId==='trail'?'trail':ctx.panelId==='support'?'support':'home';if(initialPanel==='support')buildSupport();page(initialPanel);await update();
-  return {dispose(){disposed=true;helpView.dispose();if(novelPollTimer!==undefined){clearTimeout(novelPollTimer);novelPollTimer=undefined;}handle.dispose();}};
+  return {dispose(){disposed=true;footprint?.dispose();helpView.dispose();if(novelPollTimer!==undefined){clearTimeout(novelPollTimer);novelPollTimer=undefined;}handle.dispose();}};
 } } satisfies WebUiClientBundle['panels'][string];
 
 const helpPanel={ async mount(ctx:WebUiPanelContext){
