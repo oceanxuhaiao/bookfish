@@ -1,0 +1,161 @@
+{
+  "generatedAt": "2026-11-23T06:15:14.598Z",
+  "node": "v24.14.1",
+  "synthetic": {
+    "synthetic": {
+      "books": 10,
+      "episodes": 2000,
+      "seedMs": 45521,
+      "dbBytes": 4509696
+    },
+    "timings": {
+      "journalBooks (all books)": {
+        "median": 2.993,
+        "p95": 4.816,
+        "min": 2.716,
+        "runs": 15
+      },
+      "journalBrowse first page desc/10": {
+        "median": 0.563,
+        "p95": 0.859,
+        "min": 0.526,
+        "runs": 15
+      },
+      "journalBrowse first page asc/10": {
+        "median": 0.537,
+        "p95": 1.274,
+        "min": 0.516,
+        "runs": 15
+      },
+      "journalBrowse scoped page": {
+        "median": 0.379,
+        "p95": 1.927,
+        "min": 0.315,
+        "runs": 15
+      },
+      "journalBrowse anchor (middle)": {
+        "median": 0.726,
+        "p95": 0.948,
+        "min": 0.681,
+        "runs": 15
+      },
+      "journalBrowse page 50": {
+        "median": 0.725,
+        "p95": 1.778,
+        "min": 0.624,
+        "runs": 15
+      },
+      "10 sequential pages (total ms)": {
+        "median": 6.187,
+        "pages": 10
+      },
+      "journalProbe (since 0)": {
+        "median": 0.645,
+        "p95": 1.27,
+        "min": 0.537,
+        "runs": 15
+      },
+      "journalProbe (since middle)": {
+        "median": 0.487,
+        "p95": 1.096,
+        "min": 0.479,
+        "runs": 15
+      },
+      "journalNew (since 0)": {
+        "median": 0.595,
+        "p95": 0.946,
+        "min": 0.565,
+        "runs": 15
+      },
+      "journalBrowse query (one word, hits)": {
+        "median": 30.428,
+        "p95": 31.4,
+        "min": 28.475,
+        "runs": 15
+      },
+      "journalBrowse query (one word, no hit)": {
+        "median": 24.031,
+        "p95": 25.116,
+        "min": 23.221,
+        "runs": 15
+      },
+      "journalBrowse prev page": {
+        "median": 1.271,
+        "p95": 1.625,
+        "min": 1.246,
+        "runs": 15
+      }
+    },
+    "midAnchorStart": 1001,
+    "firstPageTotal": 2000
+  },
+  "live": {
+    "file": "E:\\zcdfy\\Coopanion\\data\\home\\companion\\data\\bookfish\\history.sqlite",
+    "bytes": 8540160,
+    "version": 3920,
+    "historyRef": {
+      "version": 3920,
+      "tasks": 1794,
+      "episodes": 880,
+      "sum": "850bbdc58ffe9286cd0bcf20a3fc827f1f4c000acd0254b5717211b86bc7662a"
+    },
+    "timings": {
+      "page 10 desc": {
+        "median": 0.028,
+        "p95": 0.094,
+        "min": 0.028,
+        "runs": 15
+      },
+      "COUNT all episodes": {
+        "median": 0.077,
+        "p95": 0.122,
+        "min": 0.074,
+        "runs": 15
+      },
+      "GROUP BY bookKey": {
+        "median": 4.052,
+        "p95": 4.763,
+        "min": 3.2,
+        "runs": 15
+      },
+      "scoped page 10 desc": {
+        "median": 0.029,
+        "p95": 0.119,
+        "min": 0.028,
+        "runs": 15
+      }
+    },
+    "plans": {
+      "COUNT all episodes": [
+        "SEARCH history USING COVERING INDEX history_sequence (kind=?)"
+      ],
+      "page 10 desc": [
+        "SEARCH history USING COVERING INDEX history_sequence (kind=?)"
+      ],
+      "COUNT older than x": [
+        "SEARCH history USING COVERING INDEX history_sequence (kind=? AND sequence<?)"
+      ],
+      "COUNT newer than x": [
+        "SEARCH history USING COVERING INDEX history_sequence (kind=? AND sequence>?)"
+      ],
+      "GROUP BY bookKey": [
+        "SEARCH history USING INDEX history_page_episode (kind=?)",
+        "USE TEMP B-TREE FOR ORDER BY"
+      ],
+      "scoped page 10 desc": [
+        "SEARCH history USING INDEX history_page_episode (kind=? AND bookKey=?)"
+      ]
+    },
+    "indexExperiment": {
+      "plan": [
+        "SEARCH history USING COVERING INDEX bench_sequence (kind=?)"
+      ],
+      "timing": {
+        "median": 0.039,
+        "p95": 0.108,
+        "min": 0.037,
+        "runs": 15
+      }
+    }
+  }
+}

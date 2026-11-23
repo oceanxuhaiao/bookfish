@@ -1,4 +1,4 @@
-﻿# 阅读足迹看板 V1：技术设计
+# 阅读足迹看板 V1：技术设计
 
 - 基线：git `HEAD 50cf2de`（`package.json` 0.65.1）；本机运行的 0.66.0 是 `bookfish-txt-acquisition-round3` 工作树里未提交的 TXT 改动。足迹相关源码（`journal.ts` / `history.ts` / `webui/legacy.ts` / `protocol/journal.md`）在两者间逐字节相同，因此本设计对两者都适用。
 - 分支：`codex/footprint-browse-v1`
@@ -27,8 +27,11 @@ journal_browse({
   limit?: 5 | 10 | 20 | 50,              // 默认 10
   cursor?: { edge: 'before' | 'after'; sequence: number },  // 排他
   anchorSequence?: number,               // 包含式锚点，与 cursor 互斥
+  query?: string,                        // 关键词过滤：空白分隔，最多 8 个词、每词 40 字
 })
 ```
+
+`query` 只在足迹可读字段内做大小写不敏感的子串匹配（触发、感想、前判、理由、心情标签、人物名/别名、问题）；不搜证据引文。命中集合上的 total/position/cursor/anchor/order/limit 语义与无关键词时完全一致。
 
 返回：
 

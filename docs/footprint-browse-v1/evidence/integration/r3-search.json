@@ -1,0 +1,38 @@
+{
+  "r3": "keyword search for reading footprints",
+  "date": "2026-11-23",
+  "featureCommit": "7a95946",
+  "perfCommit": "568ba94",
+  "integrationCommits": ["4ec47fb", "1eac758"],
+  "contract": {
+    "method": "journal_browse",
+    "parameter": "query?: string",
+    "terms": "NFKC, whitespace separated, max 8 words x 40 chars, total 200",
+    "fields": ["trigger", "interpretation", "priorJudgment", "reason", "mood.label", "characters.name/aliases", "questions"],
+    "excluded": ["evidence quotes"],
+    "semantics": "case-insensitive substring AND across terms; total/position/cursors/anchor/order/limit unchanged",
+    "persistence": "query is transient; not saved to browse-v1"
+  },
+  "tests": {
+    "featureFull": { "files": 99, "passed": 1092, "skipped": 1 },
+    "integrationFull": { "files": 101, "passed": 1106, "skipped": 1 },
+    "footprintTargeted": { "files": 3, "passed": 55 },
+    "new": ["library keyword search across books/scope/fields/paging/anchor/invalid input", "jsdom search/page/clear"]
+  },
+  "performance": {
+    "bench2000": { "browseMs": 0.56, "probeMs": 0.65, "searchHitMs": 30.4, "searchMissMs": 24.0, "tenPagesMs": 6.19 },
+    "liveCopy880": { "browseMs": 0.42, "searchHitMs": 21.3, "searchMissMs": 28.0 },
+    "liveUI": { "searchElapsedMs": 458, "debounceMs": 320, "paginationMs": 79 },
+    "regressionAndFix": "empty-query path briefly fell back to in-memory materialization (browse 0.56->37ms at 2000); restored windowRows/sequenceExtremes in 568ba94"
+  },
+  "live": {
+    "build": "0.66.5",
+    "query": "源稚生",
+    "matches": 124,
+    "pages": 13,
+    "clearRestores": 880,
+    "scopedQuery": { "book": "西游记", "query": "孙悟空", "matches": 7 },
+    "noMatch": "没有匹配「不存在的关键词xyz」的阅读足迹。",
+    "screenshot": "07-search.png"
+  }
+}

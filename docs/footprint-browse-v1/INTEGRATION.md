@@ -1,4 +1,4 @@
-# TXT 开发线集成与终审收尾报告（2026-11-23）
+﻿# TXT 开发线集成与终审收尾报告（2026-11-23）
 
 > 状态：**阅读足迹看板已集成至未发布 TXT 开发线；内部验收通过；浏览器辅助 TXT 获取仍未完成；未公开发布。**
 
@@ -50,14 +50,14 @@
 
 | 项 | 命令/范围 | 结果 |
 | --- | --- | --- |
-| 全量 Vitest | `vitest run` | **101 文件 / 1104 通过 / 1 跳过 / 0 失败** |
+| 全量 Vitest | `vitest run` | **101 文件 / 1106 通过 / 1 跳过 / 0 失败** |
 | 主 TS | `tsc --noEmit -p tsconfig.json` | 0 错误 |
 | Web TS | `tsc --noEmit -p tsconfig.web.json` | 0 错误 |
 | WebUI 构建 | `node scripts/build-webui.mjs` | 成功，产物含 TXT 与看板 |
 | TXT 定向 | 12 个 TXT/浏览器辅助测试文件 | **172 通过** |
-| 看板定向 | `journal-browse` + `footprint` + `client` | **53 通过** |
+| 看板定向 | `journal-browse` + `footprint` + `client` | **55 通过** |
 
-原始日志：`evidence/full-tests-integration.log`（1103，R2 前）、`evidence/full-tests-integration-r2.log`（1104）、`evidence/txt-targeted.log`、`evidence/footprint-targeted.log`（52，R2 前）、`evidence/footprint-targeted-r2.log`（53）。
+原始日志：`evidence/full-tests-integration.log`（1103，R2 前）、`evidence/full-tests-integration-r2.log`（1104）、`evidence/full-tests-search2.log`（1106）、`evidence/txt-targeted.log`、`evidence/footprint-targeted.log`（52，R2 前）、`evidence/footprint-targeted-r2.log`（53）、`evidence/footprint-targeted-search2.log`（55）。
 
 ## 6. 自然新足迹提醒（首次真机自然触发）
 
@@ -84,6 +84,7 @@
 | `04-discussion-context.png` | 跨书讨论标题《西游记》 | 091050a6df |
 | `05-scoped-banner.png` | 按《西游记》范围提醒 | 36e0f82ab3 |
 | `06-oldest-first-page1.png` | R2：最早在前打开第 1 页（最早记录） | 见 R2 节 |
+| `07-search.png` | R3：关键词“源稚生”124 条匹配 | 见 R3 节 |
 
 ## 9. 已知边界与未完成
 
@@ -97,8 +98,8 @@
 
 ## 10. 内部试用与回滚
 
-- 当前宿主安装 `0.66.3` 集成构建（R2 排序修复），manifest 为 `/assets/extensions/cortico-world-bookfish/0.66.3/webui-txt-builtin-bing-0651.js`。
-- 备份：`data/extensions/package.json.before-sortfix-20261123-135330`、`pnpm-lock.yaml.before-sortfix-*`；更早的 `before-footprint-int1-*` 亦保留。
+- 当前宿主安装 `0.66.5` 集成构建（R3 关键词搜索 + 性能修正），manifest 为 `/assets/extensions/cortico-world-bookfish/0.66.5/webui-txt-builtin-bing-0651.js`。
+- 备份：`data/extensions/package.json.before-searchfix-20261123-141932`、`pnpm-lock.yaml.before-searchfix-*`；更早的 `before-sortfix-*`、`before-search-*`、`before-footprint-int1-*` 亦保留。
 - 回滚：把 `node_modules/cortico-world-bookfish` junction 与 profile/lock 指回 `bookfish-txt-0651-4ba8df5`，重启宿主；删除 `history_sequence` 可选。
 - 未发布、未上传市场、未改 `origin/main` 或 tag。
 
@@ -117,3 +118,21 @@
 **测试**：新增“最早在前从最早记录开始”断言；更新持久恢复与回到最新断言；看板定向 52→**53**，集成全量 1103→**1104**。
 
 **真机复核**（0.66.3）：878 条数据下，desc 第 1/88 页首条为最新记录；切到 asc 后为 **第 1/88 页**，首条为最早记录（《西游记》第 1 条）；再切回 desc 仍为第 1/88 页最新。截图 `evidence/06-oldest-first-page1.png`。
+
+## 12. R3：足迹关键词搜索
+
+**需求**：阅读轨迹此前只能按书名筛选，不能按情节/感想/人物搜内容。
+
+**实现**（`codex/footprint-browse-v1` 提交 `7a95946`，性能修正 `568ba94`；集成提交 `4ec47fb`、`1eac758`）：
+
+- `journal_browse` 增加可选 `query`：NFKC、空白分隔、最多 8 个词、每词 40 字、总长 200。
+- 匹配字段：触发、感想、前判、理由、心情标签、人物名/别名、问题；**不搜证据引文**。大小写不敏感，多词 AND。
+- 过滤在 SQL 内完成（`json_extract` + `LIKE ESCAPE`），复用既有的 kind/visibility/bookKey 条件；命中集合上的 total、position、cursor、anchor、order、limit 语义与普通浏览一致。
+- 工具栏新增“搜索足迹”输入（320 ms 防抖）；分页文案为“匹配 N 条 · 第 X / Y 页”；无结果显示“没有匹配…的阅读足迹”；清空回到普通列表。搜索词**不持久化**。
+- 修复一处随搜索引入的性能回退：空 query 时误走内存 `historySelect`，2000 条下首页 0.56 ms → 37 ms；恢复 `windowRows`/`sequenceExtremes` 后回到 0.56 ms。
+
+**测试**：新增 Library 搜索用例（跨书/范围/字段/分页/锚点/非法输入）与 jsdom 搜索/翻页/清空用例；看板定向 53→**55**，全量 1104→**1106**。
+
+**性能（2000 条合成库）**：普通首页 0.56 ms、probe 0.65 ms、搜索命中 30.4 ms、无命中 24.0 ms、连续 10 页 6.19 ms。真实库副本（880 条）搜索 21–30 ms；真机输入到结果约 458 ms（含 320 ms 防抖），翻页约 79 ms。
+
+**真机复核**（0.66.5）：全部书籍搜“源稚生” → **124 条 · 第 1/13 页**；清空恢复 880 条；西游记范围内搜“孙悟空” → 7 条；无匹配显示提示。截图 `evidence/07-search.png`、数据 `evidence/r3-search.json`。
