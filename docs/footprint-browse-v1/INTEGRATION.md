@@ -98,8 +98,8 @@
 
 ## 10. 内部试用与回滚
 
-- 当前宿主安装 `0.66.5` 集成构建（R3 关键词搜索 + 性能修正），manifest 为 `/assets/extensions/cortico-world-bookfish/0.66.5/webui-txt-builtin-bing-0651.js`。
-- 备份：`data/extensions/package.json.before-searchfix-20261123-141932`、`pnpm-lock.yaml.before-searchfix-*`；更早的 `before-sortfix-*`、`before-search-*`、`before-footprint-int1-*` 亦保留。
+- 当前宿主安装 `0.66.6` 集成构建（R3 关键词搜索 + R4 工具栏布局），manifest 为 `/assets/extensions/cortico-world-bookfish/0.66.6/webui-txt-builtin-bing-0651.js`。
+- 备份：`data/extensions/package.json.before-toolbar-20261123-142839`、`pnpm-lock.yaml.before-toolbar-*`；更早的 `before-searchfix-*`、`before-sortfix-*`、`before-footprint-int1-*` 亦保留。
 - 回滚：把 `node_modules/cortico-world-bookfish` junction 与 profile/lock 指回 `bookfish-txt-0651-4ba8df5`，重启宿主；删除 `history_sequence` 可选。
 - 未发布、未上传市场、未改 `origin/main` 或 tag。
 
@@ -136,3 +136,15 @@
 **性能（2000 条合成库）**：普通首页 0.56 ms、probe 0.65 ms、搜索命中 30.4 ms、无命中 24.0 ms、连续 10 页 6.19 ms。真实库副本（880 条）搜索 21–30 ms；真机输入到结果约 458 ms（含 320 ms 防抖），翻页约 79 ms。
 
 **真机复核**（0.66.5）：全部书籍搜“源稚生” → **124 条 · 第 1/13 页**；清空恢复 880 条；西游记范围内搜“孙悟空” → 7 条；无匹配显示提示。截图 `evidence/07-search.png`、数据 `evidence/r3-search.json`。
+
+## 13. R4：工具栏右侧紧凑布局
+
+**现象**：窄视口下“每页”单独掉到工具栏第二行左侧，与“排序”分离。
+
+**修复**（`codex/footprint-browse-v1` 提交 `3c5d5b6`；集成提交 `03eba0e`）：
+
+- 排序与每页包进 `.bf-fp-toolbar-side`，`margin-left:auto` 右对齐、整组不拆行；两个标签改内联（文字+选择器同排），选择器自适应宽度。
+- 搜索书籍/书籍/搜索足迹输入设定宽度上限，给右侧组留出空间。
+- 默认测试新增结构断言：排序与每页同属工具栏最后一个 `.bf-fp-toolbar-side`。
+
+**验证**：1076 px 视口实测排序与每页 `top` 均为 326（同一行），紧凑组右边缘 1009 与工具栏右边缘一致；截图 `evidence/08-toolbar.png`。集成全量仍为 101 文件 / **1106 通过**（`evidence/full-tests-toolbar.log`）。
