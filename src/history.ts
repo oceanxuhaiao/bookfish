@@ -15,6 +15,19 @@ const add=(a:bigint,b:bigint)=>(a+b+MOD)%MOD;
 const views=new WeakMap<object,View<any>>(),mutableRows=new WeakMap<object,()=>Row>();
 const column=(r:any)=>[r.id,r.bookKey,r.segmentId??-1,r.sequence??-1,r.status??r.kind,r.requestId??null,r.taskId??null,r.revises??null,r.content?.mood?1:0];
 const visibility='v<=? AND (until_v IS NULL OR until_v>?)';
+/** Author-visible footprint fields searched by the keyword filter; evidence quotes are excluded. */
+const SEARCH_FIELDS=['$.content.trigger','$.content.interpretation','$.content.priorJudgment','$.content.reason','$.content.mood.label','$.content.characters','$.content.questions'];
+function searchClause(terms:readonly string[]):{sql:string;args:string[]}{
+ if(!terms.length)throw Error('Search needs at least one keyword');
+ const clauses:string[]=[];const args:string[]=[];
+ for(const term of terms){
+  const escaped=term.replace(/[\\%_]/g,'\\$&');
+  const like='%'+escaped+'%';
+  clauses.push('('+SEARCH_FIELDS.map(field=>`lower(CAST(json_extract(json,'${field}') AS TEXT)) LIKE ? ESCAPE '\\'`).join(' OR ')+')');
+  for(const _ of SEARCH_FIELDS)args.push(like);
+ }
+ return {sql:clauses.join(' AND '),args};
+}
 export function isHistory(v:unknown):boolean{return !!v&&typeof v==='object'&&views.has(v);}
 export function historyFork<T>(rows:T[]):T[]{return views.get(rows)?.fork()??structuredClone(rows);}
 export function historySelect<T extends Row>(rows:readonly T[],filter:HistoryFilter={}):T[]{const view=views.get(rows);if(view)return view.select(filter);return (rows as T[]).filter(r=>matches(r,filter));}
@@ -116,6 +129,24 @@ export class HistoryStore{
  sequenceExtremes(version:number,filter:HistoryFilter={}):{head:number|null;tail:number|null}{
   const {conditions,args}=this.clauses('episodes',version,filter);
   const row=this.sql.prepare('SELECT MIN(sequence) AS tail, MAX(sequence) AS head FROM history WHERE '+conditions.join(' AND ')).get(...args) as any;
+  return {head:row?.head===null||row?.head===undefined?null:Number(row.head),tail:row?.tail===null||row?.tail===undefined?null:Number(row.tail)};
+ }
+ /** Keyword-filtered episode window, count and extremes (footprint browser search). */
+ searchRows<T extends Row>(version:number,filter:HistoryFilter,terms:readonly string[],order:'asc'|'desc',limit:number):T[]{
+  if(!Number.isSafeInteger(limit)||limit<1)throw Error('Invalid history window');
+  const {conditions,args}=this.clauses('episodes',version,filter);
+  const search=searchClause(terms);
+  return Array.from(this.sql.prepare('SELECT n FROM history WHERE '+conditions.join(' AND ')+' AND '+search.sql+' ORDER BY sequence '+(order==='asc'?'ASC':'DESC')+' LIMIT '+limit).iterate(...args,...search.args),r=>this.row('episodes',version,Number(r.n)) as T);
+ }
+ searchCount(version:number,filter:HistoryFilter,terms:readonly string[]):number{
+  const {conditions,args}=this.clauses('episodes',version,filter);
+  const search=searchClause(terms);
+  return Number(this.sql.prepare('SELECT COUNT(*) AS n FROM history WHERE '+conditions.join(' AND ')+' AND '+search.sql).get(...args,...search.args)!.n);
+ }
+ searchExtremes(version:number,filter:HistoryFilter,terms:readonly string[]):{head:number|null;tail:number|null}{
+  const {conditions,args}=this.clauses('episodes',version,filter);
+  const search=searchClause(terms);
+  const row=this.sql.prepare('SELECT MIN(sequence) AS tail, MAX(sequence) AS head FROM history WHERE '+conditions.join(' AND ')+' AND '+search.sql).get(...args,...search.args) as any;
   return {head:row?.head===null||row?.head===undefined?null:Number(row.head),tail:row?.tail===null||row?.tail===undefined?null:Number(row.tail)};
  }
  /** Per-book footprint counts in one aggregate query (no per-book list query). */

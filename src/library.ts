@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { WriterLock } from './writer-lock.ts';
 import { HistoryStore, historyFork, historySelect, historyFind, historyPage, historyCount, isHistory, plainHistory, type HistoryRef, type HistoryFilter } from './history.ts';
-import { browseItem, browseWindow, parseBrowseQuery, parseNewQuery, parseProbeQuery, type BrowseOrder, type BrowseQuery, type BrowsePage, type BrowseBooks, type BrowseProbe, type BrowseNew } from './journal-browse.ts';
+import { browseItem, browseWindow, footprintMatches, parseBrowseQuery, parseNewQuery, parseProbeQuery, type BrowseOrder, type BrowseQuery, type BrowsePage, type BrowseBooks, type BrowseProbe, type BrowseNew } from './journal-browse.ts';
 import { BookStorage, type ArchiveHooks } from './book-storage.ts';import { isPagedBook, chapterSpan, chapterEndIds, remoteLayout, readerChapters } from './paged-book.ts';
 import { buildBook, decodeFile, digest, requiredText, type Book } from './books.ts';
 import { BestEffortRejected } from './stream-import.ts';
@@ -1150,10 +1150,11 @@ export class Library {
     const query = parseBrowseQuery(input);
     this.requireBookScope(query.bookKey);
     const filter: HistoryFilter = query.bookKey ? { bookKey: query.bookKey } : {};
-    const total = this.countEpisodes(filter);
-    const extremes = this.episodeExtremes(filter);
-    const window = this.browseWindowFor(query, filter);
-    const fetched = this.selectEpisodes(window.filter, window.queryOrder, query.limit + 1);
+    const terms = query.terms;
+    const total = this.countEpisodes(filter, terms);
+    const extremes = this.episodeExtremes(filter, terms);
+    const window = this.browseWindowFor(query, filter, terms);
+    const fetched = this.selectEpisodes(window.filter, window.queryOrder, query.limit + 1, terms);
     let page = fetched.slice(0, query.limit);
     // The SQL direction follows the cursor edge; the display direction follows the user's order.
     if (window.queryOrder !== query.order) page = [...page].reverse();
@@ -1161,13 +1162,13 @@ export class Library {
     let start = 0, end = 0;
     if (page.length) {
       start = 1 + (query.order === 'desc'
-        ? this.countEpisodes({ ...filter, after: first!.sequence })
-        : this.countEpisodes({ ...filter, before: first!.sequence }));
+        ? this.countEpisodes({ ...filter, after: first!.sequence }, terms)
+        : this.countEpisodes({ ...filter, before: first!.sequence }, terms));
       end = start + page.length - 1;
     }
     const entries = new Map(this.state.books.map((entry) => [entry.book.key, entry]));
     return {
-      scope: { bookKey: query.bookKey }, order: query.order, limit: query.limit, total,
+      scope: { bookKey: query.bookKey }, order: query.order, limit: query.limit, query: terms, total,
       position: { start, end },
       page: { count: page.length, firstSequence: first?.sequence ?? null, lastSequence: last?.sequence ?? null },
       headSequence: extremes.head, tailSequence: extremes.tail,
@@ -1184,18 +1185,18 @@ export class Library {
    * (which is always a page's first record) therefore lands on the same page, while "back to latest"
    * in ascending order returns the real last page instead of a one-record tail.
    */
-  private browseWindowFor(query: BrowseQuery, filter: HistoryFilter): { filter: HistoryFilter; queryOrder: BrowseOrder } {
+  private browseWindowFor(query: BrowseQuery, filter: HistoryFilter, terms: readonly string[]): { filter: HistoryFilter; queryOrder: BrowseOrder } {
     if (query.cursor || query.anchor === null) return browseWindow(query);
     const anchor = query.anchor;
     const rank = 1 + (query.order === 'desc'
-      ? this.countEpisodes({ ...filter, after: anchor })
-      : this.countEpisodes({ ...filter, before: anchor }));
+      ? this.countEpisodes({ ...filter, after: anchor }, terms)
+      : this.countEpisodes({ ...filter, before: anchor }, terms));
     const offset = (rank - 1) % query.limit;
     let start = anchor;
     if (offset > 0) {
       const neighbours = query.order === 'desc'
-        ? this.selectEpisodes({ ...filter, after: anchor }, 'asc', offset)
-        : this.selectEpisodes({ ...filter, before: anchor }, 'desc', offset);
+        ? this.selectEpisodes({ ...filter, after: anchor }, 'asc', offset, terms)
+        : this.selectEpisodes({ ...filter, before: anchor }, 'desc', offset, terms);
       // A deleted anchor may sit near a boundary; fall back to the anchor-as-start window.
       if (neighbours.length < offset) return browseWindow(query);
       start = neighbours[neighbours.length - 1]!.sequence;
@@ -1255,19 +1256,26 @@ export class Library {
     if (!entry) throw new Error('Episode references a missing book revision');
     return entry;
   }
-  private countEpisodes(filter: HistoryFilter): number {
+  private countEpisodes(filter: HistoryFilter, terms: readonly string[] = []): number {
+    if (terms.length) {
+      return this.historyRef ? this.history.searchCount(this.historyRef.version, filter, terms) : historySelect(this.state.episodes, filter).filter((episode) => footprintMatches(episode, terms)).length;
+    }
     return this.historyRef ? this.history.countRows('episodes', this.historyRef.version, filter) : historyCount(this.state.episodes, filter);
   }
-  private selectEpisodes(filter: HistoryFilter, order: BrowseOrder, limit: number): ReadingEpisode[] {
-    if (this.historyRef) return this.history.windowRows<ReadingEpisode>('episodes', this.historyRef.version, filter, order, limit);
-    return historySelect(this.state.episodes, filter)
-      .sort((a, b) => (order === 'asc' ? a.sequence - b.sequence : b.sequence - a.sequence))
-      .slice(0, limit);
+  private selectEpisodes(filter: HistoryFilter, order: BrowseOrder, limit: number, terms: readonly string[] = []): ReadingEpisode[] {
+    if (terms.length && this.historyRef) return this.history.searchRows<ReadingEpisode>(this.historyRef.version, filter, terms, order, limit);
+    const rows = terms.length
+      ? historySelect(this.state.episodes, filter).filter((episode) => footprintMatches(episode, terms))
+      : historySelect(this.state.episodes, filter);
+    return rows.sort((a, b) => (order === 'asc' ? a.sequence - b.sequence : b.sequence - a.sequence)).slice(0, limit);
   }
-  private episodeExtremes(filter: HistoryFilter): { head: number | null; tail: number | null } {
-    if (this.historyRef) return this.history.sequenceExtremes(this.historyRef.version, filter);
+  private episodeExtremes(filter: HistoryFilter, terms: readonly string[] = []): { head: number | null; tail: number | null } {
+    if (terms.length && this.historyRef) return this.history.searchExtremes(this.historyRef.version, filter, terms);
+    const rows = terms.length
+      ? historySelect(this.state.episodes, filter).filter((episode) => footprintMatches(episode, terms))
+      : historySelect(this.state.episodes, filter);
     let head: number | null = null, tail: number | null = null;
-    for (const episode of historySelect(this.state.episodes, filter)) {
+    for (const episode of rows) {
       if (head === null || episode.sequence > head) head = episode.sequence;
       if (tail === null || episode.sequence < tail) tail = episode.sequence;
     }

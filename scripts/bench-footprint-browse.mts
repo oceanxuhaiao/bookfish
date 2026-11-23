@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Read-only footprint benchmark.
  *
  *   node --import tsx scripts/bench-footprint-browse.mts
@@ -99,6 +99,8 @@ async function synthetic() {
     timings['journalProbe (since 0)'] = await measure(() => lib.journalProbe({ since: 0 }));
     timings['journalProbe (since middle)'] = await measure(() => lib.journalProbe({ since: midSequence }));
     timings['journalNew (since 0)'] = await measure(() => lib.journalNew({ since: 0, limit: 50 }));
+    timings['journalBrowse query (one word, hits)'] = await measure(() => lib.journalBrowse({ limit: 10, query: '第 500 次' }));
+    timings['journalBrowse query (one word, no hit)'] = await measure(() => lib.journalBrowse({ limit: 10, query: '不存在的关键词' }));
     timings['journalBrowse prev page'] = await measure(() => {
       const page = lib.journalBrowse({ anchorSequence: midSequence, limit: 10 });
       return lib.journalBrowse({ limit: 10, cursor: page.prevCursor! });

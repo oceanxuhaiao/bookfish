@@ -95,6 +95,11 @@ export function mountFootprint(ctx: WebUiPanelContext, say: Say): FootprintHandl
   const bookLabel = el('label', say('书籍', 'Book'), toolbar) as HTMLLabelElement;
   const bookSelect = document.createElement('select');
   bookSelect.setAttribute('aria-label', say('筛选书籍', 'Filter by book')); bookLabel.append(bookSelect);
+  const footprintSearchLabel = el('label', say('搜索足迹', 'Search footprints'), toolbar) as HTMLLabelElement;
+  const footprintSearch = document.createElement('input'); footprintSearch.type = 'search';
+  footprintSearch.setAttribute('aria-label', say('搜索足迹', 'Search footprints'));
+  footprintSearch.placeholder = say('情节、感想、人物…', 'Plot, thought, character…');
+  footprintSearchLabel.append(footprintSearch);
   const orderLabel = el('label', say('排序', 'Order'), toolbar) as HTMLLabelElement;
   const orderSelect = document.createElement('select'); orderSelect.setAttribute('aria-label', say('足迹排序', 'Footprint order'));
   for (const [value, label] of [['desc', say('最新在前', 'Newest first')], ['asc', say('最早在前', 'Oldest first')]] as const) {
@@ -243,19 +248,32 @@ export function mountFootprint(ctx: WebUiPanelContext, say: Say): FootprintHandl
     } catch (error) { setMessage(String(error)); }
   }
 
+  function currentQuery(): string {
+    return footprintSearch.value.trim();
+  }
   function renderList(restoreScroll = false): void {
     list.replaceChildren();
     if (!page) { el('p', say('正在载入阅读足迹…', 'Loading footprints…'), list); return; }
     if (!page.items.length) {
-      el('p', say('当前筛选范围没有可显示的阅读足迹。', 'No footprints in this range.'), list);
+      const text = page.query.length
+        ? say(`没有匹配「${page.query.join(' ')}」的阅读足迹。`, `No footprints match “${page.query.join(' ')}”.`)
+        : say('当前筛选范围没有可显示的阅读足迹。', 'No footprints in this range.');
+      el('p', text, list);
     } else {
       for (const item of page.items) card(item, list);
     }
     const start = page.position.start, total = page.total, limit = page.limit;
-    pagerText.textContent = total === 0
-      ? say('共 0 条', '0 records')
-      : say(`第 ${Math.floor((Math.max(start, 1) - 1) / limit) + 1} / ${Math.max(1, Math.ceil(total / limit))} 页 · 共 ${total} 条`,
-        `Page ${Math.floor((Math.max(start, 1) - 1) / limit) + 1} / ${Math.max(1, Math.ceil(total / limit))} · ${total} records`);
+    const pageIndex = Math.floor((Math.max(start, 1) - 1) / limit) + 1;
+    const pageCount = Math.max(1, Math.ceil(total / limit));
+    if (page.query.length) {
+      pagerText.textContent = total === 0
+        ? say(`匹配「${page.query.join(' ')}」0 条`, `No match for “${page.query.join(' ')}”`)
+        : say(`匹配 ${total} 条 · 第 ${pageIndex} / ${pageCount} 页`, `Matches ${total} · page ${pageIndex} / ${pageCount}`);
+    } else {
+      pagerText.textContent = total === 0
+        ? say('共 0 条', '0 records')
+        : say(`第 ${pageIndex} / ${pageCount} 页 · 共 ${total} 条`, `Page ${pageIndex} / ${pageCount} · ${total} records`);
+    }
     prevButton.disabled = !page.hasPrev;
     nextButton.disabled = !page.hasNext;
     latestButton.disabled = !page.items.length;
@@ -268,6 +286,8 @@ export function mountFootprint(ctx: WebUiPanelContext, say: Say): FootprintHandl
     const usedAnchor = filters.anchor !== undefined && filters.anchor !== null;
     try {
       const args: Record<string, unknown> = { scope: scopeArg(), order: state.order, limit: state.limit };
+      const query = currentQuery();
+      if (query) args.query = query;
       if (filters.cursor) args.cursor = filters.cursor;
       else if (usedAnchor) args.anchorSequence = filters.anchor;
       const result = await ctx.invoke<BrowseResult>('journal_browse', [args]);
@@ -342,6 +362,16 @@ export function mountFootprint(ctx: WebUiPanelContext, say: Say): FootprintHandl
 
   // ---- events -------------------------------------------------------------
   search.addEventListener('input', () => { renderBookOptions(); }, { signal: ctx.signal });
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  footprintSearch.addEventListener('input', () => {
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      if (disposed) return;
+      state.anchor = null;
+      save();
+      void browse({});
+    }, 320);
+  }, { signal: ctx.signal });
   bookSelect.addEventListener('change', () => {
     const value = bookSelect.value;
     state.scope = value === '' ? 'all' : value;
@@ -405,6 +435,6 @@ export function mountFootprint(ctx: WebUiPanelContext, say: Say): FootprintHandl
       if (!active) { active = true; }
       void (async () => { await refreshBooks(); bookSelect.value = bookKey; await browse(); await probe(); })();
     },
-    dispose() { disposed = true; active = false; if (scrollTimer) clearTimeout(scrollTimer); flush(); },
+    dispose() { disposed = true; active = false; if (scrollTimer) clearTimeout(scrollTimer); if (searchTimer) clearTimeout(searchTimer); flush(); },
   };
 }

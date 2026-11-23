@@ -10,7 +10,7 @@ export type BrowseEdge = 'before' | 'after';
 export interface BrowseCursor { edge: BrowseEdge; sequence: number }
 export interface BrowseQuery {
   bookKey: string | null; order: BrowseOrder; limit: BrowseLimit;
-  cursor: BrowseCursor | null; anchor: number | null;
+  cursor: BrowseCursor | null; anchor: number | null; terms: string[];
 }
 export interface BrowseItem {
   id: string; sequence: number; recordedAt: string; kind: ReadingEpisode['kind']; revises: string | null;
@@ -21,6 +21,7 @@ export interface BrowseItem {
 export interface BrowsePage {
   scope: { bookKey: string | null };
   order: BrowseOrder; limit: BrowseLimit;
+  query: string[];
   total: number;
   position: { start: number; end: number };
   page: { count: number; firstSequence: number | null; lastSequence: number | null };
@@ -69,6 +70,32 @@ function orderOf(value: unknown): BrowseOrder {
   if (value !== 'desc' && value !== 'asc') throw new Error('order must be "desc" or "asc"');
   return value;
 }
+/** Keyword terms for the footprint filter: NFKC, whitespace separated, at most 8 words of 40 chars. */
+export function queryTerms(value: unknown): string[] {
+  if (value === undefined || value === null) return [];
+  if (typeof value !== 'string') throw new Error('query must be a string');
+  const text = value.trim();
+  if (!text) return [];
+  if (Array.from(text).length > 200) throw new Error('query must be at most 200 characters');
+  const terms = text.normalize('NFKC').split(/\s+/u).filter(Boolean);
+  if (terms.length > 8) throw new Error('Use at most eight search keywords');
+  for (const term of terms) if (Array.from(term).length > 40) throw new Error('Each search keyword must be at most 40 characters');
+  return terms;
+}
+/** The author-visible footprint text that the keyword filter searches. Evidence quotes are excluded. */
+export function footprintText(episode: ReadingEpisode): string {
+  const content = episode.content;
+  return [
+    content.trigger, content.interpretation, content.priorJudgment ?? '', content.reason ?? '',
+    content.mood?.label ?? '', ...content.characters.map((character) => [character.name, ...character.aliases].join(' ')),
+    ...content.questions,
+  ].join('\n');
+}
+export function footprintMatches(episode: ReadingEpisode, terms: readonly string[]): boolean {
+  if (!terms.length) return true;
+  const haystack = footprintText(episode).normalize('NFKC').toLocaleLowerCase('en-US');
+  return terms.every((term) => haystack.includes(term.toLocaleLowerCase('en-US')));
+}
 
 export function parseBrowseQuery(raw: unknown): BrowseQuery {
   const input = raw === undefined || raw === null ? {} : record(raw, 'journal browse');
@@ -83,7 +110,7 @@ export function parseBrowseQuery(raw: unknown): BrowseQuery {
     cursor = { edge, sequence: sequence(cursorInput.sequence, 'cursor.sequence', 1) };
   }
   const anchor = anchorInput === undefined || anchorInput === null ? null : sequence(anchorInput, 'anchorSequence', 1);
-  return { bookKey, order: orderOf(input.order), limit: limitOf(input.limit), cursor, anchor };
+  return { bookKey, order: orderOf(input.order), limit: limitOf(input.limit), cursor, anchor, terms: queryTerms(input.query) };
 }
 
 /** Filter and SQL direction for one page. The cursor edge is independent of display order.

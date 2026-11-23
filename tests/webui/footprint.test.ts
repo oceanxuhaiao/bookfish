@@ -380,4 +380,31 @@ describe('reading footprint browser', () => {
       expect(fresh.discussions.at(-1)?.bookKey).toBe(secondBook);
     }, { timeout: 6000 });
   });
+
+  it('filters the list by footprint keywords, pages the matches and clears back', async () => {
+    const first = await seed('甲书', 3); const second = await seed('乙书', 3);
+    for (let index = 0; index < 6; index++) {
+      await tool('bookfish_record_reflection', { bookKey: index % 2 === 0 ? first : second, requestId: `kw-${index}`,
+        episode: { trigger: `灯塔第 ${index} 次`, interpretation: `海边的灯塔 ${index}`, evidence: [{ segmentId: 0, quote: '海风轻轻吹过岸边' }] } });
+    }
+    const { root } = await mount();
+    await vi.waitFor(() => expect(cards(root).length).toBe(10));
+    const size = root.querySelector<HTMLSelectElement>('select[aria-label="每页数量"]')!;
+    size.value = '5'; size.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(root.querySelector('.bf-fp-pager span')!.textContent).toContain('第 1 / 3 页'));
+    const search = root.querySelector<HTMLInputElement>('input[aria-label="搜索足迹"]')!;
+    search.value = '灯塔'; search.dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.waitFor(() => expect(root.querySelector('.bf-fp-pager span')!.textContent).toContain('匹配 6 条 · 第 1 / 2 页'));
+    expect(cards(root)).toHaveLength(5);
+    expect(metatexts(root).every((text) => text?.includes('灯塔'))).toBe(true);
+    action(root, '下一页').click(); await settle();
+    await vi.waitFor(() => expect(root.querySelector('.bf-fp-pager span')!.textContent).toContain('第 2 / 2 页'));
+    expect(cards(root)).toHaveLength(1);
+    search.value = '不存在的词'; search.dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.waitFor(() => expect(cards(root)).toHaveLength(0));
+    expect(root.querySelector('.bf-fp-list')!.textContent).toContain('没有匹配');
+    search.value = ''; search.dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.waitFor(() => expect(cards(root)).toHaveLength(5));
+    expect(root.querySelector('.bf-fp-pager span')!.textContent).toContain('共 12 条');
+  });
 });

@@ -1,4 +1,4 @@
-﻿import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -220,5 +220,41 @@ describe('cross-book footprint browsing', () => {
     expect(lib.journalProbe({ since: batch.maxSequence }).count).toBe(1);
     const asc = lib.journalNew({ since: 0, order: 'asc', limit: 50 });
     expect(asc.items[0]!.sequence).toBe(1);
+  });
+
+  it('filters footprints by keywords across books, scope, fields and pages', () => {
+    const lib = open();
+    const first = seed(lib, '甲书', 2); const second = seed(lib, '乙书', 2);
+    lib.reflect({ bookKey: first.key, requestId: 'kw-a', episode: {
+      trigger: '灯塔亮了', interpretation: '她想起海边的灯塔', reason: '灯塔象征回家',
+      mood: { label: '微光', intensity: 2 }, characters: [{ name: '阿灯', aliases: ['灯姐'] }],
+      questions: ['灯塔还会亮吗'], evidence: [{ segmentId: 0, quote: '海风轻轻吹过岸边' }] } });
+    lib.reflect({ bookKey: second.key, requestId: 'kw-b', episode: {
+      trigger: '船靠岸', interpretation: 'Lighthouse keeper 驶过灯塔', characters: [{ name: '阿船' }],
+      evidence: [{ segmentId: 0, quote: '她把信放进抽屉' }] } });
+    const all = lib.journalBrowse({ query: '灯塔', limit: 5 });
+    expect(all.total).toBe(2);
+    expect(all.query).toEqual(['灯塔']);
+    expect(all.items[0]!.trigger).toBe('船靠岸');
+    expect(lib.journalBrowse({ query: '阿灯' }).total).toBe(1);
+    expect(lib.journalBrowse({ query: '灯姐' }).total).toBe(1);
+    expect(lib.journalBrowse({ query: '微光' }).total).toBe(1);
+    expect(lib.journalBrowse({ query: '回家' }).total).toBe(1);
+    expect(lib.journalBrowse({ query: '亮吗' }).total).toBe(1);
+    expect(lib.journalBrowse({ query: 'LIGHTHOUSE' }).total).toBe(1);
+    expect(lib.journalBrowse({ query: '灯塔 船' }).total).toBe(1);
+    expect(lib.journalBrowse({ scope: { bookKey: first.key }, query: '灯塔' }).total).toBe(1);
+    expect(lib.journalBrowse({ query: '不存在' })).toMatchObject({ total: 0, items: [] });
+    const pageOne = lib.journalBrowse({ query: '灯塔', limit: 5, order: 'desc' });
+    expect(pageOne.position).toEqual({ start: 1, end: 2 });
+    const smaller = lib.journalBrowse({ query: '灯塔', limit: 5, order: 'asc' });
+    expect(smaller.items.map((item) => item.trigger)).toEqual(['灯塔亮了', '船靠岸']);
+    const one = lib.journalBrowse({ query: '灯塔', limit: 5 });
+    const target = one.items[0]!.sequence;
+    const anchored = lib.journalBrowse({ query: '灯塔', anchorSequence: target, limit: 5 });
+    expect(anchored.items[0]!.sequence).toBe(target);
+    expect(anchored.total).toBe(2);
+    expect(() => lib.journalBrowse({ query: 'a b c d e f g h i' })).toThrow(/eight/);
+    expect(() => lib.journalBrowse({ query: 'x'.repeat(41) })).toThrow(/40/);
   });
 });
