@@ -50,14 +50,14 @@
 
 | 项 | 命令/范围 | 结果 |
 | --- | --- | --- |
-| 全量 Vitest | `vitest run` | **101 文件 / 1103 通过 / 1 跳过 / 0 失败** |
+| 全量 Vitest | `vitest run` | **101 文件 / 1104 通过 / 1 跳过 / 0 失败** |
 | 主 TS | `tsc --noEmit -p tsconfig.json` | 0 错误 |
 | Web TS | `tsc --noEmit -p tsconfig.web.json` | 0 错误 |
 | WebUI 构建 | `node scripts/build-webui.mjs` | 成功，产物含 TXT 与看板 |
 | TXT 定向 | 12 个 TXT/浏览器辅助测试文件 | **172 通过** |
-| 看板定向 | `journal-browse` + `footprint` + `client` | **52 通过** |
+| 看板定向 | `journal-browse` + `footprint` + `client` | **53 通过** |
 
-原始日志：`evidence/full-tests-integration.log`、`evidence/txt-targeted.log`、`evidence/footprint-targeted.log`。
+原始日志：`evidence/full-tests-integration.log`（1103，R2 前）、`evidence/full-tests-integration-r2.log`（1104）、`evidence/txt-targeted.log`、`evidence/footprint-targeted.log`（52，R2 前）、`evidence/footprint-targeted-r2.log`（53）。
 
 ## 6. 自然新足迹提醒（首次真机自然触发）
 
@@ -83,6 +83,7 @@
 | `03-after-collapse.png` | 收起后滚动到列表中段 | c05684eb86 |
 | `04-discussion-context.png` | 跨书讨论标题《西游记》 | 091050a6df |
 | `05-scoped-banner.png` | 按《西游记》范围提醒 | 36e0f82ab3 |
+| `06-oldest-first-page1.png` | R2：最早在前打开第 1 页（最早记录） | 见 R2 节 |
 
 ## 9. 已知边界与未完成
 
@@ -96,7 +97,23 @@
 
 ## 10. 内部试用与回滚
 
-- 当前宿主安装 `0.66.2` 集成构建，manifest 为 `/assets/extensions/cortico-world-bookfish/0.66.2/webui-txt-builtin-bing-0651.js`。
-- 备份：`data/extensions/package.json.before-footprint-int1-20261123-133339`、`pnpm-lock.yaml.before-footprint-int1-*`。
+- 当前宿主安装 `0.66.3` 集成构建（R2 排序修复），manifest 为 `/assets/extensions/cortico-world-bookfish/0.66.3/webui-txt-builtin-bing-0651.js`。
+- 备份：`data/extensions/package.json.before-sortfix-20261123-135330`、`pnpm-lock.yaml.before-sortfix-*`；更早的 `before-footprint-int1-*` 亦保留。
 - 回滚：把 `node_modules/cortico-world-bookfish` junction 与 profile/lock 指回 `bookfish-txt-0651-4ba8df5`，重启宿主；删除 `history_sequence` 可选。
 - 未发布、未上传市场、未改 `origin/main` 或 tag。
+
+## 11. R2：最早在前分页修复（真机复现后）
+
+**现象**：选择“最早在前”后页码直接跳到末页（如 `第 88 / 88 页`），看到的仍是最新记录。
+
+**根因**：不是排序方向反了，而是切换排序时保留了旧页锚点。最新记录在升序里位于最后一页，锚点按页对齐后自然落到末页。
+
+**修复**（`codex/footprint-browse-v1` 提交 `285f0b6`；集成提交 `720001f`）：
+
+- 切换排序时清空页锚点，加载新顺序第一页：`asc` 显示最早记录，`desc` 显示最新记录。
+- 每页数量变更只锚定“最后已提交页”的第一条，避免排序请求仍在途时使用旧页的首条。
+- “回到最新”语义不变：`asc` 仍回到包含最新记录的末页。
+
+**测试**：新增“最早在前从最早记录开始”断言；更新持久恢复与回到最新断言；看板定向 52→**53**，集成全量 1103→**1104**。
+
+**真机复核**（0.66.3）：878 条数据下，desc 第 1/88 页首条为最新记录；切到 asc 后为 **第 1/88 页**，首条为最早记录（《西游记》第 1 条）；再切回 desc 仍为第 1/88 页最新。截图 `evidence/06-oldest-first-page1.png`。

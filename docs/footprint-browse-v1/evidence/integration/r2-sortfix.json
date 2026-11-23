@@ -1,0 +1,28 @@
+{
+  "r2": "oldest-first pagination fix",
+  "date": "2026-11-23",
+  "reported": "选择最早在前后页码直接到末页，看到的仍是最新记录",
+  "rootCause": "切换排序保留了旧页锚点；最新记录在升序中位于最后一页，锚点按页对齐后落到末页。排序方向本身没有反。",
+  "fix": {
+    "featureCommit": "285f0b65c3bb179554f36991a0d07dc217471e46",
+    "integrationCommit": "720001f",
+    "behavior": [
+      "切换排序清空页锚点，加载新顺序第一页（asc 最早 / desc 最新）",
+      "每页数量变更只锚定最后已提交页的首条，避免排序请求在途时用旧页",
+      "回到最新语义不变：asc 仍回到包含最新记录的末页"
+    ]
+  },
+  "tests": {
+    "featureFull": { "files": 99, "passed": 1090, "skipped": 1 },
+    "integrationFull": { "files": 101, "passed": 1104, "skipped": 1 },
+    "footprintTargeted": { "files": 3, "passed": 53 }
+  },
+  "live": {
+    "build": "0.66.3",
+    "episodes": 878,
+    "desc": { "pager": "第 1 / 88 页", "first": "最新记录" },
+    "asc": { "pager": "第 1 / 88 页", "first": "最早记录" },
+    "backToDesc": { "pager": "第 1 / 88 页", "first": "最新记录" },
+    "screenshot": "06-oldest-first-page1.png"
+  }
+}
