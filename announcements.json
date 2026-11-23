@@ -1,7 +1,16 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-21T12:00:00Z",
+  "updatedAt": "2026-11-22T10:50:00Z",
   "announcements": [
+    {
+      "id": "2026-11-22-0.66.0-all-sites",
+      "publishedAt": "2026-11-22T10:45:00Z",
+      "title": "浏览器获取不再被跳转卡住",
+      "category": "feature",
+      "content": "之前用代理时，Bing 会把 cn.bing.com 跳到 www.bing.com，扩展遇到跳转就整单失败，所以搜索总是拿不到结果。现在会正常跟随跳转，并在落地后重新检查来源。\n\n如果你不想逐站授权，扩展弹窗新增了「允许所有网站」：点一次就能让搜索和下载访问任意网站，随时可以撤销。",
+      "link": "https://github.com/oceanxuhaiao/bookfish/releases/tag/v0.66.0",
+      "version": "0.66.0"
+    },
     {
       "id": "2026-11-21-0.65.1-online-fallback",
       "publishedAt": "2026-11-21T11:50:00Z",

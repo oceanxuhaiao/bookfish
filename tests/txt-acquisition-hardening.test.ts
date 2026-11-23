@@ -71,7 +71,14 @@ describe('bridge v2 ownership and file integrity', () => {
   it('does not persist or return extension-provided signed error URLs', async () => {
     const env = await setup(); const result = env.start(); const a = await env.waitJob(); await env.post(a, 'fail', JSON.stringify({ code: 'network', message: 'https://alice:password@files.example.com/file?token=secret' })); expect(String((await result).error)).not.toContain('secret');
   });
-  it('rejects even a public redirect instead of accepting post-request verification', async () => {
-    const env = await setup(); const result = capture(env.bridge.fetchPage(url, { allowNetwork: true })); const a = await env.waitJob(); await env.post(a, 'page', JSON.stringify({ html: 'unsafe', finalUrl: 'https://other.example.com/' })); expect((await result).error).toMatchObject({ code: 'policy_blocked' });
+  it('accepts a public redirect after re-checking the landed address', async () => {
+    const env = await setup(); const result = capture(env.bridge.fetchPage(url, { allowNetwork: true })); const a = await env.waitJob();
+    await env.post(a, 'page', JSON.stringify({ html: 'ok', finalUrl: 'https://other.example.com/search' }));
+    expect((await result).value).toEqual({ html: 'ok', finalUrl: 'https://other.example.com/search' });
+  });
+  it('still refuses a redirect that lands on a private or metadata address', async () => {
+    const env = await setup(); const result = capture(env.bridge.fetchPage(url, { allowNetwork: true })); const a = await env.waitJob();
+    await env.post(a, 'page', JSON.stringify({ html: 'unsafe', finalUrl: 'http://169.254.169.254/latest/meta-data' }));
+    expect((await result).error).toMatchObject({ code: 'policy_blocked' });
   });
 });

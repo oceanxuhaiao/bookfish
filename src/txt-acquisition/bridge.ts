@@ -173,7 +173,9 @@ export class BrowserBridge {
           sendJson(res, 200, { ok: true }); return;
         }
         const finalUrl = await this.preflight(typeof body.finalUrl === 'string' ? body.finalUrl : entry.job.url, entry.allowNetwork); this.assertLease(entry, req);
-        if (finalUrl !== entry.job.url) throw new BridgeError('policy_blocked', 'Automatic browser redirects are not allowed; discover the final address again', false);
+        // Redirects are allowed; the landed address is re-checked by preflight
+        // (scheme, credentials, public host, network policy) instead of being
+        // rejected just for differing from the requested address.
         if (action === 'page') {
           if (entry.job.kind !== 'page') throw new BridgeError('invalid_input', 'Expected a page result', false);
             let html: string;

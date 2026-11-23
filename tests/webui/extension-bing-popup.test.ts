@@ -2,10 +2,10 @@
 import {describe,it,expect,vi,afterEach} from 'vitest';
 import {readFileSync} from 'node:fs';import {join} from 'node:path';import {runInNewContext} from 'node:vm';
 const settle=()=>new Promise(ok=>setTimeout(ok,0));afterEach(()=>document.body.replaceChildren());
-async function mount(initial:Record<string,unknown>={},granted=true){
+async function mount(initial:Record<string,unknown>={},granted=true,requestResult=granted){
   document.body.innerHTML=readFileSync(join(process.cwd(),'extension/popup.html'),'utf8').replace(/<script[\s\S]*?<\/script>/giu,'');
   const state={...initial};const event={addListener:vi.fn()};
-  const permissions={contains:vi.fn(async()=>granted),request:vi.fn(async()=>granted),remove:vi.fn(async()=>true),onRemoved:event,onAdded:event};
+  const permissions={contains:vi.fn(async()=>granted||state.allowAllSites===true),request:vi.fn(async()=>requestResult),remove:vi.fn(async()=>true),onRemoved:event,onAdded:event};
   const storage={get:vi.fn(async (defaults:Record<string,unknown>)=>({...defaults,...state})),set:vi.fn(async (patch:Record<string,unknown>)=>{Object.assign(state,patch);})};
   const chrome={permissions,storage:{local:storage,onChanged:event},runtime:{sendMessage:vi.fn()}};
   runInNewContext(readFileSync(join(process.cwd(),'extension/popup.js'),'utf8'),{document,chrome,URL,setTimeout:vi.fn()});await settle();return {state,permissions,storage};
@@ -22,5 +22,16 @@ describe('built-in Bing source popup',()=>{
   });
   it('also honors the existing revoke-source action for built-in Bing',async()=>{
     const f=await mount({allowedOrigins:['https://cn.bing.com']});(document.getElementById('source') as HTMLInputElement).value='https://cn.bing.com';document.getElementById('revoke')!.click();await settle();expect(f.state.bingSearchEnabled).toBe(false);expect(f.state.allowedOrigins).toEqual([]);expect(f.permissions.remove).not.toHaveBeenCalled();
+  });
+  it('grants and revokes the all-sites scope from the popup',async()=>{
+    const f=await mount({},false,true);document.getElementById('all-toggle')!.click();await settle();
+    expect(f.permissions.request).toHaveBeenCalledWith({origins:['http://*/*','https://*/*']});expect(f.state.allowAllSites).toBe(true);
+    expect(document.getElementById('all-state')!.textContent).toContain('已允许所有网站');
+    const g=await mount({allowAllSites:true});document.getElementById('all-toggle')!.click();await settle();
+    expect(g.permissions.remove).toHaveBeenCalledWith({origins:['http://*/*','https://*/*']});expect(g.state.allowAllSites).toBe(false);
+  });
+  it('does not claim all sites when the browser refuses the grant',async()=>{
+    const f=await mount({},false,false);document.getElementById('all-toggle')!.click();await settle();
+    expect(f.state.allowAllSites).toBeUndefined();expect(document.getElementById('status')!.textContent).toContain('未授予所有网站权限');
   });
 });

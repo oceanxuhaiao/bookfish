@@ -441,7 +441,7 @@ export class BookfishWorld implements World {
         }
         if (method === 'txt_status' && args.length === 1) return this.txtAcquisition.status(requiredText(args[0], 'taskId', 80));
         if (['txt_search','txt_discover', 'txt_import', 'txt_cancel'].includes(method) && args.length === 1) {
-          if (method !== 'txt_cancel' && !this.txtAcquisition.summary().browserReady) throw new Error('浏览器辅助 TXT 获取尚未就绪，请选择已确认的普通模式或增强保护，并连接扩展。');
+          if (method !== 'txt_cancel' && !this.txtAcquisition.summary().browserReady) throw new Error('浏览器辅助 TXT 获取尚未就绪，请选择已确认的普通模式或增强保护，并连接扩展，或填写浏览器调试端口并打开“改用真实标签页取文件”。');
           if(method==='txt_search'){
             const value=args[0] as Record<string,unknown>|null;if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Invalid book search');
             return this.txtAcquisition.searchBooks({...(value.title?{title:requiredText(value.title,'title',200)}:{}),...(value.author?{author:requiredText(value.author,'author',100)}:{})});

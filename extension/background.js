@@ -4,7 +4,7 @@ const PAGE_LIMIT = 8 * 1024 * 1024;
 const FILE_LIMIT = 100 * 1024 * 1024;
 const consumer = crypto.randomUUID();
 const BING_ORIGIN='https://cn.bing.com';
-const DEFAULTS = { port: 47823, token: '', allowedOrigins: [],bingSearchEnabled:true };
+const DEFAULTS = { port: 47823, token: '', allowedOrigins: [],bingSearchEnabled:true,allowAllSites:false };
 async function settings() { return chrome.storage.local.get(DEFAULTS); }
 async function setState(patch) { const { state = {} } = await chrome.storage.local.get({ state: {} }); await chrome.storage.local.set({ state: { ...state, ...patch, at: Date.now() } }); }
 const sleep = ms => new Promise(ok => setTimeout(ok, ms));
@@ -24,8 +24,13 @@ async function post(config, job, action, body, type = 'application/json', sequen
 function transferError(code) { const error = new Error('Transfer failed'); error.code = code; return error; }
 async function allowed(config, raw) {
   const url = new URL(raw);
-  const sourceAllowed=url.origin===BING_ORIGIN?config.bingSearchEnabled!==false:config.allowedOrigins.includes(url.origin);
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || !sourceAllowed) throw transferError('policy_blocked');
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw transferError('policy_blocked');
+  // "All sites" mode keeps only the browser grant as the source gate; the user
+  // opts in from the popup and the browser can revoke the grant at any time.
+  if (config.allowAllSites !== true) {
+    const sourceAllowed=url.origin===BING_ORIGIN?config.bingSearchEnabled!==false:config.allowedOrigins.includes(url.origin);
+    if (!sourceAllowed) throw transferError('policy_blocked');
+  }
   if (!await chrome.permissions.contains({ origins: [`${url.protocol}//${url.hostname}/*`] })) throw transferError('permission_missing');
   return url;
 }
@@ -35,7 +40,7 @@ async function handle(job, config) {
   }
   const controller = new AbortController();
   const revoke = () => controller.abort();
-  const changed = (changes, area) => { if (area === 'local' && ['allowedOrigins', 'bingSearchEnabled','token', 'port'].some(key => changes[key])) revoke(); };
+  const changed = (changes, area) => { if (area === 'local' && ['allowedOrigins', 'bingSearchEnabled','allowAllSites','token', 'port'].some(key => changes[key])) revoke(); };
   chrome.storage.onChanged?.addListener(changed);
   chrome.permissions.onRemoved?.addListener(revoke);
   const transferLimit = job.kind === 'file' ? 300000 : 120000;
@@ -50,9 +55,14 @@ async function handle(job, config) {
   let reader, response;
   try {
     const url = await allowed(config, job.url);
-    response = await fetch(url.href, { redirect: 'error', cache: 'no-store', credentials: url.protocol === 'https:' ? 'include' : 'omit', signal: controller.signal });
+    response = await fetch(url.href, { redirect: 'follow', cache: 'no-store', credentials: url.protocol === 'https:' ? 'include' : 'omit', signal: controller.signal });
     if (!response.ok) throw transferError([401, 403].includes(response.status) ? 'permission_missing' : 'http_error');
-    if (response.url !== url.href) throw transferError('policy_blocked');
+    // Redirects are followed, then the landed address is checked by the same
+    // source rule: no silent downgrade to http and no destination the current
+    // mode would not have allowed directly.
+    const landed = response.url || url.href;
+    if (url.protocol === 'https:' && new URL(landed).protocol !== 'https:') throw transferError('policy_blocked');
+    await allowed(config, landed);
     const max = Math.min(job.maxBytes, job.kind === 'page' ? PAGE_LIMIT : FILE_LIMIT);
     const length = Number(response.headers.get('content-length'));
     if (Number.isFinite(length) && length > max) throw transferError('too_large');

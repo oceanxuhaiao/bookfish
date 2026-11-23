@@ -1,8 +1,41 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-21",
-  "currentVersion": "0.65.1",
+  "updatedAt": "2026-11-22",
+  "currentVersion": "0.66.0",
   "releases": [
+    {
+      "version": "0.66.0",
+      "releaseDate": "2026-11-22",
+      "type": "minor",
+      "majorAnnouncement": false,
+      "title": "浏览器获取不再被跳转卡住",
+      "summary": "扩展会跟随重定向并复核落地地址；新增「允许所有网站」，一次授权后搜索和下载不再逐站询问。",
+      "items": [
+        {
+          "kind": "fix",
+          "text": "修复经代理时 cn.bing.com 返回 301 到 www.bing.com 导致搜索必然失败：现在跟随跳转，落地后重新检查协议、凭据、来源和浏览器权限。"
+        },
+        {
+          "kind": "improvement",
+          "text": "扩展弹窗新增「允许所有网站」：授权 HTTP/HTTPS 全站权限后不再逐站授权，可随时撤销并恢复逐站授权。"
+        },
+        {
+          "kind": "feature",
+          "text": "新增「真实标签页」通道：填写浏览器调试端口后，页面和文件由真实后台标签页读取，跳转和页面脚本按正常浏览处理，不再受扩展桥接限制。"
+        },
+        {
+          "kind": "improvement",
+          "text": "结果页没有直接 TXT 时，可再跟一层下载页找文件（优先同站、最多 3 页）；GitHub 文件页自动转成 raw 地址。"
+        },
+        {
+          "kind": "note",
+          "text": "开启「允许所有网站」后不再逐站拦截，可能携带浏览器登录态访问任意网站；仅 http/https、内网拒绝、大小上限和哈希校验保留。"
+        }
+      ],
+      "technical": [
+        "扩展 fetch 由 redirect=error 改为 follow，并在落地后重新执行来源与权限检查；桥接不再拒绝 finalUrl 与请求地址不同。"
+      ]
+    },
     {
       "version": "0.65.1",
       "releaseDate": "2026-11-21",

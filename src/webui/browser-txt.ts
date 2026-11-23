@@ -89,12 +89,12 @@ export function mountBrowserTxt(parent: HTMLElement, ctx: WebUiPanelContext, say
     progressTitle.textContent=ready?say('配置完成，可以开始获取','Setup complete. You can start acquiring files'):localReady?say('配置尚未完成：还差浏览器扩展连接','Setup incomplete: connect the browser extension'):say('配置尚未完成：请先完成下方模式与权限设置','Setup incomplete: choose a mode and confirm permissions below');
     const instructions=ready?[
       say('连接配置已通过。填写下方书名或作者，点击“搜索书籍”，选择作品后查看 TXT 候选并导入。无需先找资源页地址。','Connection checks passed. Search by title or author, choose a work, then find TXT candidates and import. No resource page URL is required.'),
-      say('每个新网站仍需在扩展弹窗中填写资源页地址，点击“授权这个来源”，并确认浏览器权限；当前页面无法验证你是否已授权某个网站。','Each new website still needs source permission in the extension popup. This page cannot verify individual website grants.'),
+      say('来源默认逐个授权；在扩展弹窗打开“允许所有网站”后，搜索和下载不再逐站询问。当前页面无法验证你已授权哪些网站。','Sources are granted per site by default; turn on "Allow all websites" in the extension popup to stop per-site prompts. This page cannot verify which sites are granted.'),
     ]:localReady?[
       say('本机设置已保存；一键配置还不会自动安装浏览器扩展。','Local settings are saved; setup does not yet install the browser extension automatically.'),
       say('点击“查看扩展文件夹位置”。在 Edge 地址栏输入 edge://extensions（Chrome 用 chrome://extensions），打开“开发人员模式”，选择“加载解压缩的扩展”，选中该文件夹。','Show the extension folder. Open edge://extensions (chrome://extensions in Chrome), enable developer mode and load that unpacked folder.'),
       say('打开配置页复制端口和令牌，在浏览器工具栏打开 BookFish 扩展，分别填入后点击“保存并连接”。不要把令牌发到聊天中。','Copy the port and token from settings into the BookFish extension popup, then save and connect. Do not share the token in chat.'),
-      say('Bing 搜索来源已内置，安装时授权，无需手动填写。旧版扩展需更新并确认浏览器新增权限；打开搜索结果里的新网站时，再授权对应来源。','Bing search access is built in and granted at installation. Update older extensions and confirm new browser permissions; grant other sources as needed.'),
+      say('Bing 搜索来源已内置，安装时授权，无需手动填写。旧版扩展需更新并确认浏览器新增权限；不想逐站授权时，可在扩展弹窗打开“允许所有网站”。','Bing search access is built in and granted at installation. Update older extensions and confirm new browser permissions; to avoid per-site grants, turn on "Allow all websites" in the popup.'),
       say('回到这里点击“我已完成连接，重新检查”。此页每3秒检查连接；只有出现“配置完成，可以开始获取”且下方按钮可用，才表示连接配置完成。','Return here and recheck. Connection is checked every 3 seconds while this view is open. Setup is complete when the completion message appears and discovery is enabled.'),
     ]:[say('在下方选择使用模式并完成必要确认，然后点击“一键配置浏览器获取”；若提示还需操作，请继续按本清单完成。','Choose a mode and confirm the required permissions below, then run setup and follow the remaining steps here.')];
     for(const instruction of instructions)el('li',instruction,nextSteps);

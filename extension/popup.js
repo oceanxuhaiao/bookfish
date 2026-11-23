@@ -3,7 +3,9 @@ const tokenInput = document.getElementById('token');
 const saveButton = document.getElementById('save');
 const statusBox = document.getElementById('status');
 const BING_ORIGIN='https://cn.bing.com',BING_PATTERN='https://cn.bing.com/*';
-let bingStatus;
+const ALL_PATTERNS=['http://*/*','https://*/*'];
+const allState=document.getElementById('all-state'),allToggle=document.getElementById('all-toggle');
+let bingStatus,allStatus={on:false,granted:false};
 document.getElementById('bing-toggle').disabled=true;
 
 const show = (text, ok) => {
@@ -41,9 +43,11 @@ saveButton.addEventListener('click', async () => {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.state) renderState(changes.state.newValue || {});
   if(area==='local'&&(changes.allowedOrigins||changes.bingSearchEnabled))void renderSources();
+  if(area==='local'&&changes.allowAllSites)void renderAllSites();
 });
 
 void load();
+void renderAllSites();
 
 async function renderSources() {
   const { allowedOrigins = [],bingSearchEnabled=true } = await chrome.storage.local.get({ allowedOrigins: [],bingSearchEnabled:true });
@@ -63,8 +67,24 @@ document.getElementById('bing-toggle').addEventListener('click',async()=>{
     await renderSources();
   }catch{show('无法更改 Bing 搜索来源，请重试。',false);}
 });
-chrome.permissions.onRemoved?.addListener(()=>{void renderSources();});
-chrome.permissions.onAdded?.addListener(()=>{void renderSources();});
+async function renderAllSites(){
+  const {allowAllSites=false}=await chrome.storage.local.get({allowAllSites:false});
+  allStatus={on:allowAllSites,granted:await chrome.permissions.contains({origins:ALL_PATTERNS})};
+  allState.textContent=allowAllSites
+    ?(allStatus.granted?'已允许所有网站：搜索和下载不再逐站询问来源。':'“允许所有网站”已开启，但浏览器尚未授予所有网站权限。')
+    :'只允许已授予的来源。';
+  allToggle.textContent=allowAllSites?'撤销“允许所有网站”':'允许所有网站（不推荐）';
+}
+allToggle.addEventListener('click',async()=>{
+  const {on,granted}=allStatus;
+  try{
+    if(on){await chrome.permissions.remove({origins:ALL_PATTERNS});await chrome.storage.local.set({allowAllSites:false});}
+    else {if(!granted&&!await chrome.permissions.request({origins:ALL_PATTERNS})){show('浏览器未授予所有网站权限。',false);return;}await chrome.storage.local.set({allowAllSites:true});}
+    await renderAllSites();
+  }catch{show('无法更改来源范围，请重试。',false);}
+});
+chrome.permissions.onRemoved?.addListener(()=>{void renderSources();void renderAllSites();});
+chrome.permissions.onAdded?.addListener(()=>{void renderSources();void renderAllSites();});
 function selectedOrigin() {
   const url = new URL(document.getElementById('source').value.trim());
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error('invalid origin');

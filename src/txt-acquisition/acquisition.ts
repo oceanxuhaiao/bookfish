@@ -11,9 +11,11 @@ import type { BookfishConfigSection } from '../config.ts';
 import type { Library } from '../library.ts';
 import { BestEffortRejected, AuthenticatedInputError, prepareFileBestEffort, type BestEffortDecoded } from '../stream-import.ts';
 import { BrowserClient, BrowserError } from './browser-client.ts';
+import { PageChannel } from './page-channel.ts';
 import { BridgeError, BrowserBridge } from './bridge.ts';
 import { DownloadError, downloadFile } from './download.ts';
 import { discoverLinks, extractIdentity } from './link-discovery.ts';
+import { pickDownloadPages } from './follow.ts';
 import { assessText, identityMatch, type Assessment, type IdentityMatch } from './quality.ts';
 import { AcquisitionRecords } from './records.ts';
 import { AcquisitionStaging, OriginalFileError, maintenanceFailure, type MaintenanceResult } from './staging.ts';
@@ -43,6 +45,8 @@ export interface AcquisitionOptions {
   pageLoader?: PageLoader;
   /** Test seam for the loopback bridge; production builds create their own. */
   bridge?: BrowserBridge;
+  /** Test seam for the real-tab page channel. */
+  pageChannel?: (port: number) => PageChannel;
   /** Supplied by the operator controller after enforcing the browser network boundary. */
   browserGuard?: (url: string) => Promise<void>;
   controllerReady?: () => boolean;
@@ -108,6 +112,7 @@ export class TxtAcquisition {
   private readonly resolve?: HostResolver;
   private readonly pageLoader: PageLoader;
   private bridge: BrowserBridge | undefined;
+  private readonly pageChannelFactory?: (port: number) => PageChannel;
   private readonly controllerReady: () => boolean;
   private readonly browserGuard?: (url: string) => Promise<void>;
   private lastBrowserPolicy = '';
@@ -139,6 +144,7 @@ export class TxtAcquisition {
       await this.authorizeBrowser(url); return defaultPageLoader(options.fetchImpl)(url, settings);
     });
     this.bridge = options.bridge;
+    this.pageChannelFactory = options.pageChannel;
     this.browserGuard = options.browserGuard;
     this.controllerReady = () => Boolean(options.browserGuard) && options.controllerReady?.() === true;
     this.lastBrowserPolicy = this.policyKey();
@@ -172,6 +178,16 @@ export class TxtAcquisition {
    * and the extension polls it. It is off unless the user turns it on, and it
    * never replaces the explicit CDP port.
    */
+  /** Real-tab channel, only when the user opted in and set a debug port. */
+  private channel(): PageChannel | undefined {
+    const cfg = this.cfg();
+    if (cfg.browserPageChannel !== true) return undefined;
+    const port = cfg.browserDebugPort ?? 0;
+    if (!Number.isInteger(port) || port <= 0) return undefined;
+    if (this.pageChannelFactory) return this.pageChannelFactory(port);
+    return new PageChannel({ port, ...(this.fetchImpl ? { fetchImpl: this.fetchImpl } : {}), ...(this.resolve ? { resolve: this.resolve } : {}) });
+  }
+
   private async ensureBridge(): Promise<BrowserBridge | undefined> {
     const cfg = this.cfg();
     if (cfg.browserBridgeEnabled !== true) {
@@ -198,8 +214,10 @@ export class TxtAcquisition {
     const transportConnected = this.bridge?.connected === true;
     const controllerReady = this.controllerReady();
     const policy = this.browserPolicy;
-    const browserReady = !this.initializationError && this.cfg().allowNetwork && this.cfg().txtAcquisitionEnabled === true && this.cfg().browserBridgeEnabled === true && transportConnected && policy.browserAccessAllowed;
-    return { transportConnected, controllerReady, ...policy, browserReady, unavailableReason: !policy.browserAccessAllowed ? 'Choose enhanced protection or explicitly accept standard browser mode' : !transportConnected ? 'Extension transport is disconnected' : !browserReady ? 'Network or acquisition is disabled' : null };
+    const channelConfigured = this.cfg().browserPageChannel === true && Number.isInteger(this.cfg().browserDebugPort) && (this.cfg().browserDebugPort ?? 0) > 0;
+    const browserReady = !this.initializationError && this.cfg().allowNetwork && this.cfg().txtAcquisitionEnabled === true
+      && (channelConfigured || (this.cfg().browserBridgeEnabled === true && transportConnected)) && policy.browserAccessAllowed;
+    return { transportConnected, controllerReady, channelConfigured, ...policy, browserReady, unavailableReason: !policy.browserAccessAllowed ? 'Choose enhanced protection or explicitly accept standard browser mode' : !browserReady ? (channelConfigured ? 'Network or acquisition is disabled' : 'Extension transport is disconnected') : null };
   }
   private get browserPolicy() { return browserPolicy(this.cfg(), this.controllerReady()); }
   private policyKey() { const cfg=this.cfg(); return `${cfg.browserProtectionMode ?? 'enhanced'}:${cfg.browserStandardConsent === true}`; }
@@ -415,14 +433,16 @@ export class TxtAcquisition {
     const signal=AbortSignal.any([abort.signal,AbortSignal.timeout(30000)]);
     try{
       await this.authorizeBrowser(url);signal.throwIfAborted();
-      const bridge=await this.ensureBridge();let html:string;
-      if(bridge)html=(await bridge.fetchPage(url,{allowNetwork:this.cfg().allowNetwork,signal})).html;
-      else {const port=this.cfg().browserDebugPort??0;if(!port)throw new BrowserError('browser_unavailable','请先连接浏览器扩展。');const page=await this.pageLoader(url,{allowNetwork:this.cfg().allowNetwork,port,signal,...(this.resolve?{resolve:this.resolve}:{})});try{html=page.html;}finally{await page.close().catch(()=>undefined);}}
+      const channel=this.channel();let html:string;
+      if(channel){const page=await channel.loadPage(url,{allowNetwork:this.cfg().allowNetwork,signal});try{html=page.html;}finally{await page.close().catch(()=>undefined);}}
+      else {const bridge=await this.ensureBridge();
+        if(bridge)html=(await bridge.fetchPage(url,{allowNetwork:this.cfg().allowNetwork,signal})).html;
+        else {const port=this.cfg().browserDebugPort??0;if(!port)throw new BrowserError('browser_unavailable','请先连接浏览器扩展。');const page=await this.pageLoader(url,{allowNetwork:this.cfg().allowNetwork,port,signal,...(this.resolve?{resolve:this.resolve}:{})});try{html=page.html;}finally{await page.close().catch(()=>undefined);}}}
       signal.throwIfAborted();await this.authorizeBrowser(url);signal.throwIfAborted();
       const result=parseBookSearch(html);return {provider:'Bing',authorizationOrigin:BOOK_SEARCH_ORIGIN,...result};
     }catch(error){
       if(signal.aborted)throw new Error('搜索已中止或超时，请检查连接后重试。');
-      if((error instanceof BridgeError||error instanceof DownloadError)&&['permission_missing','policy_blocked'].includes(error.code))throw new Error('浏览器拒绝了搜索请求。请在 BookFish 扩展中确认已授权 '+BOOK_SEARCH_ORIGIN+' 后重试；已授权仍失败时，请检查浏览器中的拒绝或验证提示。');
+      if((error instanceof BridgeError||error instanceof DownloadError)&&['permission_missing','policy_blocked'].includes(error.code))throw new Error('浏览器拒绝了搜索请求。请在扩展弹窗里打开“允许所有网站”，或为 '+BOOK_SEARCH_ORIGIN+' 授权来源后重试；仍失败时请检查浏览器中的拒绝或验证提示。');
       throw error;
     }finally{this.searches.delete(abort);}
   }
@@ -463,35 +483,63 @@ export class TxtAcquisition {
       this.pageUrls.set(taskId, checked.href);
       const source = sourceReference(checked.href);
       this.records.update(taskId, (draft) => { draft.pageUrl = source.url; draft.pageUrlHash = source.sha256; draft.requiresRediscovery = source.requiresRediscovery; draft.sourceHost = checked.hostname; draft.candidates = []; });
-      const port = cfg.browserDebugPort ?? 0;
-      const bridge = await this.ensureBridge();
-      let html: string;
-      if (bridge) {
-        // The user-selected browser mode may carry its authorized session;
-        // standard mode explicitly makes no enforced-isolation claim.
-        const page = await bridge.fetchPage(checked.toString(), { allowNetwork: cfg.allowNetwork, signal: controller.signal });
-        html = page.html;
-      } else {
-        if (!port) throw new BrowserError('browser_unavailable', 'Set a browser debug port (for example 9333) or start the BookFish browser extension');
-        const page = await this.pageLoader(checked.toString(), { allowNetwork: cfg.allowNetwork, port, signal: controller.signal, ...(this.resolve ? { resolve: this.resolve } : {}) });
-        try {
-          html = page.html;
-        } finally {
-          await page.close().catch(() => undefined);
-        }
-      }
+      const loaded = await this.loadPageHtml(checked.toString(), controller.signal);
       controller.signal.throwIfAborted();
-      const found = discoverLinks(html, checked.toString(), MAX_CANDIDATES);
-      if (!found.links.length) {
+      let links = discoverLinks(loaded.html, loaded.url, MAX_CANDIDATES).links;
+      if (!links.length && cfg.browserFollowDownloadPage !== false) {
+        links = await this.followDownloadPage(loaded.html, loaded.url, controller.signal);
+      }
+      if (!links.length) {
         this.fail(taskId, 'no_candidates', 'No TXT or Markdown download link was found on that page');
         return this.status(taskId) as TaskView;
       }
-      this.addCandidates(taskId, found.links);
+      this.addCandidates(taskId, links);
       return this.status(taskId) as TaskView;
     } catch (error) {
       if (controller.signal.aborted) this.fail(taskId, controller.signal.reason instanceof AcquisitionFailure ? controller.signal.reason.code : 'cancelled', 'Discovery interrupted'); else this.classifyFailure(taskId, error);
       return this.status(taskId) as TaskView;
     } finally { this.aborts.delete(taskId); await this.prune(); }
+  }
+
+  /** Read a page through the real-tab channel, the extension bridge or the injected loader. */
+  private async loadPageHtml(pageUrl: string, signal: AbortSignal): Promise<{ html: string; url: string }> {
+    const cfg = this.cfg();
+    const channel = this.channel();
+    if (channel) {
+      const page = await channel.loadPage(pageUrl, { allowNetwork: cfg.allowNetwork, signal });
+      try { return { html: page.html, url: page.finalUrl }; } finally { await page.close().catch(() => undefined); }
+    }
+    const bridge = await this.ensureBridge();
+    if (bridge) {
+      // The user-selected browser mode may carry its authorized session;
+      // standard mode explicitly makes no enforced-isolation claim.
+      const page = await bridge.fetchPage(pageUrl, { allowNetwork: cfg.allowNetwork, signal });
+      return { html: page.html, url: page.finalUrl };
+    }
+    const port = cfg.browserDebugPort ?? 0;
+    if (!port) throw new BrowserError('browser_unavailable', 'Set a browser debug port (for example 9333) or start the BookFish browser extension');
+    const page = await this.pageLoader(pageUrl, { allowNetwork: cfg.allowNetwork, port, signal, ...(this.resolve ? { resolve: this.resolve } : {}) });
+    try { return { html: page.html, url: pageUrl }; } finally { await page.close().catch(() => undefined); }
+  }
+
+  /** Open one download-looking link on the page and look for files there. */
+  private async followDownloadPage(html: string, pageUrl: string, signal: AbortSignal): Promise<DiscoveredLink[]> {
+    const candidates = pickDownloadPages(html, pageUrl, 3);
+    for (const candidate of candidates) {
+      signal.throwIfAborted();
+      const cfg = this.cfg();
+      if (!cfg.allowNetwork || !cfg.txtAcquisitionEnabled) throw new AcquisitionFailure('policy_blocked', 'Acquisition permission changed');
+      try {
+        const page = await this.loadPageHtml(candidate.url, signal);
+        const found = discoverLinks(page.html, page.url, MAX_CANDIDATES).links;
+        if (found.length) return found;
+      } catch (error) {
+        if (signal.aborted) throw error;
+        // A dead, blocked or private link is skipped; the caller still reports
+        // no_candidates when no followed page yields a file.
+      }
+    }
+    return [];
   }
 
   /** Candidate addresses live in memory only, so a new scan drops the old ones. */
@@ -562,10 +610,19 @@ export class TxtAcquisition {
       controller.signal.throwIfAborted();
       this.records.update(taskId, (draft) => { draft.attempts.downloads += 1; });
       const checked = await checkUrl(url, { allowNetwork: cfg.allowNetwork, resolve: this.resolve });
-      const bridge = await this.ensureBridge();
+      const channel = this.channel();
+      const bridge = channel ? undefined : await this.ensureBridge();
       // Both routes hand back raw bytes: the bridge appends what the browser read,
       // downloadFile streams the response. Neither decodes the text.
-      const downloaded = bridge
+      const downloaded = channel
+        ? await channel.download(checked.href, {
+            taskId,
+            staging: this.staging,
+            filename,
+            allowNetwork: cfg.allowNetwork,
+            signal: controller.signal,
+          })
+        : bridge
         ? await bridge.fetchFile({
             url: checked.href,
             taskId,

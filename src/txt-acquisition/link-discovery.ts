@@ -4,6 +4,7 @@
  */
 import * as cheerio from 'cheerio';
 import { MAX_DISCOVERY_LINKS, type DiscoveredLink, type FileFormat } from './types.ts';
+import { rawFileUrl } from './follow.ts';
 
 const FILE_EXTENSION = /\.(txt|md|markdown)$/iu;
 const TEXT_EXTENSION = /\.(txt|md|markdown)(?:$|[?#])/iu;
@@ -62,6 +63,9 @@ export function discoverLinks(html: string, baseUrl: string, maxLinks = MAX_DISC
     const looksLikeFile = FILE_EXTENSION.test(pathname) || TEXT_EXTENSION.test(resolved.search) || (downloadName ? FILE_EXTENSION.test(downloadName) : false);
     if (!looksLikeFile) return;
     resolved.hash = '';
+    // A GitHub blob page is HTML; the file itself is served by raw.githubusercontent.com.
+    const raw = rawFileUrl(resolved.toString());
+    if (raw) resolved = new URL(raw);
     const key = resolved.toString();
     if (seen.has(key)) return;
     seen.add(key);

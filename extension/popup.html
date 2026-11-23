@@ -17,7 +17,7 @@
   </style>
 </head>
 <body>
-  <h1>BookFish 浏览器桥接 · 0.65.1</h1>
+  <h1>BookFish 浏览器桥接 · 0.66.0</h1>
   <label for="port">本机端口</label>
   <input id="port" type="number" min="1024" max="65535" placeholder="47823">
   <label for="token">配对令牌</label>
@@ -25,13 +25,16 @@
   <button id="save">保存并连接</button>
   <p id="bing-state">Bing 搜索来源随扩展安装授权，无需手动添加。</p>
   <button id="bing-toggle">停用 Bing 搜索来源</button>
+  <label>来源范围</label>
+  <p id="all-state">只允许已授予的来源。</p>
+  <button id="all-toggle">允许所有网站（不推荐）</button>
   <label for="source">允许的资源来源（完整 http/https 地址）</label>
   <input id="source" type="url" placeholder="https://example.com">
   <button id="grant">授权这个来源</button>
   <button id="revoke">撤销这个来源</button>
   <div id="sources"></div>
   <div id="status">未连接</div>
-  <p class="hint">令牌保存在本机。桥接只监听 127.0.0.1 并验证令牌。普通模式经用户确认后支持手动及模型自主浏览，可能使用当前浏览器登录态，不保证强制网络隔离；建议使用安全组件和独立浏览器。配对不代表隔离验证通过。</p>
+  <p class="hint">令牌保存在本机。桥接只监听 127.0.0.1 并验证令牌。普通模式经用户确认后支持手动及模型自主浏览，可能使用当前浏览器登录态，不保证强制网络隔离；建议使用安全组件和独立浏览器。配对不代表隔离验证通过。来源范围默认逐个授权；打开“允许所有网站”后不再逐站询问，搜索和下载可直接访问任意网站。</p>
   <script src="popup.js"></script>
 </body>
 </html>

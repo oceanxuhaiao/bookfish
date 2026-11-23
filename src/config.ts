@@ -47,6 +47,10 @@ export interface BookfishConfigSection {
   txtAcquisitionEnabled?: boolean;
   /** Dedicated loopback Chrome DevTools port; 0 means the browser path is unavailable. */
   browserDebugPort?: number;
+  /** Use the debug port as a real-tab channel instead of the extension bridge. */
+  browserPageChannel?: boolean;
+  /** When a result page has no direct file, follow one download-looking link on it. */
+  browserFollowDownloadPage?: boolean;
   /** Upper bound for retained original files under data/bookfish/txt-acquisition (MiB). */
   txtAcquisitionRetentionMb?: number;
   /** Opt-in loopback bridge for the Edge/Chrome extension; needs no debug port or restart. */
@@ -62,7 +66,7 @@ export const BOOKFISH_DEFAULTS: BookfishConfigSection = { enabled: false, readin
   dailyChapterGoal:0, readingSessionMinutes:10,realRoutineEnabled:true, speed: 'normal', readingCharsPerMinute: 0, dailyTasks: 40, dailyChars: 48000,
   readingBatchSegments:2, dailyReadingCap:0,
   automaticSharing: true, automaticReview: true, storyMemoryEnabled: false, shareCooldownMinutes: 60, shareQuietEnabled: true, shareQuietStart: 22, shareQuietEnd: 8, shareMaxSentenceChars: 80, shareQuietStartMinute: -1, shareQuietEndMinute: -1,
-  txtAcquisitionEnabled: false, browserDebugPort: 0, txtAcquisitionRetentionMb: 512,
+  txtAcquisitionEnabled: false, browserDebugPort: 0, browserPageChannel: false, browserFollowDownloadPage: true, txtAcquisitionRetentionMb: 512,
   browserBridgeEnabled: false, browserBridgePort: 0, browserProtectionMode: 'enhanced', browserStandardConsent: false };
 export function sharingLimits(cfg: BookfishConfigSection) {
   const integer = (v: unknown, fallback: number, min: number, max: number) => Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max ? v as number : fallback;
@@ -132,6 +136,16 @@ export function bookfishConfigGroup(english: boolean): ConfigGroup {
           description: english ? 'A dedicated loopback Chrome DevTools port you start yourself, e.g. 9333. Only 127.0.0.1 is used, no port is scanned, and no existing tab is taken over. 0 disables the browser path.' : '你自己启动的专用本机 Chrome 调试端口，例如 9333。只连接 127.0.0.1，不扫描端口，不接管已有标签页。填 0 关闭浏览器路径。',
           'x-hot': true,
         },
+        'worlds.bookfish.browserPageChannel': {
+          type: 'boolean', title: english ? 'Use real browser tabs (debug port)' : '用真实标签页（调试端口）',
+          description: english ? 'Off by default. When on and a debug port is set, pages and files are read from a real background tab the browser opens, so redirects, cookies and page scripts behave like normal browsing. The extension bridge is not used in this mode.' : '默认关闭。开启并填写调试端口后，页面和文件由浏览器打开的真实后台标签页读取，跳转、Cookie 和页面脚本与正常浏览一致；此模式不再走扩展桥接。',
+          'x-hot': true,
+        },
+        'worlds.bookfish.browserFollowDownloadPage': {
+          type: 'boolean', title: english ? 'Try one download page deeper' : '再从结果页跟一层找下载',
+          description: english ? 'On by default. When a result page has no direct TXT link, the browser opens one download-looking link on that page (same site first, at most three pages) and looks again. Every followed page still passes the URL policy; nothing is crawled beyond that one step.' : '默认开启。结果页没有直接 TXT 链接时，浏览器会在该页里找一个像“下载”的链接再打开一次（优先同站，最多 3 个页面）并重新查找。跟进的页面同样要过 URL 策略，不会继续往下爬。',
+          'x-hot': true,
+        },
         'worlds.bookfish.browserBridgeEnabled': {
           type: 'boolean', title: english ? 'Use the Edge/Chrome extension' : '使用 Edge/Chrome 扩展',
           description: english ? 'Off by default. The world listens on 127.0.0.1 only and the extension polls it with a pairing token, Choose user-approved standard mode or recommended enhanced protection; pairing alone is not proof of isolation. Same limits as the debug-port path: no login, paywall, captcha or DRM bypass.' : '默认关闭。世界只在本机 127.0.0.1 监听，扩展凭配对令牌轮询取任务，可选择用户确认的普通模式，或推荐的增强保护；仅配对不代表隔离验证通过。限制与调试端口方式相同：不登录、不付费、不绕过验证码或 DRM。',
@@ -163,7 +177,7 @@ export function bookfishConfigGroup(english: boolean): ConfigGroup {
 export function bookfishConfigGroups(english: boolean): ConfigGroup[] {
   const all=bookfishConfigGroup(english);const fields=all.schema.properties;
   const main=['realRoutineEnabled','automaticReading','autonomousAcquisition','autonomousAcquisitionMode','autonomousSourceIds','autonomousDiskBudgetMb','speed','readingCharsPerMinute','dailyChapterGoal','readingSessionMinutes','readingBatchSegments','dailyReadingCap','automaticSharing','shareCooldownMinutes','shareMaxSentenceChars','shareQuietEnabled','shareQuietStartMinute','shareQuietEndMinute'];
-  const advanced=['automaticReview','storyMemoryEnabled','allowNetwork','readingMode','textStoreDir','txtAcquisitionEnabled','browserDebugPort','browserBridgeEnabled','browserBridgePort','txtAcquisitionRetentionMb','browserProtectionMode','browserStandardConsent'];
+  const advanced=['automaticReview','storyMemoryEnabled','allowNetwork','readingMode','textStoreDir','txtAcquisitionEnabled','browserDebugPort','browserPageChannel','browserFollowDownloadPage','browserBridgeEnabled','browserBridgePort','txtAcquisitionRetentionMb','browserProtectionMode','browserStandardConsent'];
   const pick=(names:string[])=>Object.fromEntries(names.map(k=>['worlds.bookfish.'+k,fields['worlds.bookfish.'+k]]));
   return [{...all,schema:{...all.schema,title:english?'Reading and sharing':'阅读与分享',properties:pick(main)}},{...all,id:'world:bookfish:advanced',schema:{...all.schema,title:english?'Advanced reading limits':'高级阅读限制',properties:pick(advanced)}}];
 }
