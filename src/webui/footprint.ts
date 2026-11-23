@@ -190,12 +190,17 @@ export function mountFootprint(ctx: WebUiPanelContext, say: Say): FootprintHandl
     else if (message.textContent?.startsWith(say('没有匹配', 'No matching'))) setMessage('');
   }
 
+  /** True while the list already shows the newest end of the current order, so a reminder would point at its own page. */
+  function onNewestPage(): boolean {
+    if (!page || page.items.length === 0) return false;
+    // Desc starts at the newest record and asc ends at it; either way that page already contains the head.
+    return state.order === 'desc' ? page.position.start <= 1 : !page.hasNext;
+  }
   function renderBanner(): void {
-    bannerBox.hidden = banner === null || preview !== null;
-    if (banner !== null) {
-      bannerText.textContent = say(`大肥鱼新增了 ${banner} 条足迹`, `New footprints: ${banner}`);
-      bannerOpen.textContent = say('查看新增', 'View new');
-    }
+    bannerBox.hidden = !active || preview !== null || banner === null || onNewestPage();
+    if (banner === null) return;
+    bannerText.textContent = say(`大肥鱼新增了 ${banner} 条足迹`, `New footprints: ${banner}`);
+    bannerOpen.textContent = say('查看新增', 'View new');
   }
   function renderPreview(): void {
     previewBox.hidden = preview === null;
@@ -302,6 +307,7 @@ export function mountFootprint(ctx: WebUiPanelContext, say: Say): FootprintHandl
       state.anchor = result.page.firstSequence;
       save();
       renderList(restoreScroll);
+      renderBanner();
       setMessage('');
     } catch (error) {
       if (disposed || ticket !== epoch) return;
@@ -428,6 +434,7 @@ export function mountFootprint(ctx: WebUiPanelContext, say: Say): FootprintHandl
     },
     deactivate() {
       active = false;
+      renderBanner();
       flush();
     },
     selectScope(bookKey: string) {

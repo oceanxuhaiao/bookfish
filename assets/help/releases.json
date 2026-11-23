@@ -1,8 +1,37 @@
 {
   "schema": 1,
   "updatedAt": "2026-11-23",
-  "currentVersion": "0.66.0",
+  "currentVersion": "0.66.1",
   "releases": [
+    {
+      "version": "0.66.1",
+      "releaseDate": "2026-11-23",
+      "type": "patch",
+      "majorAnnouncement": false,
+      "title": "新足迹提醒不再挡住当前页",
+      "summary": "停在最新记录所在页时不再弹出“新增”提醒；只有翻到更早的页面才会提示，收起提醒后也不会再占用列表顶部。",
+      "items": [
+        {
+          "kind": "fix",
+          "text": "修复阅读足迹停在最新一页时仍显示“大肥鱼新增了 N 条足迹”的问题：最新在前第 1 页、最早在前最后一页本来就看得到最新记录，不再重复提醒。"
+        },
+        {
+          "kind": "improvement",
+          "text": "翻到更早的页面时提醒才会出现；点「回到最新」回到包含最新记录的页面后，提醒自动隐藏并显示新记录。"
+        },
+        {
+          "kind": "fix",
+          "text": "离开阅读足迹页面时立即收起提醒，不再残留在列表顶部。"
+        }
+      ],
+      "featureChanges": [
+        {
+          "featureId": "reading-trail",
+          "summary": "提醒只在较旧页面出现。",
+          "snippets": ["最新一页", "不会出现提醒"]
+        }
+      ]
+    },
     {
       "version": "0.66.0",
       "releaseDate": "2026-11-23",

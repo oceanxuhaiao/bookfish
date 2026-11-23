@@ -242,39 +242,77 @@ describe('reading footprint browser', () => {
     expect(pagerText(second.root)).toContain('共 4 条');
   });
 
-  it('announces new footprints, previews them without moving the history page, and collapses cleanly', async () => {
-    const first = await seed('甲书', 6); await seed('乙书', 4);
+  it('announces new footprints on an older page, previews them without moving the history page, and collapses cleanly', async () => {
+    const first = await seed('甲书', 6);
     const { root, poll } = await mount();
-    await vi.waitFor(() => expect(cards(root).length).toBe(10));
+    await vi.waitFor(() => expect(cards(root).length).toBe(6));
+    const size = root.querySelector<HTMLSelectElement>('select[aria-label="每页数量"]')!;
+    size.value = '5'; size.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(pagerText(root)).toContain('第 1 / 2 页'));
     // The first activation establishes the baseline: existing history is never reported as new.
     await poll();
-    expect(root.querySelector<HTMLElement>('.bf-fp-banner')!.hidden).toBe(true);
-    const firstPage = metatexts(root);
-    const firstPager = pagerText(root);
+    const newestPage = metatexts(root);
     await tool('bookfish_record_reflection', { bookKey: first, requestId: 'new-one',
       episode: { trigger: '新的潮声', interpretation: '新的一条足迹', evidence: [{ segmentId: 0, quote: '海风轻轻吹过岸边' }] } });
     await poll();
+    // Still parked on the newest page: no reminder points at a page the reader is already on.
+    expect(root.querySelector<HTMLElement>('.bf-fp-banner')!.hidden).toBe(true);
+    expect(metatexts(root)).toEqual(newestPage);
+    action(root, '下一页').click(); await settle();
+    await vi.waitFor(() => expect(pagerText(root)).toContain('第 2 / 2 页'));
+    const olderPage = metatexts(root);
+    const olderPager = pagerText(root);
     await vi.waitFor(() => expect(root.querySelector<HTMLElement>('.bf-fp-banner')!.hidden).toBe(false));
     expect(root.querySelector('.bf-fp-banner')!.textContent).toContain('大肥鱼新增了 1 条足迹');
-    expect(metatexts(root)).toEqual(firstPage);
     action(root, '查看新增').click();
     await vi.waitFor(() => expect(root.querySelector<HTMLElement>('.bf-fp-preview')!.hidden).toBe(false));
     expect([...root.querySelectorAll('.bf-fp-preview-list .bf-fp-card')]).toHaveLength(1);
-    expect(metatexts(root)).toEqual(firstPage);
-    expect(pagerText(root)).toBe(firstPager);
+    expect(metatexts(root)).toEqual(olderPage);
+    expect(pagerText(root)).toBe(olderPager);
     action(root, '整体收起').click(); await settle();
     expect(root.querySelector<HTMLElement>('.bf-fp-preview')!.hidden).toBe(true);
     expect(root.querySelector<HTMLElement>('.bf-fp-banner')!.hidden).toBe(true);
     await poll();
     expect(root.querySelector<HTMLElement>('.bf-fp-banner')!.hidden).toBe(true);
-    expect(metatexts(root)).toEqual(firstPage);
+    expect(metatexts(root)).toEqual(olderPage);
+    // Going back to the newest page hides any leftover reminder and shows the fresh record.
+    action(root, '回到最新').click(); await settle();
+    await vi.waitFor(() => expect(pagerText(root)).toContain('第 1 / 2 页'));
+    expect(root.querySelector<HTMLElement>('.bf-fp-banner')!.hidden).toBe(true);
+    expect(metatexts(root)).toContain('新的一条足迹');
+  });
+
+  it('keeps the reminder while oldest-first is parked away from its newest page', async () => {
+    const first = await seed('甲书', 6);
+    const { root, poll } = await mount();
+    await vi.waitFor(() => expect(cards(root).length).toBe(6));
+    const size = root.querySelector<HTMLSelectElement>('select[aria-label="每页数量"]')!;
+    size.value = '5'; size.dispatchEvent(new Event('change', { bubbles: true }));
+    const order = root.querySelector<HTMLSelectElement>('select[aria-label="足迹排序"]')!;
+    order.value = 'asc'; order.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(pagerText(root)).toContain('第 1 / 2 页'));
+    await poll();
+    expect(root.querySelector<HTMLElement>('.bf-fp-banner')!.hidden).toBe(true);
+    await tool('bookfish_record_reflection', { bookKey: first, requestId: 'asc-new',
+      episode: { trigger: '最早的潮声', interpretation: '升序时的新足迹', evidence: [{ segmentId: 0, quote: '海风轻轻吹过岸边' }] } });
+    await poll();
+    // Oldest-first opens on the earliest page, which never holds the newest record.
+    await vi.waitFor(() => expect(root.querySelector<HTMLElement>('.bf-fp-banner')!.hidden).toBe(false));
+    action(root, '回到最新').click(); await settle();
+    await vi.waitFor(() => expect(pagerText(root)).toContain('第 2 / 2 页'));
+    expect(root.querySelector<HTMLElement>('.bf-fp-banner')!.hidden).toBe(true);
   });
 
   it('keeps the reminder when the preview query fails and only advances after a successful collapse', async () => {
-    const first = await seed('甲书', 4);
+    const first = await seed('甲书', 6);
     const { root, poll } = await mount();
-    await vi.waitFor(() => expect(cards(root).length).toBe(4));
+    await vi.waitFor(() => expect(cards(root).length).toBe(6));
+    const size = root.querySelector<HTMLSelectElement>('select[aria-label="每页数量"]')!;
+    size.value = '5'; size.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(pagerText(root)).toContain('第 1 / 2 页'));
     await poll();
+    action(root, '下一页').click(); await settle();
+    await vi.waitFor(() => expect(pagerText(root)).toContain('第 2 / 2 页'));
     await tool('bookfish_record_reflection', { bookKey: first, requestId: 'new-failure',
       episode: { trigger: '新的潮声', interpretation: '失败样本', evidence: [{ segmentId: 0, quote: '海风轻轻吹过岸边' }] } });
     await poll();
@@ -297,6 +335,9 @@ describe('reading footprint browser', () => {
     const first = await seed('甲书', 3); const second = await seed('乙书', 3);
     const { root, poll } = await mount();
     await vi.waitFor(() => expect(cards(root).length).toBe(6));
+    const size = root.querySelector<HTMLSelectElement>('select[aria-label="每页数量"]')!;
+    size.value = '5'; size.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(pagerText(root)).toContain('第 1 / 2 页'));
     await poll();
     // Switch to 甲书; its own baseline is established on first view, so no false positive.
     const option = [...bookSelect(root).options].find((item) => (item.textContent ?? '').includes('甲书'))!;
@@ -309,6 +350,11 @@ describe('reading footprint browser', () => {
     await poll();
     expect(root.querySelector<HTMLElement>('.bf-fp-banner')!.hidden).toBe(true);
     bookSelect(root).value = ''; bookSelect(root).dispatchEvent(new Event('change', { bubbles: true }));
+    // All books reopens on its newest page, where a reminder is pointless; the pending count waits for an older page.
+    await poll();
+    expect(root.querySelector<HTMLElement>('.bf-fp-banner')!.hidden).toBe(true);
+    await vi.waitFor(() => expect(action(root, '下一页').disabled).toBe(false));
+    action(root, '下一页').click(); await settle();
     await vi.waitFor(() => expect(root.querySelector<HTMLElement>('.bf-fp-banner')!.hidden).toBe(false));
     expect(root.querySelector('.bf-fp-banner')!.textContent).toContain('1 条足迹');
     action(root, '查看新增').click();
@@ -367,7 +413,12 @@ describe('reading footprint browser', () => {
     await invoke('select', [firstBook]);
     const { root, poll } = await mount();
     await vi.waitFor(() => expect(cards(root).length).toBe(6));
+    const size = root.querySelector<HTMLSelectElement>('select[aria-label="每页数量"]')!;
+    size.value = '5'; size.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(pagerText(root)).toContain('第 1 / 2 页'));
     await poll();
+    action(root, '下一页').click(); await settle();
+    await vi.waitFor(() => expect(pagerText(root)).toContain('第 2 / 2 页'));
     await tool('bookfish_record_reflection', { bookKey: secondBook, requestId: 'preview-discuss',
       episode: { trigger: '预览讨论', interpretation: '乙书预览里的新足迹', evidence: [{ segmentId: 0, quote: '海风轻轻吹过岸边' }] } });
     await poll();

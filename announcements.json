@@ -1,7 +1,16 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T06:50:00Z",
+  "updatedAt": "2026-11-23T13:15:00Z",
   "announcements": [
+    {
+      "id": "2026-11-23-0.66.1-reminder-on-newest",
+      "publishedAt": "2026-11-23T13:10:00Z",
+      "title": "新足迹提醒不再挡住当前页",
+      "category": "feature",
+      "content": "之前停在阅读足迹的最新一页时，页面还会提示“新增了 N 条足迹”，但这一页本来就看得到最新记录，提醒反而挡住了列表。\n\n现在最新在前第 1 页、最早在前最后一页都不会再出现提醒；翻到更早的页面才会提示。点「回到最新」看到新记录后，提醒会自动收起；离开阅读足迹页面时也会立即收起。",
+      "link": "https://github.com/oceanxuhaiao/bookfish/releases/tag/v0.66.1",
+      "version": "0.66.1"
+    },
     {
       "id": "2026-11-23-0.66.0-footprint-browse",
       "publishedAt": "2026-11-23T06:45:00Z",
