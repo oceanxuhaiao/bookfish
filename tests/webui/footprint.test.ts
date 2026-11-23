@@ -109,6 +109,10 @@ describe('reading footprint browser', () => {
     expect(bookSelect(root).value).toBe('');
     expect(root.querySelector<HTMLSelectElement>('select[aria-label="足迹排序"]')!.value).toBe('desc');
     expect(root.querySelector<HTMLSelectElement>('select[aria-label="每页数量"]')!.value).toBe('10');
+    const side = root.querySelector<HTMLElement>('.bf-fp-toolbar-side')!;
+    expect(side.contains(root.querySelector('select[aria-label="足迹排序"]'))).toBe(true);
+    expect(side.contains(root.querySelector('select[aria-label="每页数量"]'))).toBe(true);
+    expect(root.querySelector('.bf-fp-toolbar')!.lastElementChild).toBe(side);
     expect(metatexts(root)[0]).toContain('丙书 第 3 次回想');
     expect(pagerText(root)).toContain('第 1 / 2 页');
     expect(pagerText(root)).toContain('共 12 条');

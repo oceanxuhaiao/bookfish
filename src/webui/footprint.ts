@@ -100,13 +100,14 @@ export function mountFootprint(ctx: WebUiPanelContext, say: Say): FootprintHandl
   footprintSearch.setAttribute('aria-label', say('搜索足迹', 'Search footprints'));
   footprintSearch.placeholder = say('情节、感想、人物…', 'Plot, thought, character…');
   footprintSearchLabel.append(footprintSearch);
-  const orderLabel = el('label', say('排序', 'Order'), toolbar) as HTMLLabelElement;
+  const side = el('div', '', toolbar) as HTMLDivElement; side.className = 'bf-fp-toolbar-side';
+  const orderLabel = el('label', say('排序', 'Order'), side) as HTMLLabelElement;
   const orderSelect = document.createElement('select'); orderSelect.setAttribute('aria-label', say('足迹排序', 'Footprint order'));
   for (const [value, label] of [['desc', say('最新在前', 'Newest first')], ['asc', say('最早在前', 'Oldest first')]] as const) {
     const option = document.createElement('option'); option.value = value; option.textContent = label; orderSelect.append(option);
   }
   orderSelect.value = state.order; orderLabel.append(orderSelect);
-  const limitLabel = el('label', say('每页', 'Per page'), toolbar) as HTMLLabelElement;
+  const limitLabel = el('label', say('每页', 'Per page'), side) as HTMLLabelElement;
   const limitSelect = document.createElement('select'); limitSelect.setAttribute('aria-label', say('每页数量', 'Per page'));
   for (const value of LIMITS) { const option = document.createElement('option'); option.value = String(value); option.textContent = say(`${value} 条`, `${value} per page`); limitSelect.append(option); }
   limitSelect.value = String(state.limit); limitLabel.append(limitSelect);
