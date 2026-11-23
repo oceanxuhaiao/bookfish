@@ -1,0 +1,81 @@
+{
+  "date": "2026-11-23",
+  "integration": {
+    "featureBranch": "codex/footprint-browse-v1",
+    "featureHead": "242d7290648ac6bf47147fda92b7c63358e3eab6",
+    "integrationBranch": "codex/footprint-txt-integration",
+    "baseCommit": "50cf2de760012ea88950ed1d852ed3e3793f1054",
+    "txtWipSnapshotCommit": "e4a2c1a",
+    "integrationCommit": "7f75581",
+    "wipTrackedFiles": 25,
+    "wipUntrackedSourceFiles": 4,
+    "wipUntrackedArtifacts": 3,
+    "snapshotEqualityBeforeMerge": "29/29 files byte-identical to round3 working tree",
+    "postMergeWipComparison": {
+      "checked": 29,
+      "identical": 26,
+      "expectedDifferences": [
+        "src/world.ts (WIP + 4 dispatch lines and one comment)",
+        "lib/webui.js (rebuilt from merged source)",
+        "lib/webui-txt-builtin-bing-0651.js (rebuilt from merged source)"
+      ]
+    },
+    "apply": { "command": "git apply --3way", "exit": 0, "conflicts": 0 },
+    "typecheck": { "server": 0, "web": 0 }
+  },
+  "tests": {
+    "integrationFull": { "files": 101, "passed": 1103, "skipped": 1, "failed": 0 },
+    "txtTargeted": { "files": 12, "passed": 172, "failed": 0 },
+    "footprintTargeted": { "files": 3, "passed": 52, "failed": 0 },
+    "featureBranchFull": { "files": 99, "passed": 1089, "skipped": 1, "failed": 0 }
+  },
+  "indexSchema": {
+    "liveDbHasIndex": true,
+    "liveDbEpisodes": 876,
+    "liveDbMaxSequence": 890,
+    "upgradeTest": {
+      "copy": "%TEMP%\\bf-index-check\\data\\bookfish",
+      "indexDroppedBeforeOpen": true,
+      "newCodeOpen": { "total": 875, "head": 889, "tail": 1, "books": 4, "indexRecreated": true, "quickCheck": "ok", "versionAfterOpen": 3900 },
+      "note": "Library.open() performs one metadata change (invalidate) and re-creates history_sequence; no record data changed."
+    },
+    "oldCodeReadTest": { "oldCodeCount": 875, "refEpisodes": 875, "version": 3900, "match": true },
+    "rollback": "DROP INDEX history_sequence is optional; old code reads with or without it."
+  },
+  "naturalReminder": {
+    "persistedBoundaryBefore": 886,
+    "newSequences": [887, 888, 889, 890],
+    "recordedAtLocal": ["2026-11-23 13:06", "13:13", "13:19", "13:25"],
+    "banner": "大肥鱼新增了 4 条足迹",
+    "previewItems": 4,
+    "boundaryAfterCollapse": 890,
+    "note": "Records were written by the pet after her 13:00 lunch break; no model call was made for this acceptance."
+  },
+  "crossBookDiscussion": {
+    "currentReading": "龙族全本（龙族Ⅰ-龙族Ⅳ+龙族前传）江南",
+    "recordBook": "西游记 · 吴承恩",
+    "chatTitle": "《西游记》 · 惩罚最狠的地方不在山重…",
+    "eventBookKeyMatchesRecord": true,
+    "scopeBefore": "9cb60e90…:5bdc8644…",
+    "scopeAfter": "9cb60e90…:5bdc8644…",
+    "anchorBefore": 42,
+    "anchorAfter": 42,
+    "pagerBefore": "第 1 / 4 页 · 共 40 条",
+    "pagerAfter": "第 1 / 4 页 · 共 40 条"
+  },
+  "screenshots": {
+    "00-defaults.png": "856dd0f2a5",
+    "01-natural-banner.png": "433af63579",
+    "02-preview.png": "ebc7a7df75",
+    "03-after-collapse.png": "c05684eb86",
+    "04-discussion-context.png": "091050a6df",
+    "05-scoped-banner.png": "36e0f82ab3",
+    "allDistinct": true
+  },
+  "host": {
+    "installedVersion": "0.66.2",
+    "installedPath": "E:/zcdfy/Coopanion/data/local-extensions/bookfish-0.66.2-footprint-int1",
+    "profileBackup": "data/extensions/package.json.before-footprint-int1-20261123-133339",
+    "manifestClient": "/assets/extensions/cortico-world-bookfish/0.66.2/webui-txt-builtin-bing-0651.js"
+  }
+}
