@@ -2,6 +2,7 @@ import type { WebUiClientBundle } from 'cortico/web/shared/client-panel.ts';
 import type { LibraryPanelState } from '../status.ts';
 import type { Library } from '../library.ts';
 import { moodPrefix } from './mood.ts';
+import { describeImportError } from '../import-errors.ts';
 
 export default {
   panels: {
@@ -197,7 +198,7 @@ export default {
           try{const job=await ctx.invoke<{id:string;state:string;stage:string;percent:number;error?:string;result?:{duplicate?:boolean;book?:{title:string;author:string}}}|null>('transfer_status',[]);if(disposed||ctx.signal.aborted||!job)return;
             uploadId=job.id;importStatus.hidden=false;importProgress.value=job.percent;if(job.state==='done'&&job.id===selectedImportId&&job.result?.book){metadataResult.hidden=false;metadataTitle.textContent=job.result.book.title;metadataAuthor.textContent=job.result.book.author||say('未识别到作者','Author not found');}
             const labels:Record<string,string>={normalize:say('正在整理正文','Normalizing text'),index:say('正在建立章节索引','Building chapter index'),validate:say('正在完整校验正文','Validating source'),commit:say('正在加入书架','Adding to bookshelf')};
-            importText.textContent=job.state==='done'?(job.result?.duplicate?say('这个版本已在书架，进度已保留。','Revision already exists; progress preserved.'):say('导入完成，已加入书架。','Import complete; added to bookshelf.')):job.state==='failed'?say('导入失败：','Import failed: ')+job.error:job.state==='cancelled'?say('已取消导入。','Import cancelled.'):(labels[job.stage]??job.stage)+' · '+job.percent+'%';cancelImport.hidden=!['processing','committing'].includes(job.state);cancelImport.disabled=job.state!=='processing';
+            importText.textContent=job.state==='done'?(job.result?.duplicate?say('这个版本已在书架，进度已保留。','Revision already exists; progress preserved.'):say('导入完成，已加入书架。','Import complete; added to bookshelf.')):job.state==='failed'?say('导入失败：','Import failed: ')+describeImportError(job.error??'',say):job.state==='cancelled'?say('已取消导入。','Import cancelled.'):(labels[job.stage]??job.stage)+' · '+job.percent+'%';cancelImport.hidden=!['processing','committing'].includes(job.state);cancelImport.disabled=job.state!=='processing';
           }catch(e){if(!disposed)importText.textContent=say('暂时无法查询导入进度，可刷新页面重试。','Progress unavailable; refresh to retry.');}
         }
         async function uploadFile(selected:File,kind:'book'|'backup',meta:Record<string,unknown>){

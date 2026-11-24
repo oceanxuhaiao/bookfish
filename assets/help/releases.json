@@ -1,8 +1,30 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-23",
-  "currentVersion": "0.66.1",
+  "updatedAt": "2026-11-24",
+  "currentVersion": "0.66.7",
   "releases": [
+    {
+      "version": "0.66.7",
+      "releaseDate": "2026-11-24",
+      "type": "patch",
+      "majorAnnouncement": false,
+      "title": "扫描版 PDF 不会再被当成正文导入",
+      "summary": "PDF 导入改成按有文字的页数占比判断：扫描版会被拦下并说明原因，打包方附带的说明页也不再混进正文。",
+      "items": [
+        {
+          "kind": "fix",
+          "text": "修复 335 页扫描书只因最后一页带打包说明就被当成文字版导入、正文只剩乱码的问题：现在按有文字的页数占比判断，低于一半即认定扫描版。"
+        },
+        {
+          "kind": "improvement",
+          "text": "拒绝导入时写明有多少页有文字，并提示先用 OCR 转成文字版，或改导入 TXT/EPUB。"
+        },
+        {
+          "kind": "fix",
+          "text": "DuXiu / Anna's Archive 附加的说明页（含 pdg_ 元数据）整页跳过，不再混进正文最后一段。"
+        }
+      ]
+    },
     {
       "version": "0.66.1",
       "releaseDate": "2026-11-23",
@@ -28,7 +50,10 @@
         {
           "featureId": "reading-trail",
           "summary": "提醒只在较旧页面出现。",
-          "snippets": ["最新一页", "不会出现提醒"]
+          "snippets": [
+            "最新一页",
+            "不会出现提醒"
+          ]
         }
       ]
     },
@@ -85,7 +110,11 @@
         {
           "featureId": "reading-trail",
           "summary": "跨书浏览、排序、搜索与新足迹提醒。",
-          "snippets": ["全部书籍", "关键词", "新足迹提醒"]
+          "snippets": [
+            "全部书籍",
+            "关键词",
+            "新足迹提醒"
+          ]
         }
       ],
       "technical": [
