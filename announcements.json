@@ -1,7 +1,16 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-23T13:15:00Z",
+  "updatedAt": "2026-11-24T10:10:00Z",
   "announcements": [
+    {
+      "id": "2026-11-24-0.66.7-scanned-pdf",
+      "publishedAt": "2026-11-24T10:10:00Z",
+      "title": "扫描版 PDF 不会被当成正文收进书架了",
+      "category": "feature",
+      "content": "之前导入扫描版 PDF（只有图片、没有文字层），只要书里某一页带了一段出版社或打包方的说明文字，整本就会被当成“有文字”收进书架：打开一看只有那段说明和乱码，正文一个字都没有。\n\n现在改成按“有文字的页数”判断：一本 335 页的书只有 1 页有文字，就会被认定为扫描版并直接拦下，提示里写明多少页有文字，并建议先用 OCR 转成文字版，或改导入 TXT/EPUB。打包方附加的说明页也会被整页跳过，不会再混进正文最后一段。\n\n正常文字版 PDF 照常导入：个别空白页、插图页或扫描插页不影响。",
+      "link": "https://github.com/oceanxuhaiao/bookfish/releases/tag/v0.66.7",
+      "version": "0.66.7"
+    },
     {
       "id": "2026-11-23-0.66.1-reminder-on-newest",
       "publishedAt": "2026-11-23T13:10:00Z",
