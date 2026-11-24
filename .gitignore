@@ -43,3 +43,4 @@ node_modules.pre-round3-junction/
 # Private release backup and packed candidates
 /output/release-0.63.1/
 output/release-*/
+output/acceptance-*/
