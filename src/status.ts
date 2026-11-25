@@ -20,6 +20,17 @@ export interface BookfishStatus {
   novelFetch: ReturnType<NovelFetches['status']>;
   serial: ReturnType<SerialSync['status']>;
   selection: ReturnType<SelectionCoordinator['compact']>;
+  /** Compact projection: the model never needs the whole ordered plan. */
+  plan: PlanSummary;
   txtAcquisition: ReturnType<import('./txt-acquisition/index.ts').TxtAcquisition['summary']>;
 }
-export interface LibraryPanelState { discussions: ReturnType<import('./discussions.ts').Discussions['list']>; config: import('./config.ts').BookfishConfigSection; status: BookfishStatus; books: ReturnType<Library['list']>; journal: ReturnType<Library['journal']> | null; reviews: ReturnType<Library['reviews']> | null; novel: ReturnType<NovelFetches['status']>; serial: ReturnType<SerialSync['status']>; selection: ReturnType<SelectionCoordinator['view']> }
+export interface PlanSummary { enabled: boolean; revision: number; total: number; completed: number;
+  current: { position: number; title: string; complete: boolean } | null;
+  next: { position: number; title: string } | null;
+  seriesCount: number;
+  /** Books waiting with a deferral still in the future. */
+  deferred: number;
+  /** Plan entries whose revision is gone from the shelf; they never advance. */
+  missing: number;
+}
+export interface LibraryPanelState { discussions: ReturnType<import('./discussions.ts').Discussions['list']>; config: import('./config.ts').BookfishConfigSection; status: BookfishStatus; books: ReturnType<Library['list']>; journal: ReturnType<Library['journal']> | null; reviews: ReturnType<Library['reviews']> | null; novel: ReturnType<NovelFetches['status']>; serial: ReturnType<SerialSync['status']>; selection: ReturnType<SelectionCoordinator['view']>; plan: ReturnType<Library['planView']> | null; importBatches: ReturnType<Library['importBatches']> }

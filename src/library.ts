@@ -16,6 +16,9 @@ import { buildRemoteBook, buildSerialBook } from './remote-books.ts';
 import { SourceError, type CachedChapter, type SourceCatalog } from './source-types.ts';
 import { SERIAL_INTERVALS, SERIAL_PAGE_LIMIT, chapterId, nextCheckIso, receiptFor, stableSerialIdentity, validateSerialCatalog, validateSerialRecord, type SerialCatalogCommit, type SerialPublicationEvidence, type SerialReceipt, type SerialRecord, type SerialSyncCommit } from './serial-types.ts';
 import { emptySelection, validateSelection, type SelectionState } from './selection-types.ts';
+import { addPlanItems, archiveItem, createSeries, dropUnusedSeries, emptyPlan, findItem, markStarted, migrateLegacyQueue, movePlanItem, movePlanSeries, reconcilePlan, setItemNotBefore, setItemSeries, setPlanEnabled, suggestSeries, validatePlan, type PlanAddInput, type PlanItem, type PlanSource, type ReadingPlan } from './reading-plan.ts';
+import { PlanCoordinator, type PlanAdvanceResult, type PlanSchedulerView } from './plan-coordinator.ts';
+import { addBatchItems, trimBatches, validateBatches, type BatchAddResult, type ImportBatch, type BatchItemInput } from './import-batch.ts';
 import { StoryStore, type StoryChange, type StoryPackInput } from './story/store.ts';
 import { validateStoryChanges } from './story/core.ts';
 import { normalizeName } from './story/core.ts';
@@ -32,14 +35,27 @@ export interface BookEntry { book: Book; frontier: number; serial?: SerialRecord
   /** Leading segments the human declared already read elsewhere. Read range is [skip, frontier). */
   skip?: number; skipDeclaredAt?: number }
 export interface RestRecord {id:string;bookKey:string;startedAt:number;plannedUntil:number;endedAt:number|null;state:'scheduled'|'ended'|'interrupted'|'skipped';source:'session'|'model';readingMs:number}
+/**
+ * State-shape version.
+ *
+ * 4 added `plan` and `importBatches`. The bump is deliberate and fail-closed:
+ * a build that only knows 1–3 refuses to open a 4 snapshot instead of silently
+ * rewriting it without the new fields. That is the only protection available,
+ * because an older binary cannot be taught to preserve fields it never had.
+ */
+export const LIBRARY_STATE_SCHEMA = 4 as const;
 export interface LibraryState {
-  schema: 3; generation: number; selected: string | null; paused: boolean;
+  schema: typeof LIBRARY_STATE_SCHEMA; generation: number; selected: string | null; paused: boolean;
   books: BookEntry[]; tasks: ReadingTask[]; episodes: ReadingEpisode[]; nextEpisodeSequence: number;
   reviewJobs: ReviewJob[]; reviews: BookReview[]; rests?:RestRecord[];
   /** External wishes and their mechanical acquisition/queue state. Never Persona Memory. */
   selection: SelectionState;
+  /** The single cross-book reading plan. Order of `items` is the reading order. */
+  plan: ReadingPlan;
+  /** Batch import jobs, newest last. Importing never queues reading on its own. */
+  importBatches: ImportBatch[];
 }
-function empty(): LibraryState { return { schema: 3, generation: 0, selected: null, paused: false, books: [], tasks: [], episodes: [], nextEpisodeSequence: 1, reviewJobs: [], reviews: [],rests:[],selection:emptySelection() }; }
+function empty(): LibraryState { return { schema: LIBRARY_STATE_SCHEMA, generation: 0, selected: null, paused: false, books: [], tasks: [], episodes: [], nextEpisodeSequence: 1, reviewJobs: [], reviews: [],rests:[],selection:emptySelection(),plan:emptyPlan(0),importBatches:[] }; }
 function integer(value: unknown): value is number { return Number.isSafeInteger(value) && (value as number) >= 0; }
 const serialOf = (book: Book) => book.remote?.serial;
 /**
@@ -79,13 +95,16 @@ function serialSummary(book: Book, frontier: number, serial = serialOf(book), sk
 }
 
 /** Rebuild indexes from source and verify progress against unique committed ranges before trusting a snapshot. */
-export function validateState(raw: unknown): LibraryState {
+export function validateState(raw: unknown, now = Date.now()): LibraryState {
   if (!raw || typeof raw !== 'object') throw new Error('Invalid library state');
   const state = raw as LibraryState;
   const schema = (raw as { schema?: unknown }).schema;
   if (schema === 1 && ('episodes' in state || 'nextEpisodeSequence' in state)) throw new Error('Legacy schema cannot contain a new-format journal');
-  if (schema !== 3 && ('reviews' in state || 'reviewJobs' in state)) throw new Error('Legacy schema cannot contain review records');
-  if ((schema !== 1 && schema !== 2 && schema !== 3) || !integer(state.generation) || typeof state.paused !== 'boolean' ||
+  // 1–3 are readable history; 4 is the current shape. Anything else is refused:
+  // a newer snapshot must never be opened by a binary that cannot preserve it.
+  if (schema !== 1 && schema !== 2 && schema !== 3 && schema !== 4) throw new Error('Unsupported or invalid library state');
+  if ((schema === 1 || schema === 2) && ('reviews' in state || 'reviewJobs' in state)) throw new Error('Legacy schema cannot contain review records');
+  if (!integer(state.generation) || typeof state.paused !== 'boolean' ||
     !Array.isArray(state.books) || state.books.length > 100 || !Array.isArray(state.tasks) || state.tasks.length > 250000) throw new Error('Unsupported or invalid library state');
   const books = new Map<string, BookEntry>();
   for (const entry of state.books) {
@@ -146,8 +165,10 @@ export function validateState(raw: unknown): LibraryState {
   const episodes = validateEpisodes(schema === 1 ? [] : state.episodes, books, state.tasks);
   const nextEpisodeSequence = schema === 1 ? 1 : state.nextEpisodeSequence;
   if (!Number.isSafeInteger(nextEpisodeSequence) || nextEpisodeSequence < 1 || nextEpisodeSequence <= (episodes.at(-1)?.sequence ?? 0)) throw new Error('Invalid episode sequence counter');
-  const result: LibraryState = { schema: 3, episodes, nextEpisodeSequence, reviewJobs: schema === 3 ? state.reviewJobs : [], reviews: schema === 3 ? state.reviews : [], generation: state.generation, selected: state.selected, paused: state.paused,
+  const result: LibraryState = { schema: LIBRARY_STATE_SCHEMA, episodes, nextEpisodeSequence, reviewJobs: schema >= 3 ? state.reviewJobs : [], reviews: schema >= 3 ? state.reviews : [], generation: state.generation, selected: state.selected, paused: state.paused,
     selection: validateSelection((raw as { selection?: unknown }).selection),
+    plan: emptyPlan(0),
+    importBatches: [],
     books: [...books.values()], tasks: isHistory(state.tasks)?state.tasks:state.tasks.map((task) => ({
       id: task.id, bookKey: task.bookKey, segmentId: task.segmentId, generation: task.generation,
       expiresAt: task.expiresAt, status: task.status,
@@ -160,6 +181,8 @@ export function validateState(raw: unknown): LibraryState {
   const rests=state.rests??[];if(!Array.isArray(rests)||rests.length>1000)throw Error('Invalid rest history');const restIds=new Set<string>();
   for(const r of rests){if(!r||typeof r.id!=='string'||!/^[a-f0-9-]{36}$/.test(r.id)||restIds.has(r.id)||!books.has(r.bookKey)||!integer(r.startedAt)||!integer(r.plannedUntil)||r.plannedUntil<r.startedAt||(r.endedAt!==null&&(!integer(r.endedAt)||r.endedAt<r.startedAt))||!['scheduled','ended','interrupted','skipped'].includes(r.state)||!['session','model'].includes(r.source)||!Number.isFinite(r.readingMs)||r.readingMs<0)throw Error('Invalid rest record');restIds.add(r.id);}
   if(rests.filter(r=>r.state==='scheduled').length>1)throw Error('Multiple active rests');result.rests=rests;
+  result.plan = validatePlan((raw as { plan?: unknown }).plan, now);
+  result.importBatches = validateBatches((raw as { importBatches?: unknown }).importBatches, now);
   validateReviews(result); return result;
 }
 
@@ -199,6 +222,7 @@ export class Library {
   private readonly storyCleanupFile:string;
   private readonly restoreMarker:string;
   private historyRef?:HistoryRef;
+  private planCoordinator?: PlanCoordinator;
   private characterCache=new Map<string,{characters:Array<{name:string;aliases:string[];episodeIds:string[];aliasesTruncated:boolean;episodeLinksTruncated:boolean}>;truncated:boolean}>();
   private readonly writerLock: WriterLock;
   private textStoreError: string | null = null;
@@ -230,14 +254,14 @@ export class Library {
       if (existsSync(this.file)) {
         if (statSync(this.file).size > MAX_STATE_BYTES) throw new Error('Library state is too large');
         const raw=JSON.parse(readFileSync(this.file, 'utf8'));
-        if(![5,6,7].includes(raw.schema)&&!existsSync(this.file+'.before-paged'))copyFileSync(this.file,this.file+'.before-paged');
-        if(raw.schema!==6&&raw.schema!==7&&!existsSync(this.file+'.before-history')){copyFileSync(this.file,this.file+'.before-history');this.bookStorage.protectRollback(raw);}
-        const hydrated=this.bookStorage.hydrate(raw) as LibraryState;if(raw.schema===6||raw.schema===7){this.historyRef=raw.$history;this.state=validateState(this.history.hydrate(hydrated,raw.$history));}else this.state=validateState(hydrated);
+        if(![5,6,7,8].includes(raw.schema)&&!existsSync(this.file+'.before-paged'))copyFileSync(this.file,this.file+'.before-paged');
+        if(![6,7,8].includes(raw.schema)&&!existsSync(this.file+'.before-history')){copyFileSync(this.file,this.file+'.before-history');this.bookStorage.protectRollback(raw);}
+        const hydrated=this.bookStorage.hydrate(raw) as LibraryState;if([6,7,8].includes(raw.schema)){this.historyRef=raw.$history;this.state=validateState(this.history.hydrate(hydrated,raw.$history));}else this.state=validateState(hydrated);
         if(!raw.books.some((e:{book:{$bookBlob?:unknown}})=>e.book?.$bookBlob)&&!existsSync(this.file+'.before-split-v3'))copyFileSync(this.file,this.file+'.before-split-v3');
       }
       this.recoverTemporary();
       this.opened = true;
-      this.change((draft) => this.invalidate(draft));
+      this.change((draft) => this.syncPlan(draft));
       if (existsSync(this.restoreMarker)) {
         this.bookStorage.collect(this.state);
         if (this.story) {
@@ -276,7 +300,7 @@ export class Library {
     if (this.archiving) throw new Error('Library is being archived; no writes are allowed');
     const draft = { ...structuredClone({ ...this.state, books: [],tasks:[],episodes:[] }), tasks:historyFork(this.state.tasks),episodes:historyFork(this.state.episodes),books: this.state.books.map(e=>({ book:e.book, frontier:e.frontier, ...(e.skip?{skip:e.skip,...(e.skipDeclaredAt!==undefined?{skipDeclaredAt:e.skipDeclaredAt}:{})}:{}), ...(e.serial?{serial:e.serial}:{}) })) };
     const result = action(draft);
-    if(this.options.write)this.options.write(this.file,draft);else {const ref=this.history.prepare(draft,this.historyRef);this.options.beforeMetadataCommit?.();atomicWrite(this.file,{...this.bookStorage.prepare(draft) as LibraryState,schema:draft.books.some(e=>e.book.remote?.serial)?7:6,tasks:[],episodes:[],$history:ref} as unknown as LibraryState);this.historyRef=ref;this.state=this.history.bind(draft,ref);this.history.committed(ref);}
+    if(this.options.write)this.options.write(this.file,draft);else {const ref=this.history.prepare(draft,this.historyRef);this.options.beforeMetadataCommit?.();atomicWrite(this.file,{...this.bookStorage.prepare(draft) as LibraryState,schema:8,tasks:[],episodes:[],$history:ref} as unknown as LibraryState);this.historyRef=ref;this.state=this.history.bind(draft,ref);this.history.committed(ref);}
     if(this.options.write)this.state = draft;
     if(!this.options.write)this.bookStorage.collect(draft);
     this.goalCache=undefined;return structuredClone(plainHistory(result));
@@ -285,6 +309,26 @@ export class Library {
     draft.generation++;
     for (const task of historySelect(draft.tasks,{status:'pending'})) if (task.status === 'pending') task.status = 'cancelled';
     for (const job of draft.reviewJobs) if (job.status === 'pending') { job.status = 'cancelled'; job.error = 'Library remounted, paused or revision changed; retry explicitly with a new requestId'; }
+  }
+  /**
+   * One-time migration of the old pet queue into the single plan, then a
+   * reconciliation against the books that actually exist. Runs inside the same
+   * atomic snapshot as the pending-task invalidation, so a crash cannot leave a
+   * half-migrated plan and old progress behind.
+   */
+  private syncPlan(draft: LibraryState): void {
+    const now = this.now();
+    if (draft.plan.items.length === 0 && draft.plan.archive.length === 0 && draft.selection.queue.length) {
+      const books = new Map(draft.books.map((entry) => [entry.book.key, { title: entry.book.title, author: entry.book.author }]));
+      draft.plan = migrateLegacyQueue(draft.selection.queue, books, now).plan;
+      draft.selection.queue = [];
+    }
+    reconcilePlan(draft.plan, new Set(draft.books.map((entry) => entry.book.key)), now);
+    for (const entry of draft.books) {
+      const item = findItem(draft.plan, entry.book.key);
+      if (item && this.view(entry).complete) archiveItem(draft.plan, item.id, 'completed', now, 'completed_before_plan_advance');
+    }
+    this.invalidate(draft);
   }
   /** A restored subscription keeps its intent only as a hint; it must never resume network access without the user. */
   private pauseSerialAfterRestore(draft: LibraryState): void {
@@ -684,10 +728,451 @@ export class Library {
     });
   }
   generation(): number { this.ensureOpen(); return this.state.generation; }
-  selection(): SelectionState { this.ensureOpen(); return structuredClone(this.state.selection); }
+  /**
+   * Selection state plus a *derived* queue projection of the single plan.
+   *
+   * The plan is the only queue. `queue` stays in this view so older UI code and
+   * tests can keep reading it, but it is never persisted back: `updateSelection`
+   * writes only intents/rounds/failures, and the plan is written by `addToPlan`.
+   */
+  selection(): SelectionState {
+    this.ensureOpen();
+    const state = structuredClone(this.state.selection);
+    // Only genuinely readable entries are projected. A finished revision is
+    // already recorded in the plan archive, so listing it as `queued` would let
+    // the pet offer text for a book it has completed.
+    const readable = new Map(this.state.books.map((entry) => [entry.book.key, this.view(entry)]));
+    state.queue = this.state.plan.items
+      .filter((item) => readable.has(item.bookKey) && !readable.get(item.bookKey)!.complete)
+      .map((item) => ({
+        id: item.id, intentId: item.intentId ?? '', bookKey: item.bookKey, title: item.title,
+        source: item.source === 'persona' ? 'pet' as const : 'user' as const,
+        status: item.bookKey === this.state.selected ? 'active' as const : 'queued' as const,
+        addedAt: item.addedAt, updatedAt: this.state.plan.updatedAt,
+        ...(item.notBefore !== undefined ? { notBefore: item.notBefore } : {}),
+      }));
+    return state;
+  }
   /** The single writable path for autonomous-selection records; it participates in the same atomic snapshot. */
   updateSelection<T>(action: (draft: SelectionState) => T): T {
     return this.change((draft) => { const result = action(draft.selection); draft.selection.generation++; return result; });
+  }
+  // ------------------------------------------------------------ batch import
+  /** Batches live in the same atomic snapshot as the shelf; there is no second store. */
+  importBatches(): ImportBatch[] { this.ensureOpen(); return structuredClone(this.state.importBatches); }
+  createImportBatch(batch: ImportBatch): ImportBatch {
+    this.ensureOpen();
+    return this.change((draft) => {
+      if (draft.importBatches.some((row) => row.id === batch.id)) throw new Error('Import batch already exists');
+      draft.importBatches = trimBatches([...draft.importBatches, structuredClone(batch)]);
+      return structuredClone(draft.importBatches.find((row) => row.id === batch.id)!);
+    });
+  }
+  addImportBatchItems(batchId: string, inputs: readonly BatchItemInput[]): BatchAddResult {
+    this.ensureOpen();
+    return this.change((draft) => {
+      const batch = draft.importBatches.find((row) => row.id === batchId);
+      if (!batch) throw new Error('Import batch not found');
+      if (batch.status !== 'preview') throw new Error('Import batch already started');
+      return addBatchItems(batch, inputs, this.now());
+    });
+  }
+  /**
+   * Single-item progress writes are item-granular on purpose: the snapshot holds
+   * book metadata and blob references only, so a write is a few kilobytes.
+   */
+  updateImportBatch<T>(batchId: string, action: (draft: ImportBatch) => T): T {
+    this.ensureOpen();
+    return this.change((draft) => {
+      const batch = draft.importBatches.find((row) => row.id === batchId);
+      if (!batch) throw new Error('Import batch not found');
+      const result = action(batch);
+      batch.updatedAt = this.now();
+      return result;
+    });
+  }
+  /** Drop a finished batch record; imported books and their progress are untouched. */
+  forgetImportBatch(batchId: string): ImportBatch[] {
+    this.ensureOpen();
+    return this.change((draft) => {
+      const batch = draft.importBatches.find((row) => row.id === batchId);
+      if (!batch) throw new Error('Import batch not found');
+      if (batch.items.some((item) => ['pending', 'importing', 'processing', 'validating'].includes(item.status))) throw new Error('Import batch is still running');
+      draft.importBatches = draft.importBatches.filter((row) => row.id !== batchId);
+      return structuredClone(draft.importBatches);
+    });
+  }
+  // ------------------------------------------------------------ reading plan
+  /** Raw plan copy; mutations only through the methods below so every write is one atomic snapshot. */
+  plan(): ReadingPlan { this.ensureOpen(); return structuredClone(this.state.plan); }  /**
+   * Cross-book hand-off entry point. The scheduler calls it only at a real idle
+   * opportunity; the coordinator itself re-checks completion, review and gates.
+   */
+  advancePlan(scheduler: PlanSchedulerView): PlanAdvanceResult {
+    this.ensureOpen();
+    this.planCoordinator ??= new PlanCoordinator(this, this.now);
+    return this.planCoordinator.attempt(scheduler);
+  }
+  /**
+   * Select the next planned revision and stamp its start in one atomic snapshot.
+   * Used only by the plan hand-off, after the previous book is genuinely complete.
+   */
+  selectPlanned(bookKey: string) {
+    this.ensureOpen();
+    return this.change((draft) => {
+      const entry = draft.books.find((row) => row.book.key === bookKey);
+      if (!entry) throw new Error('Book revision is not in the library');
+      if (draft.selected !== bookKey) { this.invalidate(draft); draft.selected = bookKey; }
+      const item = findItem(draft.plan, bookKey);
+      if (item && item.startedAt === undefined) { item.startedAt = this.now(); draft.plan.revision += 1; draft.plan.updatedAt = this.now(); }
+      return this.view(entry);
+    });
+  }
+  updatePlan<T>(action: (draft: ReadingPlan) => T): T {
+    this.ensureOpen();
+    return this.change((draft) => action(draft.plan));
+  }
+  /** Display projection: real shelf progress joined with plan order. Never a second progress store. */
+  planView() {
+    this.ensureOpen();
+    const plan = this.state.plan, selected = this.state.selected;
+    const views = new Map(this.state.books.map((entry) => [entry.book.key, this.view(entry)]));
+    const names = new Map(plan.series.map((group) => [group.id, group.name]));
+    const items = plan.items.map((item, index) => {
+      const book = views.get(item.bookKey);
+      return { position: index + 1, id: item.id, bookKey: item.bookKey,
+        title: book?.title ?? item.title, author: book?.author ?? item.author ?? '',
+        source: item.source, seriesId: item.seriesId, seriesName: item.seriesId ? names.get(item.seriesId) ?? null : null,
+        active: item.bookKey === selected, present: !!book, complete: book?.complete ?? false,
+        progress: book?.progress ?? 0, progressUnit: book?.progressUnit ?? 'characters' as const,
+        chapter: book?.chapter ?? '尚未开始', addedAt: item.addedAt,
+        ...(item.startedAt !== undefined ? { startedAt: item.startedAt } : {}),
+        ...(item.notBefore !== undefined ? { notBefore: item.notBefore } : {}) };
+    });
+    const completed = plan.archive.filter((entry) => entry.status === 'completed');
+    return { id: plan.id, revision: plan.revision, enabled: plan.enabled, createdAt: plan.createdAt, updatedAt: plan.updatedAt,
+      items, series: plan.series.map((group) => ({ ...group, count: items.filter((item) => item.seriesId === group.id).length })),
+      total: items.length, completedCount: completed.length,
+      current: items.find((item) => item.active) ?? null,
+      next: items.find((item) => !item.active && !item.complete) ?? null,
+      archive: [...plan.archive].slice(-50).reverse().map((entry) => ({ ...entry })) };
+  }
+  /**
+   * The first planned entry that can actually be read right now, evaluated
+   * against a draft so it can be used inside a single atomic commit.
+   *
+   * `deferralStops` distinguishes the two callers: automatic hand-off stops at a
+   * deferred head (the user asked for "not before X", so jumping past it would
+   * overrule them), while an explicit stop skips deferred entries and looks for
+   * anything readable.
+   */
+  private nextReadable(draft: { plan: ReadingPlan; books: BookEntry[] }, options: { exclude?: string | null; deferralStops?: boolean } = {}): { item?: PlanItem; deferred: boolean } {
+    const views = new Map(draft.books.map((entry) => [entry.book.key, this.view(entry)]));
+    const now = this.now();
+    for (const item of draft.plan.items) {
+      if (item.bookKey === options.exclude) continue;
+      const view = views.get(item.bookKey);
+      // A revision that left the shelf, or one already finished, can never be read.
+      if (!view || view.complete) continue;
+      if (item.notBefore !== undefined && item.notBefore > now) {
+        if (options.deferralStops) return { deferred: true };
+        continue;
+      }
+      return { item, deferred: false };
+    }
+    return { deferred: false };
+  }
+  /**
+   * End the plan entry of a genuinely finished book and, when allowed, hand off.
+   *
+   * Both halves are one `change()`: a crash can never leave the plan saying
+   * "still waiting to be read" while the shelf says "finished", and it can never
+   * switch the selected revision while the finished entry survives as `queued`.
+   * Archiving is bookkeeping, so it happens even when the hand-off itself is
+   * blocked by pause, routine, rest, a pending review or a disabled plan.
+   */
+  completeCurrentPlanned(bookKey: string, options: { switch?: boolean } = {}): { archived: boolean; to: string | null; itemId: string | null; deferred: boolean } {
+    this.ensureOpen();
+    const plan = this.state.plan;
+    const current = this.state.books.find((entry) => entry.book.key === bookKey);
+    if (!current) throw new Error('Book revision is not in the library');
+    if (!this.view(current).complete) throw new Error('Only a genuinely finished book can end its plan entry');
+    const existing = findItem(plan, bookKey);
+    const next = this.nextReadable(this.state, { exclude: bookKey, deferralStops: true });
+    const canSwitch = options.switch !== false && !next.deferred && !!next.item;
+    // Nothing to do twice: a repeated completion callback must not archive again.
+    if (!existing && !canSwitch) return { archived: false, to: null, itemId: null, deferred: next.deferred };
+    return this.change((draft) => {
+      const item = findItem(draft.plan, bookKey);
+      let archived = false;
+      if (item) {
+        archiveItem(draft.plan, item.id, 'completed', this.now(), 'finished_while_planned');
+        archived = true;
+      }
+      if (!canSwitch || !next.item) return { archived, to: null, itemId: null, deferred: next.deferred };
+      const entry = draft.books.find((row) => row.book.key === next.item!.bookKey);
+      if (!entry) throw new Error('Next planned revision is not in the library');
+      this.invalidate(draft);
+      draft.selected = entry.book.key;
+      const target = findItem(draft.plan, entry.book.key);
+      if (target && target.startedAt === undefined) { target.startedAt = this.now(); draft.plan.revision += 1; draft.plan.updatedAt = this.now(); }
+      return { archived, to: entry.book.key, itemId: target?.id ?? null, deferred: false };
+    });
+  }
+  /** Start following the plan when nothing is selected yet. Never advances progress. */
+  startPlanned(): { to: string | null; itemId: string | null; deferred: boolean } {
+    this.ensureOpen();
+    const next = this.nextReadable(this.state, { deferralStops: true });
+    if (!next.item) return { to: null, itemId: null, deferred: next.deferred };
+    const key = next.item.bookKey;
+    this.selectPlanned(key);
+    return { to: key, itemId: next.item.id, deferred: false };
+  }
+  /**
+   * Append books to the plan. `bookKeys` order is the requested order. When
+   * nothing is being read and the plan was empty, the first added book becomes
+   * the selected one — that is starting to read, never advancing progress.
+   */
+  addToPlan(bookKeys: unknown, options?: { source?: PlanSource; intentId?: string; seriesId?: string | null; notBefore?: number; activate?: boolean }) {
+    this.ensureOpen();
+    const wanted = this.planKeys(bookKeys);
+    const result = this.change((draft) => this.applyPlanAdd(draft, wanted, options));
+    if (options?.activate === true && result.added.length && !this.state.selected) {
+      const first = result.added[0];
+      if (this.state.books.some((entry) => entry.book.key === first.bookKey)) {
+        try { this.select(first.bookKey); this.updatePlan((plan) => { markStarted(plan, first.bookKey, this.now()); }); } catch { /* keep the plan; selection can be retried */ }
+      }
+    }
+    return { ...result, view: this.planView() };
+  }
+  /**
+   * Queue the book and update autonomous-selection state in ONE snapshot.
+   *
+   * The old code appended a queue row inside the same `updateSelection` write, so a
+   * crash between "intent is reading" and "book is queued" could not exist. Keeping
+   * that property matters more than a smaller call surface: the updater decides
+   * whether the plan entry belongs in this commit, and any write failure rolls the
+   * whole receipt back for a safe retry.
+   */
+  addToPlanAtomic(bookKeys: unknown, options: { source?: PlanSource; intentId?: string; notBefore?: number },
+    selectionAction: (draft: SelectionState) => boolean) {
+    this.ensureOpen();
+    const wanted = this.planKeys(bookKeys);
+    const result = this.change((draft) => {
+      const include = selectionAction(draft.selection);
+      draft.selection.generation++;
+      if (!include) return { added: [], duplicates: [], archived: [], overflow: 0, missing: [] };
+      return this.applyPlanAdd(draft, wanted, options);
+    });
+    return { ...result, view: this.planView() };
+  }
+  private planKeys(bookKeys: unknown): string[] {
+    if (!Array.isArray(bookKeys) || bookKeys.length < 1 || bookKeys.length > 200) throw new Error('bookKeys must contain 1–200 books');
+    return bookKeys.map((key) => requiredText(key, 'bookKey', 150));
+  }
+  private applyPlanAdd(draft: LibraryState, wanted: readonly string[], options?: { source?: PlanSource; intentId?: string; seriesId?: string | null; notBefore?: number }) {
+    const source: PlanSource = options?.source === 'persona' ? 'persona' : 'user';
+    const inputs: PlanAddInput[] = [];
+    const missing: string[] = [];
+    for (const key of wanted) {
+      const entry = draft.books.find((row) => row.book.key === key);
+      if (!entry) { missing.push(key); continue; }
+      inputs.push({ bookKey: key, title: entry.book.title, author: entry.book.author, source,
+        ...(options?.intentId ? { intentId: options.intentId } : {}),
+        ...(options?.seriesId !== undefined ? { seriesId: options.seriesId } : {}),
+        ...(options?.notBefore !== undefined ? { notBefore: options.notBefore } : {}) });
+    }
+    if (!inputs.length) throw new Error('None of these books are in the library');
+    return { ...addPlanItems(draft.plan, inputs, this.now()), missing };
+  }
+  /**
+   * Remove or skip an entry. Removing the book that is being read requires an
+   * explicit stop flag, keeps the shelf copy and all progress, and never marks
+   * anything read. Skipping is not completion either.
+   */
+  removeFromPlan(itemId: unknown, options?: { status?: 'removed' | 'skipped'; stop?: boolean; keepReading?: boolean; reason?: string }) {
+    this.ensureOpen();
+    const id = requiredText(itemId, 'itemId', 64);
+    const status = options?.status === 'skipped' ? 'skipped' : 'removed';
+    const stop = options?.stop === true;
+    const target = this.state.plan.items.find((item) => item.id === id);
+    if (!target) throw new Error('Reading plan entry not found');
+    const active = this.state.selected === target.bookKey;
+    if (active && !stop && !options?.keepReading) throw new Error('The book being read is locked; stop reading it explicitly before removing or skipping it');
+    const targetView = this.state.books.find((entry) => entry.book.key === target.bookKey);
+    // A finished book can only ever be recorded as finished. Letting a skip or a
+    // removal rewrite it would falsify the one outcome that must stay honest.
+    if (targetView && this.view(targetView).complete) {
+      throw new Error('This book is already finished; its plan entry is recorded as completed, not skipped or removed');
+    }
+    // Stopping is "end this one and continue with the next". Without a readable
+    // next revision there is nothing to continue with, so the request is refused
+    // instead of leaving a book that left the plan but is still being read.
+    if (active && stop) {
+      const next = this.nextReadable(this.state, { exclude: target.bookKey });
+      if (!next.item) throw new Error('No other planned book is readable right now; remove it from the plan while keeping it open, or pause reading');
+    }
+    const reason = options?.reason ?? (status === 'skipped' ? 'skipped_by_user' : 'removed_by_user');
+    return this.change((draft) => {
+      const entry = archiveItem(draft.plan, id, status, this.now(), reason);
+      if (!entry) throw new Error('Reading plan entry not found');
+      // Everything below shares this commit: archiving the entry, invalidating the
+      // stopped book's pending work, selecting the next revision and stamping its
+      // start. A crash can only roll the whole decision back.
+      let to: string | null = null;
+      if (active && stop) {
+        const next = this.nextReadable(draft, { exclude: target.bookKey });
+        if (!next.item) throw new Error('No other planned book is readable right now');
+        this.invalidate(draft);
+        draft.selected = next.item.bookKey;
+        to = next.item.bookKey;
+        const started = findItem(draft.plan, next.item.bookKey);
+        if (started && started.startedAt === undefined) { started.startedAt = this.now(); draft.plan.revision += 1; draft.plan.updatedAt = this.now(); }
+      }
+      return { entry, to };
+    });
+  }
+  /**
+   * Where a waiting entry may actually land. The book being read holds its
+   * place: no ordinary reorder can put another book in front of it, and the
+   * active entry itself never moves (that is what "stop reading" is for).
+   */
+  private waitingTarget(itemId: string, target: number): number {
+    const items = this.state.plan.items;
+    const index = items.findIndex((item) => item.id === itemId);
+    if (index < 0) throw new Error('Reading plan entry not found');
+    if (items[index].bookKey === this.state.selected) throw new Error('The book being read is locked; stop reading it before moving it in the plan');
+    const activeIndex = items.findIndex((item) => item.bookKey === this.state.selected);
+    const floor = activeIndex >= 0 ? activeIndex + 1 : 0;
+    return Math.max(floor, Math.min(target, items.length - 1));
+  }
+  /** Move one waiting entry to a 1-based position. Clamped; never bypasses the active lock. */
+  movePlanItem(itemId: unknown, to: unknown) {
+    this.ensureOpen();
+    const id = requiredText(itemId, 'itemId', 64);
+    if (!Number.isSafeInteger(to) || (to as number) < 1 || (to as number) > 1000) throw new Error('to must be a 1-based position');
+    const target = this.waitingTarget(id, (to as number) - 1);
+    const changed = this.updatePlan((plan) => movePlanItem(plan, id, target, this.now()));
+    return { changed, view: this.planView() };
+  }
+  /** Top / bottom / right after the currently read book. */
+  placePlanItem(itemId: unknown, place: unknown) {
+    this.ensureOpen();
+    const id = requiredText(itemId, 'itemId', 64);
+    const where = String(place);
+    if (!['top', 'bottom', 'next'].includes(where)) throw new Error('place must be top, bottom or next');
+    const index = this.state.plan.items.findIndex((item) => item.id === id);
+    if (index < 0) throw new Error('Reading plan entry not found');
+    const activeIndex = this.state.plan.items.findIndex((item) => item.bookKey === this.state.selected);
+    const wanted = where === 'top' ? 0 : where === 'bottom' ? this.state.plan.items.length - 1 : Math.max(0, activeIndex < 0 ? 0 : activeIndex + 1);
+    const target = this.waitingTarget(id, wanted);
+    const changed = this.updatePlan((plan) => movePlanItem(plan, id, target, this.now()));
+    return { changed, view: this.planView() };
+  }
+  movePlanSeries(seriesId: unknown, to: unknown) {
+    this.ensureOpen();
+    const id = requiredText(seriesId, 'seriesId', 64);
+    if (!Number.isSafeInteger(to) || (to as number) < 1 || (to as number) > 1000) throw new Error('to must be a 1-based position');
+    const items = this.state.plan.items;
+    const members = items.filter((item) => item.seriesId === id);
+    if (!members.length) throw new Error('Series group has no entries');
+    if (members.some((item) => item.bookKey === this.state.selected)) throw new Error('The series contains the book being read; stop reading it before moving the whole group');
+    const activeIndex = items.findIndex((item) => item.bookKey === this.state.selected);
+    const floor = activeIndex >= 0 ? activeIndex + 1 : 0;
+    const target = Math.max(floor, Math.min((to as number) - 1, items.length - 1));
+    const changed = this.updatePlan((plan) => movePlanSeries(plan, id, target, this.now()));
+    return { changed, view: this.planView() };
+  }
+  setPlanEnabled(enabled: unknown) {
+    this.ensureOpen();
+    if (typeof enabled !== 'boolean') throw new Error('enabled must be boolean');
+    const changed = this.updatePlan((plan) => setPlanEnabled(plan, enabled, this.now()));
+    return { changed, view: this.planView() };
+  }
+  /** Series editing. Auto suggestions stay unconfirmed until a human confirms them. */
+  editPlanSeries(input: Record<string, unknown>) {
+    this.ensureOpen();
+    const action = String(input.action);
+    const ids = (value: unknown, name: string): string[] => {
+      if (!Array.isArray(value) || value.length < 1 || value.length > 200) throw new Error(`${name} must contain 1–200 ids`);
+      return value.map((id) => requiredText(id, name, 64));
+    };
+    // The updater runs against a draft, so the view is always read afterwards.
+    if (action === 'create') {
+      const name = requiredText(input.name, 'series name', 200);
+      const itemIds = ids(input.itemIds, 'itemIds');
+      this.updatePlan((plan) => {
+        const group = createSeries(plan, name, 'manual', true, this.now());
+        for (const itemId of itemIds) setItemSeries(plan, itemId, group.id, this.now());
+      });
+      return this.planView();
+    }
+    if (action === 'rename') {
+      const seriesId = requiredText(input.seriesId, 'seriesId', 64);
+      const name = requiredText(input.name, 'series name', 200);
+      this.updatePlan((plan) => {
+        const group = plan.series.find((row) => row.id === seriesId);
+        if (!group) throw new Error('Series group not found');
+        group.name = name; group.updatedAt = this.now(); plan.revision += 1;
+      });
+      return this.planView();
+    }
+    if (action === 'assign') {
+      const seriesId = input.seriesId === null ? null : requiredText(input.seriesId, 'seriesId', 64);
+      const itemIds = ids(input.itemIds, 'itemIds');
+      this.updatePlan((plan) => {
+        if (seriesId && !plan.series.some((row) => row.id === seriesId)) throw new Error('Series group not found');
+        for (const itemId of itemIds) setItemSeries(plan, itemId, seriesId, this.now());
+        dropUnusedSeries(plan);
+      });
+      return this.planView();
+    }
+    if (action === 'confirm') {
+      const seriesId = requiredText(input.seriesId, 'seriesId', 64);
+      this.updatePlan((plan) => {
+        const group = plan.series.find((row) => row.id === seriesId);
+        if (!group) throw new Error('Series group not found');
+        group.confirmed = true; group.updatedAt = this.now(); plan.revision += 1;
+      });
+      return this.planView();
+    }
+    if (action === 'delete') {
+      const seriesId = requiredText(input.seriesId, 'seriesId', 64);
+      this.updatePlan((plan) => {
+        for (const item of plan.items) if (item.seriesId === seriesId) item.seriesId = null;
+        dropUnusedSeries(plan); plan.revision += 1;
+      });
+      return this.planView();
+    }
+    throw new Error('series action must be create, rename, assign, confirm or delete');
+  }
+  /** Read-only grouping proposals from folder paths, shared titles and file names. */
+  planSeriesSuggest() {
+    this.ensureOpen();
+    const candidates = this.state.plan.items.map((item) => {
+      const entry = this.state.books.find((row) => row.book.key === item.bookKey);
+      return { bookKey: item.bookKey, title: entry?.book.title ?? item.title,
+        filename: entry?.book.filename ?? '', itemId: item.id };
+    });
+    return { suggestions: suggestSeries(candidates), view: this.planView() };
+  }
+  /**
+   * One dispatcher for the panel and the model tool. Order changes never touch
+   * text, keys, progress, journal, review, story index or Persona Memory.
+   */
+  updatePlanAction(input: Record<string, unknown>) {
+    this.ensureOpen();
+    switch (String(input.action)) {
+      case 'move': return this.movePlanItem(input.itemId, input.to);
+      case 'place': return this.placePlanItem(input.itemId, input.place);
+      case 'move_series': return this.movePlanSeries(input.seriesId, input.to);
+      case 'enable': return this.setPlanEnabled(input.enabled);
+      case 'remove': return this.removeFromPlan(input.itemId, {
+        status: input.status === 'skipped' ? 'skipped' : 'removed',
+        stop: input.stop === true, reason: typeof input.reason === 'string' ? input.reason.slice(0, 200) : undefined });
+      case 'series': return this.editPlanSeries(input);
+      default: throw new Error('plan action must be move, place, move_series, enable, remove or series');
+    }
   }
   hasPendingReviewJob(bookKey: string): boolean {
     this.ensureOpen();

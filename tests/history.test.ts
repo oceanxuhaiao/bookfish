@@ -9,7 +9,7 @@ function prepare(){const b=lib.import({filename:'a.txt',title:'索引测试',bas
 function episode(){return {trigger:'风起了',interpretation:'我想在这里待一会儿。',mood:{label:'平静'},evidence:[{segmentId:0,quote:'海风。'}]};}
 it('keeps tasks and journal outside metadata and indexes exact record relationships after restart',()=>{
  const {t}=prepare();const result=lib.finish({...t,understanding:'海边起风。',episode:episode()});const id=result.receipt.episodeId!;lib.reflect({bookKey:t.bookKey,requestId:'later',revises:id,episode:episode()});
- const raw=JSON.parse(readFileSync(lib.file,'utf8'));expect(raw.schema).toBe(6);expect(raw.tasks).toEqual([]);expect(raw.episodes).toEqual([]);expect(statSync(join(lib.dir,'history.sqlite')).size).toBeGreaterThan(0);
+ const raw=JSON.parse(readFileSync(lib.file,'utf8'));expect(raw.schema).toBe(8);expect(raw.tasks).toEqual([]);expect(raw.episodes).toEqual([]);expect(statSync(join(lib.dir,'history.sqlite')).size).toBeGreaterThan(0);
  const before=lib.journal();lib.close();lib.open();expect(lib.journal()).toEqual(before);expect(lib.episode(id).revisions).toHaveLength(1);expect(lib.timeline().items[0].mood?.label).toBe('平静');expect(lib.finish({...t,understanding:'海边起风。',episode:episode()}).duplicate).toBe(true);
 });
 it('keeps both progress and journal at the old snapshot if metadata commit fails after SQL commit, including remount recovery',()=>{

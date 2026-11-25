@@ -42,7 +42,7 @@ describe('supplement identity provenance',()=>{
   });
   it('downgrades legacy exact receipts whose independent source declarations are absent',async()=>{
     const f=await fixture();const done=await f.import();f.acq.records.update(done.taskId,task=>{delete task.candidates[0].title;delete task.candidates[0].author;task.selection={status:'pending',identity:'exact'};});
-    f.library.updateSelection(state=>{const intent=state.intents[0];intent.status='acquiring';delete intent.bookKey;state.queue=[];});
+    f.library.updateSelection(state=>{const intent=state.intents[0];intent.status='acquiring';delete intent.bookKey;});f.library.updatePlan(plan=>{plan.items=[];plan.revision+=1;});
     await f.restart();await f.restart();expect(f.intent().status).toBe('awaiting_choice');expect(f.library.selection().queue).toHaveLength(0);expect(f.acq.records.get(done.taskId)?.selection?.identity).toBe('unknown');
   });
   it.each([
@@ -133,7 +133,7 @@ describe('supplement durable policy revocation',()=>{
   });
   it('migrates an old deferred policy_changed record into a persistent revocation fence',async()=>{
     const f=await fixture();const result=await f.import();
-    f.library.updateSelection(state=>{const intent=state.intents[0];intent.status='deferred';intent.failure={code:'policy_changed',message:'legacy policy',at:Date.now()};delete intent.externalPolicyRevokedAt;state.queue=[];});
+    f.library.updateSelection(state=>{const intent=state.intents[0];intent.status='deferred';intent.failure={code:'policy_changed',message:'legacy policy',at:Date.now()};delete intent.externalPolicyRevokedAt;});f.library.updatePlan(plan=>{plan.items=[];plan.revision+=1;});
     await f.restart();await f.restart();f.selection.onExternalImport({id:result.taskId,intentId:f.id,bookKey:f.library.list()[0].key},'exact');
     expect(f.intent().externalPolicyRevokedAt).toBeDefined();expect(f.intent().status).toBe('deferred');expect(f.library.selection().queue).toHaveLength(0);
   });

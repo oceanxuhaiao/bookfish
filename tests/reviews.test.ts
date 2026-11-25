@@ -75,7 +75,7 @@ describe('full-book articles, evidence and immutable versions', () => {
   });
   it('migrates schema2 without fabricating jobs or articles and deletes articles with their book', () => {
     readAll(); const logical=JSON.parse(lib.export()).payload;lib.close(); const old = JSON.parse(logical); old.schema = 2; delete old.reviews; delete old.reviewJobs; writeFileSync(lib.file, JSON.stringify(old)); lib.open();
-    expect(lib.reviews().versions).toEqual([]); expect(JSON.parse(readFileSync(lib.file, 'utf8')).schema).toBe(6);
+    expect(lib.reviews().versions).toEqual([]); expect(JSON.parse(readFileSync(lib.file, 'utf8')).schema).toBe(8);
     const j = begin(); materials(j.id); lib.finishReview(article(j.id)); lib.remove(key); expect(JSON.parse(JSON.parse(lib.export()).payload).reviews).toEqual([]);
   });
   it('rejects cross-book episodes, unknown jobs, invalid pages and concurrent jobs', () => {

@@ -123,7 +123,7 @@ describe('journal state migration, restoration and tamper checks', () => {
     const legacy = JSON.parse(logical); legacy.schema = 1; delete legacy.episodes; delete legacy.nextEpisodeSequence; delete legacy.reviews; delete legacy.reviewJobs;
     writeFileSync(lib.file, JSON.stringify(legacy)); lib.open();
     expect(lib.journal()).toMatchObject({ total: 0, confirmedRanges: 1, mood: null });
-    expect(JSON.parse(readFileSync(lib.file, 'utf8')).schema).toBe(6);
+    expect(JSON.parse(readFileSync(lib.file, 'utf8')).schema).toBe(8);
   });
   it('preserves episodes, relationships and exact evidence across restart and backup restoration', () => {
     const lib = open(); const b = prepare(lib); const first = finish(lib);

@@ -7,17 +7,20 @@ import type { RuntimeFileEntry, TrustedRuntimeManifest } from './types.ts';
 
 export const ZIP_WORKER = new URL('../../lib/zip-worker.mjs', import.meta.url);
 
+/** Optional caps forwarded to the isolated extraction worker. */
+export interface ZipLimits { maxEntries?: number; maxTotalBytes?: number; maxEntryBytes?: number; maxCompressionRatio?: number }
+
 export interface ExtractOutcome { files: RuntimeFileEntry[]; bytes: number }
 
 export class RuntimeArchiveError extends Error {
   constructor(readonly code: string, message: string) { super(message); this.name = 'RuntimeArchiveError'; }
 }
 
-export function extractRuntimeZip(zipPath: string, destDir: string, signal?: AbortSignal, onProgress?: (files: number, bytes: number) => void): Promise<ExtractOutcome> {
+export function extractRuntimeZip(zipPath: string, destDir: string, signal?: AbortSignal, onProgress?: (files: number, bytes: number) => void, limits?: ZipLimits): Promise<ExtractOutcome> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(new RuntimeArchiveError('cancelled', '已取消'));
     let settled = false;
-    const worker = new Worker(ZIP_WORKER, { workerData: { zipPath, destDir } });
+    const worker = new Worker(ZIP_WORKER, { workerData: { zipPath, destDir, ...(limits ? { limits } : {}) } });
     const finish = (error: Error | null, result?: ExtractOutcome): void => {
       if (settled) return;
       settled = true;

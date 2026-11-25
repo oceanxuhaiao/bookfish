@@ -114,6 +114,7 @@ export class BookfishWorld implements World {
       novelFetch: this.novelFetches.status(),
       serial: this.serialSync.status(),
       selection: this.host ? this.selection.compact() : this.selection.detached(),
+      plan: this.planSummary(),
       txtAcquisition: this.txtAcquisition.summary(),
     };
   }
@@ -123,6 +124,19 @@ export class BookfishWorld implements World {
    * capability dumps, storage probes and ownership details that never change a
    * reading decision, because every field here is resent on each model request.
    */
+  private planSummary() {
+    if (!this.host) return { enabled: false, revision: 0, total: 0, completed: 0, current: null, next: null, seriesCount: 0, deferred: 0, missing: 0 };
+    const view = this.library.planView();
+    const now = Date.now();
+    return {
+      enabled: view.enabled, revision: view.revision, total: view.total, completed: view.completedCount,
+      current: view.current ? { position: view.current.position, title: view.current.title, complete: view.current.complete } : null,
+      next: view.next ? { position: view.next.position, title: view.next.title } : null,
+      seriesCount: view.series.length,
+      deferred: view.items.filter((item) => item.notBefore !== undefined && item.notBefore > now).length,
+      missing: view.items.filter((item) => !item.present).length,
+    };
+  }
   private modelStatus() {
     const full = this.status();
     const current = full.library.current;
@@ -144,6 +158,7 @@ export class BookfishWorld implements World {
           progressUnit: current.progressUnit, complete: current.complete, readiness: current.readiness,
           chapterGoalSupported: current.chapterGoalSupported } : null },
       sharing: this.sharing.summary(),
+      plan: this.planSummary(),
       txtFiles: { enabled: txt.enabled, browserConfigured: txt.browserReady, transportConnected: txt.transportConnected, controllerReady: txt.controllerReady, browserReady: txt.browserReady, protectionMode:txt.protectionMode,isolationVerified:txt.isolationVerified,unavailableReason: txt.unavailableReason, active: txt.active },
     };
   }
@@ -368,9 +383,9 @@ export class BookfishWorld implements World {
     return {
       label: en ? 'Bookfish' : '看书吧！大肥鱼',
       lamps: [this.readingLamp(en)],
-      panels: [{id:'status',title:en?'Reading now':'正在读',getMethods:['runtime_status']},{id:'shelf',title:en?'Bookshelf':'书架',getMethods:['runtime_status']},{id:'trail',title:en?'Reading journal':'阅读足迹'},{id:'support',title:en?'Feedback':'反馈'},{id:'settings',title:en?'Settings':'配置',getMethods:['runtime_status']},{id:'help',title:(en?'Help & updates':'帮助与更新')+(this.helpCenter.unread()?' 🔵':'')}],
+      panels: [{id:'status',title:en?'Reading now':'正在读',getMethods:['runtime_status']},{id:'plan',title:en?'Reading plan':'阅读计划'},{id:'shelf',title:en?'Bookshelf':'书架',getMethods:['runtime_status']},{id:'trail',title:en?'Reading journal':'阅读足迹'},{id:'support',title:en?'Feedback':'反馈'},{id:'settings',title:en?'Settings':'配置',getMethods:['runtime_status']},{id:'help',title:(en?'Help & updates':'帮助与更新')+(this.helpCenter.unread()?' 🔵':'')}],
       invoke: async (panel, method, args) => {
-        if (['status','shelf','trail','support','settings','help'].includes(panel)) {
+        if (['status','plan','shelf','trail','support','settings','help'].includes(panel)) {
           if (method==='help_index'&&args.length<=1) return this.helpCenter.index(args[0]===true);
           if (method==='help_guide'&&args.length===1) return this.helpCenter.guide(requiredText(args[0],'helpId',80));
           if (method==='help_release'&&args.length<=1) return this.helpCenter.release(args.length===0?undefined:requiredText(args[0],'version',20));
@@ -408,13 +423,13 @@ export class BookfishWorld implements World {
           if(method==='txt_bridge_restart'&&args.length===0)return this.txtAcquisition.restartBridge();
           throw Error('Unsupported settings method');
         }
-        if (!['status','shelf','trail'].includes(panel) || !Array.isArray(args)) throw new Error('Unsupported Bookfish panel');
+        if (!['status','plan','shelf','trail'].includes(panel) || !Array.isArray(args)) throw new Error('Unsupported Bookfish panel');
         // The WebUI keeps polling transfer_status while the extension panel is
         // open. After the World is disabled the host is gone, so report "no
         // import job" instead of throwing on every poll.
         if (method === 'transfer_status' && args.length <= 1) return this.host ? this.transfers.status(args[0]) : null;
         if(this.host){if(method==='upload_begin'&&args.length===1)return this.transfers.begin(args[0]);if(method==='upload_chunk'&&args.length===3)return this.transfers.chunk(args[0],args[1],args[2]);if(method==='upload_finish'&&args.length===1)return this.transfers.start(args[0]);if(method==='transfer_cancel'&&args.length===1)return this.transfers.cancel(args[0]);if(method==='backup_begin'&&args.length===0)return this.transfers.download();if(method==='backup_read'&&args.length===2)return this.transfers.read(args[0],args[1]);}
-        if (method === 'get' && args.length === 0) return { discussions: this.discussions.list(), config: { ...this.opts.cfg }, status: this.status(), books: this.host ? this.library.list() : [], journal: this.host && this.library.status().current ? this.library.journal() : null, reviews: this.host && this.library.status().current ? this.library.reviews() : null, novel: this.novelFetches.status(), serial: this.serialSync.status(), selection: this.host ? this.selection.view() : this.selection.detachedView() };
+        if (method === 'get' && args.length === 0) return { discussions: this.discussions.list(), config: { ...this.opts.cfg }, status: this.status(), books: this.host ? this.library.list() : [], journal: this.host && this.library.status().current ? this.library.journal() : null, reviews: this.host && this.library.status().current ? this.library.reviews() : null, novel: this.novelFetches.status(), serial: this.serialSync.status(), selection: this.host ? this.selection.view() : this.selection.detachedView(), plan: this.host ? this.library.planView() : null, importBatches: this.host ? this.library.importBatches() : [] };
         if (!this.host) throw new Error('Bookfish is not mounted');
         if(method==='txt_extension_location'&&args.length===0)return {directory:join(dirname(fileURLToPath(import.meta.url)),'..','extension')};
         if (method === 'txt_setup' && args.length === 0) {
@@ -463,6 +478,43 @@ export class BookfishWorld implements World {
         if (method === 'timeline' && args.length === 1) { const o = args[0] as { bookKey?: unknown; before?: unknown }; if (!o || typeof o !== 'object') throw new Error('Invalid timeline request'); return this.library.timeline(o.bookKey, o.before); }
         if (method === 'novel_status' && args.length === 0) return this.novelFetches.status();
         if (method === 'selection_summary' && args.length <= 1) return this.selection.summary(args[0]);
+        // Batch import: preview, per-item progress, retry and the plan hand-off.
+        if (method === 'import_batch_create' && args.length === 1) return this.transfers.batches.create(args[0]);
+        if (method === 'import_batch_add' && args.length === 2) return this.transfers.batches.addItems(requiredText(args[0], 'batchId', 40), args[1]);
+        if (method === 'import_batch_chunk' && args.length === 4) return this.transfers.batches.stage(requiredText(args[0], 'batchId', 40), args[1], args[2], args[3]);
+        if (method === 'import_batch_zip_begin' && args.length === 2) return this.transfers.batches.zipBegin(requiredText(args[0], 'batchId', 40), args[1]);
+        if (method === 'import_batch_zip_chunk' && args.length === 3) return this.transfers.batches.zipChunk(requiredText(args[0], 'batchId', 40), args[1], args[2]);
+        if (method === 'import_batch_zip_finish' && args.length === 1) return this.transfers.batches.zipFinish(requiredText(args[0], 'batchId', 40), this.sourceSignal());
+        if (method === 'import_batch_start' && args.length === 1) return this.transfers.batches.start(requiredText(args[0], 'batchId', 40));
+        if (method === 'import_batch_status' && args.length <= 1) return args.length === 0 ? this.transfers.batches.summaries() : this.transfers.batches.status(requiredText(args[0], 'batchId', 40));
+        if (method === 'import_batch_retry' && args.length === 2) return this.transfers.batches.retry(requiredText(args[0], 'batchId', 40), requiredText(args[1], 'itemId', 40));
+        if (method === 'import_batch_cancel' && args.length === 1) return this.transfers.batches.cancel(requiredText(args[0], 'batchId', 40));
+        if (method === 'import_batch_cancel_item' && args.length === 2) return this.transfers.batches.cancelOne(requiredText(args[0], 'batchId', 40), requiredText(args[1], 'itemId', 40));
+        if (method === 'import_batch_reselect' && args.length === 3) return this.transfers.batches.reselect(requiredText(args[0], 'batchId', 40), requiredText(args[1], 'itemId', 40), args[2]);
+        if (method === 'import_batch_to_plan' && args.length >= 1 && args.length <= 2) return this.transfers.batches.applyToPlan(requiredText(args[0], 'batchId', 40), args[1]);
+        if (method === 'import_batch_forget' && args.length === 1) return this.library.forgetImportBatch(requiredText(args[0], 'batchId', 40));
+        // Unified reading plan: order, series and the pause/removal distinction.
+        if (method === 'plan' && args.length === 0) return this.library.planView();
+        if (method === 'plan_update' && args.length === 1) {
+          const value = args[0];
+          if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid plan request');
+          const result = this.library.updatePlanAction(value as Record<string, unknown>);
+          this.scheduler.changed();
+          return result;
+        }
+        if (method === 'plan_add' && args.length === 1) {
+          const value = args[0];
+          if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid plan request');
+          const result = this.library.addToPlan((value as { bookKeys?: unknown }).bookKeys, { source: 'user' });
+          this.scheduler.changed();
+          return result;
+        }
+        if (method === 'plan_series' && args.length === 1) {
+          const value = args[0];
+          if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid plan series request');
+          return this.library.editPlanSeries(value as Record<string, unknown>);
+        }
+        if (method === 'plan_suggest' && args.length === 0) return this.library.planSeriesSuggest();
         if (method === 'selection_acquire_candidate' && args.length === 1) return this.selection.acquireCandidate(args[0]);
         if (method === 'selection_cancel' && args.length === 1) return this.selection.cancel(args[0]);
         if (method === 'selection_abandon' && args.length === 1) { const result = this.selection.abandon(args[0]); this.scheduler.changed(); return result; }
@@ -615,6 +667,9 @@ export class BookfishWorld implements World {
     this.lifetime = new AbortController();
     try {
       this.transfers.recover(); this.host = host;
+      // Interrupted batch imports resume from their own durable item states; a
+      // loss of the staged bytes surfaces as needs_reselect instead of a guess.
+      try { this.transfers.batches.resume(); } catch (error) { host.log.warn('Bookfish batch import recovery failed', { error: String(error) }); }
       try { this.helpCenter.open(); } catch (error) { host.log.warn('Bookfish help center unavailable', { error: String(error) }); }
       try { await this.runtime.start(); } catch { /* runtime faults stay inside the runtime card, not the whole World */ }
       try { await this.txtAcquisition.init(); } catch { /* acquisition state faults must not block reading */ }

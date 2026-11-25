@@ -84,8 +84,11 @@ describe('acquisition results entering autonomous selection', () => {
   });
   it.each(['persistence','queue_append'] as const)('can retry %s failure without a second commitment or progress', stage => {
     const intent=seedIntent(),bookKey=importBook(); const original=library.updateSelection.bind(library);
-    const fault=vi.spyOn(library,'updateSelection').mockImplementationOnce(fn=>{if(stage==='persistence')throw Error('state write failed');return original(draft=>{fn(draft);if(draft.queue.length)throw Error('queue append interrupted');});});
-    expect(()=>coordinator.onExternalImport({id:'fault',intentId:intent.id,bookKey},'exact')).toThrow();expect(library.list()).toHaveLength(1);expect(library.list()[0].confirmedChars).toBe(0);fault.mockRestore();
+    // The single plan replaced the old per-intent queue row: the queue-append fault
+    // now hits the plan write instead of a `selection.queue` mutation.
+    const planFault=stage==='queue_append'?vi.spyOn(library,'addToPlanAtomic').mockImplementationOnce(()=>{throw Error('queue append interrupted');}):undefined;
+    const fault=vi.spyOn(library,'updateSelection').mockImplementationOnce(fn=>{if(stage==='persistence')throw Error('state write failed');return original(fn);});
+    expect(()=>coordinator.onExternalImport({id:'fault',intentId:intent.id,bookKey},'exact')).toThrow();expect(library.list()).toHaveLength(1);expect(library.list()[0].confirmedChars).toBe(0);fault.mockRestore();planFault?.mockRestore();
     coordinator.onExternalImport({id:'fault',intentId:intent.id,bookKey},'exact');coordinator.onExternalImport({id:'fault',intentId:intent.id,bookKey},'exact');expect(library.selection().queue.filter(q=>q.intentId===intent.id)).toHaveLength(1);
   });
   it('keeps the queued fact if announcement fails, and replay does not create a second queue item', () => {

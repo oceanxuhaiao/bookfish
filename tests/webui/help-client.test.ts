@@ -60,7 +60,7 @@ const button = (root: ParentNode, text: string): HTMLButtonElement | undefined =
 
 describe('help center entry and contextual help', () => {
   it('declares help as a top-level panel between settings and the prompt docs', async () => {
-    expect(world.webUi!('zh').panels!.map((panel) => panel.id)).toEqual(['status', 'shelf', 'trail', 'support', 'settings', 'help']);
+    expect(world.webUi!('zh').panels!.map((panel) => panel.id)).toEqual(['status', 'plan', 'shelf', 'trail', 'support', 'settings', 'help']);
     const root = await mountPanel('help');
     const eventsBeforeHelp = host.events.length;
     expect(root.querySelector('.bf-help h2')?.textContent).toContain('功能指南');

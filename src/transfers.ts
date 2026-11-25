@@ -1,5 +1,6 @@
 import {detectImportMetadata} from './import-metadata.ts';
 import { ImportJob, cleanImportDirectory } from './import-job.ts';
+import { ImportBatches } from './import-batches.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, openSync, closeSync, writeSync, fsyncSync, unlinkSync, existsSync, statSync, readdirSync, readSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -12,16 +13,19 @@ export class BookTransfers {
   private active?:Transfer;
   private job?:ImportJob;
   private timer?:ReturnType<typeof setTimeout>;
+  readonly batches:ImportBatches;
   private cleanStale(){mkdirSync(this.dir,{recursive:true});for(const name of readdirSync(this.dir)){if(/^[a-f0-9-]{36}\.(part|backup)$/.test(name)&&name!==this.active?.id+'.part'&&name!==this.active?.id+'.backup')unlinkSync(join(this.dir,name));}}
   private arm(){if(this.timer)clearTimeout(this.timer);this.timer=setTimeout(()=>this.close(),TTL);this.timer.unref?.();}
   private readonly dir:string;
-  constructor(private lib:Library,private now:()=>number=Date.now){this.dir=join(lib.dir,'transfers');}
+  constructor(private lib:Library,private now:()=>number=Date.now){this.dir=join(lib.dir,'transfers');this.batches=new ImportBatches(lib,this.dir,{now});}
   close(){if(this.job?.status.state==='processing'){void this.job.cancel();return;}if(this.timer)clearTimeout(this.timer);this.timer=undefined;const a=this.active;this.active=undefined;if(a&&existsSync(a.file))unlinkSync(a.file);}
   recover(){
     if(this.job?.status.state==='processing')throw Error('Import is running');
     this.cleanStale();for(const name of readdirSync(this.dir)){if(/^[a-f0-9-]{36}\.import$/.test(name))cleanImportDirectory(this.dir,name);}
+    // Batch staging is recovered per batch, then the unfinished batches continue.
+    this.batches.cleanStale();
   }
-  async shutdown(){await this.job?.cancel();this.close();}
+  async shutdown(){await this.batches.shutdown();await this.job?.cancel();this.close();}
   status(id?:unknown){if(id!==undefined&&id!==this.job?.id)throw Error('Import task not found');return this.job?structuredClone(this.job.status):null;}
   start(id:unknown){
     if(this.job&&this.job.id===id)return this.status(id);

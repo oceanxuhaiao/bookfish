@@ -9,10 +9,10 @@ import type { NovelFetches, NovelSearchJobView, NovelTaskView } from './novel-fe
 import { normalizeTitle as normalizeIdentity, normalizeAuthor, type NovelSearchCandidate } from './novel-match.ts';
 import type { AcquisitionTask } from './txt-acquisition/types.ts';
 import { identityMatch } from './txt-acquisition/quality.ts';
-import {
-  workKey, type FailedWork, type ReadingQueueItem, type SelectionCandidate,
+import { workKey, type FailedWork, type ReadingQueueItem, type SelectionCandidate,
   type SelectionFailure, type SelectionIntent, type SelectionRound, type SelectionState,
 } from './selection-types.ts';
+import { setItemNotBefore } from './reading-plan.ts';
 
 const OPPORTUNITY_INTERVAL_MS = 30_000;
 const CANDIDATE_TTL_MS = 30 * 60_000;
@@ -212,21 +212,17 @@ export class SelectionCoordinator {
         }
       }
     }
-    for (const item of next.queue) {
-      const book = this.bookView(item.bookKey);
-      if (!book) {
-        if (item.status !== 'cancelled') { item.status = 'cancelled'; item.updatedAt = this.now(); changed = true; }
-        continue;
-      }
-      const intent = next.intents.find((entry) => entry.id === item.intentId);
-      if (intent?.status === 'completed' || book.complete) {
-        if (item.status !== 'done') { item.status = 'done'; item.updatedAt = this.now(); changed = true; }
-      } else if (item.status === 'active' && this.options.library.status().current?.key !== item.bookKey) {
-        item.status = 'queued'; item.updatedAt = this.now(); changed = true;
-      }
-    }
     if (!changed) return before;
-    return this.update((draft) => { Object.assign(draft, next); return structuredClone(draft); });
+    // Only intent-level facts are persisted here. `next.queue` is a projection of
+    // the single reading plan, never a second stored queue.
+    return this.update((draft) => {
+      draft.intents = next.intents;
+      draft.failures = next.failures;
+      if (next.round) draft.round = next.round; else delete draft.round;
+      if (next.lastOpportunityDay !== undefined) draft.lastOpportunityDay = next.lastOpportunityDay; else delete draft.lastOpportunityDay;
+      if (next.lastOpportunityAt !== undefined) draft.lastOpportunityAt = next.lastOpportunityAt; else delete draft.lastOpportunityAt;
+      return structuredClone(draft);
+    });
   }
 
   private commitment(state: SelectionState): SelectionState['intents'][number] | undefined {
@@ -493,6 +489,13 @@ export class SelectionCoordinator {
           target.failure = { code: 'cancelled', message: '已入架，已取消后续排队；无法撤销已完成的导入。', at: this.now() };
           announced = structuredClone(target);
         });
+        // An earlier fulfilment may already have added this book to the plan;
+        // cancellation must remove it again (the shelf copy and progress stay).
+        const queued = this.options.library.plan().items.find((entry) => entry.intentId === intent.id);
+        if (queued) {
+          try { this.options.library.removeFromPlan(queued.id, { status: 'removed', keepReading: true, reason: 'cancelled_after_import' }); }
+          catch { /* already removed */ }
+        }
         if (announced) this.announce(announced, 'cancelled_after_import', 'import');
         return;
       }
@@ -670,25 +673,18 @@ export class SelectionCoordinator {
     const now = this.now();
     const book = this.bookView(bookKey);
     let announced: SelectionIntent | undefined;
-    this.update((draft) => {
+    let queue = false;
+    // Intent receipt and plan entry are one snapshot: a crash cannot leave
+    // "reading" without a queued book, and a failed write rolls both back.
+    this.options.library.addToPlanAtomic([bookKey], { source: 'persona', intentId }, (draft) => {
       const target = draft.intents.find((entry) => entry.id === intentId);
-      if (!target||TERMINAL_INTENTS.has(target.status)||target.externalPolicyRevokedAt!==undefined||(target.status==='awaiting_choice'&&!target.queueOnImport)) return;
+      if (!target||TERMINAL_INTENTS.has(target.status)||target.externalPolicyRevokedAt!==undefined||(target.status==='awaiting_choice'&&!target.queueOnImport)) return false;
       target.bookKey = bookKey; target.updatedAt = now;
       target.status = book?.complete ? 'completed' : 'reading';
-      if (target.queueOnImport && book) {
-        const existing = draft.queue.find((item) => item.intentId === target.id);
-        if (!existing) {
-          const item: ReadingQueueItem = {
-            id: randomUUID(), intentId: target.id, bookKey, title: book.title, source: 'pet',
-            status: book.complete ? 'done' : 'queued', addedAt: now, updatedAt: now,
-          };
-          draft.queue = [...draft.queue, item].slice(-50);
-        } else if (existing.bookKey !== bookKey) {
-          existing.bookKey = bookKey; existing.updatedAt = now;
-        }
-      }
+      queue = !!(target.queueOnImport && book && !book.complete);
       if (draft.round?.day === this.day()) draft.round.status = 'succeeded';
       announced = structuredClone(target);
+      return queue;
     });
     if (announced) this.announce(announced, 'book_added', 'import');
   }
@@ -786,35 +782,14 @@ export class SelectionCoordinator {
   }
 
   /** Called by the reading scheduler only at a real idle opportunity. */
+  /**
+   * The single plan owns cross-book hand-off now. Kept as a thin delegate so the
+   * scheduler hook and the existing tests keep one entry point; the plan decides
+   * the order for user-added and self-selected books alike.
+   */
   autoAdvance(): boolean {
-    if (!this.cfg.autonomousAcquisition || !this.cfg.autonomousAcquisitionMode) return false;
     if (!this.host) return false;
-    const current = this.options.library.status();
-    if (current.paused) return false;
-    if (current.current && !current.current.complete) return false;
-    if (current.current && this.options.library.hasPendingReviewJob(current.current.key)) return false;
-    if (current.pending) return false;
-    const scheduler = this.options.scheduler.status();
-    if (scheduler.routine) return false;
-    if (scheduler.restUntil && scheduler.restUntil > this.now()) return false;
-    const state = this.refresh();
-    const queue = [...state.queue].filter((item) => item.status === 'queued' && (!item.notBefore || item.notBefore <= this.now())).sort((a, b) => a.addedAt - b.addedAt);
-    let selected = false;
-    for (const item of queue) {
-      const book = this.bookView(item.bookKey);
-      if (!book) continue;
-      if (book.complete) {
-        this.update((draft) => { const target = draft.queue.find((entry) => entry.id === item.id); if (target) { target.status = 'done'; target.updatedAt = this.now(); } });
-        continue;
-      }
-      try {
-        this.options.library.select(item.bookKey);
-        this.update((draft) => { const target = draft.queue.find((entry) => entry.id === item.id); if (target) { target.status = 'active'; target.updatedAt = this.now(); } });
-        selected = true;
-      } catch { /* keep the item queued for a later attempt */ }
-      break;
-    }
-    return selected;
+    return this.options.library.advancePlan(this.options.scheduler.status()).advanced;
   }
 
   /** Closing the feature or network cancels the still-uncommitted autonomous chain; manual tasks are untouched. */
@@ -833,14 +808,10 @@ export class SelectionCoordinator {
     }
   }
 
-  onSelectionChanged(bookKey: string): void {
+  onSelectionChanged(_bookKey: string): void {
+    // The plan derives "active" from the library's selected revision, so a manual
+    // switch needs no queue bookkeeping here — only the derived intent facts.
     this.refresh();
-    this.update((draft) => {
-      for (const item of draft.queue) {
-        if (item.bookKey === bookKey && item.status === 'queued') { item.status = 'active'; item.updatedAt = this.now(); }
-        else if (item.status === 'active' && item.bookKey !== bookKey) { item.status = 'queued'; item.updatedAt = this.now(); }
-      }
-    });
   }
 
   plan(intentId: unknown, action: unknown, notBefore?: unknown): SelectionSummary {
@@ -861,9 +832,9 @@ export class SelectionCoordinator {
       if (action !== 'queue' || !intent.bookKey) throw new Error('An imported book and explicit queue decision are required to resume this revoked intent');
     }
     if (action === 'defer') {
-      const item = state.queue.find((entry) => entry.intentId === id);
+      const item = this.options.library.plan().items.find((entry) => entry.intentId === id);
       if (!item) throw new Error('No queued reading item exists for this intent');
-      this.update((draft) => { const target = draft.queue.find((entry) => entry.id === item.id); if (target) { target.notBefore = when; target.updatedAt = this.now(); } });
+      this.options.library.updatePlan((plan) => setItemNotBefore(plan, item.id, when, this.now()));
       return this.summary(id);
     }
     if (intent.bookKey) {
@@ -873,16 +844,14 @@ export class SelectionCoordinator {
       this.update((draft) => {
         const target = draft.intents.find((entry) => entry.id === id);
         if (target) {target.queueOnImport = true;delete target.externalPolicyRevokedAt;if(target.status==='awaiting_choice'||target.status==='deferred')target.status='reading';}
-        const existing = draft.queue.find((entry) => entry.intentId === id);
-        if (existing) {
-          if (existing.status === 'cancelled' || existing.status === 'done') { existing.status = 'queued'; existing.updatedAt = this.now(); }
-          existing.notBefore = when; existing.updatedAt = this.now();
-        } else {
-          const item: ReadingQueueItem = { id: randomUUID(), intentId: id, bookKey: book.key, title: book.title,
-            source: 'pet', status: 'queued', addedAt: this.now(), updatedAt: this.now(), ...(when ? { notBefore: when } : {}) };
-          draft.queue = [...draft.queue, item].slice(-50);
-        }
       });
+      const existing = this.options.library.plan().items.find((entry) => entry.intentId === id);
+      if (existing) {
+        // Already in the single plan: only the optional deferral changes.
+        this.options.library.updatePlan((plan) => setItemNotBefore(plan, existing.id, when, this.now()));
+      } else {
+        this.options.library.addToPlan([book.key], { source: 'persona', intentId: id, ...(when ? { notBefore: when } : {}) });
+      }
     } else if (intent.status === 'acquiring' || intent.status === 'awaiting_choice' || intent.status === 'searching') {
       this.update((draft) => {
         const target = draft.intents.find((entry) => entry.id === id);
@@ -903,9 +872,14 @@ export class SelectionCoordinator {
       target.status = 'abandoned'; target.updatedAt = this.now();
       target.queueOnImport=false;
       target.failure = { code: 'cancelled', message: by === 'pet' ? '大肥鱼放弃尚未形成阅读承诺的这次找书。' : '用户明确放弃这本自选书，承诺结束。', at: this.now() };
-      for (const item of draft.queue) if (item.intentId === id) { item.status = 'cancelled'; item.updatedAt = this.now(); }
       if (draft.round?.day === this.day()) draft.round.status = 'paused';
     });
+    // The plan entry leaves the queue but the shelf copy and its progress stay.
+    const item = this.options.library.plan().items.find((entry) => entry.intentId === id);
+    if (item) {
+      try { this.options.library.removeFromPlan(item.id, { status: 'removed', keepReading: true, reason: 'self_selected_abandoned' }); }
+      catch { /* already gone */ }
+    }
     this.options.cancelExternal?.(id);
     const task=this.state().intents.find(entry=>entry.id===id)?.acquisitionTaskId;if(task){try{this.options.novelFetches.cancel(task);}catch{/* already terminal */}}
     return this.summary(id);
@@ -926,36 +900,33 @@ export class SelectionCoordinator {
     this.update((draft) => {
       const target = draft.intents.find((entry) => entry.id === id);
       if (target) {target.status = 'cancelled';target.queueOnImport=false;}
-      for (const item of draft.queue) if (item.intentId === id) { item.status = 'cancelled'; item.updatedAt = this.now(); }
     });
+    const queued = this.options.library.plan().items.find((entry) => entry.intentId === id);
+    if (queued) {
+      try { this.options.library.removeFromPlan(queued.id, { status: 'removed', keepReading: this.options.library.status().current?.key === queued.bookKey, reason: 'self_selected_cancelled' }); }
+      catch { /* already gone or still locked */ }
+    }
     this.options.cancelExternal?.(id);
     return { cancelled: true, intent: this.summary(id) };
   }
 
+  /**
+   * Restart reconciliation for the single plan: an intent that was fulfilled but
+   * whose plan entry is missing (crash between the two snapshots, or a migration
+   * that could not see the row) gets exactly one entry back.
+   */
   private reconcileQueue(): void {
-    const now = this.now();
-    this.update((draft) => {
-      for (const intent of draft.intents) {
-        if (!intent.bookKey || !intent.queueOnImport || ['awaiting_choice','abandoned', 'completed', 'cancelled', 'failed', 'deferred'].includes(intent.status)) continue;
-        const book = this.bookView(intent.bookKey);
-        if (!book || book.complete) continue;
-        if (!draft.queue.some((item) => item.intentId === intent.id)) {
-          const item: ReadingQueueItem = { id: randomUUID(), intentId: intent.id, bookKey: book.key, title: book.title,
-            source: 'pet', status: 'queued', addedAt: now, updatedAt: now };
-          draft.queue = [...draft.queue, item].slice(-50);
-        }
-      }
-      for (const item of draft.queue) {
-        const book = this.bookView(item.bookKey);
-        const intent = draft.intents.find((entry) => entry.id === item.intentId);
-        if (!book || (intent&&['awaiting_choice','abandoned','cancelled','failed','completed'].includes(intent.status))) {
-          item.status = book&&intent?.status === 'completed' ? 'done' : 'cancelled';
-          item.updatedAt = now;
-        } else if (item.status === 'active' && this.options.library.status().current?.key !== item.bookKey) {
-          item.status = 'queued'; item.updatedAt = now;
-        }
-      }
-    });
+    const state = this.state();
+    const plan = this.options.library.plan();
+    for (const intent of state.intents) {
+      if (!intent.bookKey || !intent.queueOnImport) continue;
+      if (['awaiting_choice', 'abandoned', 'completed', 'cancelled', 'failed', 'deferred'].includes(intent.status)) continue;
+      if (plan.items.some((item) => item.intentId === intent.id || item.bookKey === intent.bookKey)) continue;
+      const book = this.bookView(intent.bookKey);
+      if (!book || book.complete) continue;
+      try { this.options.library.addToPlan([book.key], { source: 'persona', intentId: intent.id }); }
+      catch { /* full plan or removed book; the intent receipt still stands */ }
+    }
   }
 
   view(): SelectionView {

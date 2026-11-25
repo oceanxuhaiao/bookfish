@@ -217,7 +217,7 @@ describe('autonomous selection state machine', () => {
       const intent = ctx.coordinator.summary().intent!;
       const bookKey = intent.bookKey!;
       // Simulate a crash between import and queue persistence, then revive.
-      ctx.lib.updateSelection((draft) => { draft.queue = []; });
+      ctx.lib.updatePlan((draft) => { draft.items = []; draft.revision += 1; });
       expect(ctx.lib.selection().queue).toHaveLength(0);
       const task = ctx.fetches.get(ctx.lib.selection().intents[0]!.acquisitionTaskId!);
       ctx.coordinator.onTaskTerminal(task);
@@ -226,7 +226,7 @@ describe('autonomous selection state machine', () => {
       expect(ctx.lib.selection().queue[0]!.bookKey).toBe(bookKey);
 
       // Crash again, with an import receipt but no queue row. Restart must add one queue row only.
-      ctx.lib.updateSelection((draft) => { draft.queue = []; });
+      ctx.lib.updatePlan((draft) => { draft.items = []; draft.revision += 1; });
       await close(ctx);
       const reopened = new Library({ dataDir: ctx.dataDir }); reopened.open();
       let coordinator!: SelectionCoordinator;
@@ -309,8 +309,8 @@ describe('autonomous selection state machine', () => {
       ctx.lib.updateSelection((draft) => {
         const target = draft.intents[0]!;
         target.status = 'cancelled'; delete target.bookKey;
-        draft.queue = [];
       });
+      ctx.lib.updatePlan((draft) => { draft.items = []; draft.revision += 1; });
       ctx.coordinator.onTaskTerminal(task);
       const after = ctx.lib.selection();
       expect(after.intents[0]!.status).toBe('cancelled');

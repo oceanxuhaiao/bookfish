@@ -117,7 +117,10 @@ export class BookStorage {
   hydrate(raw:unknown):unknown{
     if(!raw||typeof raw!=='object'||!Array.isArray((raw as LibraryState).books))return raw;
     const v=raw as LibraryState;if(v.books.length>100)throw Error('Invalid library book count');let decodedChars=0;
-    return {...v,schema:[4,5,6,7].includes((raw as {schema?:number}).schema??0)?3:v.schema,books:v.books.map(e=>{
+    // File layout -> state shape. 8 is the layout that carries `plan` and
+    // `importBatches`; older layouts (4-7) only ever carried state shape 3.
+    const fileSchema=(raw as {schema?:number}).schema??0;
+    return {...v,schema:fileSchema===8?4:[4,5,6,7].includes(fileSchema)?3:v.schema,books:v.books.map(e=>{
       const ref=e?.book as unknown as {$bookBlob?:unknown};if(!ref||!('$bookBlob' in ref))return e;
       if(!validHash(ref.$bookBlob))throw Error('Invalid book reference');
       const file=this.source(ref.$bookBlob);if(statSync(file).size>MAX_JSON)throw Error('Book blob oversized');
@@ -132,7 +135,8 @@ export class BookStorage {
     for(const name of readdirSync(this.dir)){if(/^[a-f0-9]{64}\.json\.gz$/.test(name)&&!keep.has(name.slice(0,64)))unlinkSync(join(this.dir,name));}
   }
   writeArchive(file:string,state:LibraryState,history?:{file:string;ref:unknown},story?:{file:string}){
-    const prepared=this.prepare(state,true) as {books:Array<{book:{$bookBlob:string}}>};const serial=state.books.some(e=>e.book.remote?.serial);const manifest=history?{...prepared,schema:serial?7:6,tasks:[],episodes:[],$history:history.ref}:prepared;
+    const prepared=this.prepare(state,true) as {books:Array<{book:{$bookBlob:string}}>};const serial=state.books.some(e=>e.book.remote?.serial);// Archive layout 8: an older build refuses it instead of dropping `plan`.
+    const manifest=history?{...prepared,schema:8,tasks:[],episodes:[],$history:history.ref}:prepared;
     const ids=[...new Set(manifest.books.map(e=>e.book.$bookBlob))];
     const fd=openSync(file,'wx');let size=0;
     const write=(v:Uint8Array|string)=>{const b=typeof v==='string'?Buffer.from(v):v;let at=0;while(at<b.length)at+=writeSync(fd,b,at,b.length-at);size+=b.length;};

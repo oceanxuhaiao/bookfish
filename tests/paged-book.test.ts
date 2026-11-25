@@ -52,7 +52,7 @@ it('migrates the previous gzip format, preserves exact keys and progress, and ke
  const dir=mkdtempSync(join(tmpdir(),'bookfish-old-pages-')),lib=new Library({dataDir:dir});try{
   lib.open();const imported=lib.importBytes({filename:'old.txt',title:'旧版'},Buffer.from('海风😀。'.repeat(10000)));lib.select(imported.book.key);const t=lib.readNext();lib.finish({...t,understanding:'合成存储验证'});
   const state=JSON.parse(JSON.parse(lib.export()).payload);lib.close();mkdirSync(join(lib.dir,'books'),{recursive:true});const book=state.books[0].book;const {text,...metadata}=book;const raw=Buffer.from(JSON.stringify({...metadata,$segmentsOnly:true}));const id=createHash('sha256').update(raw).digest('hex');writeFileSync(join(lib.dir,'books',id+'.json.gz'),gzipSync(raw));state.schema=4;state.books[0].book={$bookBlob:id};writeFileSync(lib.file,JSON.stringify(state));
-  lib.open();expect(lib.status().current?.key).toBe(imported.book.key);expect(lib.status().current?.confirmedSegments).toBe(1);expect(lib.reread(imported.book.key,0).segment).toEqual(book.segments[0]);expect(JSON.parse(readFileSync(lib.file,'utf8')).schema).toBe(6);expect(statSync(lib.file+'.before-paged').size).toBeGreaterThan(0);expect(readdirSync(join(lib.dir,'books'))).toContain(id+'.json.gz');
+  lib.open();expect(lib.status().current?.key).toBe(imported.book.key);expect(lib.status().current?.confirmedSegments).toBe(1);expect(lib.reread(imported.book.key,0).segment).toEqual(book.segments[0]);expect(JSON.parse(readFileSync(lib.file,'utf8')).schema).toBe(8);expect(statSync(lib.file+'.before-paged').size).toBeGreaterThan(0);expect(readdirSync(join(lib.dir,'books'))).toContain(id+'.json.gz');
  }finally{lib.close();rmSync(dir,{recursive:true,force:true});}
 });
 it('does not decode the rest of a book when listing and respects confirmed read boundaries',()=>{
@@ -86,10 +86,11 @@ it('matches the legacy parser for deterministic combinations of headings and whi
 
 import { beginReview, reviewMaterials } from '../src/reviews.ts';
 import type { LibraryState } from '../src/library.ts';
+import { emptyPlan } from '../src/reading-plan.ts';
 it('fetches only the requested page of full-book review materials',()=>{
  const dir=mkdtempSync(join(tmpdir(),'bookfish-review-pages-'));try{
   const source=buildBook('a.txt','a','','海风😀。'.repeat(80000)),id=writePagedBook(dir,source),cache=new PageCache(1024*1024),book=loadPagedBook(join(dir,id+'.json.gz'),id,cache);
-  const state:LibraryState={schema:3,generation:0,selected:book.key,paused:false,books:[{book,frontier:book.segments.length}],tasks:[],episodes:[],nextEpisodeSequence:1,reviewJobs:[],reviews:[],selection:{schema:1,generation:0,intents:[],queue:[],failures:[]}};
+  const state:LibraryState={schema:4,generation:0,selected:book.key,paused:false,books:[{book,frontier:book.segments.length}],tasks:[],episodes:[],nextEpisodeSequence:1,reviewJobs:[],reviews:[],selection:{schema:1,generation:0,intents:[],queue:[],failures:[]},plan:emptyPlan(0),importBatches:[]};
   const job=beginReview(state,{bookKey:book.key,requestId:'page-test'},1).job;
   cache.clear();const before=cache.reads;const page=reviewMaterials(state,{jobId:job.id,kind:'ranges',offset:0,limit:1},2);
   expect(page.items).toHaveLength(1);expect(page.total).toBe(book.segments.length);expect(cache.reads-before).toBe(1);expect(cache.bytes).toBeLessThanOrEqual(cache.limit);
