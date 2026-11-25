@@ -1,0 +1,79 @@
+# git info
+generated: 2026-11-25T04:20:59Z
+
+## branch
+feat/reading-plan-v1
+
+## HEAD at generation time
+524f09b5c29de9b838b25010e9e07808b1acc387 docs: v1.1 整改最终审核包（00-08 + evidence 说明）
+
+## commits on this branch since the base
+524f09b docs: v1.1 整改最终审核包（00-08 + evidence 说明）
+66992da feat: 统一阅读计划与批量导入 v1.1 整改
+
+## base
+dd4f0b9cd3196529a02afc6de1d82c1ee3dcf1dc docs: record 0.66.7 npm, GitHub and market release
+
+## remotes (nothing was pushed)
+origin	https://github.com/oceanxuhaiao/bookfish.git (fetch)
+origin	https://github.com/oceanxuhaiao/bookfish.git (push)
+
+## working tree at generation time
+# evidence/ is generated after this file, so it shows as untracked here.
+# docs/reading-plan-v1/ and docs/reading-plan-v1.zip are the previous round's artifacts and are
+# deliberately left untracked; this package supersedes them.
+?? docs/reading-plan-v1.1/evidence/
+?? docs/reading-plan-v1.zip
+?? docs/reading-plan-v1/
+
+## diffstat vs base (code + docs; evidence dir excluded because it is generated from this state)
+ ...256\241\346\240\270\345\205\245\345\217\243.md" |  67 ++
+ ...225\264\346\224\271\346\212\245\345\221\212.md" | 174 +++++
+ ...241\245\351\275\220\346\212\245\345\221\212.md" | 145 ++++
+ ...277\201\347\247\273\350\257\264\346\230\216.md" | 129 ++++
+ ...255\220\346\200\247\350\257\264\346\230\216.md" | 113 ++++
+ ...265\213\350\257\225\346\212\245\345\221\212.md" |  81 +++
+ ...233\236\346\273\232\346\212\245\345\221\212.md" |  97 +++
+ ...267\262\347\237\245\351\231\220\345\210\266.md" |  49 ++
+ ...252\214\346\224\266\346\221\230\350\246\201.md" |  71 ++
+ lib/webui-txt-builtin-bing-0651.js                 | 744 ++++++++++++++++++++-
+ lib/webui.js                                       | 744 ++++++++++++++++++++-
+ src/book-storage.ts                                |   8 +-
+ src/import-batch.ts                                | 484 ++++++++++++++
+ src/import-batches.ts                              | 531 +++++++++++++++
+ src/library.ts                                     | 509 +++++++++++++-
+ src/novel-runtime/archive.ts                       |   7 +-
+ src/plan-coordinator.ts                            |  73 ++
+ src/protocol/reading.md                            |  10 +-
+ src/reading-plan.ts                                | 526 +++++++++++++++
+ src/selection.ts                                   | 171 ++---
+ src/status.ts                                      |  13 +-
+ src/transfers.ts                                   |   8 +-
+ src/webui/batch-import.ts                          | 331 +++++++++
+ src/webui/batch-types.ts                           |  62 ++
+ src/webui/client.ts                                |  32 +-
+ src/webui/plan.ts                                  | 286 ++++++++
+ src/world.ts                                       |  63 +-
+ tests/history.test.ts                              |   2 +-
+ tests/import-batch-budget.test.ts                  | 202 ++++++
+ tests/import-batch-chunks.test.ts                  | 143 ++++
+ tests/import-batch-run.test.ts                     | 259 +++++++
+ tests/import-batch.test.ts                         | 203 ++++++
+ tests/journal.test.ts                              |   2 +-
+ tests/paged-book.test.ts                           |   5 +-
+ tests/plan-advance.test.ts                         | 149 +++++
+ tests/plan-archive.test.ts                         | 148 ++++
+ tests/plan-combination.test.ts                     | 129 ++++
+ tests/plan-stop-atomic.test.ts                     | 173 +++++
+ tests/reading-plan-core.test.ts                    | 176 +++++
+ tests/reading-plan-library.test.ts                 | 197 ++++++
+ tests/reviews.test.ts                              |   2 +-
+ tests/schema-downgrade.test.ts                     | 162 +++++
+ tests/selection.test.ts                            |   6 +-
+ tests/txt-acquisition-selection.test.ts            |   7 +-
+ tests/txt-acquisition-supplement.test.ts           |   4 +-
+ tests/webui/batch-import.test.ts                   | 207 ++++++
+ tests/webui/client.test.ts                         |   6 +-
+ tests/webui/help-client.test.ts                    |   2 +-
+ tests/webui/plan-panel.test.ts                     | 216 ++++++
+ 49 files changed, 7770 insertions(+), 158 deletions(-)
