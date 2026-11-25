@@ -156,6 +156,19 @@ MATCH  = true
 
 > 若要求绝对零字节变化，需在验收前关闭正式宿主。本轮授权方案明确选择「不关正式宿主 + 隔离数据根」，故该变化在预期之内。
 
+### 事后复核（正式宿主于 22:29:19 正常退出）
+
+验收结束后正式宿主被**手动退出应用**（`data/logs/core.log`：`开始关机(应用退出)` → 7 步 `关机 ✓ …` → `===== exit 0 =====`），属正常关机，与本轮回收 run3 无关（run3 整树已于 22:14 停止，PID 无关联）。
+
+退出状态下复核：
+
+- `library.json` 12 本正式藏书全在，无 `plan` / `importBatches` 键，无 `验收` 痕迹；
+- `history.sqlite` 3188 行，与验收前一致；
+- `library.json` / `reading-budget.json` 哈希与 22:06 相同，**未再变动**；
+- 文件数 10029 → 10027：`writer.lock`(144 B) 与 `writer-lock.sqlite-journal`(512 B) 在正常关机释放写锁时被删除，**是锁释放的正常行为，不是数据丢失**。
+
+详见 `host-acceptance/evidence/post-formal-hashes.txt` §6。
+
 ---
 
 ## 5. `not_observed` 更新

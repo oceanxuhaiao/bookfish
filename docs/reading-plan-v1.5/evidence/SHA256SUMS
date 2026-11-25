@@ -19,7 +19,7 @@ fcc45ca92bee706361c714e0f25e1d184afedfb5015a3526ce66dc89544ef7de  docs/reading-p
 d0a8c12302bf110e9ef581d815495419a28a634f93446e2a0482caf18c5f41ec  docs/reading-plan-v1.5/08-SSM变更说明.md
 f772eaf63ced72c08f9e8f7fe973b9ca88336dc2c56694f72df7ce87a3193e1a  docs/reading-plan-v1.5/09-not_observed与宿主验收.md
 604a750b629f430abe74beb8446ff0f2a83881f280141425146232ca1ecb9675  docs/reading-plan-v1.5/10-最终验收摘要.md
-61907d4996efae6eaa24cfda26b7b5d7a2e8b6167f19287f1700590d07f7be0a  docs/reading-plan-v1.5/HOST-ACCEPTANCE.md
+85d57c1bd22ed710d0d4d3bc010b761cfde4cbcaa1530ef2420bb563d2a651a6  docs/reading-plan-v1.5/HOST-ACCEPTANCE.md
 e613e022cd0ce890fcceb1faf1d0087460131f917e27b38de2cf7a9944db394f  docs/reading-plan-v1.5/evidence/build-and-checks.log
 ee5ce6ac7e260047da35a3f2a68c29da0c7b6010d58330eb1162f6f86c9779a4  docs/reading-plan-v1.5/evidence/changes.patch
 f8438443a355ea49573a0335e18b89e3408fe374423e78ac7927eacf26fee269  docs/reading-plan-v1.5/evidence/check-ssm-host-acceptance.log
@@ -60,7 +60,7 @@ ac4b3b2eab09da421be5f4cb4886ecbe1483d7c1f96eeb84ad7048f7a73f7047  docs/reading-p
 03ffdddb1bfe216711d722a8dd6d0e73ba11fcf2615b82ce6bdeff6e443d031c  docs/reading-plan-v1.5/host-acceptance/evidence/launch-run3-s16b.log
 d7b0e4767c866481d8446319c8cca9f32b52b82cc0e4b60772e48499bf9169dd  docs/reading-plan-v1.5/host-acceptance/evidence/launch-run3.log
 efc5837a79a2004c42def6b2b14d568816b8ab258110e69f98a5ad5a3f4a53b0  docs/reading-plan-v1.5/host-acceptance/evidence/launch.log
-f491c290166f370966759b5255dda522c0c14dc177cbb82e6574b9659b509df6  docs/reading-plan-v1.5/host-acceptance/evidence/post-formal-hashes.txt
+883016323e4845b162c8db4945217b06099b95e6fa70117ad8bca2ed4fb69d2b  docs/reading-plan-v1.5/host-acceptance/evidence/post-formal-hashes.txt
 76946d0778af0a729fe3e07c57da693c52165e5135a345874ac6e58b3a909d9d  docs/reading-plan-v1.5/host-acceptance/evidence/pre-bookfish-files.txt
 e2f650d6330759062fbcae92914d92b6ce619c59bc243210ebdecd9ab019f46f  docs/reading-plan-v1.5/host-acceptance/evidence/pre-data-location.json
 32e4eeb834c399ebf5ed357772a156cdbfbfe05463af2b9043c7cb2724a3564d  docs/reading-plan-v1.5/host-acceptance/evidence/pre-extensions-package.json
