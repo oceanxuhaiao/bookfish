@@ -1,5 +1,5 @@
 # SHA256SUMS - BookFish-ReadingPlan-v1.3 资源安全与恢复审核包
-# generated: 2026-11-25T08:16:17Z
+# generated: 2026-11-25T08:17:10Z
 #
 # 本清单覆盖审核包内【全部实际交付文件】，路径相对审核包解压根目录（即包含 docs/ 的那一层）。
 # 覆盖范围：
@@ -17,7 +17,7 @@ bfd18ef1a91a17bd1c9fd9d4eecd45565c1b1c3a08663c8a5311bbcfa9b71678  docs/reading-p
 38492343af22f465ad380605d15167e4f744ca4fe5adc40d3f6cfa44b6932d3f  docs/reading-plan-v1.3/03-并发及状态机.md
 b9e1e88658e4584482f513d7ad5fa7a1cfd30ee4791e9842fea71cd34c1f07f1  docs/reading-plan-v1.3/04-历史统计兼容.md
 3e0783ecf825d681f7ae829561219c6c04b2b6de2cece68a25dd15834a08bfec  docs/reading-plan-v1.3/05-完整测试报告.md
-528d6a424a93c7aa2491018fb00bc48c95ffd7aa6939e99555f7d3687e66c694  docs/reading-plan-v1.3/06-SSM变更说明.md
+b7163083f12d2a0f0c503f42ede2c05bff6181e4f19cdf1c6486fa7eed221571  docs/reading-plan-v1.3/06-SSM变更说明.md
 5326b6e0b52300b24b54b4dff0497b7cf922f9011dab7ef2ae1a00e982c49d37  docs/reading-plan-v1.3/07-not_observed与宿主验收步骤.md
 97d42c3fa52e2f8d970b9d189284e6b7b1acd658ed476ae0616ef6c70e28c084  docs/reading-plan-v1.3/08-最终验收摘要.md
 d4dc59c2fce5fd9a2cbdcc802271e2b682d1031b1facd955c03e697df79ae19e  docs/reading-plan-v1.3/evidence/build-and-checks.log

@@ -15,6 +15,8 @@ check_ssm_exit=1
 
 原始输出：`evidence/check-ssm.log`（含 `HEAD: 31d2668…` 与时间戳）。
 
+> **allowed 计数会随后续提交增长，结论不变。** 上面的 `allowed=94` 是 **HEAD=31d2668**（代码提交）时跑出来的。审核包文档入库后，`docs/reading-plan-v1.3/**` 也进入"相对 origin/main 的改动"集合，被守卫判为 `[not-protected]` 计入 `allowed`，因此现在复跑会看到 **`allowed=145`，`blocked=0 review=2` 与 `exit 1` 完全不变**。这与 v1.2 的 68→83 是同一现象：计数只反映"本次改动涉及多少文件"，不反映保护强度。
+
 ## 2. 本轮对两个 REVIEW 文件的实际改动
 
 ### `src/world.ts`：零改动
