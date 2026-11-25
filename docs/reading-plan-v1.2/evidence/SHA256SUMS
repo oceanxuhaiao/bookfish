@@ -1,0 +1,55 @@
+# SHA256SUMS - BookFish-ReadingPlan-v1.2 最终安全整改审核包
+# generated: 2026-11-25T06:02:03Z
+#
+# 本清单覆盖审核包 zip 内【全部实际交付文件】，路径相对审核包解压根目录。
+#
+# - docs/reading-plan-v1.2/*.md        10 份审核文档
+# - docs/reading-plan-v1.2/evidence/*  原始日志 / 完整可应用补丁 / apply-check / Git 信息
+#   其中 *.log 因仓库 .gitignore 的 *.log 规则【不进入 git 提交】，但完整包含在审核包 zip 内。
+# - source-snapshot/**                 本轮 8 个源码 + 9 个测试 + 2 个构建产物的完整源码快照，
+#   由 changes.patch 在基线 5759bb4 上独立应用后生成（仓库默认 core.autocrlf=true，产物为 CRLF），
+#   逐文件与应用结果一致（reproduced=19/19，见 patch-apply-check.log）。
+#   这些文件【确实包含】在审核包中；与工作区源码逻辑内容相同，工作区部分文件为 LF 故字节
+#   可能不同。其他平台应用补丁后换行可能不同，内容一致。
+#
+# - evidence/changes.patch 可在基线 5759bb4 上独立应用（git apply --check exit 0）。
+#
+# 核验：在审核包解压根目录执行 sha256sum -c docs/reading-plan-v1.2/evidence/SHA256SUMS
+# SHA256SUMS 自身不列；zip 容器的摘要另见同名 .sha256 旁文件。
+#
+2ef6540f603d3b480c32112524e63c2662bd9a1dfc7ed3ec731ced9a2a4893ac *docs/reading-plan-v1.2/00-审核入口.md
+08784296bf829df081e292b733428c70d93805bb4ee6ea3b6fcdd7469bc083ff *docs/reading-plan-v1.2/01-P1整改报告.md
+21553503932c9ac0471028b8cec324d113fba13e089276b2868a0b16bca9d8e0 *docs/reading-plan-v1.2/02-P2功能补齐报告.md
+3d132293d4dc7cd31908d3bfd647155f7098366bceff5241d3dc837a373fb84f *docs/reading-plan-v1.2/03-ZIP完整性与磁盘峰值报告.md
+04a752693cc972dad006d6af8941c1d922522ef9978c04b0e8a04ab0a3e5ddd3 *docs/reading-plan-v1.2/04-数据结构与历史保留说明.md
+dbeb4f40fa9e9bd7af2a14e630e446131e966840ac483ee7dfd9916ce5ca5287 *docs/reading-plan-v1.2/05-计划UI行为报告.md
+9c9e1994313fc16e7685313e8f31c080c6ea1e5519ed5bd8e7a95021cc9019f2 *docs/reading-plan-v1.2/06-SSM变更说明.md
+8cc8e3d92779dd0a1923765242604fcb53875a6dc16865ef4e1facc2868f0b99 *docs/reading-plan-v1.2/07-全量测试报告.md
+435397ca495a2082a67020d80c4885d1456650cbfc68d262a1365e92a33cf0d7 *docs/reading-plan-v1.2/08-not_observed与宿主验收步骤.md
+b35937daf2ad0e43336cd67446c47ed9dedaecbcca4c830d3be5b6988b6a6de5 *docs/reading-plan-v1.2/09-最终验收摘要.md
+0554d0e69d7906b6e3afea62b26f4b25f90394ae05f4400f896ce1d159ebf8d0 *docs/reading-plan-v1.2/evidence/build-and-checks.log
+65ee3ddcaacf4fdd87f782292379b653607c47385a4ea31dd7ffe7c79e5cd9b9 *docs/reading-plan-v1.2/evidence/changes.patch
+0dcab3da6b5b742680c0d1f9c4b8f795118cafda2f30d83375e0eddd8f1ebeb9 *docs/reading-plan-v1.2/evidence/check-ssm.log
+806cbbfbfdd804a0047ae282fc051c51a9ce6839ebda161b5b41048d8b07f43d *docs/reading-plan-v1.2/evidence/git-info.txt
+8431461ee871f8418cbad3412913171319f0a6ef3a1d8ebb6c86daf7c0bb0c4d *docs/reading-plan-v1.2/evidence/patch-apply-check.log
+3c122431c8e00fc0b02e922b77e4cbd455f534cf61ff877274ce8f2937010937 *docs/reading-plan-v1.2/evidence/test-full.log
+288f0eb004c09a0b960ffb5541343d1bfda711cab2b1744397f1261322baa528 *docs/reading-plan-v1.2/evidence/typecheck.log
+0d7c1df1b3b2f19487eef87b3a942fad8cbef17ecf9b2939486ac1659e888dbf *source-snapshot/lib/webui-txt-builtin-bing-0651.js
+0d7c1df1b3b2f19487eef87b3a942fad8cbef17ecf9b2939486ac1659e888dbf *source-snapshot/lib/webui.js
+ded93f21bb957d667a779ff35a3db037052c33fa6ab66f7a9c75db7d7f40341d *source-snapshot/src/import-batch.ts
+516660bd34b74e89a0ce7a7b62caf552ee4c72e413325f62621503531beea797 *source-snapshot/src/import-batches.ts
+a4c808b908742e21501ea73b61871a29ffb527b54ccfe9a37582cc0f8b522331 *source-snapshot/src/library.ts
+6a15217afd37bf7c01881482ce5bcdbef2bfcc68707325b5415cede00757f8a7 *source-snapshot/src/reading-plan.ts
+61bdfb009301079ffa28c05a9c68369ea9e28b6095b760afc495a6203628ee87 *source-snapshot/src/webui/batch-import.ts
+3e2f7f772cde756fa0d376806e75978059cdcd1acda2eb938d0d6b496e83e837 *source-snapshot/src/webui/batch-types.ts
+f4caf086e0a565c30d4f02abb6cdcd8b8b745c6c1a1603aa7dcd53458e6af284 *source-snapshot/src/webui/plan.ts
+fb31f62105c8e65ac4d616fff5c3830ca56360fb8284fdf7e553c58b09270529 *source-snapshot/src/world.ts
+f06d7c3846943ed0264e6b633dc313142f899b8ed34f61d97f069e8c98063282 *source-snapshot/tests/import-batch-budget.test.ts
+48c3a6e625e865f304364608b9a8d674b65592feb778b05d4991fd78df264269 *source-snapshot/tests/import-batch-chunks.test.ts
+c8832f5214ddd59a4d3a9d19fcf12d76a59a7c41ace31fce40a2b188b9cb1286 *source-snapshot/tests/import-batch-identity.test.ts
+255958d8a2daece2e868d8883cca1033fce4edcbaf95ab107e9574347f93e798 *source-snapshot/tests/import-batch-run.test.ts
+d727ce3097d67bdcbc9f2c71dced8ecfe1da90aea12a50a8471c617f3a13c4de *source-snapshot/tests/import-batch-zip-peak.test.ts
+82370ef76fdc8eec58b947379cd6ef0a7bc703a09565bfd57f0521fb3bde99bb *source-snapshot/tests/plan-display.test.ts
+29cd044b9f8eaf0d3eb0df77e6c0f6b86ce1126432f92f02246e1a14468a3ad6 *source-snapshot/tests/plan-history.test.ts
+ffc10c1ab0e9351e82a41116867d49198cb07dd2c674394a5da6be085942a9c7 *source-snapshot/tests/webui/batch-import.test.ts
+5faa8331d89ed393f9e004e7cddb4b0b56fffdd6d67d6bb156163d70ffe2e1c0 *source-snapshot/tests/webui/plan-panel.test.ts

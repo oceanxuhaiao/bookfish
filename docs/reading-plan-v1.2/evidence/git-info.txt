@@ -1,0 +1,121 @@
+# git info
+generated: 2026-11-25T05:54:03Z
+
+## branch
+feat/reading-plan-v1
+
+## HEAD at generation time
+5759bb48b79a02a7e1e1577c79bfd90c25ce6326 docs: v1.1 审核包证据（原始日志 / 完整补丁 / Git 信息 / SHA256SUMS）
+
+## commits on this branch since the base
+5759bb4 docs: v1.1 审核包证据（原始日志 / 完整补丁 / Git 信息 / SHA256SUMS）
+524f09b docs: v1.1 整改最终审核包（00-08 + evidence 说明）
+66992da feat: 统一阅读计划与批量导入 v1.1 整改
+
+## base (upstream)
+dd4f0b9cd3196529a02afc6de1d82c1ee3dcf1dc
+
+## patch base (changes.patch applies cleanly to this commit)
+5759bb48b79a02a7e1e1577c79bfd90c25ce6326
+
+## remotes (nothing was pushed)
+origin	https://github.com/oceanxuhaiao/bookfish.git (fetch)
+origin	https://github.com/oceanxuhaiao/bookfish.git (push)
+
+## staged files (changes.patch is the staged diff vs HEAD)
+"docs/reading-plan-v1.2/00-\345\256\241\346\240\270\345\205\245\345\217\243.md"
+"docs/reading-plan-v1.2/01-P1\346\225\264\346\224\271\346\212\245\345\221\212.md"
+"docs/reading-plan-v1.2/02-P2\345\212\237\350\203\275\350\241\245\351\275\220\346\212\245\345\221\212.md"
+"docs/reading-plan-v1.2/03-ZIP\345\256\214\346\225\264\346\200\247\344\270\216\347\243\201\347\233\230\345\263\260\345\200\274\346\212\245\345\221\212.md"
+"docs/reading-plan-v1.2/04-\346\225\260\346\215\256\347\273\223\346\236\204\344\270\216\345\216\206\345\217\262\344\277\235\347\225\231\350\257\264\346\230\216.md"
+"docs/reading-plan-v1.2/05-\350\256\241\345\210\222UI\350\241\214\344\270\272\346\212\245\345\221\212.md"
+"docs/reading-plan-v1.2/06-SSM\345\217\230\346\233\264\350\257\264\346\230\216.md"
+"docs/reading-plan-v1.2/07-\345\205\250\351\207\217\346\265\213\350\257\225\346\212\245\345\221\212.md"
+"docs/reading-plan-v1.2/08-not_observed\344\270\216\345\256\277\344\270\273\351\252\214\346\224\266\346\255\245\351\252\244.md"
+"docs/reading-plan-v1.2/09-\346\234\200\347\273\210\351\252\214\346\224\266\346\221\230\350\246\201.md"
+lib/webui-txt-builtin-bing-0651.js
+lib/webui.js
+src/import-batch.ts
+src/import-batches.ts
+src/library.ts
+src/reading-plan.ts
+src/webui/batch-import.ts
+src/webui/batch-types.ts
+src/webui/plan.ts
+src/world.ts
+tests/import-batch-budget.test.ts
+tests/import-batch-chunks.test.ts
+tests/import-batch-identity.test.ts
+tests/import-batch-run.test.ts
+tests/import-batch-zip-peak.test.ts
+tests/plan-display.test.ts
+tests/plan-history.test.ts
+tests/webui/batch-import.test.ts
+tests/webui/plan-panel.test.ts
+
+## diffstat vs HEAD (staged)
+ ...256\241\346\240\270\345\205\245\345\217\243.md" |  88 ++++++
+ ...225\264\346\224\271\346\212\245\345\221\212.md" | 120 ++++++++
+ ...241\245\351\275\220\346\212\245\345\221\212.md" | 136 +++++++++
+ ...263\260\345\200\274\346\212\245\345\221\212.md" | 122 ++++++++
+ ...277\235\347\225\231\350\257\264\346\230\216.md" |  85 ++++++
+ ...241\214\344\270\272\346\212\245\345\221\212.md" |  83 ++++++
+ ...217\230\346\233\264\350\257\264\346\230\216.md" |  70 +++++
+ ...265\213\350\257\225\346\212\245\345\221\212.md" |  89 ++++++
+ ...252\214\346\224\266\346\255\245\351\252\244.md" |  62 ++++
+ ...252\214\346\224\266\346\221\230\350\246\201.md" |  68 +++++
+ lib/webui-txt-builtin-bing-0651.js                 | 170 ++++++++---
+ lib/webui.js                                       | 170 ++++++++---
+ src/import-batch.ts                                |  66 ++++-
+ src/import-batches.ts                              | 328 +++++++++++++++++++--
+ src/library.ts                                     |  25 +-
+ src/reading-plan.ts                                |  86 +++++-
+ src/webui/batch-import.ts                          |  61 +++-
+ src/webui/batch-types.ts                           |   9 +
+ src/webui/plan.ts                                  |  99 +++++--
+ src/world.ts                                       |   1 +
+ tests/import-batch-budget.test.ts                  |   9 +-
+ tests/import-batch-chunks.test.ts                  |  22 +-
+ tests/import-batch-identity.test.ts                | 236 +++++++++++++++
+ tests/import-batch-run.test.ts                     |   6 +-
+ tests/import-batch-zip-peak.test.ts                | 163 ++++++++++
+ tests/plan-display.test.ts                         | 108 +++++++
+ tests/plan-history.test.ts                         |  96 ++++++
+ tests/webui/batch-import.test.ts                   |  76 ++++-
+ tests/webui/plan-panel.test.ts                     |  88 +++++-
+ 29 files changed, 2594 insertions(+), 148 deletions(-)
+
+## working tree at generation time
+A  "docs/reading-plan-v1.2/00-\345\256\241\346\240\270\345\205\245\345\217\243.md"
+A  "docs/reading-plan-v1.2/01-P1\346\225\264\346\224\271\346\212\245\345\221\212.md"
+A  "docs/reading-plan-v1.2/02-P2\345\212\237\350\203\275\350\241\245\351\275\220\346\212\245\345\221\212.md"
+A  "docs/reading-plan-v1.2/03-ZIP\345\256\214\346\225\264\346\200\247\344\270\216\347\243\201\347\233\230\345\263\260\345\200\274\346\212\245\345\221\212.md"
+A  "docs/reading-plan-v1.2/04-\346\225\260\346\215\256\347\273\223\346\236\204\344\270\216\345\216\206\345\217\262\344\277\235\347\225\231\350\257\264\346\230\216.md"
+A  "docs/reading-plan-v1.2/05-\350\256\241\345\210\222UI\350\241\214\344\270\272\346\212\245\345\221\212.md"
+A  "docs/reading-plan-v1.2/06-SSM\345\217\230\346\233\264\350\257\264\346\230\216.md"
+A  "docs/reading-plan-v1.2/07-\345\205\250\351\207\217\346\265\213\350\257\225\346\212\245\345\221\212.md"
+A  "docs/reading-plan-v1.2/08-not_observed\344\270\216\345\256\277\344\270\273\351\252\214\346\224\266\346\255\245\351\252\244.md"
+A  "docs/reading-plan-v1.2/09-\346\234\200\347\273\210\351\252\214\346\224\266\346\221\230\350\246\201.md"
+M  lib/webui-txt-builtin-bing-0651.js
+M  lib/webui.js
+M  src/import-batch.ts
+M  src/import-batches.ts
+M  src/library.ts
+M  src/reading-plan.ts
+M  src/webui/batch-import.ts
+M  src/webui/batch-types.ts
+M  src/webui/plan.ts
+M  src/world.ts
+M  tests/import-batch-budget.test.ts
+M  tests/import-batch-chunks.test.ts
+A  tests/import-batch-identity.test.ts
+M  tests/import-batch-run.test.ts
+A  tests/import-batch-zip-peak.test.ts
+A  tests/plan-display.test.ts
+A  tests/plan-history.test.ts
+M  tests/webui/batch-import.test.ts
+M  tests/webui/plan-panel.test.ts
+?? docs/reading-plan-v1.1.zip
+?? docs/reading-plan-v1.2/evidence/
+?? docs/reading-plan-v1.zip
+?? docs/reading-plan-v1/
