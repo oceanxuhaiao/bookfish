@@ -7,7 +7,7 @@
  * storage and duplicate identity stay byte-identical to a one-file import.
  * Nothing here advances reading progress.
  */
-import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, readSync, renameSync, rmSync, statSync, unlinkSync, writeSync } from 'node:fs';
+import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readSync, renameSync, rmSync, statfsSync, statSync, unlinkSync, writeSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { ImportJob, cleanImportDirectory } from './import-job.ts';
@@ -19,7 +19,7 @@ import {
   batchStagingName, batchSummary, beginBatch, cancelBatch, digestOf,
   cancelItem, completedBookKeys, dispatchable, findBatchItem, markInBatchDuplicates, newBatch,
   previewBatch, reconcileBatch, retryItem, runningCount, setItemStatus, ZIP_MAX_BYTES,
-  type BatchItem, type BatchSource, type BatchZip, type ImportBatch,
+  type BatchAddResult, type BatchItem, type BatchSource, type BatchZip, type ImportBatch,
 } from './import-batch.ts';
 import type { Library } from './library.ts';
 
@@ -33,7 +33,9 @@ const IMPORT_DIR = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12
 interface Active { batchId: string; job: ImportJob; timer?: ReturnType<typeof setInterval>; reported: boolean }
 
 /** Archive metadata as the panel sees it. */
-export interface BatchZipView { name: string; size: number; state: BatchZip['state']; sha256?: string; peakBytes?: number }
+export interface BatchZipView { name: string; size: number; state: BatchZip['state']; sha256?: string; peakBytes?: number;
+  /** False when a re-pick cannot be proven to be the same archive (new batch required). */
+  reselectable: boolean }
 
 /**
  * SHA-256 of a file, streamed in 256 KiB slices.
@@ -57,6 +59,58 @@ export function sha256File(file: string): string {
 const baseNameOf = (name: string): string => name.replace(/\\/gu, '/').split('/').filter(Boolean).pop() ?? name;
 
 /**
+ * Read exactly `length` bytes at `offset` through one bounded buffer.
+ *
+ * Chunk replay used to read the whole staged file and slice it, which loads up
+ * to 512 MiB to compare a 256 KiB chunk. The read is now bounded by the chunk
+ * size by construction; a short result means the file is shorter than claimed.
+ */
+export function readRange(file: string, offset: number, length: number): Buffer {
+  const fd = openSync(file, 'r');
+  try {
+    const buffer = Buffer.allocUnsafe(length);
+    let at = 0;
+    while (at < length) {
+      const read = readSync(fd, buffer, at, length - at, offset + at);
+      if (read <= 0) break;
+      at += read;
+    }
+    return buffer.subarray(0, at);
+  } finally { closeSync(fd); }
+}
+
+function isVanished(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT';
+}
+
+/**
+ * Logical bytes of every regular file under `dir`, recursively.
+ *
+ * The flat one-level walk under-counted nested archive layouts ("系列/第一部/
+ * 正文/book1.txt"). Symlinks are never followed (they are not content), a
+ * directory never counts as its own content, and a path that vanishes mid-walk
+ * is simply gone. A directory that cannot be read at all throws: "unknown" must
+ * never be reported as zero, or the budget would silently over-allow.
+ */
+export function dirTreeBytes(dir: string): number {
+  let total = 0;
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    let stat: ReturnType<typeof lstatSync>;
+    try { stat = lstatSync(full); } catch (error) { if (isVanished(error)) continue; throw error; }
+    if (stat.isDirectory()) {
+      try { total += dirTreeBytes(full); } catch (error) { if (isVanished(error)) continue; throw error; }
+    } else if (stat.isFile()) total += stat.size;
+  }
+  return total;
+}
+
+/** Free bytes on the filesystem holding `path`; null when it cannot be measured. */
+function diskFreeBytes(path: string): number | null {
+  try { const info = statfsSync(path); return info.bavail * info.bsize; } catch { return null; }
+}
+
+/**
  * Disk ceilings. Defaults are the shipping values; tests may inject smaller
  * numbers so boundary behaviour can be proven without staging a gigabyte.
  */
@@ -69,7 +123,14 @@ export const DEFAULT_BATCH_BUDGET: BatchBudget = {
   workspaceBytes: ZIP_MAX_BYTES + BATCH_STAGING_BYTES,
 };
 
-export interface ImportBatchesOptions { now?: () => number; budget?: Partial<BatchBudget> }
+export interface ImportBatchesOptions { now?: () => number; budget?: Partial<BatchBudget>; diskFree?: (path: string) => number | null }
+
+/** What a finished extraction reports; a repeat call sees `alreadyExtracted`. */
+export type ZipExtractResult = BatchAddResult & { alreadyExtracted?: boolean };
+
+function emptyAddResult(): BatchAddResult {
+  return { added: [], duplicates: [], unsupported: [], tooLarge: [], overBudget: [], overflow: 0 };
+}
 
 export interface BatchItemView { id: string; name: string; title: string; author: string; size: number;
   status: string; attempts: number; bookKey?: string; error?: string; duplicate?: string }
@@ -80,11 +141,15 @@ export class ImportBatches {
   private disposed = false;
   private readonly now: () => number;
   private readonly budget: BatchBudget;
+  private readonly diskFree: (path: string) => number | null;
+  /** One extraction at a time per batch: repeats, recovery and retries share the flight. */
+  private readonly extracting = new Map<string, Promise<ZipExtractResult>>();
 
   constructor(private readonly library: Library, root: string, options: ImportBatchesOptions = {}) {
     this.dir = join(root, 'batches');
     this.now = options.now ?? Date.now;
     this.budget = { ...DEFAULT_BATCH_BUDGET, ...(options.budget ?? {}) };
+    this.diskFree = options.diskFree ?? diskFreeBytes;
     // A workspace smaller than its own parts would silently cap whatever is
     // extracted last; refuse the configuration instead of producing surprises.
     if (this.budget.workspaceBytes < this.budget.zipBytes + this.budget.batchBytes) {
@@ -146,6 +211,7 @@ export class ImportBatches {
     const preview = previewBatch(batch, this.library.list());
     const zip = batch.zip ? {
       name: batch.zip.name, size: batch.zip.size, state: batch.zip.state,
+      reselectable: !!(batch.zip.sha256 || batch.zip.claimedSha256),
       ...(batch.zip.sha256 ? { sha256: batch.zip.sha256 } : {}),
       ...(batch.zip.peakBytes !== undefined ? { peakBytes: batch.zip.peakBytes } : {}),
     } : undefined;
@@ -192,7 +258,10 @@ export class ImportBatches {
     })));
     if (tooLarge.length) result.tooLarge = [...tooLarge, ...(result.tooLarge ?? [])];
     if (overBudget.length) result.overBudget = [...overBudget, ...(result.overBudget ?? [])];
-    this.library.updateImportBatch(batchId, (draft) => { markInBatchDuplicates(draft); });
+    // Only a request that actually added rows re-marks in-batch duplicates; a
+    // retry of an extraction re-offers the same names, and re-marking them would
+    // smear "same title as another pick" hints across entries that are fine.
+    if (accepted.length) this.library.updateImportBatch(batchId, (draft) => { markInBatchDuplicates(draft); });
     return result;
   }
 
@@ -225,8 +294,8 @@ export class ImportBatches {
     if ((offset as number) > written) throw new Error('Import chunk skipped bytes; upload the missing part first');
     if ((offset as number) < written) {
       if ((offset as number) + bytes.length > written) throw new Error('Import chunk overlaps the staged data inconsistently');
-      const existing = readFileSync(file).subarray(offset as number, (offset as number) + bytes.length);
-      if (!existing.equals(bytes)) throw new Error('Import chunk replay does not match the staged data');
+      const existing = readRange(file, offset as number, bytes.length);
+      if (existing.length !== bytes.length || !existing.equals(bytes)) throw new Error('Import chunk replay does not match the staged data');
       return { offset: (offset as number) + bytes.length, complete: written === item.size, replayed: true };
     }
     let fd: number;
@@ -326,20 +395,47 @@ export class ImportBatches {
    * absolute paths, symlinks, device names, case collisions, oversized entries
    * or bombs), then move every accepted entry into its item's staging file.
    *
-   * Disk peak: the archive (<= zipBytes) exists while the tree (<= batchBytes)
-   * is written. Entries are then MOVED with `rename` inside the same directory,
-   * so no second copy is ever made, and the archive is deleted only after every
-   * accepted entry is safely in place. Worst case is therefore
-   * `zipBytes + batchBytes`, which `assertWorkspaceFits()` checks up front.
+   * Single-flight per batch: a repeated `zipFinish`, the recovery sweep and a
+   * manual retry all join the same in-flight extraction instead of racing it.
    */
-  async importZip(batchId: string, zipPath: string, signal?: AbortSignal) {
+  async importZip(batchId: string, zipPath: string, signal?: AbortSignal): Promise<ZipExtractResult> {
+    const flight = this.extracting.get(batchId);
+    if (flight) return flight;
+    const run = this.extractArchive(batchId, zipPath, signal);
+    // Registered synchronously, before the first await, so a concurrent caller
+    // that arrives between checks and extraction still observes the flight.
+    this.extracting.set(batchId, run);
+    try { return await run; }
+    finally { this.extracting.delete(batchId); }
+  }
+
+  private async extractArchive(batchId: string, zipPath: string, signal?: AbortSignal): Promise<ZipExtractResult> {
     const batch = this.require(batchId);
     if (batch.source !== 'zip') throw new Error('This import batch does not accept a ZIP');
-    const zipSize = batch.zip?.size ?? statSync(zipPath).size;
-    // While the archive exists the tree may only grow into what is left of the
-    // workspace, so the peak cannot exceed the declared budget.
-    const ceiling = this.extractCeiling(zipSize);
-    if (ceiling < 1) throw new Error('The archive leaves no room for extracted books in the batch workspace');
+    const persisted = batch.zip;
+    if (!persisted) throw new Error('This import batch has no archive');
+    // State machine: only a verified archive is ever extracted, and an extracted
+    // one never re-enters the flow. `ready` here also covers a retry after a
+    // failed extraction (the archive on disk is still the verified bytes).
+    if (persisted.state === 'extracted') return { ...emptyAddResult(), alreadyExtracted: true };
+    if (persisted.state !== 'ready') throw new Error('The archive has not been verified yet; finish the upload first');
+    const zipSize = statSync(zipPath).size;
+    if (zipSize !== persisted.size) throw new Error('The stored archive does not match its declared size');
+    // Budget is recomputed from what the batch directory ACTUALLY holds, not from
+    // the zip size alone: a previous attempt that already moved some entries into
+    // their `.src` slots (and kept the archive) must not get a second full tree
+    // on top of them. `existing` is everything except the archive itself.
+    const existing = Math.max(0, dirTreeBytes(this.batchDir(batchId)) - zipSize);
+    const ceiling = Math.min(this.budget.batchBytes - existing, this.budget.workspaceBytes - zipSize - existing);
+    if (ceiling < 1) {
+      throw new Error(`The batch workspace cannot fit another extraction: ${ceiling} bytes of headroom left (already occupied: ${existing})`);
+    }
+    // Refuse before writing when the disk itself cannot hold the allowed ceiling:
+    // failing halfway after filling the volume is exactly what must not happen.
+    const free = this.diskFree(this.batchDir(batchId));
+    if (free !== null && free < ceiling) {
+      throw new Error(`Not enough disk space: ${free} bytes free, this extraction may need up to ${ceiling}`);
+    }
     const dir = this.batchDir(batchId);
     const target = join(dir, randomUUID() + '.extract');
     mkdirSync(dir, { recursive: true });
@@ -348,9 +444,9 @@ export class ImportBatches {
       // cannot expand past the disk budget before being refused.
       const outcome = await extractRuntimeZip(zipPath, target, signal, undefined, {
         maxEntries: BATCH_ITEM_LIMIT * 4, maxTotalBytes: ceiling, maxEntryBytes: this.budget.fileBytes });
-      // Measured, not assumed: this is the moment the archive and the whole tree
-      // are both on disk, which is the true peak of the whole operation.
-      const peak = this.batchDirBytes(batchId);
+      // Measured, not assumed, and recursive: this is the moment the archive and
+      // the whole tree (nested directories included) are both on disk.
+      const peak = dirTreeBytes(this.batchDir(batchId));
       if (peak > this.workspaceBytes) throw new Error('Archive would peak beyond the batch workspace budget');
       this.library.updateImportBatch(batchId, (draft) => {
         if (!draft.zip) return;
@@ -360,19 +456,31 @@ export class ImportBatches {
       const entries = outcome.files.filter((entry) => !entry.path.split('/').some((part) => part.startsWith('.')));
       const tooLarge = entries.filter((entry) => entry.size > this.budget.fileBytes);
       if (tooLarge.length) throw new Error(`${tooLarge.length} archive entries exceed the 100 MiB per-book limit`);
-      const result = this.addItems(batchId, entries.map((entry) => ({ name: entry.path, size: entry.size,
-        title: detectImportMetadata(basename(entry.path)).title, sourceSha256: entry.sha256 })));
-      const added = new Set(result.added.map((item) => item.name));
+      // An empty entry list (empty archive, hidden-only, or directory-only) is
+      // NOT an addItems request: it is a completed extraction with nothing in
+      // it, reported as such instead of being refused as "select at least one".
+      const result = entries.length
+        ? this.addItems(batchId, entries.map((entry) => ({ name: entry.path, size: entry.size,
+            title: detectImportMetadata(basename(entry.path)).title, sourceSha256: entry.sha256 })))
+        : emptyAddResult();
+      // Walk the batch's items, not the freshly added rows: a retry re-offers the
+      // same names (all duplicates now), so keying off `result.added` would skip
+      // exactly the entries a previous attempt never got to move.
       for (const item of this.require(batchId).items) {
-        if (item.staged || !added.has(item.name)) continue;
+        if (item.staged) continue;
         const from = join(target, ...item.name.split('/'));
         if (!existsSync(from) || !lstatSync(from).isFile() || statSync(from).size !== item.size) continue;
         const to = this.stagedPath(batchId, item);
         rmSync(to, { force: true });
-        // Same directory tree, same filesystem: rename is a metadata operation.
-        // The copy fallback only exists for exotic mounts that refuse to rename.
+        // Same directory tree, same filesystem: rename is a metadata operation and
+        // stays inside the measured budget. A copy fallback is deliberately NOT
+        // provided: it would double the entry on disk, outside every ceiling, with
+        // a whole-file buffer in memory. A refused rename is a filesystem or
+        // permission problem the user must see, not something to work around.
         try { renameSync(from, to); }
-        catch { this.copyThenUnlink(from, to); }
+        catch (error) {
+          throw new Error(`无法把解压出的文件移动到暂存位置（文件系统或权限问题）：${String((error as Error).message ?? error)}；已保留压缩包供重试`);
+        }
         if (statSync(to).size !== item.size) throw new Error('Staged entry length does not match the archive entry');
         this.library.updateImportBatch(batchId, (draft) => {
           const row = findBatchItem(draft, item.id);
@@ -380,27 +488,34 @@ export class ImportBatches {
         });
       }
       // Success: the tree is gone, every accepted entry is a staging file, and
-      // only now may the archive be deleted.
+      // only then may the archive be deleted.
       rmSync(target, { recursive: true, force: true });
-      const staged = this.require(batchId).items;
-      if (staged.length && staged.every((item) => item.staged || item.status === 'completed' || !item.supported)) {
+      const items = this.require(batchId).items;
+      if (!items.length) {
+        // Nothing importable came out: an empty archive, only hidden files, only
+        // directories, or only unsupported formats. The extraction itself
+        // succeeded, so the batch gets a terminal state — otherwise every restart
+        // would re-extract it forever. No book was queued, so nothing joins the
+        // plan; the record can simply be forgotten.
+        rmSync(zipPath, { force: true });
+        this.library.updateImportBatch(batchId, (draft) => {
+          if (draft.zip) draft.zip.state = 'extracted';
+          draft.status = 'completed';
+        });
+        return result;
+      }
+      if (items.every((item) => item.staged || item.status === 'completed' || !item.supported)) {
         rmSync(zipPath, { force: true });
         this.library.updateImportBatch(batchId, (draft) => { if (draft.zip) draft.zip.state = 'extracted'; });
       }
       return result;
     } catch (error) {
       // Failure: keep the archive (it is already verified) so the extraction can
-      // be retried without asking the user for the file again.
+      // be retried without asking the user for the file again, and keep the
+      // already-moved `.src` slots — they are retry inputs, not garbage.
       rmSync(target, { recursive: true, force: true });
       throw error;
     }
-  }
-
-  private copyThenUnlink(from: string, to: string): void {
-    const bytes = readFileSync(from);
-    const fd = openSync(to, 'w');
-    try { let at = 0; while (at < bytes.length) at += writeSync(fd, bytes, at, bytes.length - at); } finally { closeSync(fd); }
-    rmSync(from, { force: true });
   }
 
   // ------------------------------------------------------------- zip upload
@@ -413,25 +528,6 @@ export class ImportBatches {
    * is `zipBytes + batchBytes` — not 2.5 GiB as a naive copy-based flow allows.
    */
   get workspaceBytes(): number { return this.budget.workspaceBytes; }
-
-  /** How much extracted tree may exist while the archive still occupies disk. */
-  private extractCeiling(zipSize: number): number {
-    return Math.max(0, Math.min(this.budget.batchBytes, this.budget.workspaceBytes - zipSize));
-  }
-
-  private batchDirBytes(batchId: string): number {
-    const dir = this.batchDir(batchId);
-    if (!existsSync(dir)) return 0;
-    let total = 0;
-    for (const name of readdirSync(dir)) {
-      const full = join(dir, name);
-      const stat = lstatSync(full);
-      if (stat.isDirectory()) {
-        for (const inner of readdirSync(full)) { try { total += statSync(join(full, inner)).size; } catch { /* raced */ } }
-      } else { total += stat.size; }
-    }
-    return total;
-  }
 
   /** The archive itself is transferred contiguously, then extracted once. */
   zipBegin(batchId: string, input: unknown) {
@@ -449,6 +545,14 @@ export class ImportBatches {
     // (once any upload of it was accepted) the server-side digest are kept.
     const previous = batch.zip;
     if (previous && previous.size !== size) throw new Error(`This batch expects a ${previous.size} byte archive`);
+    // Identity is sticky: a re-upload may neither drop nor swap the digest the
+    // first selection recorded. Dropping it would admit any same-size archive;
+    // swapping it would admit a different one on purpose.
+    const priorClaim = previous?.claimedSha256;
+    if (claimed !== undefined && priorClaim && claimed !== priorClaim) {
+      throw new Error('This batch already pinned a different archive digest; start a new batch for a different ZIP');
+    }
+    const effectiveClaim = claimed ?? priorClaim;
     mkdirSync(this.batchDir(batchId), { recursive: true });
     const file = this.zipPath(batchId);
     closeSync(openSync(file, 'w'));
@@ -456,7 +560,7 @@ export class ImportBatches {
       draft.zip = {
         name: value.name as string, size: size as number, state: 'uploading',
         ...(previous?.sha256 ? { sha256: previous.sha256 } : {}),
-        ...(claimed ? { claimedSha256: claimed } : {}),
+        ...(effectiveClaim ? { claimedSha256: effectiveClaim } : {}),
       };
     });
     return { offset: 0, chunkBytes: BATCH_CHUNK, size };
@@ -483,8 +587,8 @@ export class ImportBatches {
     if ((offset as number) > written) throw new Error('ZIP upload skipped bytes; upload the missing part first');
     if ((offset as number) < written) {
       if ((offset as number) + bytes.length > written) throw new Error('ZIP upload overlaps the staged data inconsistently');
-      const existing = readFileSync(file).subarray(offset as number, (offset as number) + bytes.length);
-      if (!existing.equals(bytes)) throw new Error('ZIP upload replay does not match the staged data');
+      const existing = readRange(file, offset as number, bytes.length);
+      if (existing.length !== bytes.length || !existing.equals(bytes)) throw new Error('ZIP upload replay does not match the staged data');
       return { offset: (offset as number) + bytes.length, replayed: true };
     }
     let fd: number;
@@ -500,42 +604,59 @@ export class ImportBatches {
    * Length and content are both checked *before* anything is extracted: a
    * truncated body, a body longer than declared, or a different archive with the
    * same length is refused and the entry goes back to `needs_reselect`.
+   *
+   * State machine: an `uploading` archive is verified and promoted to `ready`
+   * here; a `ready` archive (a retry after a failed extraction, or a concurrent
+   * duplicate call) goes straight to the single-flight extraction; an `extracted`
+   * archive answers `alreadyExtracted` instead of starting a second run.
    */
-  async zipFinish(batchId: string, signal?: AbortSignal) {
+  async zipFinish(batchId: string, signal?: AbortSignal): Promise<ZipExtractResult> {
     const batch = this.require(batchId);
     const zip = batch.zip;
     if (!zip) throw new Error('ZIP upload was not started');
+    if (batch.status !== 'preview') throw new Error('Import batch already started');
+    if (zip.state === 'extracted') return { ...emptyAddResult(), alreadyExtracted: true };
+    if (zip.state === 'needs_reselect') throw new Error('The archive must be picked again before this batch can continue');
     const file = this.zipPath(batchId);
     if (!existsSync(file)) throw new Error('ZIP upload was not started');
-    const actual = statSync(file).size;
-    if (actual !== zip.size) throw new Error(`ZIP is incomplete: declared ${zip.size} bytes, received ${actual}`);
-    const digest = sha256File(file);
-    const reject = (message: string, clearClaim: boolean): never => {
-      rmSync(file, { force: true });
-      this.library.updateImportBatch(batchId, (draft) => {
-        if (!draft.zip) return;
-        draft.zip.state = 'needs_reselect';
-        // The claim was wrong, so keeping it would wedge the batch forever: the
-        // user has to be able to re-pick and let the server's own hash decide.
-        if (clearClaim) delete draft.zip.claimedSha256;
-      });
-      throw new Error(message);
-    };
-    if (zip.claimedSha256 && zip.claimedSha256 !== digest) return reject('The uploaded archive does not match the selected file (content digest differs)', true);
-    // `sha256` is set once an archive has been accepted before; a recovery must
-    // present the very same archive, not merely one of the same length.
-    if (zip.sha256 && zip.sha256 !== digest) return reject('The uploaded archive has the same length but different content', false);
-    this.library.updateImportBatch(batchId, (draft) => { if (draft.zip) { draft.zip.sha256 = digest; draft.zip.state = 'ready'; } });
+    if (zip.state === 'uploading') {
+      const actual = statSync(file).size;
+      if (actual !== zip.size) throw new Error(`ZIP is incomplete: declared ${zip.size} bytes, received ${actual}`);
+      const digest = sha256File(file);
+      const refuse = (message: string): never => {
+        rmSync(file, { force: true });
+        this.library.updateImportBatch(batchId, (draft) => { if (draft.zip) draft.zip.state = 'needs_reselect'; });
+        throw new Error(message);
+      };
+      // A wrong claim is never deleted. The claim is the identity constraint the
+      // replacement must satisfy; clearing it on mismatch would let any
+      // same-size archive into this batch under the next attempt.
+      if (zip.claimedSha256 && zip.claimedSha256 !== digest) {
+        return refuse('The uploaded archive does not match the selected file (content digest differs); re-pick the original archive or start a new batch');
+      }
+      // `sha256` is set once an archive has been accepted before; a recovery must
+      // present the very same archive, not merely one of the same length.
+      if (zip.sha256 && zip.sha256 !== digest) {
+        return refuse('The uploaded archive has the same length but different content');
+      }
+      this.library.updateImportBatch(batchId, (draft) => { if (draft.zip) { draft.zip.sha256 = digest; draft.zip.state = 'ready'; } });
+    }
     return await this.importZip(batchId, file, signal);
   }
 
   /**
    * Re-open an interrupted archive upload under the same batch id.
    *
-   * The declared size and (when it was ever accepted) the content digest are
-   * kept, so the replacement archive must be the same file. Refusing to guess is
-   * the point: a different archive under the same batch would import different
-   * books under the previous batch's history.
+   * The declared size and the content digest are kept, so the replacement
+   * archive must be the same file. Refusing to guess is the point: a different
+   * archive under the same batch would import different books under the
+   * previous batch's history.
+   *
+   * Conservative identity: without either a server-verified digest (`sha256`,
+   * set when an upload completed once) or the digest the first selection
+   * claimed (`claimedSha256`, kept from the very first begin), a replacement
+   * cannot be proven to be the same archive. That batch must be re-imported in
+   * a new batch; this record stays as an unfinished entry the user can forget.
    */
   zipReselect(batchId: string) {
     const batch = this.require(batchId);
@@ -544,13 +665,20 @@ export class ImportBatches {
     const zip = batch.zip;
     if (!zip) throw new Error('This batch has no archive to re-upload; choose a new ZIP instead');
     if (zip.state === 'extracted') throw new Error('This archive has already been extracted');
+    // Only an interrupted upload needs a re-pick: a `ready` archive is verified
+    // and will be (re)extracted on its own, and `uploading` is still live.
+    if (zip.state !== 'needs_reselect') throw new Error('This archive does not need to be picked again');
     if (batch.items.length) throw new Error('This batch already has entries; start a new batch instead of replacing its archive');
+    if (this.extracting.has(batchId)) throw new Error('This archive is being extracted right now');
+    if (!zip.sha256 && !zip.claimedSha256) {
+      throw new Error('此批次的中断上传没有可验证的内容指纹，无法证明重新选择的仍是同一个压缩包。请新建一个批次重新导入；本条记录保留为未完成状态，可随时清理。');
+    }
     // Start from an empty file again so the chunk offsets stay contiguous.
     const file = this.zipPath(batchId);
     rmSync(file, { force: true });
     closeSync(openSync(file, 'w'));
     this.library.updateImportBatch(batchId, (draft) => { if (draft.zip) draft.zip.state = 'uploading'; });
-    return { batchId, name: zip.name, size: zip.size, sha256: zip.sha256 ?? null, chunkBytes: BATCH_CHUNK };
+    return { batchId, name: zip.name, size: zip.size, sha256: zip.sha256 ?? zip.claimedSha256 ?? null, chunkBytes: BATCH_CHUNK };
   }
 
   // -------------------------------------------------------------------- run
@@ -604,15 +732,21 @@ export class ImportBatches {
       reselect += report.reselect.length;
     }
     // An archive that arrived intact but never got extracted can simply be
-    // retried: the bytes are still on disk and already verified.
+    // retried: the bytes are still on disk and already verified. Recovery is
+    // serialized — one archive extracted at a time — so several interrupted
+    // batches cannot stack their extraction peaks on restart.
+    let chain: Promise<unknown> = Promise.resolve();
     for (const batch of this.library.importBatches()) {
       if (batch.zip?.state !== 'ready') continue;
       if (!existsSync(this.zipPath(batch.id))) continue;
-      void this.importZip(batch.id, this.zipPath(batch.id)).catch(() => {
-        this.library.updateImportBatch(batch.id, (draft) => { if (draft.zip) draft.zip.state = 'needs_reselect'; });
-      });
+      const id = batch.id, path = this.zipPath(batch.id);
+      chain = chain.then(() => this.importZip(id, path)).then(
+        () => undefined,
+        () => { this.library.updateImportBatch(id, (draft) => { if (draft.zip) draft.zip.state = 'needs_reselect'; }); },
+      );
       archives += 1;
     }
+    void chain;
     this.pump();
     return { resumed, reselect, archives };
   }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Library } from '../src/library.ts';
@@ -104,5 +104,38 @@ describe('the book being read is shown even when it is not in the plan', () => {
     // Still the current book, but no longer part of the plan.
     expect(view.reading).toMatchObject({ bookKey: a.key, inPlan: false });
     expect(lib.status().current!.key).toBe(a.key);
+  });
+});
+
+describe('history completeness is part of the plan view', () => {
+  it('a fresh library reports complete history', () => {
+    seed(['甲']);
+    const view = lib.planView();
+    expect(view.statsComplete).toBe(true);
+    expect(view.completedCount).toBe(0);
+  });
+
+  it('a legacy plan without counters reports a lower bound, not a total', () => {
+    const [a] = seed(['甲']);
+    lib.addToPlan([a.key], { source: 'user' });
+    finish(a.key);
+    // The finished book is archived when the plan advances past it.
+    expect(lib.advancePlan(idle)).toEqual({ advanced: false, reason: 'plan_exhausted' });
+    expect(lib.planView().completedCount).toBe(1);
+
+    // Rewrite the snapshot as a pre-v1.2 file: counters (and the marker) did
+    // not exist yet, so hydration must backfill and flag the history as
+    // incomplete instead of presenting the archive window as the full total.
+    lib.close();
+    const file = join(dir, 'bookfish', 'library.json');
+    const state = JSON.parse(readFileSync(file, 'utf8')) as { plan: { stats?: unknown; statsComplete?: unknown } };
+    delete state.plan.stats;
+    delete state.plan.statsComplete;
+    writeFileSync(file, JSON.stringify(state));
+    open();
+
+    const view = lib.planView();
+    expect(view.completedCount).toBe(1);
+    expect(view.statsComplete).toBe(false);
   });
 });

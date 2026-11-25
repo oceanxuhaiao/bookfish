@@ -88,6 +88,13 @@ export interface ReadingPlan {
   archive: PlanArchiveEntry[];
   series: PlanSeries[];
   stats: PlanStats;
+  /**
+   * Whether the lifetime counters describe the COMPLETE history. A plan created
+   * by this version is complete; a plan migrated from an older version (whose
+   * archive window already lost rows) is not — its `stats` are a verifiable
+   * LOWER BOUND, not the whole total. Absent on disk means "legacy, backfilled".
+   */
+  statsComplete?: boolean;
 }
 
 const MAX_TITLE = 200;
@@ -130,7 +137,7 @@ function uuid(value: unknown, name: string): string {
 
 export function emptyPlan(now: number, id: string = randomUUID()): ReadingPlan {
   return { schema: 1, id, revision: 0, createdAt: now, updatedAt: now, enabled: true, items: [], archive: [], series: [],
-    stats: { completed: 0, skipped: 0, removed: 0, truncated: 0 } };
+    stats: { completed: 0, skipped: 0, removed: 0, truncated: 0 }, statsComplete: true };
 }
 
 function validateSeries(raw: unknown): PlanSeries {
@@ -206,6 +213,14 @@ export function validatePlan(raw: unknown, now: number): ReadingPlan {
   }
   for (const item of items) if (item.seriesId && !seriesIds.has(item.seriesId)) throw new Error('Reading plan item references a missing series');
   const archive = (value.archive ?? []).map(validateArchive);
+  // History completeness: a plan written before lifetime counters existed gets
+  // them backfilled from the (bounded) archive it still has, which is only a
+  // lower bound of the real total — that must be shown as "at least", never as
+  // the full history. A plan that carried the marker keeps what it said; a
+  // v1.2-era plan (counters, no marker) was counted from birth, so it is complete.
+  const statsProvided = (value as { stats?: unknown }).stats !== undefined;
+  const marker = (value as { statsComplete?: unknown }).statsComplete;
+  const statsComplete = marker === undefined ? statsProvided : marker === true;
   return {
     schema: 1,
     id: uuid(value.id, 'plan id'),
@@ -217,6 +232,7 @@ export function validatePlan(raw: unknown, now: number): ReadingPlan {
     archive,
     series,
     stats: validateStats((value as { stats?: unknown }).stats, archive),
+    statsComplete,
   };
 }
 
@@ -454,6 +470,9 @@ export interface LegacyQueueRow {
  */
 export function migrateLegacyQueue(queue: readonly LegacyQueueRow[], books: ReadonlyMap<string, { title: string; author?: string }>, now: number): { plan: ReadingPlan; migrated: number; dropped: number } {
   const plan = emptyPlan(now);
+  // A legacy queue cannot recover history beyond its own rows: whatever the old
+  // version already trimmed is gone, so the counters are a lower bound.
+  plan.statsComplete = false;
   if (plan.items.length === 0 && queue.length === 0) return { plan, migrated: 0, dropped: 0 };
   let migrated = 0, dropped = 0;
   for (const row of [...queue].sort((a, b) => a.addedAt - b.addedAt)) {

@@ -14,7 +14,7 @@ let confirmAnswer = false, lastConfirm: { title: string; body?: string; danger?:
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'bookfish-plan-ui-'));
-  confirmAnswer = true; lastConfirm = undefined;
+  confirmAnswer = true; lastConfirm = undefined; legacyHistory = false;
   const context = fakeWorldContext(BOOKFISH, { scratchDir: dir });
   context.persist({ automaticReading: false, realRoutineEnabled: false });
   world = BOOKFISH.create(context);
@@ -29,6 +29,8 @@ afterEach(async () => {
 });
 
 let failMethod: string | null = null;
+/** When set, the plan payload is patched to look like an incomplete legacy history. */
+let legacyHistory = false;
 
 async function mount() {
   const root = document.createElement('div'); document.body.append(root);
@@ -36,7 +38,11 @@ async function mount() {
   const ctx = { root, panelId: 'plan', language: 'zh', signal: controller.signal,
     invoke: async (method: string, args: unknown[]) => {
       if (failMethod && method === failMethod) throw new Error('磁盘已满，无法保存计划');
-      return world.webUi!('zh').invoke!('plan', method, args);
+      const result = await world.webUi!('zh').invoke!('plan', method, args);
+      if (legacyHistory && method === 'get' && result && typeof result === 'object' && 'plan' in (result as Record<string, unknown>)) {
+        (result as { plan: Record<string, unknown> }).plan.statsComplete = false;
+      }
+      return result;
     },
     setConfig: async () => 'Saved',
     interval: (callback: () => Promise<void>) => { intervals.push(callback); }, timeout: () => {}, own: () => {},
@@ -298,5 +304,27 @@ describe('the page keeps the reader oriented and never fails silently', () => {
     const stop = button(root, '停止读这本，改读下一本') as HTMLButtonElement;
     // A readable successor exists here, so the button stays usable.
     expect(stop.disabled).toBe(false);
+  });
+});
+
+describe('history honesty in the panel wording', () => {
+  it('words a legacy plan as a lower bound, not as a full total', async () => {
+    const keys = await planBooks(['甲', '乙']);
+    await world.webUi!('zh').invoke!('plan', 'select', [keys[0]]);
+    legacyHistory = true;
+    const { root } = await mount();
+    expect(root.textContent).toContain('至少累计读完');
+    expect(root.textContent).toContain('可确认的下界');
+    // The complete-history wording ("· 累计读完") is absent: this plan cannot
+    // claim a full total.
+    expect(root.textContent).not.toContain('· 累计读完');
+  });
+
+  it('words a plan counted from birth as a full total', async () => {
+    const keys = await planBooks(['甲', '乙']);
+    await world.webUi!('zh').invoke!('plan', 'select', [keys[0]]);
+    const { root } = await mount();
+    expect(root.textContent).toContain('· 累计读完');
+    expect(root.textContent).not.toContain('至少累计');
   });
 });

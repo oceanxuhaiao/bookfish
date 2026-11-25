@@ -68,18 +68,26 @@ export function renderPlanPage(options: PlanPageOptions): void {
   }
 
   const summary = el('p', '', page); summary.className = 'plan-summary';
+  // A legacy plan cannot recover history its old version already trimmed, so its
+  // counters are a verified lower bound; saying "累计 N 本" there would claim a
+  // completeness the data cannot support.
+  const complete = plan.statsComplete !== false;
   summary.textContent = say(
-    `计划 ${plan.total} 本 · 累计读完 ${plan.completedCount} 本` + (plan.series.length ? ` · ${plan.series.length} 个系列` : ''),
-    `${plan.total} planned · ${plan.completedCount} finished in total` + (plan.series.length ? ` · ${plan.series.length} series` : ''));
+    `计划 ${plan.total} 本 · ` + (complete ? `累计读完 ${plan.completedCount} 本` : `至少累计读完 ${plan.completedCount} 本`) +
+      (plan.series.length ? ` · ${plan.series.length} 个系列` : ''),
+    `${plan.total} planned · ` + (complete ? `${plan.completedCount} finished in total` : `at least ${plan.completedCount} finished in total`) +
+      (plan.series.length ? ` · ${plan.series.length} series` : ''));
   const historyNote = el('small', '', page);
   historyNote.className = 'plan-note plan-history';
   historyNote.textContent = say(
     `历史只保留最近 ${plan.archiveLimit} 条（当前 ${plan.archiveKept} 条）` +
       (plan.truncatedCount ? `，更早的 ${plan.truncatedCount} 条已不再列出，但累计数量仍然计入` : '') +
-      `；跳过 ${plan.skippedCount} 本、移出 ${plan.removedCount} 本。`,
+      `；跳过 ${plan.skippedCount} 本、移出 ${plan.removedCount} 本。` +
+      (complete ? '' : '此计划由旧版本迁移而来，更早的完读历史可能已超出保留窗口，以上累计数字是可确认的下界，不是完整总数。'),
     `History keeps the latest ${plan.archiveLimit} entries (now ${plan.archiveKept})` +
       (plan.truncatedCount ? `; ${plan.truncatedCount} older entries are no longer listed but still counted` : '') +
-      `; ${plan.skippedCount} skipped, ${plan.removedCount} removed in total.`);
+      `; ${plan.skippedCount} skipped, ${plan.removedCount} removed in total.` +
+      (complete ? '' : ' This plan was migrated from an older version whose older history may be beyond the retention window; the totals above are a confirmed lower bound, not the full history.'));
 
   const toggleRow = el('div', '', page); toggleRow.className = 'plan-toggle';
   const enabled = document.createElement('button'); enabled.type = 'button';

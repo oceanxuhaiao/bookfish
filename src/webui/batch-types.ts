@@ -53,6 +53,8 @@ export interface ImportBatchZipView {
   state: 'uploading' | 'needs_reselect' | 'ready' | 'extracted';
   sha256?: string;
   peakBytes?: number;
+  /** False when an interrupted upload cannot be proven to be the same archive. */
+  reselectable: boolean;
 }
 
 export interface ImportBatchView extends ImportBatchPreview {

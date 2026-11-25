@@ -253,6 +253,10 @@ describe('an interrupted archive can be picked again from the panel', () => {
     [...batch.querySelectorAll('button')].find((node) => node.textContent!.includes('books.zip'))!.click();
     await waitFor(() => batch.textContent!.includes('重新选择 ZIP'), 'archive reselect entry');
     expect(batch.textContent).toContain('上传已中断');
+    // The wrong claim is pinned, so this record IS re-pickable — but only for
+    // the archive that digest describes. The real file never matches it.
+    expect(await invoke('shelf', 'import_batch_status', [created.id]) as { zip: { reselectable: boolean } })
+      .toMatchObject({ zip: { reselectable: true } });
 
     [...batch.querySelectorAll('button')].find((node) => node.textContent === '重新选择 ZIP')!.click();
     await settle(60);
@@ -260,18 +264,27 @@ describe('an interrupted archive can be picked again from the panel', () => {
     Object.defineProperty(zipInput, 'files', { value: [new File([bytes], 'books.zip')], configurable: true });
     zipInput.dispatchEvent(new Event('change'));
 
-    // The archive itself is verified here; extraction runs in a worker thread,
-    // which the jsdom environment cannot start, so that half is covered by the
-    // Node-environment tests (tests/import-batch-zip-peak.test.ts).
-    await waitFor(async () => {
-      const view = await invoke('shelf', 'import_batch_status', [created.id]) as { zip?: { sha256?: string; state: string } };
-      return Boolean(view.zip?.sha256);
-    }, 'archive re-verified', 30_000);
-    const after = await invoke('shelf', 'import_batch_status', [created.id]) as { id: string; zip?: { sha256?: string; state: string } };
+    // The picked file hashes to something other than the pinned claim, so the
+    // panel refuses BEFORE uploading (the server would refuse it anyway) and
+    // points at the honest escape hatch: a new batch, this record kept.
+    await waitFor(() => {
+      const error = batch.querySelector('.batch-error') as HTMLElement | null;
+      return !!error && !!error.textContent;
+    }, 'refusal surfaces', 30_000);
+    const errorText = (batch.querySelector('.batch-error') as HTMLElement).textContent!;
+    expect(/压缩包|batch/u.test(errorText)).toBe(true);
+    // The batch is unchanged: re-opened but unverified, no second batch was
+    // created, and nothing was imported under a false identity.
+    const after = await invoke('shelf', 'import_batch_status', [created.id]) as { id: string; zip?: { state: string; sha256?: string; reselectable: boolean } };
     expect(after.id).toBe(created.id);
-    expect(after.zip?.sha256).toMatch(/^[a-f0-9]{64}$/u);
-    const state = await invoke('shelf', 'get', []) as { importBatches: unknown[] };
-    // Re-uploading resumed the same batch instead of creating a second one.
+    // The re-pick re-opened the upload slot, but nothing was accepted.
+    expect(['needs_reselect', 'uploading']).toContain(after.zip?.state);
+    expect(after.zip?.sha256).toBeUndefined();
+    const state = await invoke('shelf', 'get', []) as { importBatches: Array<{ id: string; zip?: { claimedSha256?: string } }> };
     expect(state.importBatches).toHaveLength(1);
+    // The pinned claim survived every refusal: it is the standing identity
+    // constraint, visible to the panel as "reselectable".
+    expect(state.importBatches[0]?.zip?.claimedSha256).toBe('a'.repeat(64));
+    expect(after.zip?.reselectable).toBe(true);
   });
 });

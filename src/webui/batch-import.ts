@@ -8,6 +8,7 @@
  */
 import type { WebUiPanelContext } from 'cortico/web/shared/client-panel.ts';
 import type { ImportBatch, ImportBatchSummary, ImportBatchView } from './batch-types.ts';
+import { fileSha256Hex } from './sha256.ts';
 
 export interface BatchImportHandle { root: HTMLElement; dispose(): void }
 
@@ -42,10 +43,12 @@ interface State {
   reselectItemId: string | null;
   /** Set when the zip picker is being used to re-attach an interrupted archive. */
   reselectZipId: string | null;
+  /** Digest a re-attached archive must hash to, when the server pinned one. */
+  expectedZipSha256: string | null;
 }
 
 export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportHandle {
-  const state: State = { batch: null, view: null, summaries: [], busy: null, error: null, reselectItemId: null, reselectZipId: null };
+  const state: State = { batch: null, view: null, summaries: [], busy: null, error: null, reselectItemId: null, reselectZipId: null, expectedZipSha256: null };
   let disposed = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -94,6 +97,8 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
     if (!file) return;
     const pending = state.reselectZipId;
     state.reselectZipId = null;
+    // A fresh pick has no pinned digest to honour; only a re-attach does.
+    if (!pending) state.expectedZipSha256 = null;
     void (pending ? uploadZip(pending, file) : startZip(file)).catch(fail);
   });
   reselectInput.addEventListener('change', () => { const file = reselectInput.files?.[0]; if (file) void attachReselected(file).catch(fail); });
@@ -159,23 +164,35 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
   }
 
   /**
-   * The digest is only an expectation the server checks its own hash against.
-   * Whole-file hashing needs the file in memory, so it is skipped for large
-   * archives; the server still records its own digest on completion.
+   * The digest is the identity the server checks its own hash against, and it is
+   * established for EVERY archive size: small ones go through the native one-shot
+   * digest, large ones stream 1 MiB slices through the incremental hasher so a
+   * 512 MiB archive never sits in memory as a whole. A re-attached archive is
+   * additionally checked against the digest the server pinned, so a wrong pick
+   * fails before a single chunk is uploaded.
    */
   async function fileDigest(file: File): Promise<string | null> {
-    if (file.size > 64 * 1024 * 1024) return null;
-    const subtle = (globalThis.crypto as Crypto | undefined)?.subtle;
-    if (!subtle) return null;
-    try {
-      const digest = await subtle.digest('SHA-256', await file.arrayBuffer());
-      return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-    } catch { return null; }
+    if (file.size <= 64 * 1024 * 1024) {
+      const subtle = (globalThis.crypto as Crypto | undefined)?.subtle;
+      if (subtle) {
+        try {
+          const digest = await subtle.digest('SHA-256', await file.arrayBuffer());
+          return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+        } catch { /* fall through to the streaming hasher */ }
+      }
+    }
+    return fileSha256Hex(file);
   }
 
   async function uploadZip(batchId: string, file: File): Promise<void> {
-    state.busy = say('正在上传压缩包…', 'Uploading the archive…'); render();
+    state.busy = say('正在读取压缩包…', 'Reading the archive…'); render();
     const digest = await fileDigest(file);
+    const expected = state.expectedZipSha256;
+    if (digest && expected && digest !== expected) {
+      throw new Error(say('选择的不是原来的那个压缩包（内容指纹不一致）；请重新选择原始文件，或新建一个批次。',
+        'This is not the original archive (content digest differs); pick the original file again, or start a new batch.'));
+    }
+    state.busy = say('正在上传压缩包…', 'Uploading the archive…'); render();
     const info = await ctx.invoke<{ offset: number; chunkBytes: number }>('import_batch_zip_begin',
       [batchId, { name: file.name, size: file.size, ...(digest ? { sha256: digest } : {}) }]);
     for (let offset = 0; offset < file.size; offset += info.chunkBytes) {
@@ -187,7 +204,8 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
       state.busy = say(`正在上传压缩包 ${Math.round((offset + bytes.length) / file.size * 100)}%`, `Uploading archive ${Math.round((offset + bytes.length) / file.size * 100)}%`);
       render();
     }
-    const added = await ctx.invoke<{ unsupported: string[] }>('import_batch_zip_finish', [batchId]);
+    state.expectedZipSha256 = null;
+    const added = await ctx.invoke<{ unsupported: string[]; alreadyExtracted?: boolean }>('import_batch_zip_finish', [batchId]);
     state.busy = null;
     if (added.unsupported.length) state.error = say(`已跳过 ${added.unsupported.length} 个不支持的文件。`, `${added.unsupported.length} unsupported file(s) skipped.`);
     await refresh();
@@ -290,15 +308,25 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
         `Archive: ${view.zip.name} · ${saySize(view.zip.size)} · ` +
           (zipState === 'uploading' ? 'uploading' : zipState === 'needs_reselect' ? 'interrupted, pick it again' : zipState === 'ready' ? 'verified, waiting for extraction' : 'extracted')), archive);
       if (view.zip.peakBytes) el('small', say(`解压峰值占用 ${saySize(view.zip.peakBytes)}`, `Peak disk use while extracting: ${saySize(view.zip.peakBytes)}`), archive).className = 'batch-note';
+      if (zipState === 'extracted' && !view.count) {
+        el('small', say('解压完成，但未发现可导入的书籍（可能是空压缩包、只有隐藏文件或全部是不支持的格式）。此批次不会自动加入阅读计划，可以清理这条记录。',
+          'Extraction finished, but no importable books were found (empty archive, hidden files only, or all unsupported). Nothing joins the plan automatically; this record can be forgotten.'), archive).className = 'batch-note';
+      }
       if (zipState === 'needs_reselect' && view.status === 'preview') {
-        el('small', say('重新选择同一个压缩包即可继续；大小或内容不同的包会被拒绝。',
-          'Pick the same archive again to continue; a different size or content is refused.'), archive).className = 'batch-warn';
-        act(say('重新选择 ZIP', 'Choose the ZIP again'), archive, async () => {
-          await ctx.invoke('import_batch_zip_reselect', [state.batch!.id]);
-          state.reselectZipId = state.batch!.id;
-          zipInput.value = '';
-          zipInput.click();
-        });
+        if (view.zip.reselectable === false) {
+          el('small', say('此批次的中断上传没有可验证的内容指纹，无法确认重新选择的仍是同一个压缩包。请新建一个批次重新导入；本条记录保留为未完成状态，可随时清理。',
+            'This interrupted upload has no verifiable digest, so a replacement cannot be proven to be the same archive. Start a new batch; this record stays unfinished and can be forgotten.'), archive).className = 'batch-warn';
+        } else {
+          el('small', say('重新选择同一个压缩包即可继续；大小或内容不同的包会被拒绝。',
+            'Pick the same archive again to continue; a different size or content is refused.'), archive).className = 'batch-warn';
+          act(say('重新选择 ZIP', 'Choose the ZIP again'), archive, async () => {
+            const info = await ctx.invoke<{ sha256: string | null }>('import_batch_zip_reselect', [state.batch!.id]);
+            state.reselectZipId = state.batch!.id;
+            state.expectedZipSha256 = info.sha256;
+            zipInput.value = '';
+            zipInput.click();
+          });
+        }
       }
     }
 

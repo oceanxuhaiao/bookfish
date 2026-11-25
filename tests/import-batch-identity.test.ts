@@ -198,6 +198,10 @@ describe('archive uploads carry the same identity', () => {
     await expect(batches.zipFinish(batch.id)).rejects.toThrow();
     expect(lib.importBatches()[0].zip!.sha256).toBe(sha(body));
 
+    // A failed extraction recovery puts a *verified* archive back into
+    // needs_reselect (that is resume()'s failure path): a re-pick is allowed
+    // precisely because the server can prove what the original hashed to.
+    lib.updateImportBatch(batch.id, (draft) => { if (draft.zip) draft.zip.state = 'needs_reselect'; });
     const reopened = batches.zipReselect(batch.id);
     expect(reopened).toMatchObject({ batchId: batch.id, size: body.length, sha256: sha(body) });
     const impostor = Buffer.from(body);
@@ -205,9 +209,12 @@ describe('archive uploads carry the same identity', () => {
     batches.zipChunk(batch.id, 0, impostor.toString('base64'));
     await expect(batches.zipFinish(batch.id)).rejects.toThrow('same length but different content');
     expect(lib.importBatches()[0].zip!.state).toBe('needs_reselect');
+    // The pinned digest survived the refusal: clearing it would admit any
+    // same-size archive on the next attempt.
+    expect(lib.importBatches()[0].zip!.sha256).toBe(sha(body));
   });
 
-  it('reports an interrupted archive upload after a restart and can reopen the same batch', () => {
+  it('reports an interrupted archive upload after a restart and refuses an unverifiable re-pick', () => {
     const body = zipBody(64);
     const batch = batches.create({ source: 'zip' });
     batches.zipBegin(batch.id, { name: 'a.zip', size: body.length });
@@ -220,8 +227,12 @@ describe('archive uploads carry the same identity', () => {
     expect(lib.importBatches()[0].zip!.state).toBe('needs_reselect');
     expect(existsSync(partial)).toBe(false);
 
-    const reopened = batches.zipReselect(batch.id);
-    expect(reopened).toMatchObject({ batchId: batch.id, size: body.length, sha256: null });
+    // No claim and no verified digest: a replacement cannot be proven to be the
+    // same archive, so the batch must be re-imported in a NEW batch. The record
+    // itself is kept as an unfinished entry the user can forget.
+    expect(() => batches.zipReselect(batch.id)).toThrow('没有可验证的内容指纹');
+    expect(batches.status(batch.id).zip?.reselectable).toBe(false);
+    expect(lib.importBatches()[0].zip!.state).toBe('needs_reselect');
   });
 
   it('never deletes an archive that has not been extracted yet', () => {

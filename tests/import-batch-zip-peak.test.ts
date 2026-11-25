@@ -27,18 +27,28 @@ afterEach(async () => { await batches.shutdown(); try { lib.close(); } catch { /
 
 const batchDir = (id: string) => join(dir, 'transfers', 'batches', id);
 
-/** Everything the batch directory currently occupies, measured from disk. */
+/**
+ * Everything the batch directory currently occupies, measured from disk.
+ *
+ * Deliberately an INDEPENDENT recursive implementation (not the module's own
+ * helper, and not a copy of its code): the point of measuring in tests is to
+ * catch the product's counter being wrong, which a shared implementation could
+ * never do. Symlinks are not followed; directories carry no size of their own.
+ */
 function dirBytes(batchId: string): number {
   const root = batchDir(batchId);
   if (!existsSync(root)) return 0;
-  let total = 0;
-  for (const name of readdirSync(root)) {
-    const full = join(root, name);
-    const stat = lstatSync(full);
-    if (stat.isDirectory()) for (const inner of readdirSync(full)) total += statSync(join(full, inner)).size;
-    else total += stat.size;
-  }
-  return total;
+  const walk = (dir: string): number => {
+    let total = 0;
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      const stat = lstatSync(full);
+      if (stat.isDirectory()) total += walk(full);
+      else if (stat.isFile()) total += stat.size;
+    }
+    return total;
+  };
+  return walk(root);
 }
 
 async function makeZip(entries: [string, Buffer][], file: string): Promise<number> {

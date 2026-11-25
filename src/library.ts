@@ -869,6 +869,9 @@ export class Library {
       completedCount: plan.stats.completed, completedKept: completed.length,
       skippedCount: plan.stats.skipped, removedCount: plan.stats.removed,
       truncatedCount: plan.stats.truncated, archiveLimit: PLAN_ARCHIVE_LIMIT, archiveKept: plan.archive.length,
+      // True when the counters are the whole history; false means they are a
+      // verifiable lower bound of a legacy plan whose older rows are gone.
+      statsComplete: plan.statsComplete === true,
       current: items.find((item) => item.active) ?? null,
       reading,
       next: items.find((item) => !item.active && !item.complete) ?? null,

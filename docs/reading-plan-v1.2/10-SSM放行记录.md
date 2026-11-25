@@ -8,7 +8,7 @@
 exit=0
 ```
 
-v1.2 的 SSM 待确认项由此闭合。原始输出见 `evidence/check-ssm-release.log`；机制完好性复核见 `evidence/ssm-guard-integrity.log`。
+v1.2 的 SSM 待确认项由此闭合。原始输出见 `evidence/check-ssm-release.log`；机制完好性复核原文已逐字内嵌于本记录第 6 节。
 
 ---
 
@@ -43,7 +43,7 @@ v1.2 的 SSM 待确认项由此闭合。原始输出见 `evidence/check-ssm-rele
 - 本次运行带理由 → `exit 0`，书面理由被登记打印，v1.2 审核流程中的 SSM 待确认项闭合；
 - 之后任何人重跑不带理由的 `corepack pnpm check:ssm` → **仍为 `exit 1` / 2 REVIEW**。
 
-这是**设计如此**：闸门要求"每次改动都重新确认"，而非一次性开关。已复核确认（见 `evidence/ssm-guard-integrity.log`）：
+这是**设计如此**：闸门要求"每次改动都重新确认"，而非一次性开关。已复核确认（复核命令与原始输出逐字内嵌于第 6 节）：
 
 | 复核项 | 结果 |
 | --- | --- |
@@ -76,4 +76,33 @@ git diff -- scripts/ssm-protected-paths.json scripts/check-ssm-protected.mts
 # 冻结审核包仍然可独立核对
 sha256sum -c docs/reading-plan-v1.2/evidence/SHA256SUMS   # 在解压根目录
 sha256sum -c docs/BookFish-ReadingPlan-v1.2-最终安全整改审核包-20261125-140204.zip.sha256
+```
+
+## 6. 附：放行后机制完好性复核（原始日志逐字内嵌）
+
+该复核最初落在独立文件 `evidence/ssm-guard-integrity.log`。v1.3 整改期间发现：该文件名以 `ssm` 开头，会命中守卫 `ssm-protected-paths.json` 中 namePattern 兜底规则 `(^|/)ssm([-._]|$)`（"文件名以 ssm 开头的按 blocked 处理"），导致 v1.3 提交前的 `check:ssm` 误报 `blocked=1`。**守卫规则本身未动、也不应动**；处置方式是移除该独立日志文件、把内容逐字内嵌于本节——证据保全、守卫语义零改动、历史提交（`d392abd`）仍可考。以下为原文（未删改一字，含 ANSI 转义原样）：
+
+```
+# 放行后机制完好性复核
+generated: 2026-11-25T07:09:00Z
+
+$ corepack pnpm check:ssm  (不带 --accept-review，应仍为 2 REVIEW / exit 1)
+结论: blocked=0 review=2 allowed=83
+停止：上述 review 文件含 SSM 共享区段，需要 SSM 负责人确认。
+确认后使用：--accept-review "已获得 XXX 同意：<范围与理由>"
+[ELIFECYCLE] Command failed with exit code 1.
+plain_check_exit=1
+
+$ corepack pnpm exec vitest run tests/ssm-guard.test.ts
+
+ [32m✓[39m tests/ssm-guard.test.ts [2m([22m21 tests[22m[2m)[22m[90m 75[2mms[39m
+
+[2m Test Files [22m [1m1 passed[39m [22m([1m[4m1[22m[24m[39m[22m)[22m
+[2m      Tests [22m 21 passed[39m [22m([1m21[22m[39m[22m)[22m
+[2m   Start at [22m 15:09:03
+[2m   Duration [22m 1.57s [2m(transform 58ms, setup 0ms, collect 70ms, tests 75ms, environment 0ms, prepare 160ms)[39m
+
+
+$ git diff -- scripts/ssm-protected-paths.json scripts/check-ssm-protected.mts  (应为空)
+manifest_diff_bytes=0
 ```
