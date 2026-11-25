@@ -1,0 +1,71 @@
+# git info（v1.5）
+generated: 2026-11-25T11:08:00Z
+
+## branch
+feat/reading-plan-v1
+
+## HEAD at generation time（本轮代码/测试改动尚未提交）
+a2f0397000d074ec87e7522a59150842de57ac22 docs: v1.4 最终状态机与批量完整性审核包（00-10 + 29 文件快照 + 可应用补丁 + Git 信息 + SHA256SUMS + zip）
+
+本轮改动全部在工作区（未提交），随后形成两个本地提交：
+  1) feat: 批量导入未知归档安全处理与结果完整性 v1.5（源码 + 测试 + 构建产物）
+  2) docs: v1.5 未知归档安全处理与批量导入结果完整性审核包（00-10 + 24 文件快照 + 可应用补丁 + Git 信息 + SHA256SUMS + zip）
+这两个提交的哈希不写入本文件（自引用循环），可用 `git log --oneline -3` 核对。
+
+## commits on this branch since upstream base（截至本文件生成时）
+a2f0397 docs: v1.4 最终状态机与批量完整性审核包（00-10 + 29 文件快照 + 可应用补丁 + Git 信息 + SHA256SUMS + zip）
+02db1bc feat: 批量导入 ZIP 状态机与批量完整性 v1.4（解压前复核 / 失败不丢归档 / begin 不截断 / 重选两阶段 / 超限不静默）
+7f5b4da docs: v1.3 审核包修订（06 补充 check:ssm allowed 计数随提交增长说明；SHA256SUMS 与 zip 重算）
+ca1f091 docs: v1.3 资源安全与恢复审核包（00-08 + 完整快照 + 可应用补丁 + Git 信息 + SHA256SUMS + 可独立核对 zip）
+31d2668 feat: 批量导入 ZIP 资源安全与恢复 v1.3（递归预算 / 可恢复失败 / 分片重放 / 并发 / 内容身份 / 统计下界）
+d392abd docs: SSM review 放行记录（ocean 授权，按次 --accept-review；冻结审核包保持不变）
+9f25bf9 docs: v1.2 最终安全整改审核包（00-09 + evidence + 可独立核对 zip）
+9d0bc77 feat: 统一阅读计划与批量导入 v1.2 最终安全整改（内容身份 / ZIP 峰值 / 上传恢复 / 阅读状态 / 历史统计）
+5759bb4 docs: v1.1 审核包证据（原始日志 / 完整补丁 / Git 信息 / SHA256SUMS）
+524f09b docs: v1.1 整改最终审核包（00-08 + evidence 说明）
+66992da feat: 统一阅读计划与批量导入 v1.1 整改
+（更早略，上游基线为 dd4f0b9）
+
+## upstream base
+dd4f0b9cd3196529a02afc6de1d82c1ee3dcf1dc   origin/main（v0.66.7）
+
+## patch base（changes.patch 在此提交上 apply --check / apply 均通过）
+a2f0397000d074ec87e7522a59150842de57ac22
+
+见 evidence/patch-apply-check.log：
+  apply_check_exit=0
+  real_apply_exit=0
+  patch_files=24 / snapshot_files=24 / identical=5 / crlf_only=19 / real_diff=0
+
+## remotes（未 push）
+origin	https://github.com/oceanxuhaiao/bookfish.git (fetch)
+origin	https://github.com/oceanxuhaiao/bookfish.git (push)
+
+## 本轮改动规模（相对 a2f0397）
+```
+ docs/reading-plan-v1.5/**                       11 份文档（新增）
+ src/import-batch.ts                             | 175 +++++++++++++--
+ src/import-batches.ts                           | 201 ++++++++++++++---
+ src/library.ts                                  |   1 +
+ src/webui/batch-import.ts                       | 103 +++++++--
+ src/webui/batch-types.ts                        |  24 ++
+ tests/import-batch-v15-compat.test.ts           | 113 ++++++++++
+ tests/import-batch-zip-budget-integrity.test.ts | 216 ++++++++++++++++++
+ tests/import-batch-zip-count-rules.test.ts      | 247 +++++++++++++++++++++
+ tests/import-batch-zip-unknown.test.ts          | 277 ++++++++++++++++++++++++
+ tests/webui/batch-import-report.test.ts         | 245 +++++++++++++++++++++
+ tests/webui/batch-import.test.ts                |  14 +-
+ lib/webui.js                                    |  73 +++++++--
+ lib/webui-txt-builtin-bing-0651.js              |  73 +++++++--
+```
+代码 + 测试：13 files changed, 1646 insertions(+), 116 deletions(-)
+加上构建产物 2 个、文档 11 个，补丁共 24 个 file 段。
+
+## 状态口径（不使用 staged 一词）
+主工作区 `.git` 的 `core.autocrlf=true`，`git apply` 写入为 LF 检出。
+本包快照按"生成时的实际字节"保存，因此快照与应用树之间可能存在行尾差异（已在
+patch-apply-check.log 中量化：19 个文件仅行尾差异，0 个实际内容差异）。
+
+## 说明
+本文件生成时，`docs/reading-plan-v1.5/**` 与 5 个新测试文件仍为工作区未跟踪/未提交状态；
+随后由本次 docs 提交一并纳入。未 push / 未 merge / 未发布 / 未部署；未使用 git clean 或强制 reset。
