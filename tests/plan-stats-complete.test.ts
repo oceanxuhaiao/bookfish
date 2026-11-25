@@ -29,13 +29,27 @@ describe('history completeness is explicit, never implied', () => {
     expect(restored.statsComplete).toBe(false);
   });
 
-  it('a v1.2 plan (counters, no marker) is complete: it was counted from birth', () => {
+  it('a v1.2 plan whose counters were backfilled from a trimmed archive is a lower bound', () => {
+    const plan = planWith(['a', 'b']);
+    archiveItem(plan, plan.items[0].id, 'completed', NOW + 1);
+    // Exactly what v1.2 wrote for a user whose older history had already been
+    // trimmed: counters larger than the surviving archive window, no marker.
+    const backfilled = {
+      ...plan, statsComplete: undefined,
+      stats: { completed: 37, skipped: 4, removed: 2, truncated: 31 },
+    } as unknown;
+    const restored = validatePlan(backfilled, NOW);
+    // The counters survive untouched (nothing is lost or reset)…
+    expect(restored.stats.completed).toBe(37);
+    expect(restored.stats.truncated).toBe(31);
+    // …but they are not presented as the whole history.
+    expect(restored.statsComplete).toBe(false);
+  });
+
+  it('an explicit true from a v1.3+ plan stays true', () => {
     const plan = planWith(['a']);
     archiveItem(plan, plan.items[0].id, 'completed', NOW + 1);
-    // Strip only the marker, keep the counters: exactly what v1.2 wrote.
-    const v12 = { ...plan, statsComplete: undefined } as unknown;
-    const restored = validatePlan(v12, NOW);
-    expect(restored.stats.completed).toBe(1);
+    const restored = validatePlan({ ...plan, statsComplete: true } as unknown, NOW);
     expect(restored.statsComplete).toBe(true);
   });
 

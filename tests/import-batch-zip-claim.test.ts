@@ -69,10 +69,15 @@ describe('a claimed digest is an identity constraint that survives refusals', ()
     // The claim is NOT deleted: it stays pinned as the identity this batch demands.
     expect(refused.zip?.claimedSha256).toBe(wrongClaim);
 
-    // The user picks the archive the claim describes and re-uploads it.
-    expect(batches.zipReselect(batch.id)).toMatchObject({ sha256: wrongClaim });
+    // The user picks the archive the claim describes and re-uploads it. The
+    // re-pick is prepared first (nothing changes), then confirmed by begin.
+    const prepared = batches.zipReselect(batch.id);
+    expect(prepared).toMatchObject({ sha256: wrongClaim });
+    // A replacement without the prepared token is refused outright.
+    expect(() => batches.zipBegin(batch.id, { name: 'books.zip', size: good.length }))
+      .toThrow('re-picked first');
     // The re-begin may not silently drop the pinned claim either.
-    batches.zipBegin(batch.id, { name: 'books.zip', size: good.length });
+    batches.zipBegin(batch.id, { name: 'books.zip', size: good.length, token: prepared.token });
     expect(lib.importBatches()[0].zip?.claimedSha256).toBe(wrongClaim);
     // Uploading the SAME wrong archive again is still refused — deleting the
     // claim on mismatch would have let any same-size file in by now.
@@ -98,7 +103,7 @@ describe('a claimed digest is an identity constraint that survives refusals', ()
     expect(reopened).toMatchObject({ sha256: claim });
     expect(batches.status(batch.id).zip?.reselectable).toBe(true);
     // Re-upload the exact archive: accepted, verified against the claim, extracted.
-    batches.zipBegin(batch.id, { name: 'books.zip', size: good.length, sha256: claim });
+    batches.zipBegin(batch.id, { name: 'books.zip', size: good.length, sha256: claim, token: reopened.token });
     for (let offset = 0; offset < good.length; offset += 8 * KiB) {
       batches.zipChunk(batch.id, offset, good.subarray(offset, offset + 8 * KiB).toString('base64'));
     }
@@ -117,10 +122,13 @@ describe('a claimed digest is an identity constraint that survives refusals', ()
     batches.zipBegin(batch.id, { name: 'books.zip', size: good.length, sha256: claim });
     batches.zipChunk(batch.id, 0, good.subarray(0, 8 * KiB).toString('base64'));
     batches.resume();
-    batches.zipReselect(batch.id);
+    const prepared = batches.zipReselect(batch.id);
     // Same length, a DIFFERENT claimed digest: swapping identities is refused.
-    expect(() => batches.zipBegin(batch.id, { name: 'books.zip', size: good.length, sha256: sha(Buffer.from('other')) }))
-      .toThrow('already pinned a different archive digest');
-    expect(existsSync(join(batchDir(batch.id), 'source.zip'))).toBe(true);
+    expect(() => batches.zipBegin(batch.id, { name: 'books.zip', size: good.length, sha256: sha(Buffer.from('other')), token: prepared.token }))
+      .toThrow('内容指纹不一致');
+    // The rejected begin changed nothing: the claim is still pinned and the batch
+    // is still waiting for the original archive.
+    expect(lib.importBatches()[0].zip?.claimedSha256).toBe(claim);
+    expect(lib.importBatches()[0].zip?.state).toBe('needs_reselect');
   });
 });

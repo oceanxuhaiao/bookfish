@@ -127,6 +127,44 @@ describe('a refused rename never falls back to an unbudgeted copy', () => {
     expect(existsSync(join(batchDir(batch.id), 'source.zip'))).toBe(false);
     expect(dirBytes(batch.id)).toBe(treeSize);
   });
+
+  it('resume() keeps a transient failure at `ready` instead of demanding a re-upload', async () => {
+    const file = join(dir, 'books.zip');
+    await makeZip(books(), file);
+    const batch = batches.create({ source: 'zip' });
+    control.failAll = true;
+    await expect(uploadArchive(batch.id, file)).rejects.toThrow('文件系统或权限问题');
+    // The failure is recorded and classified, and the state is still `ready`:
+    // a refused rename says nothing about the archive being lost.
+    const failed = lib.importBatches()[0];
+    expect(failed.zip?.state).toBe('ready');
+    expect(failed.zip?.failure).toBe('transient');
+    expect(failed.zip?.error).toContain('文件系统或权限问题');
+    const zipBefore = statSync(join(batchDir(batch.id), 'source.zip')).size;
+
+    // A restart while the filesystem is still broken: recovery tries again, fails
+    // again, and must NOT downgrade the batch to `needs_reselect`.
+    await batches.shutdown();
+    lib.close();
+    await open();
+    // Capture the background flight so the test ends only after it settles: the
+    // recovery chain is deliberately not awaited by resume().
+    const spy = vi.spyOn(batches, 'importZip');
+    const report = batches.resume();
+    expect(report.archives).toBe(1);
+    await new Promise<void>((resolve) => {
+      const started = Date.now();
+      const poll = setInterval(() => {
+        if (spy.mock.calls.length > 0 || Date.now() - started > 10_000) { clearInterval(poll); resolve(); }
+      }, 20);
+    });
+    await Promise.all(spy.mock.results.map((row) => Promise.resolve(row.value).catch(() => undefined)));
+    const during = lib.importBatches()[0];
+    expect(['ready', 'extracted']).toContain(during.zip?.state);
+    if (during.zip?.state === 'ready') expect(during.zip?.failure).toBe('transient');
+    // The verified archive is untouched by any of this.
+    expect(statSync(join(batchDir(batch.id), 'source.zip')).size).toBe(zipBefore);
+  });
 });
 
 describe('a partial extraction failure retries within the same budget', () => {
@@ -199,23 +237,32 @@ describe('disk space is checked before extraction writes anything', () => {
     return batchId;
   };
 
-  it('refuses up front when the filesystem cannot hold the allowed ceiling', async () => {
+  it('refuses up front when the filesystem cannot hold the estimate', async () => {
     const batchId = await reopenWithDisk(() => 1024);
-    await expect(batches.zipFinish(batchId)).rejects.toThrow('Not enough disk space');
+    // v1.4 compares against the archive's own declared expansion (not the 1 GiB
+    // worst case), so the refusal states the real numbers.
+    await expect(batches.zipFinish(batchId)).rejects.toThrow('磁盘剩余');
     // Refused BEFORE writing: no temporary tree, the verified archive kept.
     expect(readdirSync(batchDir(batchId)).some((name) => name.endsWith('.extract'))).toBe(false);
     expect(existsSync(join(batchDir(batchId), 'source.zip'))).toBe(true);
     expect(lib.importBatches()[0].zip?.state).toBe('ready');
+    // The failure is recorded, and it is a disk failure — not a lost archive.
+    expect(lib.importBatches()[0].zip?.failure).toBe('disk');
   });
 
-  it('proceeds when the disk has room for the ceiling', async () => {
+  it('proceeds when the disk has room for the estimate', async () => {
     const batchId = await reopenWithDisk(() => 10 * KiB * KiB);
     await expect(batches.zipFinish(batchId)).resolves.toBeTruthy();
     expect(lib.importBatches()[0].zip?.state).toBe('extracted');
   });
 
-  it('a null measurement (unsupported platform) never blocks the import', async () => {
+  it('refuses when the free space cannot be measured instead of assuming it is safe', async () => {
     const batchId = await reopenWithDisk(() => null);
-    await expect(batches.zipFinish(batchId)).resolves.toBeTruthy();
+    await expect(batches.zipFinish(batchId)).rejects.toThrow('无法测量磁盘剩余空间');
+    // Nothing was written and the archive is still there for a later attempt.
+    expect(readdirSync(batchDir(batchId)).some((name) => name.endsWith('.extract'))).toBe(false);
+    expect(existsSync(join(batchDir(batchId), 'source.zip'))).toBe(true);
+    expect(lib.importBatches()[0].zip?.state).toBe('ready');
+    expect(lib.importBatches()[0].zip?.failure).toBe('disk');
   });
 });

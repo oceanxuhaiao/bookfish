@@ -92,8 +92,64 @@ export interface BatchZip {
   sha256?: string;
   claimedSha256?: string;
   state: 'uploading' | 'needs_reselect' | 'ready' | 'extracted';
+  /**
+   * Why the last extraction attempt did not finish. `ready` is kept for every
+   * one of these: a disk that filled up, a refused rename or a worker hiccup
+   * never means the archive itself is gone, so ZIP-level recovery stays
+   * available. Only a missing or unverifiable archive needs the user to pick the
+   * file again.
+   */
+  failure?: ZipFailure;
+  /** Human-readable reason, bounded; evidence for the user, never an input. */
+  error?: string;
   /** Measured maximum of the batch directory during extraction, in bytes. */
   peakBytes?: number;
+}
+
+export type ZipFailure =
+  /** The stored archive vanished or no longer has its declared length. */
+  | 'missing'
+  /** Bytes on disk no longer hash to the digest this batch accepted. */
+  | 'unverifiable'
+  /** The archive holds more books / bytes than one batch may take. */
+  | 'over_limit'
+  /** Free space is unknown or insufficient; nothing was written. */
+  | 'disk'
+  /** Anything else: worker fault, refused rename, permissions, cancellation. */
+  | 'transient';
+
+/** One rejection category: the count is always exact, names are display-only. */
+export interface RejectedGroup { count: number; names: string[] }
+
+/** What a batch refused to take in, kept so nothing is ever dropped silently. */
+export interface BatchRejected {
+  unsupported: RejectedGroup;
+  tooLarge: RejectedGroup;
+  overBudget: RejectedGroup;
+  duplicate: RejectedGroup;
+  /** Entries beyond the per-batch item limit. */
+  overflow: RejectedGroup;
+}
+
+/** Names kept per category; the count keeps the truth past this window. */
+export const REJECTED_NAME_LIMIT = 100;
+
+export function emptyRejected(): BatchRejected {
+  return {
+    unsupported: { count: 0, names: [] },
+    tooLarge: { count: 0, names: [] },
+    overBudget: { count: 0, names: [] },
+    duplicate: { count: 0, names: [] },
+    overflow: { count: 0, names: [] },
+  };
+}
+
+function addNames(group: RejectedGroup, names: readonly string[]): void {
+  group.count += names.length;
+  for (const name of names) {
+    if (group.names.length >= REJECTED_NAME_LIMIT) break;
+    group.names.push(name.slice(0, BATCH_NAME_LIMIT));
+  }
 }
 
 export interface ImportBatch {
@@ -108,6 +164,12 @@ export interface ImportBatch {
   /** Separated from importing: a batch never queues reading unless asked. */
   toPlan: boolean;
   items: BatchItem[];
+  /**
+   * Everything this batch refused to take in, accumulated across add requests.
+   * Without it a ZIP that hit the 100-book or 1 GiB limit would hand back a
+   * partial shelf and look like a complete success.
+   */
+  rejected?: BatchRejected;
   error?: string;
 }
 
@@ -228,6 +290,32 @@ export function addBatchItems(batch: ImportBatch, inputs: readonly BatchItemInpu
   }
   if (added.length) { batch.items.push(...added); batch.updatedAt = now; }
   return { added, duplicates, unsupported, tooLarge, overBudget, overflow };
+}
+
+/**
+ * Merge one add request's rejections into the batch's running report. The count
+ * is exact even once the name window is full, so a partial import can never be
+ * presented as a complete one.
+ */
+export function recordRejected(batch: ImportBatch, groups: {
+  unsupported?: readonly string[]; tooLarge?: readonly string[]; overBudget?: readonly string[];
+  duplicate?: readonly string[]; overflow?: number; overflowNames?: readonly string[];
+}): void {
+  const rejected = batch.rejected ?? emptyRejected();
+  if (groups.unsupported?.length) addNames(rejected.unsupported, groups.unsupported);
+  if (groups.tooLarge?.length) addNames(rejected.tooLarge, groups.tooLarge);
+  if (groups.overBudget?.length) addNames(rejected.overBudget, groups.overBudget);
+  if (groups.duplicate?.length) addNames(rejected.duplicate, groups.duplicate);
+  if (groups.overflow) {
+    rejected.overflow.count += groups.overflow;
+    for (const name of groups.overflowNames ?? []) {
+      if (rejected.overflow.names.length >= REJECTED_NAME_LIMIT) break;
+      rejected.overflow.names.push(name.slice(0, BATCH_NAME_LIMIT));
+    }
+  }
+  const used = rejected.unsupported.count + rejected.tooLarge.count + rejected.overBudget.count
+    + rejected.duplicate.count + rejected.overflow.count;
+  if (used > 0) batch.rejected = rejected;
 }
 
 export function findBatchItem(batch: ImportBatch, itemId: string): BatchItem {
@@ -486,8 +574,11 @@ export function validateBatches(raw: unknown, now = 0): ImportBatch[] {
       if (zip.sha256 !== undefined) digestOf(zip.sha256);
       if (zip.claimedSha256 !== undefined) digestOf(zip.claimedSha256);
       if (zip.peakBytes !== undefined && (!Number.isSafeInteger(zip.peakBytes) || zip.peakBytes < 0)) throw new Error('Invalid import batch archive peak');
+      if (zip.failure !== undefined && !['missing', 'unverifiable', 'over_limit', 'disk', 'transient'].includes(zip.failure)) throw new Error('Invalid import batch archive failure');
+      if (zip.error !== undefined && (typeof zip.error !== 'string' || zip.error.length > 500)) throw new Error('Invalid import batch archive error');
     }
     if (batch.error !== undefined && (typeof batch.error !== 'string' || batch.error.length > 500)) throw new Error('Invalid import batch error');
+    if (batch.rejected !== undefined) validateRejected(batch.rejected);
     const itemIds = new Set<string>();
     for (const item of batch.items) {
       if (!item || typeof item !== 'object' || typeof item.id !== 'string' || !UUID.test(item.id) || itemIds.has(item.id)) throw new Error('Invalid import item');
@@ -524,6 +615,77 @@ export function trimBatches(batches: readonly ImportBatch[], limit = BATCH_ARCHI
 /** Books a finished batch can offer to the plan, in the batch's own order. */
 export function completedBookKeys(batch: ImportBatch): string[] {
   return batch.items.filter((item) => item.status === 'completed' && item.bookKey).map((item) => item.bookKey!);
+}
+
+/**
+ * The complete outcome of a batch: what came in, what reached the shelf, and
+ * everything that was refused. A batch is finished only when the caller can see
+ * all three — "accepted items completed" alone is not a success report.
+ */
+export interface ImportBatchReport {
+  /** Entries the batch accepted. */
+  accepted: number;
+  /** Entries that actually reach the shelf. */
+  shelfAdded: number;
+  pending: number;
+  failed: number;
+  cancelled: number;
+  needsReselect: number;
+  duplicate: number;
+  unsupported: number;
+  tooLarge: number;
+  overBudget: number;
+  overflow: number;
+  /** Refused names, display-only; the counts stay exact past this window. */
+  rejectedNames: { duplicate: string[]; unsupported: string[]; tooLarge: string[]; overBudget: string[]; overflow: string[] };
+  /** True when at least one picked file never made it into the batch. */
+  incomplete: boolean;
+}
+
+export function batchReport(batch: ImportBatch): ImportBatchReport {
+  const count = (status: BatchItemStatus) => batch.items.filter((item) => item.status === status).length;
+  const rejected = batch.rejected;
+  const shelfAdded = batch.items.filter((item) => item.bookKey !== undefined).length;
+  const refusal = {
+    duplicate: rejected?.duplicate.count ?? 0,
+    unsupported: rejected?.unsupported.count ?? 0,
+    tooLarge: rejected?.tooLarge.count ?? 0,
+    overBudget: rejected?.overBudget.count ?? 0,
+    overflow: rejected?.overflow.count ?? 0,
+  };
+  return {
+    accepted: batch.items.length,
+    shelfAdded,
+    pending: count('pending') + runningCount(batch),
+    failed: count('failed'),
+    cancelled: count('cancelled'),
+    needsReselect: count('needs_reselect'),
+    ...refusal,
+    rejectedNames: {
+      duplicate: rejected?.duplicate.names ?? [],
+      unsupported: rejected?.unsupported.names ?? [],
+      tooLarge: rejected?.tooLarge.names ?? [],
+      overBudget: rejected?.overBudget.names ?? [],
+      overflow: rejected?.overflow.names ?? [],
+    },
+    incomplete: Object.values(refusal).some((value) => value > 0) || count('failed') > 0 || count('needs_reselect') > 0,
+  };
+}
+
+function validateRejected(raw: unknown): void {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid import batch rejections');
+  const value = raw as Record<string, unknown>;
+  const group = (name: string): void => {
+    const entry = value[name];
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error('Invalid import batch rejection group');
+    const row = entry as { count?: unknown; names?: unknown };
+    if (!Number.isSafeInteger(row.count) || (row.count as number) < 0) throw new Error('Invalid import batch rejection count');
+    if (!Array.isArray(row.names) || row.names.length > REJECTED_NAME_LIMIT) throw new Error('Invalid import batch rejection names');
+    for (const item of row.names) {
+      if (typeof item !== 'string' || !item || item.length > BATCH_NAME_LIMIT) throw new Error('Invalid import batch rejection name');
+    }
+  };
+  for (const name of ['unsupported', 'tooLarge', 'overBudget', 'duplicate', 'overflow']) group(name);
 }
 
 export function batchSummary(batch: ImportBatch): { id: string; source: BatchSource; status: BatchStatus; toPlan: boolean;

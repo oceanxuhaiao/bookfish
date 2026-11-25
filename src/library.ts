@@ -19,7 +19,7 @@ import { emptySelection, validateSelection, type SelectionState } from './select
 import { PLAN_ARCHIVE_LIMIT } from './reading-plan.ts';
 import { addPlanItems, archiveItem, createSeries, dropUnusedSeries, emptyPlan, findItem, markStarted, migrateLegacyQueue, movePlanItem, movePlanSeries, reconcilePlan, setItemNotBefore, setItemSeries, setPlanEnabled, suggestSeries, validatePlan, type PlanAddInput, type PlanItem, type PlanSource, type ReadingPlan } from './reading-plan.ts';
 import { PlanCoordinator, type PlanAdvanceResult, type PlanSchedulerView } from './plan-coordinator.ts';
-import { addBatchItems, trimBatches, validateBatches, type BatchAddResult, type ImportBatch, type BatchItemInput } from './import-batch.ts';
+import { addBatchItems, recordRejected, trimBatches, validateBatches, type BatchAddResult, type ImportBatch, type BatchItemInput } from './import-batch.ts';
 import { StoryStore, type StoryChange, type StoryPackInput } from './story/store.ts';
 import { validateStoryChanges } from './story/core.ts';
 import { normalizeName } from './story/core.ts';
@@ -769,13 +769,23 @@ export class Library {
       return structuredClone(draft.importBatches.find((row) => row.id === batch.id)!);
     });
   }
-  addImportBatchItems(batchId: string, inputs: readonly BatchItemInput[]): BatchAddResult {
+  addImportBatchItems(batchId: string, inputs: readonly BatchItemInput[], extra: { tooLarge?: readonly string[]; overBudget?: readonly string[] } = {}): BatchAddResult {
     this.ensureOpen();
     return this.change((draft) => {
       const batch = draft.importBatches.find((row) => row.id === batchId);
       if (!batch) throw new Error('Import batch not found');
       if (batch.status !== 'preview') throw new Error('Import batch already started');
-      return addBatchItems(batch, inputs, this.now());
+      const result = addBatchItems(batch, inputs, this.now());
+      // Everything this request refused is recorded in the same atomic write, so
+      // a partial import can never look complete after the batch is committed.
+      recordRejected(batch, {
+        unsupported: result.unsupported,
+        duplicate: result.duplicates,
+        tooLarge: [...extra.tooLarge ?? [], ...result.tooLarge],
+        overBudget: [...extra.overBudget ?? [], ...result.overBudget],
+        overflow: result.overflow,
+      });
+      return result;
     });
   }
   /**

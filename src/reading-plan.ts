@@ -213,14 +213,14 @@ export function validatePlan(raw: unknown, now: number): ReadingPlan {
   }
   for (const item of items) if (item.seriesId && !seriesIds.has(item.seriesId)) throw new Error('Reading plan item references a missing series');
   const archive = (value.archive ?? []).map(validateArchive);
-  // History completeness: a plan written before lifetime counters existed gets
-  // them backfilled from the (bounded) archive it still has, which is only a
-  // lower bound of the real total — that must be shown as "at least", never as
-  // the full history. A plan that carried the marker keeps what it said; a
-  // v1.2-era plan (counters, no marker) was counted from birth, so it is complete.
-  const statsProvided = (value as { stats?: unknown }).stats !== undefined;
+  // History completeness: only an explicit `statsComplete: true` claims the
+  // counters cover the whole history. Everything else is a lower bound —
+  // including a v1.2 plan, because v1.2 backfilled `stats` from the surviving
+  // archive window, so "stats exist" proves nothing about what was already
+  // trimmed. Doubting a genuinely complete v1.2 plan costs a softer sentence;
+  // claiming completeness for a backfilled one would be a lie.
   const marker = (value as { statsComplete?: unknown }).statsComplete;
-  const statsComplete = marker === undefined ? statsProvided : marker === true;
+  const statsComplete = marker === true;
   return {
     schema: 1,
     id: uuid(value.id, 'plan id'),

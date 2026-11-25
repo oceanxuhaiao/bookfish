@@ -53,8 +53,31 @@ export interface ImportBatchZipView {
   state: 'uploading' | 'needs_reselect' | 'ready' | 'extracted';
   sha256?: string;
   peakBytes?: number;
+  /** Why the last extraction attempt stopped; `ready` is kept for all of them. */
+  failure?: 'missing' | 'unverifiable' | 'over_limit' | 'disk' | 'transient';
+  error?: string;
   /** False when an interrupted upload cannot be proven to be the same archive. */
   reselectable: boolean;
+}
+
+/**
+ * What a batch took in, what reached the shelf, and everything it refused.
+ * A completion banner without the last part is a partial import sold as success.
+ */
+export interface ImportBatchReport {
+  accepted: number;
+  shelfAdded: number;
+  pending: number;
+  failed: number;
+  cancelled: number;
+  needsReselect: number;
+  duplicate: number;
+  unsupported: number;
+  tooLarge: number;
+  overBudget: number;
+  overflow: number;
+  rejectedNames: { duplicate: string[]; unsupported: string[]; tooLarge: string[]; overBudget: string[]; overflow: string[] };
+  incomplete: boolean;
 }
 
 export interface ImportBatchView extends ImportBatchPreview {
@@ -66,6 +89,7 @@ export interface ImportBatchView extends ImportBatchPreview {
   title: string;
   createdAt: number;
   updatedAt: number;
+  report: ImportBatchReport;
 }
 
 export interface ImportBatch { id: string; source: 'files' | 'folder' | 'zip'; status: BatchStatus; toPlan: boolean }

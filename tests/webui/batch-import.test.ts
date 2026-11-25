@@ -125,7 +125,7 @@ describe('shelf batch import panel', () => {
     attach(picker(root, 'files'), [novel('甲'), new File(['x'], '封面.jpg', { type: 'image/jpeg' })]);
     await waitFor(() => batch.textContent!.includes('开始导入'), 'mixed preview');
     expect(batch.textContent).toContain('共 1 本');
-    expect(batch.textContent).toContain('已跳过 1 个不支持的文件');
+    expect(batch.textContent).toContain('1 个文件格式不支持，未导入');
   });
 });
 
@@ -286,5 +286,54 @@ describe('an interrupted archive can be picked again from the panel', () => {
     // constraint, visible to the panel as "reselectable".
     expect(state.importBatches[0]?.zip?.claimedSha256).toBe('a'.repeat(64));
     expect(after.zip?.reselectable).toBe(true);
+  });
+
+  it('summarises what was refused instead of presenting a partial import as success', async () => {
+    const root = await mount();
+    const batch = root.querySelector('.bf-batch') as HTMLElement;
+    // Two picks with the same name: the server keeps one and files the other as a
+    // duplicate. That rejection has to be visible, not swallowed.
+    attach(picker(root, 'files'), [novel('甲'), novel('甲'), new File(['x'], '封面.jpg', { type: 'image/jpeg' })]);
+    await waitFor(() => batch.textContent!.includes('开始导入'), 'preview');
+    [...batch.querySelectorAll('button')].find((node) => node.textContent === '开始导入')!.click();
+    await waitFor(() => batch.textContent!.includes('本次结果'), 'result report');
+    const text = batch.textContent!;
+    expect(text).toContain('未进入本批');
+    expect(text).toMatch(/重复或无效 1 个/u);
+    // The client-side skip is reported too, in the same place.
+    expect(text).toContain('1 个文件格式不支持，未导入');
+    // And it says what to do about it, rather than pretending nothing is missing.
+    expect(text).toContain('可以再点一次');
+  });
+
+  it('surfaces an over-limit archive refusal and tells the user to split it', async () => {
+    const yazl = await import('yazl');
+    const zipPath = join(dir, 'too-many.zip');
+    const zip = new yazl.ZipFile();
+    for (let index = 0; index < 120; index += 1) {
+      zip.addBuffer(Buffer.from(`# 书${index}\n` + 'text. '.repeat(40)), `书${String(index).padStart(3, '0')}.txt`);
+    }
+    zip.end();
+    await new Promise<void>((resolve, reject) => {
+      const out = createWriteStream(zipPath);
+      out.on('close', () => resolve()).on('error', reject);
+      zip.outputStream.pipe(out);
+    });
+    const bytes = readFileSync(zipPath);
+
+    const root = await mount();
+    const batch = root.querySelector('.bf-batch') as HTMLElement;
+    attach(picker(root, 'zip'), [new File([bytes], 'too-many.zip')]);
+    await waitFor(() => {
+      const error = batch.querySelector('.batch-error') as HTMLElement | null;
+      return !!error && !!error.textContent;
+    }, 'over-limit refusal');
+    const errorText = (batch.querySelector('.batch-error') as HTMLElement).textContent!;
+    expect(errorText).toContain('超过单批');
+    expect(errorText).toContain('拆');
+    // Nothing was imported, and the archive record is kept for the user.
+    const status = await world.webUi!('zh').invoke!('shelf', 'import_batch_status', []) as Array<{ total: number; completed: number }>;
+    expect(status[0]?.total).toBe(0);
+    expect(status[0]?.completed).toBe(0);
   });
 });

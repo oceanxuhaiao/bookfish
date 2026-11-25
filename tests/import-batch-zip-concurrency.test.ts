@@ -3,7 +3,7 @@ import { createWriteStream, existsSync, mkdtempSync, readdirSync, readFileSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Library } from '../src/library.ts';
-import { ImportBatches } from '../src/import-batches.ts';
+import { ImportBatches, sha256File } from '../src/import-batches.ts';
 
 let dir: string, lib: Library, batches: ImportBatches, time: number;
 const now = () => time;
@@ -43,11 +43,16 @@ const books = (): [string, Buffer][] => [
   ['丙.txt', body('丙')],
 ];
 
-/** Upload the whole archive but stop before finishing (state stays `uploading`). */
+/**
+ * Upload the whole archive but stop before finishing (state stays `uploading`).
+ *
+ * Begins where the server says the upload actually is: a repeated begin is
+ * idempotent since v1.4 and must never truncate bytes that are already staged.
+ */
 function uploadOnly(batchId: string, file: string): void {
   const bytes = readFileSync(file);
-  batches.zipBegin(batchId, { name: 'books.zip', size: bytes.length });
-  for (let offset = 0; offset < bytes.length; offset += 8 * KiB) {
+  const info = batches.zipBegin(batchId, { name: 'books.zip', size: bytes.length }) as { offset?: number };
+  for (let offset = info.offset ?? 0; offset < bytes.length; offset += 8 * KiB) {
     batches.zipChunk(batchId, offset, bytes.subarray(offset, offset + 8 * KiB).toString('base64'));
   }
 }
@@ -119,15 +124,17 @@ describe('recovery extraction is serialized across batches', () => {
     const file = join(dir, 'books.zip');
     const zipSize = await makeZip(books(), file);
     const ids: string[] = [];
+    // v1.4 re-verifies the archive on every extraction, so a synthetic `ready`
+    // must carry the digest the bytes actually have — an unprovable archive is
+    // refused instead of trusted.
+    const digest = sha256File(file);
     for (let index = 0; index < 3; index += 1) {
       const batch = batches.create({ source: 'zip' });
       uploadOnly(batch.id, file);
       // A crash after a good upload: verified bytes, no extraction yet.
       lib.updateImportBatch(batch.id, (draft) => {
-        if (draft.zip) { draft.zip.state = 'ready'; draft.zip.sha256 = undefined; }
+        if (draft.zip) { draft.zip.state = 'ready'; draft.zip.sha256 = digest; }
       });
-      // resume() only trusts an archive it can verify, so hash it as if it had
-      // been accepted: give each batch the digest the file actually has.
       ids.push(batch.id);
     }
     void zipSize;

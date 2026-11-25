@@ -45,10 +45,12 @@ interface State {
   reselectZipId: string | null;
   /** Digest a re-attached archive must hash to, when the server pinned one. */
   expectedZipSha256: string | null;
+  /** One-shot proof that a reselect was prepared; required by the next begin. */
+  reselectZipToken: string | null;
 }
 
 export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportHandle {
-  const state: State = { batch: null, view: null, summaries: [], busy: null, error: null, reselectItemId: null, reselectZipId: null, expectedZipSha256: null };
+  const state: State = { batch: null, view: null, summaries: [], busy: null, error: null, reselectItemId: null, reselectZipId: null, expectedZipSha256: null, reselectZipToken: null };
   let disposed = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -96,10 +98,11 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
     const file = zipInput.files?.[0];
     if (!file) return;
     const pending = state.reselectZipId;
+    const token = state.reselectZipToken;
     state.reselectZipId = null;
     // A fresh pick has no pinned digest to honour; only a re-attach does.
-    if (!pending) state.expectedZipSha256 = null;
-    void (pending ? uploadZip(pending, file) : startZip(file)).catch(fail);
+    if (!pending) { state.expectedZipSha256 = null; state.reselectZipToken = null; }
+    void (pending ? uploadZip(pending, file, token) : startZip(file)).catch(fail);
   });
   reselectInput.addEventListener('change', () => { const file = reselectInput.files?.[0]; if (file) void attachReselected(file).catch(fail); });
 
@@ -134,8 +137,12 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
     if (!novels.length) throw new Error(say('这些文件都不是 .txt / .md / .epub / .pdf。', 'None of these files are .txt / .md / .epub / .pdf.'));
     const batch = await ctx.invoke<ImportBatch>('import_batch_create', [{ source }]);
     state.batch = batch;
-    const added = await ctx.invoke<{ added: { name: string; id: string }[]; tooLarge: string[]; overBudget: string[] }>(
-      'import_batch_add', [batch.id, novels.map((file) => ({ name: relativeName(file), size: file.size }))]);
+    // The server answers with every bucket it refused, not just the accepted
+    // ones: a folder of 120 files must never look like a clean 100-file import.
+    const added = await ctx.invoke<{
+      added: { name: string; id: string }[]; duplicates: string[]; unsupported: string[];
+      tooLarge: string[]; overBudget: string[]; overflow: number;
+    }>('import_batch_add', [batch.id, novels.map((file) => ({ name: relativeName(file), size: file.size }))]);
     const offered = new Map(added.added.map((item) => [item.name, item.id]));
     let done = 0;
     for (const file of novels) {
@@ -148,10 +155,15 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
     }
     state.busy = null;
     const notes: string[] = [];
-    if (skipped.length) notes.push(say(`已跳过 ${skipped.length} 个不支持的文件`, `${skipped.length} unsupported file(s) skipped`));
-    if (added.tooLarge.length) notes.push(say(`${added.tooLarge.length} 个文件超过 100 MiB`, `${added.tooLarge.length} file(s) over 100 MiB`));
-    if (added.overBudget.length) notes.push(say(`${added.overBudget.length} 个文件超出本批 1 GiB 预算`, `${added.overBudget.length} file(s) over the 1 GiB batch budget`));
-    if (notes.length) state.error = notes.join('；');
+    const missing = picked.length - offered.size;
+    if (skipped.length) notes.push(say(`${skipped.length} 个文件格式不支持，未导入`, `${skipped.length} file(s) are not a supported format`));
+    if (added.tooLarge.length) notes.push(say(`${added.tooLarge.length} 个文件超过单本 100 MiB，未导入`, `${added.tooLarge.length} file(s) exceed 100 MiB`));
+    if (added.overBudget.length) notes.push(say(`${added.overBudget.length} 个文件超出本批 1 GiB 预算，未导入`, `${added.overBudget.length} file(s) exceed the 1 GiB batch budget`));
+    if (added.overflow) notes.push(say(`本次只接收了前 ${added.added.length} 本，还有 ${added.overflow} 本超出单批 100 本上限`, `Only the first ${added.added.length} were accepted; ${added.overflow} more exceed the 100-book limit`));
+    if (added.duplicates.length) notes.push(say(`${added.duplicates.length} 个文件与本次已选的同名，未重复导入`, `${added.duplicates.length} file(s) duplicate a pick in this batch`));
+    if (notes.length) {
+      state.error = notes.join('；') + (missing > 0 ? say('。可以再点一次「选择多本 / 选择文件夹」导入剩余文件，已入库的书不受影响。', '. Pick again to import the rest; books already on the shelf are untouched.') : '');
+    }
     await refresh();
   }
 
@@ -184,7 +196,7 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
     return fileSha256Hex(file);
   }
 
-  async function uploadZip(batchId: string, file: File): Promise<void> {
+  async function uploadZip(batchId: string, file: File, token: string | null = null): Promise<void> {
     state.busy = say('正在读取压缩包…', 'Reading the archive…'); render();
     const digest = await fileDigest(file);
     const expected = state.expectedZipSha256;
@@ -193,9 +205,11 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
         'This is not the original archive (content digest differs); pick the original file again, or start a new batch.'));
     }
     state.busy = say('正在上传压缩包…', 'Uploading the archive…'); render();
-    const info = await ctx.invoke<{ offset: number; chunkBytes: number }>('import_batch_zip_begin',
-      [batchId, { name: file.name, size: file.size, ...(digest ? { sha256: digest } : {}) }]);
-    for (let offset = 0; offset < file.size; offset += info.chunkBytes) {
+    const info = await ctx.invoke<{ offset: number; chunkBytes: number; size: number }>('import_batch_zip_begin',
+      [batchId, { name: file.name, size: file.size, ...(digest ? { sha256: digest } : {}), ...(token ? { token } : {}) }]);
+    // A resumed begin reports where the upload actually stopped; continue from
+    // there instead of re-sending bytes the server already holds.
+    for (let offset = info.offset ?? 0; offset < file.size; offset += info.chunkBytes) {
       if (disposed || ctx.signal.aborted) throw new Error('已取消');
       const bytes = new Uint8Array(await file.slice(offset, offset + info.chunkBytes).arrayBuffer());
       let binary = '';
@@ -205,6 +219,7 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
       render();
     }
     state.expectedZipSha256 = null;
+    state.reselectZipToken = null;
     const added = await ctx.invoke<{ unsupported: string[]; alreadyExtracted?: boolean }>('import_batch_zip_finish', [batchId]);
     state.busy = null;
     if (added.unsupported.length) state.error = say(`已跳过 ${added.unsupported.length} 个不支持的文件。`, `${added.unsupported.length} unsupported file(s) skipped.`);
@@ -304,29 +319,45 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
       const zipState = view.zip.state;
       el('small', say(
         `压缩包：${view.zip.name} · ${saySize(view.zip.size)} · ` +
-          (zipState === 'uploading' ? '正在上传' : zipState === 'needs_reselect' ? '上传已中断，需要重新选择' : zipState === 'ready' ? '已校验，等待解压' : '已解压'),
+          (zipState === 'uploading' ? '正在上传' : zipState === 'needs_reselect' ? '上传已中断，需要重新选择' : zipState === 'ready' ? (view.zip.failure ? '已校验，上次解压未完成' : '已校验，等待解压') : '已解压'),
         `Archive: ${view.zip.name} · ${saySize(view.zip.size)} · ` +
-          (zipState === 'uploading' ? 'uploading' : zipState === 'needs_reselect' ? 'interrupted, pick it again' : zipState === 'ready' ? 'verified, waiting for extraction' : 'extracted')), archive);
+          (zipState === 'uploading' ? 'uploading' : zipState === 'needs_reselect' ? 'interrupted, pick it again' : zipState === 'ready' ? (view.zip.failure ? 'verified, last extraction did not finish' : 'verified, waiting for extraction') : 'extracted')), archive);
       if (view.zip.peakBytes) el('small', say(`解压峰值占用 ${saySize(view.zip.peakBytes)}`, `Peak disk use while extracting: ${saySize(view.zip.peakBytes)}`), archive).className = 'batch-note';
       if (zipState === 'extracted' && !view.count) {
         el('small', say('解压完成，但未发现可导入的书籍（可能是空压缩包、只有隐藏文件或全部是不支持的格式）。此批次不会自动加入阅读计划，可以清理这条记录。',
           'Extraction finished, but no importable books were found (empty archive, hidden files only, or all unsupported). Nothing joins the plan automatically; this record can be forgotten.'), archive).className = 'batch-note';
       }
-      if (zipState === 'needs_reselect' && view.status === 'preview') {
-        if (view.zip.reselectable === false) {
-          el('small', say('此批次的中断上传没有可验证的内容指纹，无法确认重新选择的仍是同一个压缩包。请新建一个批次重新导入；本条记录保留为未完成状态，可随时清理。',
-            'This interrupted upload has no verifiable digest, so a replacement cannot be proven to be the same archive. Start a new batch; this record stays unfinished and can be forgotten.'), archive).className = 'batch-warn';
-        } else {
-          el('small', say('重新选择同一个压缩包即可继续；大小或内容不同的包会被拒绝。',
-            'Pick the same archive again to continue; a different size or content is refused.'), archive).className = 'batch-warn';
-          act(say('重新选择 ZIP', 'Choose the ZIP again'), archive, async () => {
-            const info = await ctx.invoke<{ sha256: string | null }>('import_batch_zip_reselect', [state.batch!.id]);
-            state.reselectZipId = state.batch!.id;
-            state.expectedZipSha256 = info.sha256;
-            zipInput.value = '';
-            zipInput.click();
+      // The archive kept its bytes: a disk/worker/rename failure is retried from
+      // the same file, never by asking for a fresh upload.
+      if (view.zip.error) {
+        el('small', view.zip.error, archive).className = 'batch-warn';
+        if (zipState === 'ready' && (view.zip.failure === 'transient' || view.zip.failure === 'disk')) {
+          act(say('重试解压', 'Retry extraction'), archive, async () => {
+            await ctx.invoke('import_batch_zip_finish', [state.batch!.id]);
+            await refresh();
           });
         }
+        if (view.zip.failure === 'over_limit') {
+          el('small', say('压缩包已保留。请把这次要导入的书拆成多个批次分别导入；已入库的书不受影响。',
+            'The archive is kept. Split it into several batches; books already on the shelf are unaffected.'), archive).className = 'batch-note';
+        }
+      }
+      if (view.zip.reselectable && (zipState === 'needs_reselect' || zipState === 'ready') && view.status === 'preview') {
+        el('small', say('重新选择原来的那个压缩包即可继续；大小或内容不一致的包会被拒绝。',
+          'Pick the original archive again to continue; a different size or content is refused.'), archive).className = 'batch-warn';
+        act(say('重新选择 ZIP', 'Choose the ZIP again'), archive, async () => {
+          // Prepare only: the server changes nothing here, so cancelling the file
+          // dialog leaves the batch exactly as it was and this button still works.
+          const info = await ctx.invoke<{ sha256: string | null; token: string }>('import_batch_zip_reselect', [state.batch!.id]);
+          state.reselectZipId = state.batch!.id;
+          state.expectedZipSha256 = info.sha256;
+          state.reselectZipToken = info.token;
+          zipInput.value = '';
+          zipInput.click();
+        });
+      } else if (zipState === 'needs_reselect' && view.status === 'preview' && !view.zip.reselectable) {
+        el('small', say('此批次的中断上传没有可验证的内容指纹，无法确认重新选择的仍是同一个压缩包。请新建一个批次重新导入；本条记录保留为未完成状态，可随时清理。',
+          'This interrupted upload has no verifiable digest, so a replacement cannot be proven to be the same archive. Start a new batch; this record stays unfinished and can be forgotten.'), archive).className = 'batch-warn';
       }
     }
 
@@ -373,6 +404,42 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
           reselectInput.value = '';
           reselectInput.click();
         });
+      }
+    }
+
+    // The outcome, in full. "Everything that was accepted is done" is not a
+    // success report — the refused files have to be visible here or they are
+    // silently lost from the user's point of view.
+    const report = view.report;
+    const refused = report.duplicate + report.unsupported + report.tooLarge + report.overBudget + report.overflow;
+    if (view.status !== 'preview' && (report.accepted || refused)) {
+      const box = el('div', '', body); box.className = 'batch-report';
+      el('small', say(
+        `本次结果：进批 ${report.accepted} 本 · 已入库 ${report.shelfAdded} 本` +
+          (report.pending ? ` · 等待 ${report.pending}` : '') +
+          (report.failed ? ` · 失败 ${report.failed}` : '') +
+          (report.cancelled ? ` · 已取消 ${report.cancelled}` : '') +
+          (report.needsReselect ? ` · 待重新选择 ${report.needsReselect}` : ''),
+        `Result: ${report.accepted} accepted · ${report.shelfAdded} on the shelf` +
+          (report.pending ? ` · ${report.pending} waiting` : '') +
+          (report.failed ? ` · ${report.failed} failed` : '') +
+          (report.cancelled ? ` · ${report.cancelled} cancelled` : '') +
+          (report.needsReselect ? ` · ${report.needsReselect} need the file again` : '')), box).className = 'batch-report-main';
+      const lines: string[] = [];
+      const add = (label: [string, string], count: number, names: string[]): void => {
+        if (!count) return;
+        const shown = names.slice(0, 3).join('、');
+        lines.push(say(`${label[0]} ${count} 个`, `${count} ${label[1]}`) + (shown ? `（${shown}${count > names.slice(0, 3).length ? '…' : ''}）` : ''));
+      };
+      add(['重复或无效', 'duplicate/invalid'], report.duplicate, report.rejectedNames.duplicate);
+      add(['格式不支持', 'unsupported'], report.unsupported, report.rejectedNames.unsupported);
+      add(['超过单本 100 MiB', 'over 100 MiB'], report.tooLarge, report.rejectedNames.tooLarge);
+      add(['超出本批 1 GiB 预算', 'over the 1 GiB budget'], report.overBudget, report.rejectedNames.overBudget);
+      add(['超出单批 100 本上限', 'over the 100-book limit'], report.overflow, report.rejectedNames.overflow);
+      if (lines.length) {
+        el('small', say('未进入本批：', 'Not imported: ') + lines.join('；'), box).className = 'batch-warn';
+        el('small', say('这些文件仍在你的磁盘上，没有进入阅读计划；需要的话可以再选一次，只导入没进来的部分。',
+          'These files are still on your disk and did not join the plan; pick them again to import just those.'), box).className = 'batch-note';
       }
     }
 

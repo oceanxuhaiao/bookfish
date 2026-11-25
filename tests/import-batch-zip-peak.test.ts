@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createWriteStream, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 import { Library } from '../src/library.ts';
 import { ImportBatches } from '../src/import-batches.ts';
 
@@ -151,7 +152,14 @@ describe('the archive path keeps a real, measured disk ceiling', () => {
     batches.zipBegin(batch.id, { name: 'books.zip', size: zipSize });
     batches.zipChunk(batch.id, 0, bytes.toString('base64'));
     // Stop before extraction: the batch looks like a crash after a good upload.
-    lib.updateImportBatch(batch.id, (draft) => { if (draft.zip) draft.zip.state = 'ready'; });
+    // v1.4 re-verifies on every extraction, so the recovered archive must carry
+    // the server digest of the bytes that are actually on disk.
+    lib.updateImportBatch(batch.id, (draft) => {
+      if (draft.zip) {
+        draft.zip.state = 'ready';
+        draft.zip.sha256 = createHash('sha256').update(bytes).digest('hex');
+      }
+    });
     await batches.shutdown();
     lib.close();
 

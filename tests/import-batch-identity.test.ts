@@ -204,10 +204,14 @@ describe('archive uploads carry the same identity', () => {
     lib.updateImportBatch(batch.id, (draft) => { if (draft.zip) draft.zip.state = 'needs_reselect'; });
     const reopened = batches.zipReselect(batch.id);
     expect(reopened).toMatchObject({ batchId: batch.id, size: body.length, sha256: sha(body) });
+    // A re-pick is prepared first and confirmed by begin with its one-shot token.
+    batches.zipBegin(batch.id, { name: 'a.zip', size: body.length, sha256: sha(body), token: reopened.token });
     const impostor = Buffer.from(body);
     impostor[impostor.length - 1] = 0;
     batches.zipChunk(batch.id, 0, impostor.toString('base64'));
-    await expect(batches.zipFinish(batch.id)).rejects.toThrow('same length but different content');
+    // The impostor is refused by the pinned claim (checked before length-only
+    // comparison ever gets a say).
+    await expect(batches.zipFinish(batch.id)).rejects.toThrow('content digest differs');
     expect(lib.importBatches()[0].zip!.state).toBe('needs_reselect');
     // The pinned digest survived the refusal: clearing it would admit any
     // same-size archive on the next attempt.

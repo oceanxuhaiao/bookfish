@@ -119,7 +119,8 @@ describe('a batch can never stage more than its budget', () => {
     for (let offset = 0; offset < bytes.length; offset += 64 * 1024) {
       small.zipChunk(batch.id, offset, bytes.subarray(offset, offset + 64 * 1024).toString('base64'));
     }
-    await expect(small.zipFinish(batch.id)).rejects.toThrow(/限制|GiB|过大|数量/u);
+    // v1.4 refuses from the archive's own declared expansion, before writing.
+    await expect(small.zipFinish(batch.id)).rejects.toThrow(/超过本批可用|限制|GiB|过大/u);
     await small.shutdown();
   });
 
