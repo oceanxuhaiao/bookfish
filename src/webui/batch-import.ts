@@ -12,7 +12,6 @@ import { fileSha256Hex } from './sha256.ts';
 
 export interface BatchImportHandle { root: HTMLElement; dispose(): void }
 
-const NOVEL = /\.(txt|md|epub|pdf)$/iu;
 const ZIP = /\.zip$/iu;
 
 type Say = (zh: string, english: string) => string;
@@ -63,7 +62,38 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
     node.addEventListener('click', () => { void run().catch(fail); });
     parent.append(node); return node;
   };
-  function fail(error: unknown): void { state.busy = null; state.error = String((error as Error).message ?? error); render(); }
+
+  /**
+   * Surface a failure AND re-read what the server actually persisted.
+   *
+   * A first ZIP upload can fail after the batch record already exists: the
+   * archive entry is durable, the panel's `view` is still null, and the history
+   * list was fetched before the batch was created. Without this refresh the user
+   * sees an error with no batch to act on and has to close and reopen the panel —
+   * exactly the dead end this recovery exists to remove.
+   */
+  function fail(error: unknown): void {
+    const original = String((error as Error)?.message ?? error);
+    const hadBatch = state.batch !== null;
+    state.busy = null;
+    state.error = original;
+    render();
+    // Re-read only when a record can exist; a failed create() has nothing to show.
+    if (!hadBatch) return;
+    void (async () => {
+      try {
+        if (state.batch?.id) {
+          state.view = await ctx.invoke<ImportBatchView>('import_batch_status', [state.batch.id]);
+          state.batch = { ...state.batch, status: state.view.status };
+        }
+        state.summaries = await ctx.invoke<ImportBatchSummary[]>('import_batch_status', []);
+      } catch (refreshError) {
+        // Never overwrite the original reason: the user needs both to decide.
+        state.error = `${original}\n（刷新批次状态失败：${String((refreshError as Error)?.message ?? refreshError)}）`;
+      }
+      render();
+    })();
+  }
 
   el('h3', say('批量导入', 'Batch import'));
   el('p', say('可以一次选多本，也可以选整个文件夹或一个 ZIP。先看清单再决定导入，导入完再决定要不要加进阅读计划。',
@@ -132,20 +162,19 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
     if (!list?.length) return;
     state.error = null; state.busy = say('正在准备清单…', 'Preparing the list…'); render();
     const picked = [...list];
-    const novels = picked.filter((file) => NOVEL.test(file.name));
-    const skipped = picked.filter((file) => !NOVEL.test(file.name)).map(relativeName);
-    if (!novels.length) throw new Error(say('这些文件都不是 .txt / .md / .epub / .pdf。', 'None of these files are .txt / .md / .epub / .pdf.'));
+    // The whole pick goes to the server. Filtering here (v1.4 did) left the
+    // unsupported files with a single transient sentence and no record at all:
+    // after closing the panel the rejection had never happened. The server now
+    // classifies every file, and its verdict is persisted with the batch.
     const batch = await ctx.invoke<ImportBatch>('import_batch_create', [{ source }]);
     state.batch = batch;
-    // The server answers with every bucket it refused, not just the accepted
-    // ones: a folder of 120 files must never look like a clean 100-file import.
     const added = await ctx.invoke<{
       added: { name: string; id: string }[]; duplicates: string[]; unsupported: string[];
       tooLarge: string[]; overBudget: string[]; overflow: number;
-    }>('import_batch_add', [batch.id, novels.map((file) => ({ name: relativeName(file), size: file.size }))]);
+    }>('import_batch_add', [batch.id, picked.map((file) => ({ name: relativeName(file), size: file.size }))]);
     const offered = new Map(added.added.map((item) => [item.name, item.id]));
     let done = 0;
-    for (const file of novels) {
+    for (const file of picked) {
       const itemId = offered.get(relativeName(file));
       if (!itemId) continue;
       state.busy = say(`正在上传 ${done + 1}/${offered.size}…`, `Uploading ${done + 1}/${offered.size}…`);
@@ -154,15 +183,14 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
       done += 1;
     }
     state.busy = null;
-    const notes: string[] = [];
-    const missing = picked.length - offered.size;
-    if (skipped.length) notes.push(say(`${skipped.length} 个文件格式不支持，未导入`, `${skipped.length} file(s) are not a supported format`));
-    if (added.tooLarge.length) notes.push(say(`${added.tooLarge.length} 个文件超过单本 100 MiB，未导入`, `${added.tooLarge.length} file(s) exceed 100 MiB`));
-    if (added.overBudget.length) notes.push(say(`${added.overBudget.length} 个文件超出本批 1 GiB 预算，未导入`, `${added.overBudget.length} file(s) exceed the 1 GiB batch budget`));
-    if (added.overflow) notes.push(say(`本次只接收了前 ${added.added.length} 本，还有 ${added.overflow} 本超出单批 100 本上限`, `Only the first ${added.added.length} were accepted; ${added.overflow} more exceed the 100-book limit`));
-    if (added.duplicates.length) notes.push(say(`${added.duplicates.length} 个文件与本次已选的同名，未重复导入`, `${added.duplicates.length} file(s) duplicate a pick in this batch`));
-    if (notes.length) {
-      state.error = notes.join('；') + (missing > 0 ? say('。可以再点一次「选择多本 / 选择文件夹」导入剩余文件，已入库的书不受影响。', '. Pick again to import the rest; books already on the shelf are untouched.') : '');
+    // The per-category report is what carries the refusals from here on; this
+    // line only flags that something needs the user's attention.
+    const refused = added.duplicates.length + added.unsupported.length + added.tooLarge.length
+      + added.overBudget.length + added.overflow;
+    if (refused) {
+      state.error = say(
+        `本次有 ${refused} 个文件没有进入导入（${added.added.length} 个已接收），原因与文件名单见下方结果。`,
+        `${refused} file(s) did not enter this import (${added.added.length} accepted); see the result below for reasons and names.`);
     }
     await refresh();
   }
@@ -407,12 +435,16 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
       }
     }
 
-    // The outcome, in full. "Everything that was accepted is done" is not a
-    // success report — the refused files have to be visible here or they are
-    // silently lost from the user's point of view.
+    // The outcome, in full — in EVERY batch state, including `preview`.
+    // Refusals happen while the list is still a preview (an unsupported file in
+    // the folder, 101 picks, a ZIP refused for holding too many books), and the
+    // v1.4 condition `status !== 'preview'` hid exactly those. Since a restart
+    // also drops the transient `error` text, the persisted report is the only
+    // place the user could ever have seen them.
     const report = view.report;
-    const refused = report.duplicate + report.unsupported + report.tooLarge + report.overBudget + report.overflow;
-    if (view.status !== 'preview' && (report.accepted || refused)) {
+    const refused = report.duplicate + report.unsupported + report.tooLarge + report.overBudget + report.overflow
+      + (report.archiveRejected ? 1 : 0);
+    if (report.accepted || refused || report.failed || report.cancelled || report.needsReselect) {
       const box = el('div', '', body); box.className = 'batch-report';
       el('small', say(
         `本次结果：进批 ${report.accepted} 本 · 已入库 ${report.shelfAdded} 本` +
@@ -436,6 +468,31 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
       add(['超过单本 100 MiB', 'over 100 MiB'], report.tooLarge, report.rejectedNames.tooLarge);
       add(['超出本批 1 GiB 预算', 'over the 1 GiB budget'], report.overBudget, report.rejectedNames.overBudget);
       add(['超出单批 100 本上限', 'over the 100-book limit'], report.overflow, report.rejectedNames.overflow);
+      // The whole-archive refusal has its own block: it is not one file among
+      // many, it is the entire package, and it distinguishes measured figures
+      // from the archive's own claims.
+      const archive = report.archiveRejected;
+      if (archive) {
+        const claimed = archive.measured
+          ? say(`解压后实测 ${archive.books ?? '未知'} 本 / ${archive.totalBytes ?? '未知'} 字节`,
+            `${archive.books ?? 'unknown'} books / ${archive.totalBytes ?? 'unknown'} bytes measured after extraction`)
+          : say(`压缩包声明 ${archive.books ?? '未知'} 本 / ${archive.totalBytes ?? '未知'} 字节`,
+            `${archive.books ?? 'unknown'} books / ${archive.totalBytes ?? 'unknown'} bytes claimed by the archive`);
+        const budget = archive.budgetBytes === null ? '' : say(`；本批可用 ${archive.budgetBytes} 字节`, `; this batch had ${archive.budgetBytes} bytes`);
+        el('small', say(
+          `整包未导入：${archive.reason}`,
+          `The whole archive was refused: ${archive.reason}`), box).className = 'batch-warn';
+        el('small', `${claimed}${budget}`, box).className = 'batch-note';
+        el('small', say(
+          `没有发生部分导入（进批 ${archive.accepted} 本）；原始压缩包${archive.archiveKept ? '已保留' : '未保留'}。`,
+          `Nothing was partially imported (${archive.accepted} accepted); the archive was ${archive.archiveKept ? 'kept' : 'not kept'}.`), box).className = 'batch-note';
+        if (archive.names.length) {
+          const shown = archive.names.slice(0, 5).join('、');
+          el('small', say(`涉及书目：${shown}${archive.names.length > 5 ? '…' : ''}`,
+            `Books involved: ${shown}${archive.names.length > 5 ? '…' : ''}`), box).className = 'batch-note';
+        }
+        el('small', say(`下一步：${archive.nextStep}`, `Next: ${archive.nextStep}`), box).className = 'batch-note';
+      }
       if (lines.length) {
         el('small', say('未进入本批：', 'Not imported: ') + lines.join('；'), box).className = 'batch-warn';
         el('small', say('这些文件仍在你的磁盘上，没有进入阅读计划；需要的话可以再选一次，只导入没进来的部分。',

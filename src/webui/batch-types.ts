@@ -56,8 +56,31 @@ export interface ImportBatchZipView {
   /** Why the last extraction attempt stopped; `ready` is kept for all of them. */
   failure?: 'missing' | 'unverifiable' | 'over_limit' | 'disk' | 'transient';
   error?: string;
+  /** Structured whole-archive refusal; present whenever the package was refused. */
+  rejection?: ImportBatchZipRejection;
   /** False when an interrupted upload cannot be proven to be the same archive. */
   reselectable: boolean;
+}
+
+/**
+ * A whole-archive refusal, persisted with the batch so it survives a restart and
+ * a closed panel. `null` figures are "not measured", never zero.
+ */
+export interface ImportBatchZipRejection {
+  kind: 'count' | 'bytes' | 'entry' | 'disk' | 'plan';
+  reason: string;
+  /** True when the figures come from a real extraction, not the archive index. */
+  measured: boolean;
+  totalBytes: number | null;
+  budgetBytes: number | null;
+  books: number | null;
+  limit: number;
+  /** Books accepted before the refusal (0 unless a retry re-extracted). */
+  accepted: number;
+  partiallyStaged: false;
+  archiveKept: true;
+  names: string[];
+  nextStep: string;
 }
 
 /**
@@ -78,6 +101,7 @@ export interface ImportBatchReport {
   overflow: number;
   rejectedNames: { duplicate: string[]; unsupported: string[]; tooLarge: string[]; overBudget: string[]; overflow: string[] };
   incomplete: boolean;
+  archiveRejected: ImportBatchZipRejection | null;
 }
 
 export interface ImportBatchView extends ImportBatchPreview {

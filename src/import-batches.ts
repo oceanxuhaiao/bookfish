@@ -15,11 +15,11 @@ import { detectImportMetadata } from './import-metadata.ts';
 import { MAX_BOOK_BYTES } from './books.ts';
 import { extractRuntimeZip } from './novel-runtime/archive.ts';
 import {
-  BATCH_ITEM_LIMIT, BATCH_STAGING_BYTES, BATCH_STAGING_EXT, MAX_BATCH_FILE_BYTES, batchDeclaredBytes,
-  batchReport, batchStagingName, batchSummary, beginBatch, cancelBatch, digestOf,
-  cancelItem, completedBookKeys, dispatchable, findBatchItem, markInBatchDuplicates, newBatch,
+  BATCH_ITEM_LIMIT, BATCH_STAGING_BYTES, BATCH_STAGING_EXT, MAX_BATCH_FILE_BYTES, REJECTED_NAME_LIMIT,
+  batchDeclaredBytes, batchReport, batchStagingName, batchSummary, beginBatch, cancelBatch, classifyInputs, digestOf,
+  cancelItem, completedBookKeys, dispatchable, findBatchItem, markInBatchDuplicates, newBatch, pathKeyOf,
   previewBatch, reconcileBatch, recordRejected, retryItem, runningCount, setItemStatus, ZIP_MAX_BYTES,
-  type BatchAddResult, type BatchItem, type BatchSource, type BatchZip, type ImportBatch,
+  type BatchAddResult, type BatchItem, type BatchSource, type BatchZip, type ImportBatch, type ZipRejection, type ZipRejectionKind,
 } from './import-batch.ts';
 import type { Library } from './library.ts';
 
@@ -35,6 +35,8 @@ interface Active { batchId: string; job: ImportJob; timer?: ReturnType<typeof se
 /** Archive metadata as the panel sees it. */
 export interface BatchZipView { name: string; size: number; state: BatchZip['state']; sha256?: string; peakBytes?: number;
   failure?: BatchZip['failure']; error?: string;
+  /** Structured whole-archive refusal, when the package was refused. */
+  rejection?: ZipRejection;
   /** False when a re-pick cannot be proven to be the same archive (new batch required). */
   reselectable: boolean }
 
@@ -78,6 +80,9 @@ export interface ZipPlan {
   supported: number;
   supportedNames: string[];
   unsupported: number;
+  /** Supported entries bigger than one book may be; they can never be staged. */
+  oversize: number;
+  oversizeNames: string[];
   totalUncompressed: number;
   largestEntry: number;
 }
@@ -95,7 +100,7 @@ const ZIP_PLAN_MAX_ENTRIES = 20_000;
  * a central directory larger than the cap, or any malformed offset. Callers must
  * then use the worst case — "unknown" never means "small".
  */
-export function readZipPlan(zipPath: string): ZipPlan | null {
+export function readZipPlan(zipPath: string, fileBytes: number = MAX_BATCH_FILE_BYTES): ZipPlan | null {
   let size: number;
   try { size = statSync(zipPath).size; } catch { return null; }
   if (size < 22) return null;
@@ -121,7 +126,8 @@ export function readZipPlan(zipPath: string): ZipPlan | null {
   let cd: Buffer;
   try { cd = readRange(zipPath, cdOffset, cdSize); } catch { return null; }
   if (cd.length !== cdSize) return null;
-  let plan: ZipPlan = { entries: 0, supported: 0, supportedNames: [], unsupported: 0, totalUncompressed: 0, largestEntry: 0 };
+  let plan: ZipPlan = { entries: 0, supported: 0, supportedNames: [], unsupported: 0, oversize: 0, oversizeNames: [],
+    totalUncompressed: 0, largestEntry: 0 };
   let at = 0;
   for (let index = 0; index < entryCount; index += 1) {
     if (at + 46 > cd.length || cd.readUInt32LE(at) !== 0x02014b50) return null;
@@ -140,8 +146,19 @@ export function readZipPlan(zipPath: string): ZipPlan | null {
     // "over the limit" would refuse archives that are well within it.
     const hidden = name.split('/').some((part) => part.startsWith('.'));
     if (name.endsWith('/') || hidden || !isSupportedName(name)) { plan.unsupported += 1; continue; }
+    // Counted as a book for the limit even when it is over the per-book ceiling:
+    // the extraction worker refuses such an archive outright, so treating it as
+    // "not a book" would let an oversized package slip past this check.
     plan.supported += 1;
     if (plan.supportedNames.length < 400) plan.supportedNames.push(name);
+    // The ceiling is the caller's real per-book budget, not a compiled-in
+    // constant: the index precheck has to refuse exactly what the extraction
+    // worker would refuse, or an entry between the two numbers slips through
+    // the precheck and aborts the whole extraction instead.
+    if (uncompressed > fileBytes) {
+      plan.oversize += 1;
+      if (plan.oversizeNames.length < 400) plan.oversizeNames.push(name);
+    }
   }
   return plan;
 }
@@ -151,7 +168,10 @@ const isSupportedName = (name: string): boolean => /\.(txt|md|epub|pdf)$/iu.test
 /** Map a worker/filesystem fault onto the recovery it actually allows. */
 function classifyExtractionError(error: unknown): NonNullable<BatchZip['failure']> {
   const code = (error as { code?: unknown } | undefined)?.code;
-  if (code === 'zip_too_large' || code === 'too_many_entries' || code === 'entry_too_large') return 'over_limit';
+  // The worker's real codes are `zip_too_many_entries` / `zip_entry_too_large`
+  // (v1.4 only matched invented short names, so a bomb count was misreported as
+  // a transient fault and retried forever).
+  if (typeof code === 'string' && /^(zip_too_large|zip_too_many_entries|zip_entry_too_large)$/u.test(code)) return 'over_limit';
   const message = String((error as Error | undefined)?.message ?? error);
   if (/ENOSPC|no space left/iu.test(message)) return 'disk';
   return 'transient';
@@ -228,7 +248,7 @@ export interface ImportBatchesOptions { now?: () => number; budget?: Partial<Bat
 export type ZipExtractResult = BatchAddResult & { alreadyExtracted?: boolean };
 
 function emptyAddResult(): BatchAddResult {
-  return { added: [], duplicates: [], unsupported: [], tooLarge: [], overBudget: [], overflow: 0 };
+  return { added: [], duplicates: [], unsupported: [], tooLarge: [], overBudget: [], overflow: 0, overflowNames: [] };
 }
 
 export interface BatchItemView { id: string; name: string; title: string; author: string; size: number;
@@ -321,6 +341,7 @@ export class ImportBatches {
       ...(batch.zip.peakBytes !== undefined ? { peakBytes: batch.zip.peakBytes } : {}),
       ...(batch.zip.failure ? { failure: batch.zip.failure } : {}),
       ...(batch.zip.error ? { error: batch.zip.error } : {}),
+      ...(batch.zip.rejection ? { rejection: batch.zip.rejection } : {}),
     } : undefined;
     return { ...batchSummary(batch), ...preview, ...(zip ? { zip } : {}), report: batchReport(batch) };
   }
@@ -566,27 +587,42 @@ export class ImportBatches {
     }
     // The archive's own index decides the precheck: how many books it holds and
     // how much it will expand to. Unreadable or ZIP64 indexes fall back to the
-    // worst case — "unknown" is never treated as "small".
-    const plan = readZipPlan(zipPath);
-    const estimate = plan ? plan.totalUncompressed : ceiling;
-    const incoming = this.require(batchId).items.length;
-    const books = plan ? Math.max(incoming, plan.supported) : incoming;
-    if (books > BATCH_ITEM_LIMIT) {
-      const overflow = Math.max(0, books - BATCH_ITEM_LIMIT);
-      const excess = plan ? plan.supportedNames.slice(BATCH_ITEM_LIMIT) : [];
-      this.library.updateImportBatch(batchId, (draft) => {
-        recordRejected(draft, { overflow, overflowNames: excess });
-      });
-      throw this.fail(batchId, 'over_limit',
-        `压缩包里有 ${books} 本可导入的书，超过单批 ${BATCH_ITEM_LIMIT} 本的上限；已保留压缩包，请拆成多个批次导入（超出的 ${overflow} 本不会静默丢弃）。`);
-    }
-    if (estimate > ceiling) {
-      throw this.fail(batchId, 'over_limit',
-        `解压后约 ${estimate} 字节，超过本批可用 ${ceiling} 字节；已保留压缩包，请拆分后重新导入。`);
+    // worst case — "unknown" is never treated as "small" — and the extracted
+    // content is then checked for real before a single entry is accepted.
+    const plan = readZipPlan(zipPath, this.budget.fileBytes);
+    const dir = this.batchDir(batchId);
+    const acceptedBefore = this.require(batchId).items.length;
+    if (plan) {
+      // An entry bigger than one book may be makes the worker abort the WHOLE
+      // extraction, so the package is refused here with the names instead of
+      // discovering it halfway through.
+      if (plan.supported > BATCH_ITEM_LIMIT) {
+        const overflow = plan.supported - BATCH_ITEM_LIMIT;
+        throw this.refuseArchive(batchId, 'over_limit', 'count',
+          `压缩包里有 ${plan.supported} 本可导入的书，超过单批 ${BATCH_ITEM_LIMIT} 本的上限；已保留压缩包，请拆成多个批次导入（超出的 ${overflow} 本不会静默丢弃）。`,
+          { measured: false, totalBytes: plan.totalUncompressed, budgetBytes: ceiling, books: plan.supported,
+            accepted: acceptedBefore, names: plan.supportedNames.slice(BATCH_ITEM_LIMIT),
+            overflow, nextStep: '把压缩包拆成每包不超过 100 本，再分别导入；已入库的书和阅读进度不受影响。' });
+      }
+      if (plan.oversize) {
+        throw this.refuseArchive(batchId, 'over_limit', 'entry',
+          `压缩包里有 ${plan.oversize} 本超过单本 100 MiB 的文件（${plan.oversizeNames.slice(0, 3).join('、')}${plan.oversize > 3 ? '…' : ''}）；单个文件超过上限时无法安全解压整包，已保留压缩包。`,
+          { measured: false, totalBytes: plan.totalUncompressed, budgetBytes: ceiling, books: plan.supported,
+            accepted: acceptedBefore, names: plan.oversizeNames,
+            nextStep: '把超过 100 MiB 的单本从压缩包里移出（或拆分），再导入其余书目。' });
+      }
+      if (plan.totalUncompressed > ceiling) {
+        throw this.refuseArchive(batchId, 'over_limit', 'bytes',
+          `解压后约 ${plan.totalUncompressed} 字节，超过本批可用 ${ceiling} 字节；已保留压缩包，请拆分后重新导入。`,
+          { measured: false, totalBytes: plan.totalUncompressed, budgetBytes: ceiling, books: plan.supported,
+            accepted: acceptedBefore, names: plan.supportedNames,
+            nextStep: '把压缩包拆成更小的包，让每包解压后不超过 1 GiB，再分别导入。' });
+      }
     }
     // Compare against the measured estimate, not the worst-case ceiling, so a
     // 2 MB archive does not demand a gigabyte of free space. An unmeasurable disk
     // is never reported as safe.
+    const estimate = plan ? plan.totalUncompressed : ceiling;
     const free = this.diskFree(this.batchDir(batchId));
     if (free === null) {
       throw this.fail(batchId, 'disk', '无法测量磁盘剩余空间，为避免写满磁盘已暂停解压；请稍后重试或检查磁盘状态。');
@@ -595,7 +631,6 @@ export class ImportBatches {
       throw this.fail(batchId, 'disk',
         `磁盘剩余 ${free} 字节，本次解压约需 ${estimate} 字节；请释放空间后重试，压缩包已保留。`);
     }
-    const dir = this.batchDir(batchId);
     const target = join(dir, randomUUID() + '.extract');
     mkdirSync(dir, { recursive: true });
     try {
@@ -613,21 +648,59 @@ export class ImportBatches {
       });
       // Hidden entries are tooling noise (__MACOSX, .DS_Store), never novels.
       const entries = outcome.files.filter((entry) => !entry.path.split('/').some((part) => part.startsWith('.')));
-      // Over-sized entries are refused with names, not dropped on the floor.
-      const tooLarge = entries.filter((entry) => entry.size > this.budget.fileBytes);
-      const keep = entries.filter((entry) => entry.size <= this.budget.fileBytes);
-      if (tooLarge.length) {
-        const names = tooLarge.map((entry) => entry.path);
-        this.library.updateImportBatch(batchId, (draft) => { recordRejected(draft, { tooLarge: names }); });
+      // SECOND, REAL check — the one that matters when the index could not be
+      // read. It runs on the actual extracted tree, before `addItems` and before
+      // one byte is renamed into a staging slot. The same classifier the upload
+      // path uses decides every bucket, so the count limit cannot disagree.
+      const verdict = classifyInputs(
+        entries.map((entry) => ({ id: 'pending', name: entry.path, size: entry.size, title: entry.path,
+          sourceSha256: entry.sha256 })),
+        { seen: new Set(this.require(batchId).items.map((item) => pathKeyOf(item.name))),
+          itemCount: acceptedBefore, declaredBytes: batchDeclaredBytes(this.require(batchId)),
+          itemLimit: BATCH_ITEM_LIMIT, fileBytes: this.budget.fileBytes, batchBytes: this.budget.batchBytes });
+      if (verdict.overflow > 0) {
+        // Over the item limit: the package is refused WHOLE. Nothing is moved,
+        // nothing is accepted, and the archive stays for a split-and-retry.
+        // `books` counts what was actually found: the ones that would have fit
+        // plus the ones that did not — never a number derived from a guess.
+        const found = verdict.accepted.length + verdict.overflow;
+        throw this.refuseArchive(batchId, 'over_limit', 'count',
+          `解压后实际得到 ${found} 本可导入的书，超过单批 ${BATCH_ITEM_LIMIT} 本的上限；已保留压缩包并清理临时目录，没有任何一本被部分导入。`,
+          { measured: true, totalBytes: outcome.bytes, budgetBytes: ceiling,
+            books: found, accepted: acceptedBefore, names: verdict.overflowNames,
+            overflow: verdict.overflow,
+            nextStep: '把压缩包拆成每包不超过 100 本，再分别导入；已入库的书和阅读进度不受影响。' });
+      }
+      if (verdict.tooLarge.length) {
+        throw this.refuseArchive(batchId, 'over_limit', 'entry',
+          `解压后实际发现 ${verdict.tooLarge.length} 本超过单本 100 MiB 的文件；已保留压缩包并清理临时目录，没有任何一本被部分导入。`,
+          { measured: true, totalBytes: outcome.bytes, budgetBytes: ceiling, books: entries.length,
+            accepted: acceptedBefore, names: verdict.tooLarge,
+            nextStep: '把超过 100 MiB 的单本从压缩包里移出（或拆分），再导入其余书目。' });
+      }
+      // What the archive offered but cannot enter the batch is recorded BEFORE
+      // anything is accepted, so a later failure cannot make the batch look clean.
+      const refusedNames = {
+        unsupported: verdict.unsupported, tooLarge: verdict.tooLarge,
+        overBudget: verdict.overBudget, duplicate: verdict.duplicates,
+      };
+      if (refusedNames.unsupported.length || refusedNames.tooLarge.length
+        || refusedNames.overBudget.length || refusedNames.duplicate.length) {
+        this.library.updateImportBatch(batchId, (draft) => { recordRejected(draft, refusedNames); });
       }
       // An empty entry list (empty archive, hidden-only, directory-only, or all
       // entries over the per-book ceiling) is NOT an addItems request: it is a
       // completed extraction with nothing in it, reported as such instead of
       // being refused as "select at least one".
-      const result = keep.length
-        ? this.addItems(batchId, keep.map((entry) => ({ name: entry.path, size: entry.size,
-            title: detectImportMetadata(basename(entry.path)).title, sourceSha256: entry.sha256 })))
+      const result = verdict.accepted.length
+        ? this.addItems(batchId, verdict.accepted.map((entry) => ({ name: entry.name, size: entry.size,
+            title: detectImportMetadata(basename(entry.name)).title,
+            ...(entry.sourceSha256 === undefined ? {} : { sourceSha256: entry.sourceSha256 }) })))
         : emptyAddResult();
+      result.unsupported = [...new Set([...result.unsupported, ...verdict.unsupported])];
+      result.tooLarge = [...new Set([...result.tooLarge, ...verdict.tooLarge])];
+      result.overBudget = [...new Set([...result.overBudget, ...verdict.overBudget])];
+      result.duplicates = [...new Set([...result.duplicates, ...verdict.duplicates])];
       const mine = this.require(batchId);
       // Walk the batch's items, not the freshly added rows: a retry re-offers the
       // same names (all duplicates now), so keying off `result.added` would skip
@@ -689,6 +762,22 @@ export class ImportBatches {
       rmSync(target, { recursive: true, force: true });
       if (error instanceof ZipStateError) throw error;
       const failure = classifyExtractionError(error);
+      // A worker ceiling hit is a whole-archive refusal too, and it must carry a
+      // structured reason. The archive never produced a file list, so the number
+      // of books is honestly `null` rather than invented from the archive size.
+      if (failure === 'over_limit') {
+        const code = String((error as { code?: unknown } | undefined)?.code ?? '');
+        const kind: ZipRejectionKind = code === 'zip_entry_too_large' ? 'entry'
+          : code === 'zip_too_many_entries' ? 'count' : 'bytes';
+        // What the index knew is still valid evidence for the names — but the
+        // count stays `null`, because the extraction never enumerated anything.
+        const known = plan ? (kind === 'entry' ? plan.oversizeNames : plan.supportedNames) : [];
+        throw this.refuseArchive(batchId, 'over_limit', kind,
+          `${String((error as Error).message ?? error)}；已保留压缩包并清理临时目录，没有任何一本被部分导入。`,
+          { measured: false, totalBytes: plan?.totalUncompressed ?? null, budgetBytes: ceiling, books: null,
+            accepted: this.require(batchId).items.length, names: known,
+            nextStep: '把压缩包拆成更小的包（每包不超过 100 本、解压后不超过 1 GiB），再分别导入。' });
+      }
       throw this.fail(batchId, failure, String((error as Error).message ?? error));
     }
   }
@@ -707,6 +796,48 @@ export class ImportBatches {
       if (!draft.zip) return;
       draft.zip.failure = failure;
       draft.zip.error = text;
+    });
+    return new ZipStateError(failure, text);
+  }
+
+  /**
+   * Refuse the whole archive and persist WHY, in a shape the panel can render
+   * after a restart.
+   *
+   * A whole-archive refusal is a promise: no entry was moved, no partial plan
+   * entry exists, and the archive is still on disk. The record says exactly
+   * that, because "failure: over_limit" alone cannot tell a user whether their
+   * books were half-imported. Counts the archive itself provided are marked
+   * `measured: false`; figures from a real extraction are `measured: true`, and
+   * anything the archive could not be enumerated for stays `null`.
+   */
+  private refuseArchive(batchId: string, failure: NonNullable<BatchZip['failure']>, kind: ZipRejectionKind,
+    message: string, detail: {
+      measured: boolean; totalBytes: number | null; budgetBytes: number | null; books: number | null;
+      accepted: number; names: readonly string[]; nextStep: string;
+      /** Exact number of books past the item limit, when the caller knows it. */
+      overflow?: number;
+    }): ZipStateError {
+    const text = message.slice(0, 500);
+    const rejection: ZipRejection = {
+      kind, reason: text, measured: detail.measured,
+      totalBytes: detail.totalBytes, budgetBytes: detail.budgetBytes, books: detail.books,
+      limit: BATCH_ITEM_LIMIT, accepted: detail.accepted,
+      partiallyStaged: false, archiveKept: true,
+      names: [...detail.names].slice(0, REJECTED_NAME_LIMIT),
+      nextStep: detail.nextStep.slice(0, 500),
+    };
+    this.library.updateImportBatch(batchId, (draft) => {
+      if (!draft.zip) return;
+      draft.zip.failure = failure;
+      draft.zip.error = text;
+      draft.zip.rejection = rejection;
+      // A count refusal also fills the report's overflow bucket, so the panel
+      // shows the same number in both places and the history line is honest.
+      if (kind === 'count' && detail.overflow) {
+        recordRejected(draft, { overflow: detail.overflow, overflowNames: rejection.names });
+      }
+      if (kind === 'entry') recordRejected(draft, { tooLarge: rejection.names });
     });
     return new ZipStateError(failure, text);
   }

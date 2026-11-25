@@ -125,7 +125,11 @@ describe('shelf batch import panel', () => {
     attach(picker(root, 'files'), [novel('甲'), new File(['x'], '封面.jpg', { type: 'image/jpeg' })]);
     await waitFor(() => batch.textContent!.includes('开始导入'), 'mixed preview');
     expect(batch.textContent).toContain('共 1 本');
-    expect(batch.textContent).toContain('1 个文件格式不支持，未导入');
+    // v1.5: the refusal is in the persisted report, not a transient error line.
+    // It is visible while the batch is STILL A PREVIEW, which is when the user
+    // can still act on it.
+    expect(batch.textContent).toContain('格式不支持 1 个');
+    expect(batch.textContent).toContain('封面.jpg');
   });
 });
 
@@ -300,10 +304,12 @@ describe('an interrupted archive can be picked again from the panel', () => {
     const text = batch.textContent!;
     expect(text).toContain('未进入本批');
     expect(text).toMatch(/重复或无效 1 个/u);
-    // The client-side skip is reported too, in the same place.
-    expect(text).toContain('1 个文件格式不支持，未导入');
+    // The unsupported pick is reported in the same persisted report, with its
+    // name, instead of a one-off client-side note that a remount would erase.
+    expect(text).toContain('格式不支持 1 个');
+    expect(text).toContain('封面.jpg');
     // And it says what to do about it, rather than pretending nothing is missing.
-    expect(text).toContain('可以再点一次');
+    expect(text).toContain('可以再选一次');
   });
 
   it('surfaces an over-limit archive refusal and tells the user to split it', async () => {

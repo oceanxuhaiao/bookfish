@@ -784,6 +784,7 @@ export class Library {
         tooLarge: [...extra.tooLarge ?? [], ...result.tooLarge],
         overBudget: [...extra.overBudget ?? [], ...result.overBudget],
         overflow: result.overflow,
+        overflowNames: result.overflowNames,
       });
       return result;
     });

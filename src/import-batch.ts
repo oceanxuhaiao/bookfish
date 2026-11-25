@@ -104,6 +104,12 @@ export interface BatchZip {
   error?: string;
   /** Measured maximum of the batch directory during extraction, in bytes. */
   peakBytes?: number;
+  /**
+   * Structured explanation of a whole-archive refusal. Persisted, so the reason
+   * survives a restart and a closed panel — `failure` alone says "over_limit"
+   * but not whether the count, the bytes or an unreadable index caused it.
+   */
+  rejection?: ZipRejection;
 }
 
 export type ZipFailure =
@@ -117,6 +123,49 @@ export type ZipFailure =
   | 'disk'
   /** Anything else: worker fault, refused rename, permissions, cancellation. */
   | 'transient';
+
+/**
+ * Which archive-level rule refused the whole package.
+ *
+ * `count` — more importable books than one batch may hold.
+ * `bytes` — the expansion does not fit the batch/workspace budget.
+ * `entry` — one book inside the archive exceeds the per-book ceiling.
+ * `disk`  — the filesystem does not have the free space.
+ * `plan`  — the archive's index could not be read AND the extraction still could
+ *           not be bounded, so the archive cannot be trusted with a partial run.
+ */
+export type ZipRejectionKind = 'count' | 'bytes' | 'entry' | 'disk' | 'plan';
+
+/**
+ * Everything the user needs to understand a whole-archive refusal, in the same
+ * shape whether the numbers came from the central directory or from a real,
+ * isolated extraction. `null` always means "not measured", never zero.
+ */
+export interface ZipRejection {
+  kind: ZipRejectionKind;
+  /** Human-readable reason, the same text the throw carries. */
+  reason: string;
+  /** True when the numbers come from a real extraction, not the archive index. */
+  measured: boolean;
+  /** Uncompressed bytes the archive claims (index) or actually produced (extract). */
+  totalBytes: number | null;
+  /** Bytes this batch could have taken at that moment. */
+  budgetBytes: number | null;
+  /** Importable books found; null when the archive could not be enumerated. */
+  books: number | null;
+  /** Books one batch may take, for context in the panel. */
+  limit: number;
+  /** Books already accepted before the refusal (a retry over an existing batch). */
+  accepted: number;
+  /** Always false: a whole-archive refusal never stages a single entry. */
+  partiallyStaged: false;
+  /** True — the original archive is kept so the user can split and retry. */
+  archiveKept: true;
+  /** Names of the books found, bounded; empty when unknown. */
+  names: string[];
+  /** What the user should do next, in one sentence. */
+  nextStep: string;
+}
 
 /** One rejection category: the count is always exact, names are display-only. */
 export interface RejectedGroup { count: number; names: string[] }
@@ -145,9 +194,13 @@ export function emptyRejected(): BatchRejected {
 }
 
 function addNames(group: RejectedGroup, names: readonly string[]): void {
-  group.count += names.length;
+  // Names are deduplicated on purpose: the same archive is re-offered on every
+  // retry, and recounting "封面.png" per attempt would invent refusals that
+  // never happened. The count therefore tracks distinct refused names.
   for (const name of names) {
-    if (group.names.length >= REJECTED_NAME_LIMIT) break;
+    if (group.names.includes(name)) continue;
+    group.count += 1;
+    if (group.names.length >= REJECTED_NAME_LIMIT) continue;
     group.names.push(name.slice(0, BATCH_NAME_LIMIT));
   }
 }
@@ -247,6 +300,8 @@ export interface BatchAddResult {
   /** Over the batch's 1 GiB disk budget; refused before anything is staged. */
   overBudget: string[];
   overflow: number;
+  /** The books past the item limit, bounded; display-only. */
+  overflowNames: string[];
 }
 
 /** Bytes this batch has promised to stage. Every item is capped by its own size. */
@@ -258,38 +313,92 @@ function pathKey(name: string): string {
   return name.normalize('NFC').toLowerCase();
 }
 
+/** Exported so an archive's content check uses the batch's own identity rule. */
+export function pathKeyOf(name: string): string {
+  return pathKey(name);
+}
+
 /**
- * Accept items, refusing anything that cannot fit the batch budget *before* a
- * single byte is written. The budget is enforced again per chunk, so a batch can
- * never grow past it through repeated requests.
+ * Classify a pick list against a batch's current contents, without mutating it.
+ *
+ * `addBatchItems` and the archive content check share this one function on
+ * purpose: a second, subtly different rule set is how a 101-book ZIP gets
+ * accepted by one path and refused by the other. Budget ceilings are injected so
+ * the caller decides which limit applies (a declared upload vs an extraction).
  */
-export function addBatchItems(batch: ImportBatch, inputs: readonly BatchItemInput[], now: number): BatchAddResult {
-  const seen = new Set(batch.items.map((item) => pathKey(item.name)));
-  const added: BatchItem[] = [];
+export function classifyInputs(inputs: readonly BatchItemInput[], state: {
+  /** Names already in the batch, already normalized with `pathKey`. */
+  seen: ReadonlySet<string>;
+  itemCount: number;
+  declaredBytes: number;
+  itemLimit: number;
+  fileBytes: number;
+  batchBytes: number;
+}): { accepted: BatchItemInput[]; duplicates: string[]; unsupported: string[]; tooLarge: string[]; overBudget: string[]; overflow: number; overflowNames: string[] } {
+  const accepted: BatchItemInput[] = [];
   const duplicates: string[] = [];
   const unsupported: string[] = [];
   const tooLarge: string[] = [];
   const overBudget: string[] = [];
+  const seen = new Set(state.seen);
   let overflow = 0;
-  let declared = batchDeclaredBytes(batch);
+  // Names past the item limit are kept (bounded): "20 books did not fit" is far
+  // less useful than knowing which 20, and a caller that drops them has to guess.
+  const overflowNames: string[] = [];
+  let declared = state.declaredBytes;
   for (const input of inputs) {
     let name: string;
     try { name = safeBatchName(input.name); } catch { duplicates.push(String(input.name)); continue; }
     if (!Number.isSafeInteger(input.size) || input.size < 1) { duplicates.push(name); continue; }
     if (!isSupportedNovel(name)) { unsupported.push(name); continue; }
     if (seen.has(pathKey(name))) { duplicates.push(name); continue; }
-    if (input.size > MAX_BATCH_FILE_BYTES) { tooLarge.push(name); continue; }
-    if (declared + input.size > BATCH_STAGING_BYTES) { overBudget.push(name); continue; }
-    if (batch.items.length + added.length >= BATCH_ITEM_LIMIT) { overflow++; continue; }
+    if (input.size > state.fileBytes) { tooLarge.push(name); continue; }
+    if (declared + input.size > state.batchBytes) { overBudget.push(name); continue; }
+    if (state.itemCount + accepted.length >= state.itemLimit) {
+      overflow += 1;
+      if (overflowNames.length < REJECTED_NAME_LIMIT) overflowNames.push(name);
+      continue;
+    }
     seen.add(pathKey(name));
     declared += input.size;
-    added.push(emptyItem({ id: input.id, name, size: input.size, title: text(input.title, 200),
-      ...(input.author === undefined || input.author === '' ? {} : { author: text(input.author, 100) }),
-      ...(input.sourceSha256 === undefined ? {} : { sourceSha256: digestOf(input.sourceSha256) }),
-      sourceName: text(input.sourceName ?? name, BATCH_NAME_LIMIT) }));
+    accepted.push(input);
+  }
+  return { accepted, duplicates, unsupported, tooLarge, overBudget, overflow, overflowNames };
+}
+
+/**
+ * Accept items, refusing anything that cannot fit the batch budget *before* a
+ * single byte is written. The budget is enforced again per chunk, so a batch can
+ * never grow past it through repeated requests.
+ */
+export function addBatchItems(batch: ImportBatch, inputs: readonly BatchItemInput[], now: number): BatchAddResult {
+  const verdict = classifyInputs(inputs, {
+    seen: new Set(batch.items.map((item) => pathKey(item.name))),
+    itemCount: batch.items.length,
+    declaredBytes: batchDeclaredBytes(batch),
+    itemLimit: BATCH_ITEM_LIMIT,
+    fileBytes: MAX_BATCH_FILE_BYTES,
+    batchBytes: BATCH_STAGING_BYTES,
+  });
+  const added: BatchItem[] = [];
+  const misplaced: string[] = [];
+  for (const input of verdict.accepted) {
+    try {
+      added.push(emptyItem({ id: input.id, name: safeBatchName(input.name), size: input.size, title: text(input.title, 200),
+        ...(input.author === undefined || input.author === '' ? {} : { author: text(input.author, 100) }),
+        ...(input.sourceSha256 === undefined ? {} : { sourceSha256: digestOf(input.sourceSha256) }),
+        sourceName: text(input.sourceName ?? input.name, BATCH_NAME_LIMIT) }));
+    } catch {
+      // The classifier accepted it, so only a text field can fail here; the file
+      // is refused by name rather than crashing the whole request.
+      misplaced.push(input.name);
+    }
   }
   if (added.length) { batch.items.push(...added); batch.updatedAt = now; }
-  return { added, duplicates, unsupported, tooLarge, overBudget, overflow };
+  return { added,
+    duplicates: [...verdict.duplicates, ...misplaced],
+    unsupported: verdict.unsupported, tooLarge: verdict.tooLarge,
+    overBudget: verdict.overBudget, overflow: verdict.overflow, overflowNames: verdict.overflowNames };
 }
 
 /**
@@ -576,6 +685,7 @@ export function validateBatches(raw: unknown, now = 0): ImportBatch[] {
       if (zip.peakBytes !== undefined && (!Number.isSafeInteger(zip.peakBytes) || zip.peakBytes < 0)) throw new Error('Invalid import batch archive peak');
       if (zip.failure !== undefined && !['missing', 'unverifiable', 'over_limit', 'disk', 'transient'].includes(zip.failure)) throw new Error('Invalid import batch archive failure');
       if (zip.error !== undefined && (typeof zip.error !== 'string' || zip.error.length > 500)) throw new Error('Invalid import batch archive error');
+      if (zip.rejection !== undefined) validateZipRejection(zip.rejection);
     }
     if (batch.error !== undefined && (typeof batch.error !== 'string' || batch.error.length > 500)) throw new Error('Invalid import batch error');
     if (batch.rejected !== undefined) validateRejected(batch.rejected);
@@ -640,6 +750,8 @@ export interface ImportBatchReport {
   rejectedNames: { duplicate: string[]; unsupported: string[]; tooLarge: string[]; overBudget: string[]; overflow: string[] };
   /** True when at least one picked file never made it into the batch. */
   incomplete: boolean;
+  /** Set when the whole archive was refused; null when it was not. */
+  archiveRejected: ZipRejection | null;
 }
 
 export function batchReport(batch: ImportBatch): ImportBatchReport {
@@ -668,8 +780,35 @@ export function batchReport(batch: ImportBatch): ImportBatchReport {
       overBudget: rejected?.overBudget.names ?? [],
       overflow: rejected?.overflow.names ?? [],
     },
-    incomplete: Object.values(refusal).some((value) => value > 0) || count('failed') > 0 || count('needs_reselect') > 0,
+    incomplete: Object.values(refusal).some((value) => value > 0) || count('failed') > 0 || count('needs_reselect') > 0
+      || batch.zip?.rejection !== undefined,
+    archiveRejected: batch.zip?.rejection ?? null,
   };
+}
+
+/**
+ * A persisted refusal must be self-consistent: "unknown" is `null`, and a count
+ * that claims to be measured has to be a real number. Anything else would be a
+ * fabricated figure in a review document.
+ */
+function validateZipRejection(raw: unknown): void {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid archive rejection');
+  const value = raw as Record<string, unknown>;
+  if (!['count', 'bytes', 'entry', 'disk', 'plan'].includes(String(value.kind))) throw new Error('Invalid archive rejection kind');
+  if (typeof value.reason !== 'string' || !value.reason || value.reason.length > 500) throw new Error('Invalid archive rejection reason');
+  if (typeof value.measured !== 'boolean') throw new Error('Invalid archive rejection measurement flag');
+  for (const field of ['totalBytes', 'budgetBytes', 'books']) {
+    const number = value[field];
+    if (number !== null && (!Number.isSafeInteger(number) || (number as number) < 0)) throw new Error('Invalid archive rejection figure');
+  }
+  if (!Number.isSafeInteger(value.limit) || (value.limit as number) < 1) throw new Error('Invalid archive rejection limit');
+  if (!Number.isSafeInteger(value.accepted) || (value.accepted as number) < 0) throw new Error('Invalid archive rejection accepted count');
+  if (value.partiallyStaged !== false || value.archiveKept !== true) throw new Error('Invalid archive rejection invariants');
+  if (!Array.isArray(value.names) || value.names.length > REJECTED_NAME_LIMIT) throw new Error('Invalid archive rejection names');
+  for (const name of value.names) {
+    if (typeof name !== 'string' || !name || name.length > BATCH_NAME_LIMIT) throw new Error('Invalid archive rejection name');
+  }
+  if (typeof value.nextStep !== 'string' || !value.nextStep || value.nextStep.length > 500) throw new Error('Invalid archive rejection next step');
 }
 
 function validateRejected(raw: unknown): void {
