@@ -1,0 +1,22 @@
+# 放行后机制完好性复核
+generated: 2026-11-25T07:09:00Z
+
+$ corepack pnpm check:ssm  (不带 --accept-review，应仍为 2 REVIEW / exit 1)
+结论: blocked=0 review=2 allowed=83
+停止：上述 review 文件含 SSM 共享区段，需要 SSM 负责人确认。
+确认后使用：--accept-review "已获得 XXX 同意：<范围与理由>"
+[ELIFECYCLE] Command failed with exit code 1.
+plain_check_exit=1
+
+$ corepack pnpm exec vitest run tests/ssm-guard.test.ts
+
+ [32m✓[39m tests/ssm-guard.test.ts [2m([22m[2m21 tests[22m[2m)[22m[90m 75[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m21 passed[39m[22m[90m (21)[39m
+[2m   Start at [22m 15:09:03
+[2m   Duration [22m 1.57s[2m (transform 58ms, setup 0ms, collect 70ms, tests 75ms, environment 0ms, prepare 160ms)[22m
+
+
+$ git diff -- scripts/ssm-protected-paths.json scripts/check-ssm-protected.mts  (应为空)
+manifest_diff_bytes=0
