@@ -1,0 +1,121 @@
+# git info（v1.3）
+generated: 2026-11-25T08:15:14Z
+
+## branch
+feat/reading-plan-v1
+
+## HEAD at generation time（本轮代码/测试改动已全部提交于此）
+31d26688130af9cfa85e85be0a45087fe15c66e1 feat: 批量导入 ZIP 资源安全与恢复 v1.3（递归预算 / 可恢复失败 / 分片重放 / 并发 / 内容身份 / 统计下界）
+
+## commits on this branch since upstream base
+31d2668 feat: 批量导入 ZIP 资源安全与恢复 v1.3（递归预算 / 可恢复失败 / 分片重放 / 并发 / 内容身份 / 统计下界）
+d392abd docs: SSM review 放行记录（ocean 授权，按次 --accept-review；冻结审核包保持不变）
+9f25bf9 docs: v1.2 最终安全整改审核包（00-09 + evidence + 可独立核对 zip）
+9d0bc77 feat: 统一阅读计划与批量导入 v1.2 最终安全整改（内容身份 / ZIP 峰值 / 上传恢复 / 阅读状态 / 历史统计）
+5759bb4 docs: v1.1 审核包证据（原始日志 / 完整补丁 / Git 信息 / SHA256SUMS）
+524f09b docs: v1.1 整改最终审核包（00-08 + evidence 说明）
+66992da feat: 统一阅读计划与批量导入 v1.1 整改
+
+## upstream base
+dd4f0b9cd3196529a02afc6de1d82c1ee3dcf1dc
+
+## patch base（changes.patch 在此提交上 apply --check / apply 均通过）
+d392abd（= 本轮开始时的 HEAD，v1.2 放行记录提交）
+d392abd7678acc7eb58b6f251f6354ad3bce1c36
+
+## remotes（未 push）
+origin	https://github.com/oceanxuhaiao/bookfish.git (fetch)
+origin	https://github.com/oceanxuhaiao/bookfish.git (push)
+
+## 状态口径更正（任务书第 11 节）
+v1.2 的 evidence/git-info.txt 把改动描述为 'staged files' / 'diffstat vs HEAD (staged)'，
+实际当时改动位于工作区、并未全部暂存；changes.patch 也不是 --cached 的差异。
+本文件按如下口径如实记录，不再使用 'staged' 一词：
+  - 已提交（committed）: git diff --name-status d392abd HEAD
+  - 工作区未提交（working tree）: git status --porcelain（含审核包文档）
+  - 未跟踪（untracked）: git ls-files --others --exclude-standard
+
+## 已提交改动（d392abd → HEAD，24 个文件）见下
+M	docs/reading-plan-v1.2/10-SSM放行记录.md
+D	docs/reading-plan-v1.2/evidence/ssm-guard-integrity.log
+M	lib/webui-txt-builtin-bing-0651.js
+M	lib/webui.js
+M	src/import-batches.ts
+M	src/library.ts
+M	src/reading-plan.ts
+M	src/webui/batch-import.ts
+M	src/webui/batch-types.ts
+M	src/webui/plan.ts
+A	src/webui/sha256.ts
+A	tests/import-batch-bounded-read.test.ts
+M	tests/import-batch-identity.test.ts
+A	tests/import-batch-rename-retry.test.ts
+A	tests/import-batch-zip-claim.test.ts
+A	tests/import-batch-zip-concurrency.test.ts
+M	tests/import-batch-zip-peak.test.ts
+A	tests/import-batch-zip-recursive.test.ts
+A	tests/import-batch-zip-terminal.test.ts
+M	tests/plan-display.test.ts
+A	tests/plan-stats-complete.test.ts
+A	tests/webui-sha256.test.ts
+M	tests/webui/batch-import.test.ts
+M	tests/webui/plan-panel.test.ts
+
+## 已提交 diffstat
+ tests/plan-stats-complete.test.ts                  |  79 ++++++
+ tests/webui-sha256.test.ts                         |  64 +++++
+ tests/webui/batch-import.test.ts                   |  35 ++-
+ tests/webui/plan-panel.test.ts                     |  32 ++-
+ 24 files changed, 2059 insertions(+), 214 deletions(-)
+
+## 工作区状态（生成本文件时）
+-- 已 git add -N（intent-to-add，尚未提交）：
+ A "docs/reading-plan-v1.3/00-\345\256\241\346\240\270\345\205\245\345\217\243.md"
+ A "docs/reading-plan-v1.3/01-ZIP\347\243\201\347\233\230\351\242\204\347\256\227\346\225\264\346\224\271.md"
+ A "docs/reading-plan-v1.3/02-ZIP\350\272\253\344\273\275\345\222\214\346\201\242\345\244\215.md"
+ A "docs/reading-plan-v1.3/03-\345\271\266\345\217\221\345\217\212\347\212\266\346\200\201\346\234\272.md"
+ A "docs/reading-plan-v1.3/04-\345\216\206\345\217\262\347\273\237\350\256\241\345\205\274\345\256\271.md"
+ A "docs/reading-plan-v1.3/05-\345\256\214\346\225\264\346\265\213\350\257\225\346\212\245\345\221\212.md"
+ A "docs/reading-plan-v1.3/06-SSM\345\217\230\346\233\264\350\257\264\346\230\216.md"
+ A "docs/reading-plan-v1.3/07-not_observed\344\270\216\345\256\277\344\270\273\351\252\214\346\224\266\346\255\245\351\252\244.md"
+ A "docs/reading-plan-v1.3/08-\346\234\200\347\273\210\351\252\214\346\224\266\346\221\230\350\246\201.md"
+-- untracked（evidence / 快照，随后随文档一次性本地提交）
+  docs/reading-plan-v1.3/evidence/changes.patch
+  docs/reading-plan-v1.3/evidence/git-info.txt
+  docs/reading-plan-v1.3/evidence/snapshot/docs/reading-plan-v1.2/10-SSM放行记录.md
+  docs/reading-plan-v1.3/evidence/snapshot/docs/reading-plan-v1.3/00-审核入口.md
+  docs/reading-plan-v1.3/evidence/snapshot/docs/reading-plan-v1.3/01-ZIP磁盘预算整改.md
+  docs/reading-plan-v1.3/evidence/snapshot/docs/reading-plan-v1.3/02-ZIP身份和恢复.md
+  docs/reading-plan-v1.3/evidence/snapshot/docs/reading-plan-v1.3/03-并发及状态机.md
+  docs/reading-plan-v1.3/evidence/snapshot/docs/reading-plan-v1.3/04-历史统计兼容.md
+  docs/reading-plan-v1.3/evidence/snapshot/docs/reading-plan-v1.3/05-完整测试报告.md
+  docs/reading-plan-v1.3/evidence/snapshot/docs/reading-plan-v1.3/06-SSM变更说明.md
+  docs/reading-plan-v1.3/evidence/snapshot/docs/reading-plan-v1.3/07-not_observed与宿主验收步骤.md
+  docs/reading-plan-v1.3/evidence/snapshot/docs/reading-plan-v1.3/08-最终验收摘要.md
+  docs/reading-plan-v1.3/evidence/snapshot/lib/webui-txt-builtin-bing-0651.js
+  docs/reading-plan-v1.3/evidence/snapshot/lib/webui.js
+  docs/reading-plan-v1.3/evidence/snapshot/src/import-batches.ts
+  docs/reading-plan-v1.3/evidence/snapshot/src/library.ts
+  docs/reading-plan-v1.3/evidence/snapshot/src/reading-plan.ts
+  docs/reading-plan-v1.3/evidence/snapshot/src/webui/batch-import.ts
+  docs/reading-plan-v1.3/evidence/snapshot/src/webui/batch-types.ts
+  docs/reading-plan-v1.3/evidence/snapshot/src/webui/plan.ts
+  docs/reading-plan-v1.3/evidence/snapshot/src/webui/sha256.ts
+  docs/reading-plan-v1.3/evidence/snapshot/tests/import-batch-bounded-read.test.ts
+  docs/reading-plan-v1.3/evidence/snapshot/tests/import-batch-identity.test.ts
+  docs/reading-plan-v1.3/evidence/snapshot/tests/import-batch-rename-retry.test.ts
+  docs/reading-plan-v1.3/evidence/snapshot/tests/import-batch-zip-claim.test.ts
+  docs/reading-plan-v1.3/evidence/snapshot/tests/import-batch-zip-concurrency.test.ts
+  docs/reading-plan-v1.3/evidence/snapshot/tests/import-batch-zip-peak.test.ts
+  docs/reading-plan-v1.3/evidence/snapshot/tests/import-batch-zip-recursive.test.ts
+  docs/reading-plan-v1.3/evidence/snapshot/tests/import-batch-zip-terminal.test.ts
+  docs/reading-plan-v1.3/evidence/snapshot/tests/plan-display.test.ts
+  docs/reading-plan-v1.3/evidence/snapshot/tests/plan-stats-complete.test.ts
+  docs/reading-plan-v1.3/evidence/snapshot/tests/webui-sha256.test.ts
+  docs/reading-plan-v1.3/evidence/snapshot/tests/webui/batch-import.test.ts
+  docs/reading-plan-v1.3/evidence/snapshot/tests/webui/plan-panel.test.ts
+
+## 说明
+审核包文档（docs/reading-plan-v1.3/**）与 evidence 在生成本文件后立即形成一个本地提交；
+该提交的哈希不写入本文件（自引用循环），可用 'git log --oneline -3' 核对。
+本阶段未 push / 未 merge / 未发布 / 未部署；未使用 git clean 或强制 reset。

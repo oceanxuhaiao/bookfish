@@ -1,0 +1,4 @@
+=== typecheck (双端) ===
+date: 2026-11-25T08:07:53Z
+$ tsc --noEmit && tsc -p tsconfig.web.json --noEmit
+typecheck_exit=0
