@@ -1,0 +1,69 @@
+# 步骤 17 · run3 隔离根最终快照
+
+root = E:/zcdfy/Coopanion/data-v15-acceptance-run3
+
+## 1. 批次（importBatches，12 条）
+
+| # | id | status | zipBytes | rejection.kind | rejection.books | measured |
+|---|---|---|---|---|---|---|
+| 1 | fc7d00d0 | completed | 778 | — | — | — |
+| 2 | 3a33ef85 | completed | 772 | — | — | — |
+| 3 | 1ef4cf3d | preview | 7258389 | count | None | False |
+| 4 | eb246bb8 | preview | 7415462 | count | None | False |
+| 5 | 481179da | preview | 10611162 | count | 150 | True |
+| 6 | adbaf4f6 | preview | 106988356 | entry | 5 | False |
+| 7 | 0bb06564 | preview | 466 | — | — | — |
+| 8 | 955d6ce2 | preview | 0 | — | — | — |
+| 9 | a158bab7 | preview | 0 | — | — | — |
+| 10 | f07d0d60 | completed | 778 | — | — | — |
+| 11 | a4eb7908 | preview | 10205869 | count | 101 | True |
+| 12 | f79e1444 | preview | 10362992 | count | 120 | True |
+
+## 2. 书目（books/ 共 6 本，全部为验收素材）
+
+| blob | 书名 | frontier |
+|---|---|---|
+| e1481871 | 验收小说001 | 0 |
+| 1a5e32c3 | 验收小说002 | 0 |
+| 4577d9fc | 验收小说003 | 0 |
+| 94a226f4 | 嵌套书01 | 0 |
+| 32d040e7 | 嵌套书02 | 0 |
+| 1cc5bb49 | 嵌套书03 | 0 |
+
+## 3. 计划（注入的 v1.2 legacy plan）
+
+  id            = a8a32a79-468c-4dea-afae-5ca615be1420
+  items         = 1 本
+  archive       = 3 本
+  statsComplete = False
+  页面显示      = 计划 1 本 · 至少累计读完 7 本
+
+## 4. 关键文件
+
+  library.json               20269 B  BD5A82409EDD12BA3546407ADF91920B7EBB71949D0BC3878F4BCAFD2D3203F5
+  history.sqlite             69632 B  (sqlite，运行中锁定)
+  reading-budget.json           83 B  F5B4CA5C2D060052F750CC3D7DC2AB4AA9A61D9478D7203AA2AC3898D719C6F8
+  sharing.json                  81 B  5CDC375A30E3954F3CEDF16F935B1BCEA2F36013A3FE52631229C3C344A96DF5
+  text-store.json              135 B  B0246DC1B6466C27F015669A8B5466E4EC6907037D2471CD1E4EE8B58E8CF0AE
+  writer.lock                  144 B  4750CF7EF3FBD23456A4F440E1FB10640FF4F3F98638D9FFD5FF28F370185DFE
+
+run3 全根: files=700  bytes=177827379
+
+## 5. 环境回收
+
+停止方式：`taskkill /T /F /PID 45620`（整树，根进程 = core 的 ParentProcessId）
+
+```
+终止 PID 58016 58092(→38884) 54996 55076 38884 45620 …（共 11 个进程）
+```
+
+停止后端口状态：
+
+| 端口 | 实例 | 状态 |
+| --- | --- | --- |
+| 17788 | 正式宿主 | core=23300 / root=17112（**未受影响，仍在监听**） |
+| 17789 | run3 隔离实例 | **not listening（已停止）** |
+
+正式实例 root PID 17112 的启动时间仍为 2026-11-25 08:56:50，与隔离实例存在期间完全相同 —— 回收动作未触碰正式宿主。
+
+后台任务 `hUadkC`（run3 启动器）因整树停止而退出，退出码 1 属预期，不代表失败。

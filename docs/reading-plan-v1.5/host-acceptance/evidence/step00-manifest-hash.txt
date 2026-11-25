@@ -1,0 +1,39 @@
+{
+  "pageTarget": "http://127.0.0.1:17789/#/provider/world%3Abookfish/shelf",
+  "discovered": [
+    "http://127.0.0.1:17789/api/webui/manifest",
+    "http://127.0.0.1:17789/api/webui/lamps"
+  ],
+  "local": {
+    "path": "E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-reading-plan/lib/webui-txt-builtin-bing-0651.js",
+    "bytes": 489603,
+    "sha256": "31347a6283e7c0b28d74fa87b2393ec8793d289367aa280a371e2f06adfdc390"
+  },
+  "attempts": [
+    {
+      "url": "http://127.0.0.1:17789/assets/extensions/cortico-world-bookfish/0.66.7/lib/webui-txt-builtin-bing-0651.js",
+      "status": 404
+    },
+    {
+      "url": "http://127.0.0.1:17789/assets/extensions/cortico-world-bookfish/0.66.7/lib/webui.js",
+      "status": 404
+    },
+    {
+      "url": "http://127.0.0.1:17789/assets/extensions/cortico-world-bookfish/0.66.7/webui-txt-builtin-bing-0651.js",
+      "status": 200,
+      "bytes": 489603,
+      "sha256": "31347a6283e7c0b28d74fa87b2393ec8793d289367aa280a371e2f06adfdc390",
+      "match": true
+    },
+    {
+      "url": "http://127.0.0.1:17789/assets/extensions/cortico-world-bookfish/0.66.7/webui.js",
+      "status": 404
+    }
+  ],
+  "chosen": {
+    "url": "http://127.0.0.1:17789/assets/extensions/cortico-world-bookfish/0.66.7/webui-txt-builtin-bing-0651.js",
+    "bytes": 489603,
+    "sha256": "31347a6283e7c0b28d74fa87b2393ec8793d289367aa280a371e2f06adfdc390"
+  },
+  "match": true
+}

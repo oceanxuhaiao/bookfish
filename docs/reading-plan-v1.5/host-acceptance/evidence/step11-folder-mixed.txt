@@ -1,0 +1,110 @@
+# 步骤 11 · 文件夹导入（客户端不再预过滤）
+
+## 判定
+```json
+{
+  "bookCount2": true,
+  "unsupported3": true,
+  "notStarted": true,
+  "jpgNamed": true,
+  "batchDirsCreated": 1
+}
+```
+- 新增批次目录数: 1
+
+## 面板全文
+```
+批量导入可以一次选多本，也可以选整个文件夹或一个 ZIP。先看清单再决定导入，导入完再决定要不要加进阅读计划。选择多本选择文件夹导入 ZIP导入记录（未完成 6 批）小说1 等 2 本 · 待开始 · 0/209-truncated.zip · 待开始 · 0/008-oversize-1big.zip · 待开始 · 0/007d-bigcd-150books.zip · 待开始 · 0/006-zip64-120books.zip · 待开始 · 0/005-zip64-101books.zip · 待开始 · 0/0嵌套书01 等 3 本 · 已完成 · 3/3清理记录验收小说001 等 3 本 · 已完成 · 3/3清理记录共 2 本 · 预计占用 19 KB folder-mixed（2 本）这些文件也可能是一本书拆开的多份；确认是同一系列再勾选。《小说1》9 KB · 等待中取消这本《小说2》9 KB · 等待中取消这本本次结果：进批 2 本 · 已入库 0 本 · 等待 2未进入本批：格式不支持 3 个（folder-mixed/封面1.jpg、folder-mixed/封面2.jpg、folder-mixed/封面3.jpg）这些文件仍在你的磁盘上，没有进入阅读计划；需要的话可以再选一次，只导入没进来的部分。开始导入取消这批本次有 3 个文件没有进入导入（2 个已接收），原因与文件名单见下方结果。
+```
+
+## 快照
+```json
+{
+  "historyRows": [
+    "小说1 等 2 本 · 待开始 · 0/2",
+    "09-truncated.zip · 待开始 · 0/0",
+    "08-oversize-1big.zip · 待开始 · 0/0",
+    "07d-bigcd-150books.zip · 待开始 · 0/0",
+    "06-zip64-120books.zip · 待开始 · 0/0",
+    "05-zip64-101books.zip · 待开始 · 0/0",
+    "嵌套书01 等 3 本 · 已完成 · 3/3清理记录",
+    "验收小说001 等 3 本 · 已完成 · 3/3清理记录"
+  ],
+  "itemCount": 2,
+  "items": [
+    "《小说1》9 KB · 等待中取消这本",
+    "《小说2》9 KB · 等待中取消这本"
+  ],
+  "buttons": [
+    {
+      "t": "选择多本",
+      "disabled": false
+    },
+    {
+      "t": "选择文件夹",
+      "disabled": false
+    },
+    {
+      "t": "导入 ZIP",
+      "disabled": false
+    },
+    {
+      "t": "小说1 等 2 本 · 待开始 · 0/2",
+      "disabled": false
+    },
+    {
+      "t": "09-truncated.zip · 待开始 · 0/0",
+      "disabled": false
+    },
+    {
+      "t": "08-oversize-1big.zip · 待开始 · 0/0",
+      "disabled": false
+    },
+    {
+      "t": "07d-bigcd-150books.zip · 待开始 · 0/0",
+      "disabled": false
+    },
+    {
+      "t": "06-zip64-120books.zip · 待开始 · 0/0",
+      "disabled": false
+    },
+    {
+      "t": "05-zip64-101books.zip · 待开始 · 0/0",
+      "disabled": false
+    },
+    {
+      "t": "嵌套书01 等 3 本 · 已完成 · 3/3",
+      "disabled": false
+    },
+    {
+      "t": "清理记录",
+      "disabled": false
+    },
+    {
+      "t": "验收小说001 等 3 本 · 已完成 · 3/3",
+      "disabled": false
+    },
+    {
+      "t": "清理记录",
+      "disabled": false
+    },
+    {
+      "t": "取消这本",
+      "disabled": false
+    },
+    {
+      "t": "取消这本",
+      "disabled": false
+    },
+    {
+      "t": "开始导入",
+      "disabled": false
+    },
+    {
+      "t": "取消这批",
+      "disabled": false
+    }
+  ],
+  "report": "本次结果：进批 2 本 · 已入库 0 本 · 等待 2未进入本批：格式不支持 3 个（folder-mixed/封面1.jpg、folder-mixed/封面2.jpg、folder-mixed/封面3.jpg）这些文件仍在你的磁盘上，没有进入阅读计划；需要的话可以再选一次，只导入没进来的部分。"
+}
+```

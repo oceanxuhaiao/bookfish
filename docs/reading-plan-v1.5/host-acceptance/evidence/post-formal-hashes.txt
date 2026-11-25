@@ -1,0 +1,134 @@
+==============================================================================
+步骤 17 · 正式数据零改动核对（FINAL，验收全程结束后）
+==============================================================================
+
+## 0. 结论
+
+  正式数据根 = E:\zcdfy\Coopanion\data  (由 data-location.json 确认，与 pre 基线相同)
+  正式宿主实例 = root PID 17112 / core PID 23300，启动于 2026-11-25 08:56:50，全程未重启
+  隔离实例     = root PID 45620 / core PID 38884，启动于 2026-11-25 22:00:03
+
+  >>> 验收操作未写入正式数据：零验收文件、零验收批次、零验收书目。
+  >>> 正式库在验收期间出现的 3 处字节变化，经追溯为【正式宿主自身 automaticReading 写入】，
+      不是验收脚本所为。证据见第 3 节。
+
+------------------------------------------------------------------------------
+## 1. 关键配置文件（与验收前基线逐字节比对）
+------------------------------------------------------------------------------
+
+  package.json
+    now = 32E4EEB834C399EBF5ED357772A156CDBFBFE05463AF2B9043C7CB2724A3564D
+    pre = 32E4EEB834C399EBF5ED357772A156CDBFBFE05463AF2B9043C7CB2724A3564D
+    SAME = YES
+
+  data-location.json
+    now = E2F650D6330759062FBCAE92914D92B6CE619C59BC243210EBDECD9AB019F46F
+    pre = E2F650D6330759062FBCAE92914D92B6CE619C59BC243210EBDECD9AB019F46F
+    SAME = YES
+
+------------------------------------------------------------------------------
+## 2. bookfish 数据文件（与 2026-11-25T20:34 基线比对）
+------------------------------------------------------------------------------
+
+  library.json
+    now  = 3C01ABD99DF0038C2BAA7BA4F5960CCA5F4046F21F7E4596DC935B5B4B218328  (107488 B)
+    pre  = 4CF0B78E3E24EEADEEF568C73EB3DD8AD1BC97CF9407966112CE29BBB9D7E4DF  (107488 B)
+    SAME = NO  <-- 见第 3 节归因
+
+  reading-budget.json
+    now  = 7F9D1F0FC5EF153ED571BFE5C0F1424CADA9B8A0250EF51F0F65FF414483679A  (4481 B)
+    pre  = AFF2980219DEAA08E09C69EC1DB5F715EB5DFB8000FA500F13BB799288EB7DF1  (4084 B)
+    SAME = NO  <-- 见第 3 节归因
+
+  sharing.json
+    now  = 8137F3589CB293D514BC2AA0E7A13AACE3ED586822718E325F5527296D49FC23  (73489 B)
+    pre  = 8137F3589CB293D514BC2AA0E7A13AACE3ED586822718E325F5527296D49FC23  (73489 B)
+    SAME = YES
+
+  text-store.json
+    now  = CD77EBFCCE8E3F28222C4FEA90AF9D470B30CA1EE015CC8958FB391274E6DA76  (115 B)
+    pre  = CD77EBFCCE8E3F28222C4FEA90AF9D470B30CA1EE015CC8958FB391274E6DA76  (115 B)
+    SAME = YES
+
+  writer.lock
+    now  = FCD603E107F13C2725F60BF4BAA23FC0098F7E0262D93306D97E22722EDE6AC9  (144 B)
+    pre  = FCD603E107F13C2725F60BF4BAA23FC0098F7E0262D93306D97E22722EDE6AC9  (144 B)
+    SAME = YES
+
+  文件数: now=10029  pre=10029  SAME=YES
+  总字节: now=747384130  pre=747342773  差=+41357
+
+------------------------------------------------------------------------------
+## 3. 变化的归因：正式宿主自身的自动阅读（非验收操作）
+------------------------------------------------------------------------------
+
+  证据 3.1  正式 history.sqlite 最后一条阅读记录：
+    recordedAt = 2026-11-25T14:02:28.542Z   (UTC)
+               = 2026-11-25 22:02:28 北京时间  <-- 与文件 mtime 22:02:28 完全吻合
+    sequence   = 1039
+    bookKey    = 6a52794cc8d3adf77a1cfe6737bd94c8...  （正式宿主原有书，非验收素材）
+
+  证据 3.2  最近 6 条阅读记录的时间分布（连续的日常阅读节奏，跨越验收窗口）：
+    seq 1039   2026-11-25T14:02:28.542Z
+    seq 1038   2026-11-25T13:55:05.153Z
+    seq 1037   2026-11-25T12:09:26.418Z
+    seq 1036   2026-11-25T08:41:22.368Z
+    seq 1035   2026-11-25T08:34:42.203Z
+    seq 1034   2026-11-25T08:21:21.559Z
+
+  证据 3.3  正式宿主的 bookfish 配置（automaticReading 开启）：
+    bookfish.enabled = True
+    bookfish.automaticReading = True
+    bookfish.automaticSharing = True
+    bookfish.automaticReview = True
+    bookfish.dailyTasks = 40
+    bookfish.dailyChars = 48000
+
+  证据 3.4  正式 library.json 不含任何验收痕迹：
+    contains '验收'          = False
+    contains '验收小说'      = False
+    contains '01-normal'    = False
+    contains 'importBatches' = False
+    contains 'plan' key      = False
+    -> 验收注入的 plan / importBatches 只存在于 run3 隔离根，正式库无 plan 键
+
+  证据 3.5  正式 bookfish 目录下无任何验收素材或批次目录：
+    batches/ 存在=False   内容=n/a
+    import-batches/ 存在=False   内容=n/a
+    transfers/ 存在=True   内容=[]
+
+  证据 3.6  reading-budget.json 变化内容为正式书目预算消耗，非验收批次：
+    day=2026-11-25  tasks=100  chars=116358
+    reservations 条目数 = 100  （正式藏书 12 本的阅读任务预算）
+    pre 版本 4084 B -> now 4481 B
+    差异原因：任务的 chars 计数随阅读推进而增长（每个 bookKey 的 reservation 从 1200 起被消耗）
+
+------------------------------------------------------------------------------
+## 4. 隔离实例的独立性与互不影响
+------------------------------------------------------------------------------
+
+  run3 隔离根存在验收内容（证明所有写操作落在隔离根）：
+    run3 library.json contains '验收小说'   = True
+    run3 library.json contains '"plan"'    = True
+    run3 library.json contains 'importBatches' = True
+    run3 'acceptance' batches 在 importBatches 内 = 见 evidence/step04-07-disk-state.txt（11 个批次）
+
+  正式实例进程全程未重启（root 17112 启动于 08:56:50，验收 21:30-22:02 期间持续同一 PID）：
+    正式 17788 <- core 23300, root 17112
+    隔离 17789 <- core 38884, root 45620
+
+------------------------------------------------------------------------------
+## 5. 裁定
+------------------------------------------------------------------------------
+
+  [PASS] 正式 data/extensions/package.json            哈希与基线一致
+  [PASS] data-location.json                        哈希与基线一致（数据根未被改指向）
+  [PASS] 正式 bookfish 文件数 10029                 与基线一致（无新增文件）
+  [PASS] 正式 bookfish 无验收书目/批次/计划         零污染
+  [PASS] 验收全程写操作仅落 run3 隔离根
+  [INFO] library.json / reading-budget.json / history.sqlite 字节变化
+         已追溯为正式宿主自身 automaticReading 在 22:02:28 的正常阅读落盘，
+         发生在全部验收步骤之前/之后的自然节律中，与验收脚本无因果关系。
+         若要绝对零字节变化，需在验收前关闭正式宿主——本轮授权方案选择
+         『不关闭正式宿主、改用隔离数据根』，因此该变化在预期之内。
+

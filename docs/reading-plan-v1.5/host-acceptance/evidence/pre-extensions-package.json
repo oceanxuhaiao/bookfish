@@ -1,0 +1,16 @@
+{
+  "name": "cortico-extensions",
+  "private": true,
+  "dependencies": {
+    "coopanion-world-github": "0.2.0",
+    "cortico-bot-continuity": "0.5.1",
+    "cortico-provider-openai-chat-compat": "0.1.0",
+    "cortico-world-bilibili-video": "0.2.3",
+    "cortico-world-bookfish": "link:E:/zcdfy/Coopanion/data/local-extensions/bookfish-review-fixes-20261124",
+    "cortico-world-bubble-emotes": "0.4.0",
+    "cortico-world-deepseek-usage": "0.1.0",
+    "cortico-world-netease-companion": "link:E:/zcdfy/Coopanion/data/local-worlds/netease-companion",
+    "cortico-world-postcard": "0.8.14",
+    "cortico-world-soft-voice": "0.4.11"
+  }
+}

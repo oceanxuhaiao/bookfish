@@ -1,0 +1,131 @@
+# 步骤 2 · 正常 ZIP（3 本）导入
+
+## 判定
+- 预览 3 本: true
+- 入库 3 本: true
+- 报告块: 本次结果：进批 3 本 · 已入库 3 本
+- 批次目录数: 1（应为 1）
+- 目录内容: [{"d":"fc7d00d0-1c61-47c2-96cc-50adaff6a1e0","files":[]}]
+
+## 面板全文
+```
+批量导入可以一次选多本，也可以选整个文件夹或一个 ZIP。先看清单再决定导入，导入完再决定要不要加进阅读计划。选择多本选择文件夹导入 ZIP导入记录（未完成 0 批）验收小说001 等 3 本 · 已完成 · 3/3清理记录共 3 本 · 预计占用 24 KB压缩包：01-normal-3books.zip · 778 B · 已解压解压峰值占用 25 KB 验收小说（3 本）这些文件也可能是一本书拆开的多份；确认是同一系列再勾选。《验收小说001》8 KB · 已入库《验收小说002》8 KB · 已入库《验收小说003》8 KB · 已入库本次结果：进批 3 本 · 已入库 3 本加入阅读计划再导一批
+```
+
+## 快照
+```json
+{
+  "before": {
+    "historyRows": [],
+    "itemCount": 0,
+    "items": [],
+    "buttons": [
+      {
+        "t": "选择多本",
+        "disabled": false
+      },
+      {
+        "t": "选择文件夹",
+        "disabled": false
+      },
+      {
+        "t": "导入 ZIP",
+        "disabled": false
+      }
+    ],
+    "report": null
+  },
+  "preview": {
+    "historyRows": [
+      "验收小说001 等 3 本 · 待开始 · 0/3"
+    ],
+    "itemCount": 3,
+    "items": [
+      "《验收小说001》8 KB · 等待中取消这本",
+      "《验收小说002》8 KB · 等待中取消这本",
+      "《验收小说003》8 KB · 等待中取消这本"
+    ],
+    "buttons": [
+      {
+        "t": "选择多本",
+        "disabled": false
+      },
+      {
+        "t": "选择文件夹",
+        "disabled": false
+      },
+      {
+        "t": "导入 ZIP",
+        "disabled": false
+      },
+      {
+        "t": "验收小说001 等 3 本 · 待开始 · 0/3",
+        "disabled": false
+      },
+      {
+        "t": "取消这本",
+        "disabled": false
+      },
+      {
+        "t": "取消这本",
+        "disabled": false
+      },
+      {
+        "t": "取消这本",
+        "disabled": false
+      },
+      {
+        "t": "开始导入",
+        "disabled": false
+      },
+      {
+        "t": "取消这批",
+        "disabled": false
+      }
+    ],
+    "report": "本次结果：进批 3 本 · 已入库 0 本 · 等待 3"
+  },
+  "final": {
+    "historyRows": [
+      "验收小说001 等 3 本 · 已完成 · 3/3清理记录"
+    ],
+    "itemCount": 3,
+    "items": [
+      "《验收小说001》8 KB · 已入库",
+      "《验收小说002》8 KB · 已入库",
+      "《验收小说003》8 KB · 已入库"
+    ],
+    "buttons": [
+      {
+        "t": "选择多本",
+        "disabled": false
+      },
+      {
+        "t": "选择文件夹",
+        "disabled": false
+      },
+      {
+        "t": "导入 ZIP",
+        "disabled": false
+      },
+      {
+        "t": "验收小说001 等 3 本 · 已完成 · 3/3",
+        "disabled": false
+      },
+      {
+        "t": "清理记录",
+        "disabled": false
+      },
+      {
+        "t": "加入阅读计划",
+        "disabled": false
+      },
+      {
+        "t": "再导一批",
+        "disabled": false
+      }
+    ],
+    "report": "本次结果：进批 3 本 · 已入库 3 本"
+  }
+}
+```

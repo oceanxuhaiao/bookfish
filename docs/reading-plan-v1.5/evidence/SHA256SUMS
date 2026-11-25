@@ -1,53 +1,88 @@
 # SHA256SUMS - BookFish-ReadingPlan-v1.5 未知归档安全处理与批量导入结果完整性审核包
-# generated: 2026-11-25T11:11:04Z
+# generated: 2026-11-25T16:10:00Z (v1.5 补：真实宿主验收回写)
 #
 # 覆盖审核包内【全部实际交付文件】，路径相对仓库根目录。
-# - docs/reading-plan-v1.5/00-10*.md           11 份审核文档
-# - docs/reading-plan-v1.5/evidence/*.log      原始测试 / 类型 / 构建 / 守卫 / apply-check 日志（5 份）
-# - docs/reading-plan-v1.5/evidence/changes.patch  完整可应用补丁（基线 a2f0397）
-# - docs/reading-plan-v1.5/evidence/git-info.txt   Git 信息
-# - docs/reading-plan-v1.5/evidence/snapshot/**   24 个完整文件快照（补丁应用树逐字节比对）
-# - 本文件自身不列入（自引用）；审核包 zip 由同名 .sha256 旁文件覆盖。
-# 校验：在仓库根目录执行 sha256sum -c docs/reading-plan-v1.5/evidence/SHA256SUMS
-ca176ab08373e38bd8bc4734940348ff965b82729b1c7dfec51ffaf90bb20718 *docs/reading-plan-v1.5/00-审核入口.md
-2241e646515694e1311e48ef74ab04ce308c84fa811aa5639dbbd11b2de4a51c *docs/reading-plan-v1.5/01-未知ZIP内容检查.md
-78d84b0351642b69d5ca02386cd9744121c9126cf9751bb6d7edc364714824cb *docs/reading-plan-v1.5/02-整包拒绝与零副作用.md
-e3812b3d5113627451bb6c8e22b5d099cc96b41ced6d8fea8d5138aa66310983 *docs/reading-plan-v1.5/03-资源预算与炸弹保护.md
-98be642e08460fdf7c197064aae4981e4f8986ee9b822be19b7969a67123f156 *docs/reading-plan-v1.5/04-拒绝结果持久化.md
-3231516ec919de6e8c2386b3574a317fdf3dbbbb938ce98780d18d0c54b154e9 *docs/reading-plan-v1.5/05-UI恢复与报告可见性.md
-fcc45ca92bee706361c714e0f25e1d184afedfb5015a3526ce66dc89544ef7de *docs/reading-plan-v1.5/06-历史统计与迁移兼容.md
-80e74223a2cef3941c3961119d7adf817d13c4602bdfaa128bd234be938c3817 *docs/reading-plan-v1.5/07-完整测试报告.md
-d0a8c12302bf110e9ef581d815495419a28a634f93446e2a0482caf18c5f41ec *docs/reading-plan-v1.5/08-SSM变更说明.md
-a5d1861a29ab1c275fc2e34a220bd235ce2d91399c9a55c242841970228da408 *docs/reading-plan-v1.5/09-not_observed与宿主验收.md
-7760b062cfb47efa6ed25a0675e5dd616fbec377f3f164c10bf51763755fa403 *docs/reading-plan-v1.5/10-最终验收摘要.md
-e613e022cd0ce890fcceb1faf1d0087460131f917e27b38de2cf7a9944db394f *docs/reading-plan-v1.5/evidence/build-and-checks.log
-ee5ce6ac7e260047da35a3f2a68c29da0c7b6010d58330eb1162f6f86c9779a4 *docs/reading-plan-v1.5/evidence/changes.patch
-173d2bcac542ea331789b7f3ba900ebbc035ceb2e8d85babb660447ad39a12c1 *docs/reading-plan-v1.5/evidence/check-ssm.log
-48c9affaf24ced93ad499d3e5e02eee4c717479f098a244c4e3333cccbf2fad7 *docs/reading-plan-v1.5/evidence/git-info.txt
-b7db53a40b251cc543da86a31f8faadba5329ec3cd9938fd8189dcd95905a46b *docs/reading-plan-v1.5/evidence/patch-apply-check.log
-ca176ab08373e38bd8bc4734940348ff965b82729b1c7dfec51ffaf90bb20718 *docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/00-审核入口.md
-2241e646515694e1311e48ef74ab04ce308c84fa811aa5639dbbd11b2de4a51c *docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/01-未知ZIP内容检查.md
-78d84b0351642b69d5ca02386cd9744121c9126cf9751bb6d7edc364714824cb *docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/02-整包拒绝与零副作用.md
-e3812b3d5113627451bb6c8e22b5d099cc96b41ced6d8fea8d5138aa66310983 *docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/03-资源预算与炸弹保护.md
-98be642e08460fdf7c197064aae4981e4f8986ee9b822be19b7969a67123f156 *docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/04-拒绝结果持久化.md
-3231516ec919de6e8c2386b3574a317fdf3dbbbb938ce98780d18d0c54b154e9 *docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/05-UI恢复与报告可见性.md
-fcc45ca92bee706361c714e0f25e1d184afedfb5015a3526ce66dc89544ef7de *docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/06-历史统计与迁移兼容.md
-80e74223a2cef3941c3961119d7adf817d13c4602bdfaa128bd234be938c3817 *docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/07-完整测试报告.md
-d0a8c12302bf110e9ef581d815495419a28a634f93446e2a0482caf18c5f41ec *docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/08-SSM变更说明.md
-a5d1861a29ab1c275fc2e34a220bd235ce2d91399c9a55c242841970228da408 *docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/09-not_observed与宿主验收.md
-7760b062cfb47efa6ed25a0675e5dd616fbec377f3f164c10bf51763755fa403 *docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/10-最终验收摘要.md
-31347a6283e7c0b28d74fa87b2393ec8793d289367aa280a371e2f06adfdc390 *docs/reading-plan-v1.5/evidence/snapshot/lib/webui-txt-builtin-bing-0651.js
-31347a6283e7c0b28d74fa87b2393ec8793d289367aa280a371e2f06adfdc390 *docs/reading-plan-v1.5/evidence/snapshot/lib/webui.js
-9e4b34c10e1e36209951bb5f749ba826033a1d8f4359a65358e5e8ba1fc22b33 *docs/reading-plan-v1.5/evidence/snapshot/src/import-batch.ts
-825d94889731bfed5dba84932f077257aa4713e3e86440df79273b4ef7290984 *docs/reading-plan-v1.5/evidence/snapshot/src/import-batches.ts
-bbda18496cda4da322e4d0465a0a744eca1759c29f623fbc46fe69110d96435b *docs/reading-plan-v1.5/evidence/snapshot/src/library.ts
-b854a6279adc158f01b6f101b8accfd3a3bd5cc2c042550828808fd5692b7dde *docs/reading-plan-v1.5/evidence/snapshot/src/webui/batch-import.ts
-ce428ce6d04f890bad24f3b8e6fa55b25c376dcf1bdf1c412c45c1e31892d0f4 *docs/reading-plan-v1.5/evidence/snapshot/src/webui/batch-types.ts
-95cb31521f64fec35350fbd5b557a84452f3e62040543599c44d46da35d97c08 *docs/reading-plan-v1.5/evidence/snapshot/tests/import-batch-v15-compat.test.ts
-e7fa53ab56c3bac8dcf580f3e72c205f9bacac9d06e1d1491eaf836602208ae2 *docs/reading-plan-v1.5/evidence/snapshot/tests/import-batch-zip-budget-integrity.test.ts
-5021b68457864346a7305ede6f916b67cadb3dcb21806260ec4eff9a8dd33f6b *docs/reading-plan-v1.5/evidence/snapshot/tests/import-batch-zip-count-rules.test.ts
-856a2d6afb0dc2fe4e5bb6fb8d36675db4ffc00d308bf1e578237590cfee0978 *docs/reading-plan-v1.5/evidence/snapshot/tests/import-batch-zip-unknown.test.ts
-0930451bc3e1fc4224c04c226c508694e57888ee3ab32b24e360834adde4df0f *docs/reading-plan-v1.5/evidence/snapshot/tests/webui/batch-import-report.test.ts
-3f7b8d888582649f2d5b7572fc303e2d29581037d576732806a53c32d28153b7 *docs/reading-plan-v1.5/evidence/snapshot/tests/webui/batch-import.test.ts
-957c4e05671fe8b6887162146458709bd65eb44c9c803baefdc674e9c0c79e42 *docs/reading-plan-v1.5/evidence/test-full.log
-49ac6dd3aaa1f40963b46a673c5959527c5b55eb2764890e3aea57de1dece98f *docs/reading-plan-v1.5/evidence/typecheck.log
+# - docs/reading-plan-v1.5/00-10*.md           11 份审核文档（含 HOST-ACCEPTANCE.md）
+# - docs/reading-plan-v1.5/evidence/           测试日志 / 补丁 / 快照 / 源码快照
+# - docs/reading-plan-v1.5/host-acceptance/   17 步真机验收证据（31 份文本）
+#
+# 自校验：cd <repo> && sha256sum -c docs/reading-plan-v1.5/evidence/SHA256SUMS
+#
+ca176ab08373e38bd8bc4734940348ff965b82729b1c7dfec51ffaf90bb20718  docs/reading-plan-v1.5/00-审核入口.md
+2241e646515694e1311e48ef74ab04ce308c84fa811aa5639dbbd11b2de4a51c  docs/reading-plan-v1.5/01-未知ZIP内容检查.md
+78d84b0351642b69d5ca02386cd9744121c9126cf9751bb6d7edc364714824cb  docs/reading-plan-v1.5/02-整包拒绝与零副作用.md
+e3812b3d5113627451bb6c8e22b5d099cc96b41ced6d8fea8d5138aa66310983  docs/reading-plan-v1.5/03-资源预算与炸弹保护.md
+98be642e08460fdf7c197064aae4981e4f8986ee9b822be19b7969a67123f156  docs/reading-plan-v1.5/04-拒绝结果持久化.md
+3231516ec919de6e8c2386b3574a317fdf3dbbbb938ce98780d18d0c54b154e9  docs/reading-plan-v1.5/05-UI恢复与报告可见性.md
+fcc45ca92bee706361c714e0f25e1d184afedfb5015a3526ce66dc89544ef7de  docs/reading-plan-v1.5/06-历史统计与迁移兼容.md
+80e74223a2cef3941c3961119d7adf817d13c4602bdfaa128bd234be938c3817  docs/reading-plan-v1.5/07-完整测试报告.md
+d0a8c12302bf110e9ef581d815495419a28a634f93446e2a0482caf18c5f41ec  docs/reading-plan-v1.5/08-SSM变更说明.md
+f772eaf63ced72c08f9e8f7fe973b9ca88336dc2c56694f72df7ce87a3193e1a  docs/reading-plan-v1.5/09-not_observed与宿主验收.md
+604a750b629f430abe74beb8446ff0f2a83881f280141425146232ca1ecb9675  docs/reading-plan-v1.5/10-最终验收摘要.md
+61907d4996efae6eaa24cfda26b7b5d7a2e8b6167f19287f1700590d07f7be0a  docs/reading-plan-v1.5/HOST-ACCEPTANCE.md
+e613e022cd0ce890fcceb1faf1d0087460131f917e27b38de2cf7a9944db394f  docs/reading-plan-v1.5/evidence/build-and-checks.log
+ee5ce6ac7e260047da35a3f2a68c29da0c7b6010d58330eb1162f6f86c9779a4  docs/reading-plan-v1.5/evidence/changes.patch
+f8438443a355ea49573a0335e18b89e3408fe374423e78ac7927eacf26fee269  docs/reading-plan-v1.5/evidence/check-ssm-host-acceptance.log
+173d2bcac542ea331789b7f3ba900ebbc035ceb2e8d85babb660447ad39a12c1  docs/reading-plan-v1.5/evidence/check-ssm.log
+48c9affaf24ced93ad499d3e5e02eee4c717479f098a244c4e3333cccbf2fad7  docs/reading-plan-v1.5/evidence/git-info.txt
+b7db53a40b251cc543da86a31f8faadba5329ec3cd9938fd8189dcd95905a46b  docs/reading-plan-v1.5/evidence/patch-apply-check.log
+ca176ab08373e38bd8bc4734940348ff965b82729b1c7dfec51ffaf90bb20718  docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/00-审核入口.md
+2241e646515694e1311e48ef74ab04ce308c84fa811aa5639dbbd11b2de4a51c  docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/01-未知ZIP内容检查.md
+78d84b0351642b69d5ca02386cd9744121c9126cf9751bb6d7edc364714824cb  docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/02-整包拒绝与零副作用.md
+e3812b3d5113627451bb6c8e22b5d099cc96b41ced6d8fea8d5138aa66310983  docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/03-资源预算与炸弹保护.md
+98be642e08460fdf7c197064aae4981e4f8986ee9b822be19b7969a67123f156  docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/04-拒绝结果持久化.md
+3231516ec919de6e8c2386b3574a317fdf3dbbbb938ce98780d18d0c54b154e9  docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/05-UI恢复与报告可见性.md
+fcc45ca92bee706361c714e0f25e1d184afedfb5015a3526ce66dc89544ef7de  docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/06-历史统计与迁移兼容.md
+80e74223a2cef3941c3961119d7adf817d13c4602bdfaa128bd234be938c3817  docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/07-完整测试报告.md
+d0a8c12302bf110e9ef581d815495419a28a634f93446e2a0482caf18c5f41ec  docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/08-SSM变更说明.md
+a5d1861a29ab1c275fc2e34a220bd235ce2d91399c9a55c242841970228da408  docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/09-not_observed与宿主验收.md
+7760b062cfb47efa6ed25a0675e5dd616fbec377f3f164c10bf51763755fa403  docs/reading-plan-v1.5/evidence/snapshot/docs/reading-plan-v1.5/10-最终验收摘要.md
+31347a6283e7c0b28d74fa87b2393ec8793d289367aa280a371e2f06adfdc390  docs/reading-plan-v1.5/evidence/snapshot/lib/webui-txt-builtin-bing-0651.js
+31347a6283e7c0b28d74fa87b2393ec8793d289367aa280a371e2f06adfdc390  docs/reading-plan-v1.5/evidence/snapshot/lib/webui.js
+9e4b34c10e1e36209951bb5f749ba826033a1d8f4359a65358e5e8ba1fc22b33  docs/reading-plan-v1.5/evidence/snapshot/src/import-batch.ts
+825d94889731bfed5dba84932f077257aa4713e3e86440df79273b4ef7290984  docs/reading-plan-v1.5/evidence/snapshot/src/import-batches.ts
+bbda18496cda4da322e4d0465a0a744eca1759c29f623fbc46fe69110d96435b  docs/reading-plan-v1.5/evidence/snapshot/src/library.ts
+b854a6279adc158f01b6f101b8accfd3a3bd5cc2c042550828808fd5692b7dde  docs/reading-plan-v1.5/evidence/snapshot/src/webui/batch-import.ts
+ce428ce6d04f890bad24f3b8e6fa55b25c376dcf1bdf1c412c45c1e31892d0f4  docs/reading-plan-v1.5/evidence/snapshot/src/webui/batch-types.ts
+95cb31521f64fec35350fbd5b557a84452f3e62040543599c44d46da35d97c08  docs/reading-plan-v1.5/evidence/snapshot/tests/import-batch-v15-compat.test.ts
+e7fa53ab56c3bac8dcf580f3e72c205f9bacac9d06e1d1491eaf836602208ae2  docs/reading-plan-v1.5/evidence/snapshot/tests/import-batch-zip-budget-integrity.test.ts
+5021b68457864346a7305ede6f916b67cadb3dcb21806260ec4eff9a8dd33f6b  docs/reading-plan-v1.5/evidence/snapshot/tests/import-batch-zip-count-rules.test.ts
+856a2d6afb0dc2fe4e5bb6fb8d36675db4ffc00d308bf1e578237590cfee0978  docs/reading-plan-v1.5/evidence/snapshot/tests/import-batch-zip-unknown.test.ts
+0930451bc3e1fc4224c04c226c508694e57888ee3ab32b24e360834adde4df0f  docs/reading-plan-v1.5/evidence/snapshot/tests/webui/batch-import-report.test.ts
+3f7b8d888582649f2d5b7572fc303e2d29581037d576732806a53c32d28153b7  docs/reading-plan-v1.5/evidence/snapshot/tests/webui/batch-import.test.ts
+fc6ec4801af88ec34c7e2f6db39b990ac21b2bd45160796ce4498f75d72df2c2  docs/reading-plan-v1.5/evidence/test-full-first-run-unstable.log
+1db03fab617fb340c5f589fb3c5a72e7870454fe475640ccf3904257ba58ae00  docs/reading-plan-v1.5/evidence/test-full-host-acceptance.log
+957c4e05671fe8b6887162146458709bd65eb44c9c803baefdc674e9c0c79e42  docs/reading-plan-v1.5/evidence/test-full.log
+49ac6dd3aaa1f40963b46a673c5959527c5b55eb2764890e3aea57de1dece98f  docs/reading-plan-v1.5/evidence/typecheck.log
+7324c0eda8a2ba6b996fc7d4bebbd9e862803af36db6bbe61879646cfd66e2c4  docs/reading-plan-v1.5/host-acceptance/evidence/asset-plan-matrix.json
+ac4b3b2eab09da421be5f4cb4886ecbe1483d7c1f96eeb84ad7048f7a73f7047  docs/reading-plan-v1.5/host-acceptance/evidence/launch-run3-restart.log
+4b88b4d644907c48d9df19321941c2001a13a232c3fb171a75cadb9c9840c093  docs/reading-plan-v1.5/host-acceptance/evidence/launch-run3-s16.log
+03ffdddb1bfe216711d722a8dd6d0e73ba11fcf2615b82ce6bdeff6e443d031c  docs/reading-plan-v1.5/host-acceptance/evidence/launch-run3-s16b.log
+d7b0e4767c866481d8446319c8cca9f32b52b82cc0e4b60772e48499bf9169dd  docs/reading-plan-v1.5/host-acceptance/evidence/launch-run3.log
+efc5837a79a2004c42def6b2b14d568816b8ab258110e69f98a5ad5a3f4a53b0  docs/reading-plan-v1.5/host-acceptance/evidence/launch.log
+f491c290166f370966759b5255dda522c0c14dc177cbb82e6574b9659b509df6  docs/reading-plan-v1.5/host-acceptance/evidence/post-formal-hashes.txt
+76946d0778af0a729fe3e07c57da693c52165e5135a345874ac6e58b3a909d9d  docs/reading-plan-v1.5/host-acceptance/evidence/pre-bookfish-files.txt
+e2f650d6330759062fbcae92914d92b6ce619c59bc243210ebdecd9ab019f46f  docs/reading-plan-v1.5/host-acceptance/evidence/pre-data-location.json
+32e4eeb834c399ebf5ed357772a156cdbfbfe05463af2b9043c7cb2724a3564d  docs/reading-plan-v1.5/host-acceptance/evidence/pre-extensions-package.json
+4354bedbc27690bd662c5f701948d4c9d698f3699772ad8b89f6e99f2179ec50  docs/reading-plan-v1.5/host-acceptance/evidence/pre-hashes.txt
+c7fcf88a519b2bd49c1c4b97a1bf7049cbcc6c94d0e45d5e08585f12e888361b  docs/reading-plan-v1.5/host-acceptance/evidence/step00-manifest-hash.txt
+daec75c90e22e1c7b05c4bc5df094fc5ac029ce3e41e3653b06d868a5d45f7fa  docs/reading-plan-v1.5/host-acceptance/evidence/step02-normal-zip.txt
+c4bc8ac54264af5be426010f50009f68f939bfb5ff5cd25a28975db953e8d5ff  docs/reading-plan-v1.5/host-acceptance/evidence/step03-normal-nested.txt
+03d3aef5acd2add833bebde76e0a323067d7a6639dfe2238acb80164f92400a2  docs/reading-plan-v1.5/host-acceptance/evidence/step04-07-disk-state.txt
+6b4c75d4c2caa1b709817b37e8fe3002ddf4569893ed1d1ce22cadabb74f1d93  docs/reading-plan-v1.5/host-acceptance/evidence/step04-zip64-101.txt
+a805926945425a5ff4daa4c03e762f154fefabff721678f5d21d7598c70d6f98  docs/reading-plan-v1.5/host-acceptance/evidence/step05-zip64-120.txt
+5066ff1301a517b36139d6dbfce7623a0474b87af5677de06c1d8065d9a12eec  docs/reading-plan-v1.5/host-acceptance/evidence/step05b-bigcd-101.txt
+15337953825307bb080a848647d4a4ca4446bddec6334024bbff879bd48a9e4c  docs/reading-plan-v1.5/host-acceptance/evidence/step05c-bigcd-120.txt
+052f6a0575f8dae31fbfafda5d88e50a8e5ed0ab1d82aa80f70c240b482bb429  docs/reading-plan-v1.5/host-acceptance/evidence/step06-bigcd-150.txt
+9c00031067fd74503cfd8b6625dde966bfdcdc856cb2e672909228181765c5ec  docs/reading-plan-v1.5/host-acceptance/evidence/step07-oversize.txt
+239dfdd68ea177966d9dedf373fc588248f6bc102aaf087b7688116125c2d3f8  docs/reading-plan-v1.5/host-acceptance/evidence/step08-reopen-panel.txt
+07863c923fe3b3811e8a8df642633301d8499d1700702e252747dc4e1823e782  docs/reading-plan-v1.5/host-acceptance/evidence/step09-after-restart.txt
+610721900626aa8c6bbaa7bac32f78d32d242ded84630dd250db75e302be4a21  docs/reading-plan-v1.5/host-acceptance/evidence/step09-batches-before.json
+ae81b49f925713fa9e15367498dc6e09956ef948fa8e74893e49cd9c754773fc  docs/reading-plan-v1.5/host-acceptance/evidence/step10-truncated-first-fail.txt
+1054f746f3e3094b828ea665c3563c653a8ca612bc4940aaa8554256bf0d1bc3  docs/reading-plan-v1.5/host-acceptance/evidence/step11-folder-mixed.txt
+e2ac85216a2f6d20d3ebe164f9a8da240451030b10a472dcd75cfc975ac4296f  docs/reading-plan-v1.5/host-acceptance/evidence/step12-folder-alljpg.txt
+d85834b2602821633c9ffd667e100a8694f9b788fcc16e3ed1d80ffe47542bf6  docs/reading-plan-v1.5/host-acceptance/evidence/step13-tamper-archive.txt
+6c93c847366565f12f1fa2bde02fece92fd1645a95a349db9ec7232a43176beb  docs/reading-plan-v1.5/host-acceptance/evidence/step14-prepare.txt
+1a4cfed5def802d75a756ef897033b26cd89c1d64e6831da8d901aee0b08c116  docs/reading-plan-v1.5/host-acceptance/evidence/step14-rename-fail.txt
+4b452acb2be2c9a0cea3ede31e3ef651741156dc9afca1e3894b328868a4ccc6  docs/reading-plan-v1.5/host-acceptance/evidence/step16-legacy-plan-stats.txt
+c81f95425ea32fd5eadffc573b3ab2599b5df5fe18010f2e5f6138f6aecb648e  docs/reading-plan-v1.5/host-acceptance/evidence/step17-run3-snapshot.txt

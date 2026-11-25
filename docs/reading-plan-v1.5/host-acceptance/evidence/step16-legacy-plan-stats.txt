@@ -1,0 +1,26 @@
+# 步骤 16 · 旧计划统计显示为下界（不冒充完整总数）
+
+## 判定
+```json
+{
+  "atLeast": true,
+  "lowerBoundNote": true,
+  "notBareComplete": true
+}
+```
+- 计划摘要: 计划 1 本 · 至少累计读完 7 本
+- 下界说明: 历史只保留最近 300 条（当前 3 条），更早的 4 条已不再列出，但累计数量仍然计入；跳过 0 本、移出 2 本。此计划由旧版本迁移而来，更早的完读历史可能已超出保留窗口，以上累计数字是可确认的下界，不是完整总数。
+
+## 注入的 plan（v1.2 时代）
+```json
+{
+  "statsComplete": null,
+  "stats": {
+    "completed": 7,
+    "skipped": 0,
+    "removed": 2,
+    "truncated": 4
+  },
+  "archiveCompleted": 2
+}
+```
