@@ -51,11 +51,29 @@ export interface PlanArchiveEntry {
   title: string;
   source: PlanSource;
   seriesId: string | null;
+  /** Kept even after the series itself is gone, so history stays readable. */
+  seriesName?: string;
   status: PlanArchiveStatus;
   addedAt: number;
   startedAt?: number;
   endedAt: number;
   reason?: string;
+}
+
+/**
+ * Lifetime counters.
+ *
+ * `archive` is bounded by PLAN_ARCHIVE_LIMIT, so counting its rows would make a
+ * long-time user's total shrink as old entries are trimmed. These counters are
+ * the source of truth for "how many books did I finish"; `truncated` is the
+ * audit trail that says how many rows are no longer shown.
+ */
+export interface PlanStats {
+  completed: number;
+  skipped: number;
+  removed: number;
+  truncated: number;
+  lastArchivedAt?: number;
 }
 
 export interface ReadingPlan {
@@ -69,6 +87,7 @@ export interface ReadingPlan {
   items: PlanItem[];
   archive: PlanArchiveEntry[];
   series: PlanSeries[];
+  stats: PlanStats;
 }
 
 const MAX_TITLE = 200;
@@ -110,7 +129,8 @@ function uuid(value: unknown, name: string): string {
 }
 
 export function emptyPlan(now: number, id: string = randomUUID()): ReadingPlan {
-  return { schema: 1, id, revision: 0, createdAt: now, updatedAt: now, enabled: true, items: [], archive: [], series: [] };
+  return { schema: 1, id, revision: 0, createdAt: now, updatedAt: now, enabled: true, items: [], archive: [], series: [],
+    stats: { completed: 0, skipped: 0, removed: 0, truncated: 0 } };
 }
 
 function validateSeries(raw: unknown): PlanSeries {
@@ -196,7 +216,35 @@ export function validatePlan(raw: unknown, now: number): ReadingPlan {
     items,
     archive,
     series,
+    stats: validateStats((value as { stats?: unknown }).stats, archive),
   };
+}
+
+/**
+ * Lifetime counters. A plan written before they existed is backfilled from the
+ * archive it still has, which is the best available lower bound; a snapshot whose
+ * counters are smaller than its own archive is rejected rather than trusted.
+ */
+function validateStats(raw: unknown, archive: readonly PlanArchiveEntry[]): PlanStats {
+  const counted = { completed: 0, skipped: 0, removed: 0 };
+  for (const entry of archive) counted[entry.status] += 1;
+  if (raw === undefined) return { ...counted, truncated: 0 };
+  const value = record(raw, 'stats');
+  const number = (name: keyof PlanStats): number => {
+    const field = value[name];
+    if (field === undefined) return name === 'truncated' ? 0 : counted[name as 'completed' | 'skipped' | 'removed'];
+    if (!Number.isSafeInteger(field) || (field as number) < 0) throw new Error(`Invalid reading plan stats.${String(name)}`);
+    return field as number;
+  };
+  const stats: PlanStats = { completed: number('completed'), skipped: number('skipped'), removed: number('removed'), truncated: number('truncated') };
+  const last = value.lastArchivedAt;
+  if (last !== undefined) stats.lastArchivedAt = stamp(last, 'stats time');
+  // The archive is a window into history, so it can never hold more of a status
+  // than the lifetime counter claims.
+  if (stats.completed < counted.completed || stats.skipped < counted.skipped || stats.removed < counted.removed) {
+    throw new Error('Reading plan stats are smaller than its own archive');
+  }
+  return stats;
 }
 
 function touch(plan: ReadingPlan, now: number): void {
@@ -267,7 +315,17 @@ export function archiveItem(plan: ReadingPlan, itemId: string, status: PlanArchi
     status, addedAt: item.addedAt, ...(item.startedAt !== undefined ? { startedAt: item.startedAt } : {}),
     endedAt: now, ...(reason ? { reason: reason.slice(0, MAX_REASON) } : {}),
   };
-  plan.archive = [...plan.archive, entry].slice(-PLAN_ARCHIVE_LIMIT);
+  const series = item.seriesId ? plan.series.find((group) => group.id === item.seriesId) : undefined;
+  if (series) entry.seriesName = series.name;
+  plan.archive.push(entry);
+  // The array stays bounded, but the counters never lose a book: `truncated`
+  // records exactly how many rows the window pushed out.
+  const overflow = plan.archive.length - PLAN_ARCHIVE_LIMIT;
+  if (overflow > 0) { plan.archive = plan.archive.slice(overflow); plan.stats.truncated += overflow; }
+  if (status === 'completed') plan.stats.completed += 1;
+  else if (status === 'skipped') plan.stats.skipped += 1;
+  else plan.stats.removed += 1;
+  plan.stats.lastArchivedAt = now;
   dropUnusedSeries(plan);
   touch(plan, now);
   return entry;
@@ -344,9 +402,25 @@ export function createSeries(plan: ReadingPlan, name: string, source: 'auto' | '
   return group;
 }
 
+/**
+ * Remove series groups that no waiting entry belongs to.
+ *
+ * Archived entries keep the human-readable name and lose the id, so history is
+ * never left pointing at a group that no longer exists.
+ */
 export function dropUnusedSeries(plan: ReadingPlan): void {
   const used = new Set(plan.items.map((item) => item.seriesId).filter((id): id is string => !!id));
+  const dropped = plan.series.filter((group) => !used.has(group.id));
+  if (!dropped.length) return;
+  const names = new Map(dropped.map((group) => [group.id, group.name] as const));
   plan.series = plan.series.filter((group) => used.has(group.id));
+  for (const entry of plan.archive) {
+    if (!entry.seriesId) continue;
+    const name = names.get(entry.seriesId);
+    if (!name) continue;
+    entry.seriesName = entry.seriesName ?? name;
+    entry.seriesId = null;
+  }
 }
 
 /** Books removed from the shelf leave the plan, but the entry stays in the archive. */
@@ -388,11 +462,14 @@ export function migrateLegacyQueue(queue: readonly LegacyQueueRow[], books: Read
     if (row.status === 'cancelled') {
       plan.archive.push({ id: row.id, bookKey: row.bookKey, title: row.title, source: row.source === 'pet' ? 'persona' : 'user',
         seriesId: null, status: 'removed', addedAt: row.addedAt, endedAt: row.updatedAt, reason: 'legacy_cancelled' });
+      plan.stats.removed += 1;
       migrated += 1; continue;
     }
     if (row.status === 'done') {
       plan.archive.push({ id: row.id, bookKey: row.bookKey, title: row.title, source: row.source === 'pet' ? 'persona' : 'user',
         seriesId: null, status: 'completed', addedAt: row.addedAt, endedAt: row.updatedAt });
+      // Migrated rows are history too, so the lifetime counters must see them.
+      plan.stats.completed += 1;
       migrated += 1; continue;
     }
     if (plan.items.some((item) => item.bookKey === row.bookKey)) { dropped += 1; continue; }
@@ -401,6 +478,11 @@ export function migrateLegacyQueue(queue: readonly LegacyQueueRow[], books: Read
       intentId: row.intentId, ...(row.notBefore ? { notBefore: row.notBefore } : {}) });
     migrated += 1;
   }
+  // The archive is bounded, so a long legacy queue can overflow it exactly like
+  // the live path does; record how many rows the window dropped.
+  const overflow = plan.archive.length - PLAN_ARCHIVE_LIMIT;
+  if (overflow > 0) { plan.archive = plan.archive.slice(overflow); plan.stats.truncated += overflow; }
+  if (plan.archive.length) plan.stats.lastArchivedAt = plan.archive[plan.archive.length - 1].endedAt;
   plan.revision = migrated ? 1 : 0;
   plan.updatedAt = now;
   return { plan, migrated, dropped };

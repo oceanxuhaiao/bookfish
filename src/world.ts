@@ -485,6 +485,7 @@ export class BookfishWorld implements World {
         if (method === 'import_batch_zip_begin' && args.length === 2) return this.transfers.batches.zipBegin(requiredText(args[0], 'batchId', 40), args[1]);
         if (method === 'import_batch_zip_chunk' && args.length === 3) return this.transfers.batches.zipChunk(requiredText(args[0], 'batchId', 40), args[1], args[2]);
         if (method === 'import_batch_zip_finish' && args.length === 1) return this.transfers.batches.zipFinish(requiredText(args[0], 'batchId', 40), this.sourceSignal());
+        if (method === 'import_batch_zip_reselect' && args.length === 1) return this.transfers.batches.zipReselect(requiredText(args[0], 'batchId', 40));
         if (method === 'import_batch_start' && args.length === 1) return this.transfers.batches.start(requiredText(args[0], 'batchId', 40));
         if (method === 'import_batch_status' && args.length <= 1) return args.length === 0 ? this.transfers.batches.summaries() : this.transfers.batches.status(requiredText(args[0], 'batchId', 40));
         if (method === 'import_batch_retry' && args.length === 2) return this.transfers.batches.retry(requiredText(args[0], 'batchId', 40), requiredText(args[1], 'itemId', 40));

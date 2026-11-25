@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, statSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Library } from '../src/library.ts';
@@ -105,23 +105,23 @@ describe('chunked upload is append-only and refuses to be talked out of it', () 
 
   it('re-upload after reselect restores the same item instead of creating a new one', async () => {
     const body = Buffer.from('# 重选\n\n' + 'the sea is wide. '.repeat(20));
-    const { batchId, itemId } = staged('again.txt', body.length);
-    // Lose the staged bytes the way an interrupted process would.
-    batches.start(batchId);
-    await new Promise<void>((resolve) => setTimeout(resolve, 400));
-    await batches.shutdown();
+    const { batchId, itemId, path } = staged('again.txt', body.length);
+    // A first complete upload establishes the entry's content identity.
+    batches.stage(batchId, itemId, 0, chunk(body));
+    expect(lib.importBatches().at(-1)!.items[0].sourceSha256).toMatch(/^[a-f0-9]{64}$/u);
+
+    // Lose the staged bytes while the parser was about to run.
+    rmSync(path, { force: true });
     lib.updateImportBatch(batchId, (draft) => { draft.status = 'running'; draft.items[0].status = 'validating'; });
     batches = new ImportBatches(lib, join(dir, 'transfers'), { now });
     batches.resume();
-    const afterResume = lib.importBatches().at(-1)!.items[0];
-    // Either it resumed from the bytes or it asked for the file again.
-    expect(['pending', 'needs_reselect', 'processing', 'completed']).toContain(afterResume.status);
+    expect(lib.importBatches().at(-1)!.items[0].status).toBe('needs_reselect');
 
-    const lost = batches.reselect(batchId, itemId, { size: body.length });
+    const lost = batches.reselect(batchId, itemId, { size: body.length, name: 'again.txt' });
     expect(lost).toMatchObject({ itemId, size: body.length, offset: 0 });
     expect(lib.importBatches().at(-1)!.items[0].id).toBe(itemId);
     expect(lib.importBatches().at(-1)!.items).toHaveLength(1);
-    // A different file is refused: the entry can only be restored, not swapped.
+    // A different length is refused: the entry can only be restored, not swapped.
     lib.updateImportBatch(batchId, (draft) => { draft.items[0].status = 'needs_reselect'; });
     expect(() => batches.reselect(batchId, itemId, { size: body.length + 1 })).toThrow(/expects a .* byte file/u);
     // And an item that never lost its file cannot be reselected at all.

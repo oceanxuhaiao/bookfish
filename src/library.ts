@@ -16,6 +16,7 @@ import { buildRemoteBook, buildSerialBook } from './remote-books.ts';
 import { SourceError, type CachedChapter, type SourceCatalog } from './source-types.ts';
 import { SERIAL_INTERVALS, SERIAL_PAGE_LIMIT, chapterId, nextCheckIso, receiptFor, stableSerialIdentity, validateSerialCatalog, validateSerialRecord, type SerialCatalogCommit, type SerialPublicationEvidence, type SerialReceipt, type SerialRecord, type SerialSyncCommit } from './serial-types.ts';
 import { emptySelection, validateSelection, type SelectionState } from './selection-types.ts';
+import { PLAN_ARCHIVE_LIMIT } from './reading-plan.ts';
 import { addPlanItems, archiveItem, createSeries, dropUnusedSeries, emptyPlan, findItem, markStarted, migrateLegacyQueue, movePlanItem, movePlanSeries, reconcilePlan, setItemNotBefore, setItemSeries, setPlanEnabled, suggestSeries, validatePlan, type PlanAddInput, type PlanItem, type PlanSource, type ReadingPlan } from './reading-plan.ts';
 import { PlanCoordinator, type PlanAdvanceResult, type PlanSchedulerView } from './plan-coordinator.ts';
 import { addBatchItems, trimBatches, validateBatches, type BatchAddResult, type ImportBatch, type BatchItemInput } from './import-batch.ts';
@@ -850,10 +851,26 @@ export class Library {
         ...(item.notBefore !== undefined ? { notBefore: item.notBefore } : {}) };
     });
     const completed = plan.archive.filter((entry) => entry.status === 'completed');
+    // The book actually being read is whatever `selected` points at, which is not
+    // necessarily a planned entry: the user may have removed it from the playlist,
+    // or never added it. Reporting it here is what keeps it from "disappearing".
+    const selectedView = this.state.selected ? views.get(this.state.selected) : undefined;
+    const reading = selectedView ? {
+      bookKey: selectedView.key, title: selectedView.title, author: selectedView.author,
+      progress: selectedView.progress, progressUnit: selectedView.progressUnit,
+      chapter: selectedView.chapter, complete: selectedView.complete,
+      inPlan: items.some((item) => item.bookKey === selectedView.key),
+    } : null;
     return { id: plan.id, revision: plan.revision, enabled: plan.enabled, createdAt: plan.createdAt, updatedAt: plan.updatedAt,
       items, series: plan.series.map((group) => ({ ...group, count: items.filter((item) => item.seriesId === group.id).length })),
-      total: items.length, completedCount: completed.length,
+      total: items.length,
+      // Lifetime counters, not the window: trimming the archive must never make a
+      // long-time reader's finished count go down.
+      completedCount: plan.stats.completed, completedKept: completed.length,
+      skippedCount: plan.stats.skipped, removedCount: plan.stats.removed,
+      truncatedCount: plan.stats.truncated, archiveLimit: PLAN_ARCHIVE_LIMIT, archiveKept: plan.archive.length,
       current: items.find((item) => item.active) ?? null,
+      reading,
       next: items.find((item) => !item.active && !item.complete) ?? null,
       archive: [...plan.archive].slice(-50).reverse().map((entry) => ({ ...entry })) };
   }
@@ -1169,7 +1186,11 @@ export class Library {
       case 'enable': return this.setPlanEnabled(input.enabled);
       case 'remove': return this.removeFromPlan(input.itemId, {
         status: input.status === 'skipped' ? 'skipped' : 'removed',
-        stop: input.stop === true, reason: typeof input.reason === 'string' ? input.reason.slice(0, 200) : undefined });
+        stop: input.stop === true,
+        // "Remove from the plan but keep reading this" is a different promise from
+        // "stop and hand over"; both must reach Library, so both are passed on.
+        keepReading: input.keepReading === true,
+        reason: typeof input.reason === 'string' ? input.reason.slice(0, 200) : undefined });
       case 'series': return this.editPlanSeries(input);
       default: throw new Error('plan action must be move, place, move_series, enable, remove or series');
     }

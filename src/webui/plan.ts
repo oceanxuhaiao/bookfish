@@ -34,10 +34,20 @@ export function renderPlanPage(options: PlanPageOptions): void {
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, text = '', parent: HTMLElement = page) => {
     const node = document.createElement(tag); node.textContent = text; parent.append(node); return node;
   };
+  // Failures are shown, never swallowed: a silent no-op looks like a broken page.
+  const failure = document.createElement('p'); failure.className = 'plan-error'; failure.hidden = true;
+  page.append(failure);
+  const report = (error: unknown): void => {
+    failure.textContent = String((error as Error)?.message ?? error);
+    failure.hidden = false;
+  };
   const act = (label: string, parent: HTMLElement, run: () => Promise<void>, hint?: string): HTMLButtonElement => {
     const node = document.createElement('button'); node.type = 'button'; node.textContent = label;
     if (hint) node.title = hint;
-    node.addEventListener('click', () => { void run().catch(() => undefined); });
+    node.addEventListener('click', () => {
+      failure.hidden = true;
+      void run().catch(report);
+    });
     parent.append(node); return node;
   };
   const write = async (payload: Record<string, unknown>): Promise<void> => {
@@ -49,16 +59,27 @@ export function renderPlanPage(options: PlanPageOptions): void {
   el('p', say('全扩展只有这一份计划。这里的位置只决定“接下来读哪本”，改顺序不会改动正文、进度、手账、读后感或故事记忆。',
     'There is exactly one plan. Position only decides which book comes next; reordering never changes text, progress, journal, reviews or story memory.')).className = 'plan-lead';
 
-  if (!plan.total && !plan.completedCount) {
-    el('p', say('计划还是空的。到书架上打开一本书，把它加入阅读计划，就会出现在这里。',
-      'The plan is empty. Open a book in the bookshelf and add it to the plan.'), page);
+  // An empty plan is only "empty" when nothing is being read either; a current
+  // book outside the plan still has to be shown.
+  if (!plan.total && !plan.reading) {
+    el('p', say('计划还是空的，现在也没有在读的书。到书架上打开一本书，把它加入阅读计划，就会出现在这里。',
+      'The plan is empty and nothing is being read. Open a book in the bookshelf and add it to the plan.'), page);
     return;
   }
 
   const summary = el('p', '', page); summary.className = 'plan-summary';
   summary.textContent = say(
-    `计划 ${plan.total} 本 · 已完成 ${plan.completedCount} 本` + (plan.series.length ? ` · ${plan.series.length} 个系列` : ''),
-    `${plan.total} planned · ${plan.completedCount} finished` + (plan.series.length ? ` · ${plan.series.length} series` : ''));
+    `计划 ${plan.total} 本 · 累计读完 ${plan.completedCount} 本` + (plan.series.length ? ` · ${plan.series.length} 个系列` : ''),
+    `${plan.total} planned · ${plan.completedCount} finished in total` + (plan.series.length ? ` · ${plan.series.length} series` : ''));
+  const historyNote = el('small', '', page);
+  historyNote.className = 'plan-note plan-history';
+  historyNote.textContent = say(
+    `历史只保留最近 ${plan.archiveLimit} 条（当前 ${plan.archiveKept} 条）` +
+      (plan.truncatedCount ? `，更早的 ${plan.truncatedCount} 条已不再列出，但累计数量仍然计入` : '') +
+      `；跳过 ${plan.skippedCount} 本、移出 ${plan.removedCount} 本。`,
+    `History keeps the latest ${plan.archiveLimit} entries (now ${plan.archiveKept})` +
+      (plan.truncatedCount ? `; ${plan.truncatedCount} older entries are no longer listed but still counted` : '') +
+      `; ${plan.skippedCount} skipped, ${plan.removedCount} removed in total.`);
 
   const toggleRow = el('div', '', page); toggleRow.className = 'plan-toggle';
   const enabled = document.createElement('button'); enabled.type = 'button';
@@ -71,21 +92,61 @@ export function renderPlanPage(options: PlanPageOptions): void {
   const currentCard = el('section', '', page); currentCard.className = 'card plan-current';
   el('h3', say('正在读', 'Reading now'), currentCard);
   const current = plan.current;
-  if (current) {
+  const reading = plan.reading;
+  if (reading) {
+    const head = el('p', '', currentCard); head.className = 'plan-current-head';
+    el('strong', `《${reading.title}》`, head);
+    const badge = el('span', '', head); badge.className = 'plan-badge' + (reading.inPlan ? ' is-active' : '');
+    badge.textContent = reading.inPlan
+      ? say(`第 ${current?.position ?? 1} / ${plan.total} 位 · 已读 ${Math.round(reading.progress * 100)}%`,
+        `#${current?.position ?? 1} of ${plan.total} · ${Math.round(reading.progress * 100)}% read`)
+      : say(`计划外 · 已读 ${Math.round(reading.progress * 100)}%`, `outside the plan · ${Math.round(reading.progress * 100)}% read`);
+    el('small', reading.inPlan
+      ? say(`进度按${reading.progressUnit === 'chapters' ? '章节' : '字符'}计算。这本书读完之前不会被重排挤掉。`,
+        `Progress is counted in ${reading.progressUnit === 'chapters' ? 'chapters' : 'characters'}. It cannot be displaced by a reorder before it is finished.`)
+      : say('这本书正在读，但不在阅读计划里：它不计入计划本数，也不会挤掉计划里的下一本。',
+        'This book is being read but is not in the plan: it does not count towards the plan, and it does not displace the next planned book.'),
+    currentCard).className = 'plan-note';
+    if (!reading.inPlan) {
+      el('small', `《${reading.title}》${reading.chapter ? ' · ' + reading.chapter : ''}`, currentCard).className = 'plan-note';
+      act(say('把这本书加进计划', 'Add this book to the plan'), currentCard, async () => {
+        await invoke('plan_add', [{ bookKeys: [reading.bookKey] }]);
+        await refresh();
+      });
+    }
+    if (reading.inPlan && current) {
+      // Two distinct promises: hand over to the next book, or leave the playlist
+      // and keep reading this one. Both keep the text and the progress.
+      const readable = plan.items.filter((item) => !item.active && !item.complete && item.present
+        && !(item.notBefore !== undefined && item.notBefore > Date.now()));
+      const stop = act(say('停止读这本，改读下一本', 'Stop this one and read the next'), currentCard, async () => {
+        const ok = await confirm({ title: say('停止读这本书？', 'Stop reading this book?'), danger: true,
+          body: say('它会从计划移到“已停止”，进度、手账和读后感都保留；不算读完，也不会删除书架上的原件。',
+            'It moves to “stopped”. Progress, journal and reviews are kept; it is not marked finished and the shelf copy is not deleted.') });
+        if (!ok) return;
+        await write({ action: 'remove', itemId: current.id, status: 'skipped', stop: true, reason: 'stopped_by_user_in_panel' });
+      }, say('这不是跳过，是明确结束当前这本的阅读', 'This is not skipping: it explicitly ends reading this book'));
+      stop.className = 'plan-stop';
+      if (!readable.length) {
+        // Refusing is the honest answer; say why instead of failing silently.
+        stop.disabled = true;
+        el('small', say('没有其他可读的下一本，所以不能“换下一本”。如果你只想让它离开计划但仍继续读这本，用下面的按钮。',
+          'There is no other readable book to hand over to. If you only want it out of the plan while still reading it, use the button below.'), currentCard).className = 'plan-note';
+      }
+      act(say('移出计划，继续读这本', 'Remove from the plan, keep reading this'), currentCard, async () => {
+        const ok = await confirm({ title: say('移出计划但继续读？', 'Remove from the plan but keep reading?'),
+          body: say('它不再排在计划里，但仍然是当前在读的书，进度和手账都保留。',
+            'It leaves the playlist but stays the current book; progress and journal are kept.') });
+        if (!ok) return;
+        await write({ action: 'remove', itemId: current.id, status: 'removed', keepReading: true, reason: 'removed_but_still_reading' });
+      }, say('不切换书，只把它移出计划', 'No switch: it only leaves the playlist'));
+    }
+  } else if (current) {
+    // Plan says an item is active but nothing is selected: show the entry, not a lie.
     const head = el('p', '', currentCard); head.className = 'plan-current-head';
     el('strong', `《${current.title}》`, head);
-    el('span', say(`第 ${current.position} / ${plan.total} 位 · 已读 ${Math.round(current.progress * 100)}%`,
-      `#${current.position} of ${plan.total} · ${Math.round(current.progress * 100)}% read`), head).className = 'plan-badge';
-    el('small', say(`进度按${current.progressUnit === 'chapters' ? '章节' : '字符'}计算。这本书读完之前不会被重排挤掉。`,
-      `Progress is counted in ${current.progressUnit === 'chapters' ? 'chapters' : 'characters'}. It cannot be displaced by a reorder before it is finished.`), currentCard).className = 'plan-note';
-    const stop = act(say('停止读这本，改读下一本', 'Stop this one and read the next'), currentCard, async () => {
-      const ok = await confirm({ title: say('停止读这本书？', 'Stop reading this book?'), danger: true,
-        body: say('它会从计划移到“已停止”，进度、手账和读后感都保留；不算读完，也不会删除书架上的原件。',
-          'It moves to “stopped”. Progress, journal and reviews are kept; it is not marked finished and the shelf copy is not deleted.') });
-      if (!ok) return;
-      await write({ action: 'remove', itemId: current.id, status: 'skipped', stop: true, reason: 'stopped_by_user_in_panel' });
-    }, say('这不是跳过，是明确结束当前这本的阅读', 'This is not skipping: it explicitly ends reading this book'));
-    stop.className = 'plan-stop';
+    el('span', say(`第 ${current.position} / ${plan.total} 位`, `#${current.position} of ${plan.total}`), head).className = 'plan-badge';
+    el('small', say('这本书在计划里排到了，但还没有被选中阅读。', 'This entry is next in the plan but has not been selected yet.'), currentCard).className = 'plan-note';
   } else {
     el('p', say('现在没有在读的书。计划里的第一本会在你选一本书，或她按计划开始读时生效。',
       'No book is being read right now. The first planned book takes effect when you pick one or she starts following the plan.'), currentCard);

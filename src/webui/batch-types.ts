@@ -47,7 +47,16 @@ export interface ImportBatchPreview {
   needsReselect: number;
 }
 
+export interface ImportBatchZipView {
+  name: string;
+  size: number;
+  state: 'uploading' | 'needs_reselect' | 'ready' | 'extracted';
+  sha256?: string;
+  peakBytes?: number;
+}
+
 export interface ImportBatchView extends ImportBatchPreview {
+  zip?: ImportBatchZipView;
   id: string;
   total: number;
   completed: number;

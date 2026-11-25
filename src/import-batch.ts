@@ -63,6 +63,37 @@ export interface BatchItem {
   group?: string;
   /** `false` when the extension is not a supported novel format. */
   supported: boolean;
+  /**
+   * SHA-256 of the bytes the user originally picked, computed server-side when
+   * the upload completed. This is the entry's content identity: a re-picked file
+   * must match it, so two same-length files can never be confused.
+   *
+   * Absent means "identity was never established" — an entry staged before this
+   * rule existed, or one whose first upload never completed. Such an entry can
+   * only be re-imported, never silently re-attached.
+   */
+  sourceSha256?: string;
+  /** The relative path exactly as the picker reported it, for reselect matching. */
+  sourceName?: string;
+}
+
+/**
+ * Upload identity of an archive batch.
+ *
+ * `size` is what the picker declared; the upload may never exceed it. `sha256`
+ * is computed by the server once the bytes have all arrived, and it is the
+ * identity a recovery must match — a re-picked archive with the same length but
+ * different content is refused. `claimedSha256` is only what the client said
+ * before uploading, kept so a mismatch can be reported instead of trusted.
+ */
+export interface BatchZip {
+  name: string;
+  size: number;
+  sha256?: string;
+  claimedSha256?: string;
+  state: 'uploading' | 'needs_reselect' | 'ready' | 'extracted';
+  /** Measured maximum of the batch directory during extraction, in bytes. */
+  peakBytes?: number;
 }
 
 export interface ImportBatch {
@@ -72,6 +103,8 @@ export interface ImportBatch {
   updatedAt: number;
   source: BatchSource;
   status: BatchStatus;
+  /** Present only for `source === 'zip'`. */
+  zip?: BatchZip;
   /** Separated from importing: a batch never queues reading unless asked. */
   toPlan: boolean;
   items: BatchItem[];
@@ -89,6 +122,12 @@ const TERMINAL_ITEM: readonly BatchItemStatus[] = ['completed', 'failed', 'cance
 
 export function isSupportedNovel(name: string): boolean {
   return SUPPORTED.test(name);
+}
+
+/** A persisted content digest must be a lowercase hex SHA-256, never free text. */
+export function digestOf(value: unknown): string {
+  if (typeof value !== 'string' || !/^[a-f0-9]{64}$/u.test(value)) throw new Error('Invalid content digest');
+  return value;
 }
 
 function text(value: unknown, max: number): string {
@@ -125,13 +164,15 @@ export function newBatch(input: { id: string; source: BatchSource; toPlan?: bool
     status: 'preview', toPlan: input.toPlan === true, items: [] };
 }
 
-function emptyItem(input: { id: string; name: string; size: number; title: string; author?: string; supported?: boolean }): BatchItem {
+function emptyItem(input: { id: string; name: string; size: number; title: string; author?: string; supported?: boolean; sourceSha256?: string; sourceName?: string }): BatchItem {
   return { id: input.id, name: input.name, size: input.size, status: 'pending', title: input.title,
     ...(input.author ? { author: input.author } : {}), attempts: 0,
+    ...(input.sourceSha256 ? { sourceSha256: input.sourceSha256 } : {}),
+    ...(input.sourceName ? { sourceName: input.sourceName } : {}),
     supported: input.supported ?? isSupportedNovel(input.name) };
 }
 
-export interface BatchItemInput { id: string; name: string; size: number; title: string; author?: string }
+export interface BatchItemInput { id: string; name: string; size: number; title: string; author?: string; sourceSha256?: string; sourceName?: string }
 
 export interface BatchAddResult {
   added: BatchItem[];
@@ -181,7 +222,9 @@ export function addBatchItems(batch: ImportBatch, inputs: readonly BatchItemInpu
     seen.add(pathKey(name));
     declared += input.size;
     added.push(emptyItem({ id: input.id, name, size: input.size, title: text(input.title, 200),
-      ...(input.author === undefined || input.author === '' ? {} : { author: text(input.author, 100) }) }));
+      ...(input.author === undefined || input.author === '' ? {} : { author: text(input.author, 100) }),
+      ...(input.sourceSha256 === undefined ? {} : { sourceSha256: digestOf(input.sourceSha256) }),
+      sourceName: text(input.sourceName ?? name, BATCH_NAME_LIMIT) }));
   }
   if (added.length) { batch.items.push(...added); batch.updatedAt = now; }
   return { added, duplicates, unsupported, tooLarge, overBudget, overflow };
@@ -434,6 +477,16 @@ export function validateBatches(raw: unknown, now = 0): ImportBatch[] {
     if (!SOURCES.includes(batch.source) || !BATCH_STATUSES.includes(batch.status)) throw new Error('Invalid import batch');
     if (!Number.isSafeInteger(batch.createdAt) || batch.createdAt < 0 || !Number.isSafeInteger(batch.updatedAt) || batch.updatedAt < batch.createdAt) throw new Error('Invalid import batch timing');
     if (typeof batch.toPlan !== 'boolean' || !Array.isArray(batch.items) || batch.items.length > BATCH_ITEM_LIMIT) throw new Error('Invalid import batch');
+    if (batch.zip !== undefined) {
+      if (batch.source !== 'zip') throw new Error('Invalid import batch archive metadata');
+      const zip = batch.zip;
+      if (!zip || typeof zip !== 'object' || typeof zip.name !== 'string' || !zip.name || zip.name.length > BATCH_NAME_LIMIT) throw new Error('Invalid import batch archive name');
+      if (!Number.isSafeInteger(zip.size) || zip.size < 1 || zip.size > ZIP_MAX_BYTES) throw new Error('Invalid import batch archive size');
+      if (!['uploading', 'needs_reselect', 'ready', 'extracted'].includes(zip.state)) throw new Error('Invalid import batch archive state');
+      if (zip.sha256 !== undefined) digestOf(zip.sha256);
+      if (zip.claimedSha256 !== undefined) digestOf(zip.claimedSha256);
+      if (zip.peakBytes !== undefined && (!Number.isSafeInteger(zip.peakBytes) || zip.peakBytes < 0)) throw new Error('Invalid import batch archive peak');
+    }
     if (batch.error !== undefined && (typeof batch.error !== 'string' || batch.error.length > 500)) throw new Error('Invalid import batch error');
     const itemIds = new Set<string>();
     for (const item of batch.items) {
@@ -441,6 +494,8 @@ export function validateBatches(raw: unknown, now = 0): ImportBatch[] {
       itemIds.add(item.id);
       if (typeof item.name !== 'string' || !item.name || item.name.length > BATCH_NAME_LIMIT || item.name.includes('\\') || item.name.includes('\0')) throw new Error('Invalid import item name');
       if (!ITEM_STATUSES.includes(item.status) || typeof item.supported !== 'boolean') throw new Error('Invalid import item status');
+      if (item.sourceSha256 !== undefined) digestOf(item.sourceSha256);
+      if (item.sourceName !== undefined && (typeof item.sourceName !== 'string' || !item.sourceName || item.sourceName.length > BATCH_NAME_LIMIT || item.sourceName.includes('\0'))) throw new Error('Invalid import item source name');
       if (!Number.isSafeInteger(item.size) || item.size < 0 || !Number.isSafeInteger(item.attempts) || item.attempts < 0 || item.attempts > 99) throw new Error('Invalid import item counters');
       if (typeof item.title !== 'string' || typeof item.bookKey !== 'undefined' && typeof item.bookKey !== 'string') throw new Error('Invalid import item text');
       if (item.author !== undefined && (typeof item.author !== 'string' || item.author.length > 100)) throw new Error('Invalid import item author');
@@ -476,7 +531,10 @@ export function batchSummary(batch: ImportBatch): { id: string; source: BatchSou
   title: string; createdAt: number; updatedAt: number } {
   const count = (status: BatchItemStatus) => batch.items.filter((item) => item.status === status).length;
   const first = batch.items[0];
-  const title = batch.items.length === 1 && first ? first.title : `${first?.title ?? '导入'} 等 ${batch.items.length} 本`;
+  // An archive batch may have no items yet (interrupted upload); name it by the
+  // archive so it is recognisable in the history list.
+  const title = batch.items.length === 0 ? (batch.zip?.name ?? '导入')
+    : batch.items.length === 1 && first ? first.title : `${first?.title ?? '导入'} 等 ${batch.items.length} 本`;
   return { id: batch.id, source: batch.source, status: batch.status, toPlan: batch.toPlan, total: batch.items.length,
     completed: count('completed'), failed: count('failed'), cancelled: count('cancelled'),
     needsReselect: count('needs_reselect'), pending: count('pending') + runningCount(batch),

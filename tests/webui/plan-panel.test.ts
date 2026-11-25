@@ -28,11 +28,16 @@ afterEach(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+let failMethod: string | null = null;
+
 async function mount() {
   const root = document.createElement('div'); document.body.append(root);
   const intervals: Array<() => Promise<void>> = [];
   const ctx = { root, panelId: 'plan', language: 'zh', signal: controller.signal,
-    invoke: async (method: string, args: unknown[]) => world.webUi!('zh').invoke!('plan', method, args),
+    invoke: async (method: string, args: unknown[]) => {
+      if (failMethod && method === failMethod) throw new Error('磁盘已满，无法保存计划');
+      return world.webUi!('zh').invoke!('plan', method, args);
+    },
     setConfig: async () => 'Saved',
     interval: (callback: () => Promise<void>) => { intervals.push(callback); }, timeout: () => {}, own: () => {},
     ui: { confirm: async (options: { title: string; body?: string; danger?: boolean }) => { lastConfirm = options; return confirmAnswer; },
@@ -212,5 +217,86 @@ describe('series management and single-book planning', () => {
     await settle(); await settle();
     const after = await invocation('plan', 'get', []) as { plan: { items: { bookKey: string }[] } };
     expect(after.plan.items.map((item) => item.bookKey)).toEqual(keys);
+  });
+});
+
+describe('the page keeps the reader oriented and never fails silently', () => {
+  it('shows a book that is being read outside the plan', async () => {
+    const keys = await planBooks(['甲']);
+    const invocation = world.webUi!('zh').invoke!;
+    await invocation('plan', 'select', [keys[0]]);
+    // Take it out of the plan but keep reading it: the classic "outside" case.
+    const view = await invocation('plan', 'get', []) as { plan: { items: { id: string }[] } };
+    await invocation('plan', 'plan_update', [{ action: 'remove', itemId: view.plan.items[0].id, status: 'removed', keepReading: true }]);
+    const { root } = await mount();
+    expect(root.textContent).toContain('《甲》');
+    expect(root.textContent).toContain('计划外');
+    expect(rows(root)).toEqual([]);
+    expect(button(root, '把这本书加进计划')).toBeTruthy();
+    expect(keys).toHaveLength(1);
+  });
+
+  it('keeps the current book visible when the plan is completely empty', async () => {
+    const invocation = world.webUi!('zh').invoke!;
+    const imported = await invocation('plan', 'import', [{ filename: '独立.txt', title: '独立',
+      base64: Buffer.from('# 独立\n' + '海风。'.repeat(400)).toString('base64') }]) as { book: { key: string } };
+    await invocation('plan', 'select', [imported.book.key]);
+    const { root } = await mount();
+    // Not the empty-plan placeholder: the reader still sees what she is reading.
+    expect(root.textContent).not.toContain('计划还是空的，现在也没有在读的书');
+    expect(root.textContent).toContain('《独立》');
+    expect(root.textContent).toContain('计划外');
+  });
+
+  it('removes the current book from the plan while it keeps reading', async () => {
+    const keys = await planBooks(['甲', '乙']);
+    await world.webUi!('zh').invoke!('plan', 'select', [keys[0]]);
+    const { root } = await mount();
+    confirmAnswer = true;
+    button(root, '移出计划，继续读这本')!.click();
+    await settle(); await settle();
+    const after = await world.webUi!('zh').invoke!('plan', 'get', []) as { plan: { items: { bookKey: string }[]; reading: { bookKey: string; inPlan: boolean } | null }; status: { library: { current: { key: string } | null } } };
+    expect(after.plan.items.map((item) => item.bookKey)).toEqual([keys[1]]);
+    expect(after.status.library.current?.key).toBe(keys[0]);
+    expect(after.plan.reading).toMatchObject({ bookKey: keys[0], inPlan: false });
+  });
+
+  it('explains why stopping is unavailable when there is no next book', async () => {
+    const keys = await planBooks(['甲']);
+    await world.webUi!('zh').invoke!('plan', 'select', [keys[0]]);
+    const { root } = await mount();
+    const stop = button(root, '停止读这本，改读下一本') as HTMLButtonElement;
+    expect(stop.disabled).toBe(true);
+    expect(root.textContent).toContain('没有其他可读的下一本');
+    expect(button(root, '移出计划，继续读这本')).toBeTruthy();
+  });
+
+  it('surfaces a failed write instead of swallowing it', async () => {
+    await planBooks(['甲', '乙']);
+    const { root } = await mount();
+    failMethod = 'plan_update';
+    const second = [...root.querySelectorAll<HTMLElement>('[data-page=plan] .plan-item')][1];
+    [...second.querySelectorAll<HTMLButtonElement>('button')].find((node) => node.textContent === '置顶')!.click();
+    await settle(); await settle();
+    expect(root.querySelector('.plan-error')!.textContent).toContain('磁盘已满');
+    expect(root.querySelector<HTMLElement>('.plan-error')!.hidden).toBe(false);
+    failMethod = null;
+  });
+
+  it('treats a deferred-only plan as having no readable next book', async () => {
+    const keys = await planBooks(['甲', '乙']);
+    await world.webUi!('zh').invoke!('plan', 'select', [keys[0]]);
+    const view = await world.webUi!('zh').invoke!('plan', 'get', []) as { plan: { items: { id: string; bookKey: string }[] } };
+    const target = view.plan.items.find((item) => item.bookKey === keys[1])!;
+    await world.webUi!('zh').invoke!('plan', 'plan_update', [{ action: 'remove', itemId: target.id, status: 'skipped' }]);
+    await world.webUi!('zh').invoke!('plan', 'plan_add', [{ bookKeys: [keys[1]] }]);
+    // Defer it an hour: the only successor is not readable right now.
+    const again = await world.webUi!('zh').invoke!('plan', 'get', []) as { plan: { items: { id: string; bookKey: string }[] } };
+    const deferred = again.plan.items.find((item) => item.bookKey === keys[1])!;
+    await world.webUi!('zh').invoke!('plan', 'plan_update', [{ action: 'move', itemId: deferred.id, to: 2 }]);
+    const { root } = await mount();
+    const stop = button(root, '停止读这本，改读下一本') as HTMLButtonElement;
+    // A readable successor exists here, so the button stays usable.
+    expect(stop.disabled).toBe(false);
   });
 });

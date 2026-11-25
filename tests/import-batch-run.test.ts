@@ -148,7 +148,9 @@ describe('batch import runs the existing single-file pipeline', () => {
     lib.open();
     batches = new ImportBatches(lib, join(dir, 'transfers'), { now });
     const report = batches.resume();
-    expect(report).toEqual({ resumed: 1, reselect: 0 });
+    // v1.2: resume() also reports how many ZIP archives needed recovery;
+    // a plain files batch has none, so the new counter must stay at zero.
+    expect(report).toEqual({ resumed: 1, reselect: 0, archives: 0 });
     await waitFor(() => settled(batch.id), 'resumed batch');
     const done = lib.importBatches()[0];
     expect(done.items[0].status).toBe('completed');
@@ -172,7 +174,7 @@ describe('batch import runs the existing single-file pipeline', () => {
     lib = new Library({ dataDir: dir, now });
     lib.open();
     batches = new ImportBatches(lib, join(dir, 'transfers'), { now });
-    expect(batches.resume()).toEqual({ resumed: 0, reselect: 1 });
+    expect(batches.resume()).toEqual({ resumed: 0, reselect: 1, archives: 0 });
     const done = lib.importBatches()[0];
     expect(done.items[0].status).toBe('needs_reselect');
     expect(done.items[0].error).toContain('重新选择');

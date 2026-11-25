@@ -40,10 +40,12 @@ interface State {
   busy: string | null;
   error: string | null;
   reselectItemId: string | null;
+  /** Set when the zip picker is being used to re-attach an interrupted archive. */
+  reselectZipId: string | null;
 }
 
 export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportHandle {
-  const state: State = { batch: null, view: null, summaries: [], busy: null, error: null, reselectItemId: null };
+  const state: State = { batch: null, view: null, summaries: [], busy: null, error: null, reselectItemId: null, reselectZipId: null };
   let disposed = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -87,7 +89,13 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
 
   fileInput.addEventListener('change', () => { void startFiles('files', fileInput.files).catch(fail); });
   folderInput.addEventListener('change', () => { void startFiles('folder', folderInput.files).catch(fail); });
-  zipInput.addEventListener('change', () => { const file = zipInput.files?.[0]; if (file) void startZip(file).catch(fail); });
+  zipInput.addEventListener('change', () => {
+    const file = zipInput.files?.[0];
+    if (!file) return;
+    const pending = state.reselectZipId;
+    state.reselectZipId = null;
+    void (pending ? uploadZip(pending, file) : startZip(file)).catch(fail);
+  });
   reselectInput.addEventListener('change', () => { const file = reselectInput.files?.[0]; if (file) void attachReselected(file).catch(fail); });
 
   const relativeName = (file: File): string => {
@@ -147,17 +155,39 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
     state.error = null; state.busy = say('正在读取压缩包…', 'Reading the archive…'); render();
     const batch = await ctx.invoke<ImportBatch>('import_batch_create', [{ source: 'zip' }]);
     state.batch = batch;
-    const info = await ctx.invoke<{ offset: number; chunkBytes: number }>('import_batch_zip_begin', [batch.id, { name: file.name, size: file.size }]);
+    await uploadZip(batch.id, file);
+  }
+
+  /**
+   * The digest is only an expectation the server checks its own hash against.
+   * Whole-file hashing needs the file in memory, so it is skipped for large
+   * archives; the server still records its own digest on completion.
+   */
+  async function fileDigest(file: File): Promise<string | null> {
+    if (file.size > 64 * 1024 * 1024) return null;
+    const subtle = (globalThis.crypto as Crypto | undefined)?.subtle;
+    if (!subtle) return null;
+    try {
+      const digest = await subtle.digest('SHA-256', await file.arrayBuffer());
+      return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    } catch { return null; }
+  }
+
+  async function uploadZip(batchId: string, file: File): Promise<void> {
+    state.busy = say('正在上传压缩包…', 'Uploading the archive…'); render();
+    const digest = await fileDigest(file);
+    const info = await ctx.invoke<{ offset: number; chunkBytes: number }>('import_batch_zip_begin',
+      [batchId, { name: file.name, size: file.size, ...(digest ? { sha256: digest } : {}) }]);
     for (let offset = 0; offset < file.size; offset += info.chunkBytes) {
       if (disposed || ctx.signal.aborted) throw new Error('已取消');
       const bytes = new Uint8Array(await file.slice(offset, offset + info.chunkBytes).arrayBuffer());
       let binary = '';
       for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
-      await ctx.invoke('import_batch_zip_chunk', [batch.id, offset, btoa(binary)]);
+      await ctx.invoke('import_batch_zip_chunk', [batchId, offset, btoa(binary)]);
       state.busy = say(`正在上传压缩包 ${Math.round((offset + bytes.length) / file.size * 100)}%`, `Uploading archive ${Math.round((offset + bytes.length) / file.size * 100)}%`);
       render();
     }
-    const added = await ctx.invoke<{ unsupported: string[] }>('import_batch_zip_finish', [batch.id]);
+    const added = await ctx.invoke<{ unsupported: string[] }>('import_batch_zip_finish', [batchId]);
     state.busy = null;
     if (added.unsupported.length) state.error = say(`已跳过 ${added.unsupported.length} 个不支持的文件。`, `${added.unsupported.length} unsupported file(s) skipped.`);
     await refresh();
@@ -250,6 +280,27 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
       `${view.count} books · about ${saySize(view.estimatedBytes)}` +
         (view.suspectedDuplicates ? ` · ${view.suspectedDuplicates} may already be on the shelf` : '') +
         (view.unsupported.length ? ` · ${view.unsupported.length} unsupported` : ''));
+
+    if (view.zip) {
+      const archive = el('div', '', body); archive.className = 'batch-archive';
+      const zipState = view.zip.state;
+      el('small', say(
+        `压缩包：${view.zip.name} · ${saySize(view.zip.size)} · ` +
+          (zipState === 'uploading' ? '正在上传' : zipState === 'needs_reselect' ? '上传已中断，需要重新选择' : zipState === 'ready' ? '已校验，等待解压' : '已解压'),
+        `Archive: ${view.zip.name} · ${saySize(view.zip.size)} · ` +
+          (zipState === 'uploading' ? 'uploading' : zipState === 'needs_reselect' ? 'interrupted, pick it again' : zipState === 'ready' ? 'verified, waiting for extraction' : 'extracted')), archive);
+      if (view.zip.peakBytes) el('small', say(`解压峰值占用 ${saySize(view.zip.peakBytes)}`, `Peak disk use while extracting: ${saySize(view.zip.peakBytes)}`), archive).className = 'batch-note';
+      if (zipState === 'needs_reselect' && view.status === 'preview') {
+        el('small', say('重新选择同一个压缩包即可继续；大小或内容不同的包会被拒绝。',
+          'Pick the same archive again to continue; a different size or content is refused.'), archive).className = 'batch-warn';
+        act(say('重新选择 ZIP', 'Choose the ZIP again'), archive, async () => {
+          await ctx.invoke('import_batch_zip_reselect', [state.batch!.id]);
+          state.reselectZipId = state.batch!.id;
+          zipInput.value = '';
+          zipInput.click();
+        });
+      }
+    }
 
     for (const group of view.groups) {
       const box = el('div', '', body); box.className = 'batch-group';

@@ -32,7 +32,14 @@ describe('the declared limits are the ones that ship', () => {
     expect(BATCH_STAGING_BYTES).toBe(1024 * MiB);
     expect(BATCH_CONCURRENCY).toBe(2);
     expect(ZIP_MAX_BYTES).toBe(512 * MiB);
-    expect(DEFAULT_BATCH_BUDGET).toEqual({ batchBytes: 1024 * MiB, fileBytes: 100 * MiB, zipBytes: 512 * MiB });
+    expect(DEFAULT_BATCH_BUDGET).toEqual({
+      batchBytes: 1024 * MiB, fileBytes: 100 * MiB, zipBytes: 512 * MiB,
+      // v1.2: the real workspace is the archive plus the staged books. Entries
+      // are renamed into place, so there is no third copy and no extra ceiling.
+      workspaceBytes: 1536 * MiB,
+    });
+    expect(DEFAULT_BATCH_BUDGET.workspaceBytes)
+      .toBe(DEFAULT_BATCH_BUDGET.zipBytes + DEFAULT_BATCH_BUDGET.batchBytes);
   });
 });
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { createWriteStream, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { WebUiPanelContext } from 'cortico/web/shared/client-panel.ts';
@@ -8,6 +8,7 @@ import { fakeWorldContext } from 'cortico/extensions/dry-mount.ts';
 import { BOOKFISH } from '../../src/definition.ts';
 import bundle from '../../src/webui/client.ts';
 import { FakeHost } from '../helpers/fake-host.ts';
+import { batchStagingName } from '../../src/import-batch.ts';
 
 let dir: string, world: ReturnType<typeof BOOKFISH.create>, controller: AbortController, dispose: (() => void) | undefined;
 
@@ -65,6 +66,20 @@ function attach(input: HTMLInputElement, files: File[]): void {
 }
 
 const novel = (title: string) => new File([`# ${title}\n\n${'海风。'.repeat(400)}`], `${title}.txt`, { type: 'text/plain' });
+
+/** Locate a staging file without assuming how the host lays out its scratch dir. */
+function findStaged(batchId: string, name: string): string {
+  const pending = [dir];
+  while (pending.length) {
+    const current = pending.pop()!;
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const full = join(current, entry.name);
+      if (entry.isDirectory()) pending.push(full);
+      else if (entry.name === name && full.includes(batchId)) return full;
+    }
+  }
+  throw new Error(`staging file not found: ${name}`);
+}
 
 describe('shelf batch import panel', () => {
   it('previews several files, imports them and only then offers the plan', async () => {
@@ -156,8 +171,11 @@ describe('recovery, cancellation and reselect from the panel', () => {
     const created = await invoke('shelf', 'import_batch_create', [{ source: 'files' }]) as { id: string };
     const added = await invoke('shelf', 'import_batch_add', [created.id, [{ name: '丢失.txt', size: body.length }]]) as { added: { id: string }[] };
     const itemId = added.added[0].id;
-    // Only half of the bytes arrive, so the real length can never match.
-    await invoke('shelf', 'import_batch_chunk', [created.id, itemId, 0, body.subarray(0, 10).toString('base64')]);
+    // A first complete upload establishes the content identity the re-pick must match.
+    await invoke('shelf', 'import_batch_chunk', [created.id, itemId, 0, body.toString('base64')]);
+    // Then the staging bytes are truncated, so the real length can never match.
+    const staged = findStaged(created.id, batchStagingName(itemId));
+    writeFileSync(staged, body.subarray(0, 10));
     await invoke('shelf', 'import_batch_start', [created.id]);
     await waitFor(() => batchStatus(invoke, created.id, 'needs_reselect'), 'needs_reselect', 30_000);
 
@@ -205,3 +223,55 @@ async function batchStatus(invoke: (panel: string, method: string, args: unknown
   const view = await invoke('shelf', 'import_batch_status', [batchId]) as { items: { status: string }[] };
   return view.items[0]?.status === wanted;
 }
+
+describe('an interrupted archive can be picked again from the panel', () => {
+  it('shows the archive state and re-uploads the same ZIP', async () => {
+    const yazl = await import('yazl');
+    const zipPath = join(dir, 'books.zip');
+    const zip = new yazl.ZipFile();
+    zip.addBuffer(Buffer.from('# 甲\n' + 'the sea is wide. '.repeat(60)), '甲.txt');
+    zip.addBuffer(Buffer.from('# 乙\n' + 'the tide is low. '.repeat(60)), '乙.txt');
+    zip.end();
+    await new Promise<void>((resolve, reject) => {
+      const out = createWriteStream(zipPath);
+      out.on('close', () => resolve()).on('error', reject);
+      zip.outputStream.pipe(out);
+    });
+    const bytes = readFileSync(zipPath);
+    const invoke = world.webUi!('zh').invoke!;
+    const created = await invoke('shelf', 'import_batch_create', [{ source: 'zip' }]) as { id: string };
+    // A client digest that cannot match: the server refuses and asks again.
+    await invoke('shelf', 'import_batch_zip_begin', [created.id, { name: 'books.zip', size: bytes.length, sha256: 'a'.repeat(64) }]);
+    await invoke('shelf', 'import_batch_zip_chunk', [created.id, 0, bytes.toString('base64')]);
+    await expect(invoke('shelf', 'import_batch_zip_finish', [created.id])).rejects.toThrow('does not match the selected file');
+    const status = await invoke('shelf', 'import_batch_status', [created.id]) as { zip: { state: string } };
+    expect(status.zip.state).toBe('needs_reselect');
+
+    const root = await mount();
+    const batch = root.querySelector('.bf-batch') as HTMLElement;
+    await waitFor(() => batch.textContent!.includes('未完成 1 批'), 'history');
+    [...batch.querySelectorAll('button')].find((node) => node.textContent!.includes('books.zip'))!.click();
+    await waitFor(() => batch.textContent!.includes('重新选择 ZIP'), 'archive reselect entry');
+    expect(batch.textContent).toContain('上传已中断');
+
+    [...batch.querySelectorAll('button')].find((node) => node.textContent === '重新选择 ZIP')!.click();
+    await settle(60);
+    const zipInput = root.querySelector<HTMLInputElement>('input[type=file][accept=".zip"]')!;
+    Object.defineProperty(zipInput, 'files', { value: [new File([bytes], 'books.zip')], configurable: true });
+    zipInput.dispatchEvent(new Event('change'));
+
+    // The archive itself is verified here; extraction runs in a worker thread,
+    // which the jsdom environment cannot start, so that half is covered by the
+    // Node-environment tests (tests/import-batch-zip-peak.test.ts).
+    await waitFor(async () => {
+      const view = await invoke('shelf', 'import_batch_status', [created.id]) as { zip?: { sha256?: string; state: string } };
+      return Boolean(view.zip?.sha256);
+    }, 'archive re-verified', 30_000);
+    const after = await invoke('shelf', 'import_batch_status', [created.id]) as { id: string; zip?: { sha256?: string; state: string } };
+    expect(after.id).toBe(created.id);
+    expect(after.zip?.sha256).toMatch(/^[a-f0-9]{64}$/u);
+    const state = await invoke('shelf', 'get', []) as { importBatches: unknown[] };
+    // Re-uploading resumed the same batch instead of creating a second one.
+    expect(state.importBatches).toHaveLength(1);
+  });
+});
