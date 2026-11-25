@@ -1,0 +1,16 @@
+=== build (worker + webui) + check:help ===
+date: 2026-11-25T09:20:05Z
+--- build-worker ---
+Built lib/import-worker.mjs
+Built lib/zip-worker.mjs
+worker_exit=0
+--- build:webui ---
+$ node scripts/build-webui.mjs
+Built lib/webui.js
+Built lib/import-worker.mjs
+Built lib/zip-worker.mjs
+webui_exit=0
+--- check:help ---
+$ node --import tsx scripts/check-help-content.mts
+help content ok: package 0.66.7, 7 categories, 20 guides, 11 releases, 4 progress items, 13 online announcements, current-version post present
+help_exit=0

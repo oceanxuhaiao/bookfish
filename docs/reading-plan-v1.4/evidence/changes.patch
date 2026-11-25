@@ -1,0 +1,3223 @@
+diff --git "a/docs/reading-plan-v1.4/00-\345\256\241\346\240\270\345\205\245\345\217\243.md" "b/docs/reading-plan-v1.4/00-\345\256\241\346\240\270\345\205\245\345\217\243.md"
+new file mode 100644
+index 0000000..0526682
+--- /dev/null
++++ "b/docs/reading-plan-v1.4/00-\345\256\241\346\240\270\345\205\245\345\217\243.md"
+@@ -0,0 +1,55 @@
++# 00 · 审核入口（v1.4 最终状态机与批量结果完整性审核包）
++
++结论：**P1 五项、P2 两项全部完成**，在 v1.3 基础上增量修改；未重写阅读计划或批量导入架构，未改 Persona / SSM 业务逻辑 / Token 优化 / 阅读调度，未接 WAL v2、未启用 GC、未操作正式数据，未 push / merge / 发布 / 部署。
++
++全量回归 `128 files / 1349 passed | 1 skipped (1350)`（v1.3 基线 `126 files / 1325 passed | 1 skipped (1326)`，本轮 **+2 文件 / +24 例**）。双端 TypeScript、worker + WebUI 构建、`check:help` 全部通过。`check:ssm` 仍报 2 个 `REVIEW`（`src/library.ts`、`src/world.ts`），**本轮未使用 `--accept-review`**。
++
++本阶段是**宿主验收准备**，不是发布批准。真实桌面宿主里的原生文件选择器、真实 512 MiB 归档、真实磁盘写满等仍全部 `not_observed`（`09`）。
++
++## 边界
++
++| 项 | 值 |
++| --- | --- |
++| 工作区 | `E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-reading-plan` |
++| 分支 | `feat/reading-plan-v1`（本地提交，**未 push / 未 merge / 未发布 / 未部署**） |
++| 任务书声明基线 | `31d2668`（v1.3 代码） |
++| 本轮补丁基线 | `7f5b4da`（v1.3 审核包修订 = 本轮开始时的 HEAD） |
++| 代码提交 | `02db1bc`（本轮全部源码 / 测试） |
++| 审核包提交 | 本次 docs 提交（见 `evidence/git-info.txt` 的 HEAD 字段） |
++| 上游基线 | `dd4f0b9`（origin/main，v0.66.7） |
++| 包版本 | `0.66.7`（不发布，未改） |
++| 改动规模 | 源码 6（`import-batch.ts` / `import-batches.ts` / `library.ts` / `reading-plan.ts` / `webui/batch-import.ts` / `webui/batch-types.ts`）、构建产物 2、测试新增 2 / 修改 6 |
++
++## 七个必须看的结论
++
++1. **临时失败不再等于归档丢失（P1-1）。** `resume()` 原本把所有解压异常压成 `needs_reselect`；现在只有"归档缺失 / 无法证明身份"才要求重选，磁盘不足、rename 拒绝、权限、worker 故障一律**保留 `ready`** 并记录 `zip.failure`，ZIP 级重试始终可用（`src/import-batches.ts:704` 的 `fail()`）。顺带解除了"批次已有条目就不能重选"的死结（`:928`）。
++2. **每次解压前重新验证内容身份（P1-2）。** `extractArchive()` 在创建解压目录之前依次校验：文件存在 → 长度等于声明 → **服务端 SHA-256** 等于已接受的摘要（无服务端摘要时退回首选的 `claimedSha256`，两者皆无则拒绝）。不一致时不把任何字节交给 worker，保留现场（`01`）。
++3. **`zipBegin` 不再截断已验证的字节（P1-3）。** 首次创建；`uploading` 幂等并返回**真实 offset**、绝不截断；`ready` 与 `extracted` 明确拒绝；只有 `needs_reselect` / 失效 `ready` 凭**一次性 token** 才允许替换。截断现在只发生在一处（`startUpload`，`:809`）（`02`）。
++4. **重选是两阶段事务（P1-4）。** 准备阶段只校验并返回 token + 期望摘要，**不改状态、不删文件、不建空文件**；用户取消文件对话框后批次原样可用。确认阶段由 `begin` 携带 token 完成，摘要不符被拒且可再次重选（`03`）。
++5. **超限不再静默遗漏（P1-5）。** 新增 `batch.rejected`（分类计数精确、名单上限 100）+ `status().report`；ZIP 先读中央目录得到条目数与解压后总量，超出 100 本或批次预算时**整包拒绝、保留 ZIP、提示拆分**，不会"导入前 100 本然后删包"。多文件/文件夹导入同样报告遗漏、过限、超预算、重复与不支持数量，并提示继续导入剩余（`04`）。
++6. **历史统计只认显式 true（P2-6）。** `statsComplete` 改为 `marker === true`：v1.2 计划（有回填 `stats`、无标记）现在判定为**可确认下界**，界面显示"至少累计读完 N 本"（`05`）。
++7. **磁盘预检按归档自己的声明（P2-7）。** 从中央目录读未压缩总量，按"实际预计"而不是 1 GiB 最坏值比较：小 ZIP 不再被要求 1 GiB 剩余空间；磁盘剩余**无法测量时拒绝**而不是默认安全；1 GiB / 1.5 GiB 预算一字未改（`06`）。
++
++## 本轮修复的真实缺陷（如实记录）
++
++| 位置 | 性质 | 处理 |
++| --- | --- | --- |
++| `resume()` 的失败归类 | **设计缺陷**（v1.3 引入）：任何异常都变成"重新上传 512 MiB" | 七种失败分类，只有丢失/不可证明才要求重选 |
++| `zipReselect` 的状态改动时机 | **事务缺陷**（v1.2 遗留）：打开文件对话框前就置 `uploading` 并清空 ZIP，用户取消后卡死 | 拆成 prepare / begin 两阶段 + 一次性 token |
++| `extractArchive` 的身份校验 | **缺口**（v1.3 遗留）：`ready` 只校验长度，磁盘被替换后毫无察觉 | 每次解压前重算服务端摘要 |
++| `zipBegin` 的 `openSync(file,'w')` | **覆盖风险**（v1.3 遗留）：重复 begin 会截断已上传的字节 | 幂等返回 offset；截断只在一处且需 token |
++
++## 阅读顺序
++
++| 想看什么 | 打开 |
++| --- | --- |
++| 状态机与失败分类（P1-1） | `01-ZIP状态机修复.md` |
++| 解压前身份复核（P1-2）、begin 覆盖（P1-3） | `02-ZIP内容身份.md` |
++| 重选两阶段事务（P1-4） | `03-ZIP重新选择恢复.md` |
++| 超限与遗漏报告（P1-5） | `04-批量超限与遗漏.md` |
++| 历史统计口径（P2-6） | `05-历史统计兼容.md` |
++| 磁盘预检（P2-7） | `06-磁盘预检.md` |
++| 测试矩阵与原始日志 | `07-完整测试报告.md` + `evidence/test-full.log` |
++| SSM 差异与门槛 | `08-SSM变更说明.md` |
++| 未观察项与宿主验收 | `09-not_observed与宿主验收.md` |
++| 第 12 节 10 条验收逐条对照 | `10-最终验收摘要.md` |
+diff --git "a/docs/reading-plan-v1.4/01-ZIP\347\212\266\346\200\201\346\234\272\344\277\256\345\244\215.md" "b/docs/reading-plan-v1.4/01-ZIP\347\212\266\346\200\201\346\234\272\344\277\256\345\244\215.md"
+new file mode 100644
+index 0000000..745634f
+--- /dev/null
++++ "b/docs/reading-plan-v1.4/01-ZIP\347\212\266\346\200\201\346\234\272\344\277\256\345\244\215.md"
+@@ -0,0 +1,76 @@
++# 01 · ZIP 状态机修复（P1-1）
++
++对应任务书第 1 节：`resume()` 不能把临时解压失败当成原始 ZIP 失效。
++
++---
++
++## 1. v1.3 的问题
++
++```ts
++// v1.3
++chain = chain.then(() => this.importZip(id, path)).then(
++  () => undefined,
++  () => { /* 一律 */ draft.zip.state = 'needs_reselect'; },
++);
++```
++
++任何异常——磁盘满、rename 被拒、权限不足、worker 崩、文件系统抽风——都被压成同一个结论："请重新上传压缩包"。而 `zipReselect()` 当时还要求 `batch.items.length === 0`，于是**已经导入一半的批次既不能重试、也不能重选**，只能新建批次从头再来（重新上传最多 512 MiB）。
++
++## 2. 现在的分类
++
++新增持久化字段 `zip.failure`（`src/import-batch.ts`）：
++
++```ts
++export type ZipFailure = 'missing' | 'unverifiable' | 'over_limit' | 'disk' | 'transient';
++```
++
++| 情形 | `state` | `failure` | 恢复路径 |
++| --- | --- | --- | --- |
++| 上传未完成（重启） | `needs_reselect` | — | 重选同一归档（见 `03`） |
++| 文件缺失 / 长度不符 | `ready` | `missing` | 重选原归档；已入库书不受影响 |
++| 摘要不匹配（被替换/损坏） | `ready` | `unverifiable` | 重选原归档；保留现场 |
++| 解压后超出批次预算 / 100 本 | `ready` | `over_limit` | 拆分后重新导入；ZIP 保留 |
++| 磁盘不足 / 无法测量 | `ready` | `disk` | 释放空间后**直接重试解压** |
++| rename 拒绝 / 权限 / worker | `ready` | `transient` | **直接重试解压** |
++| 成功 | `extracted` | 清除 | — |
++
++核心不变式：**`ready` 只在"字节仍然可用"或"现场需要保留"时出现，且它永远允许一次 ZIP 级重试**；`needs_reselect` 只用于"上传从未完成"与"归档本身已不是当初那份且需要用户重新选择"。
++
++实现要点（`src/import-batches.ts`）：
++
++- `fail(batchId, failure, message)`（`:704`）：写入 `failure` + `error`（≤500 字），**不动 `state`**，返回 `ZipStateError` 供调用方抛出。所有失败路径都经过它。
++- `resume()`（`:984`）：只跳过 `missing` / `unverifiable` / `over_limit`（重启不可能自行修好，重复哈希 512 MiB 只是浪费）；`disk` / `transient` 与"无 failure"正常进入串行链。链上的异常**不再改写状态**——失败已在 `fail()` 里记录。
++- 恢复链仍然串行：后一个 `importZip` 只在前一个 settle 之后开始，重启不会叠加峰值。
++
++## 3. 重试如何不重复导入
++
++`extractArchive()` 的搬移循环遍历批次 `items` 而不是本次新增的 rows，并跳过 `item.staged`：
++
++```ts
++for (const item of this.require(batchId).items) {
++  if (item.staged) continue;
++  ...
++  try { renameSync(from, to); } catch { throw ... }
++}
++```
++
++重试时 `addItems` 会把同一批名字全部判为重复（`added` 为空），但搬移仍然按 `items` 进行——上一轮没搬完的条目这次拿到 `.src`，已搬完的原样跳过。实测见 `tests/import-batch-rename-retry.test.ts` 的"部分失败 + 重启 + 再解压"与 v1.4 新增的 resume 用例。
++
++## 4. 验收（任务书第 1 节的 9 步）
++
++| 步骤 | 断言 | 用例 |
++| --- | --- | --- |
++| 1–2 第一本成功、第二本 rename 失败 | 抛出"文件系统或权限问题"，`.extract` 已清理 | `a partial extraction failure retries within the same budget` |
++| 3 宿主重启 | 重新 `open()` + `resume()`，`report.archives = 1` | `resume() keeps a transient failure at ready` |
++| 4 再次制造 rename 失败 | 仍然失败，但状态**仍是 `ready`**，`failure = 'transient'` | 同上 |
++| 5 ZIP 仍完整 | `source.zip` 字节数不变 | 同上 |
++| 6 已暂存书仍存在 | `.src` 与 `item.staged` 不变 | 同上 + 部分失败用例 |
++| 7 状态仍允许 ZIP 级重试 | `state === 'ready'`，且 `zipReselect` 不是唯一出路 | 同上 |
++| 8 移除故障后再重试 | `zipFinish` 直接成功，无需重新上传 | `keeps the archive ... recovers on retry` |
++| 9 最终正确暂存且无重复 | `items` 数量不变，每个 `items` 恰一份 `.src` | 同上 |
++
++磁盘不足的恢复路径：`refuses up front when the filesystem cannot hold the estimate` 断言 `failure = 'disk'`、`state = 'ready'`、ZIP 保留、无 `.extract`；释放空间后同一批次直接 `zipFinish` 成功（`proceeds when the disk has room for the estimate`）。
++
++## 5. 数据兼容
++
++`failure` / `error` 都是可选字段，旧记录读入时视为"健康"。**没有新增 `state` 取值**，`validateBatches` 只增加两个字段校验（非法值拒绝加载，不会静默丢弃）。schema 版本未变，无迁移脚本。
+diff --git "a/docs/reading-plan-v1.4/02-ZIP\345\206\205\345\256\271\350\272\253\344\273\275.md" "b/docs/reading-plan-v1.4/02-ZIP\345\206\205\345\256\271\350\272\253\344\273\275.md"
+new file mode 100644
+index 0000000..224a2d8
+--- /dev/null
++++ "b/docs/reading-plan-v1.4/02-ZIP\345\206\205\345\256\271\350\272\253\344\273\275.md"
+@@ -0,0 +1,102 @@
++# 02 · ZIP 内容身份（P1-2）与 begin 覆盖（P1-3）
++
++对应任务书第 2、3 节。
++
++---
++
++## 一、每次实际解压前重新校验身份（P1-2）
++
++### 问题
++
++v1.3 只在 `zip.state === 'uploading'` 时算 SHA-256；`ready` 直接解压，只比较文件大小。磁盘上的归档被同长度内容替换后，系统会把它当成已验证归档解压——内容身份实际上只存在于"上传那一刻"。
++
++### 实现（`src/import-batches.ts` 的 `extractArchive`）
++
++顺序固定，任何一步失败都**不创建解压目录**：
++
++```ts
++if (!existsSync(zipPath))                      throw this.fail(batchId, 'missing', ...);
++const zipSize = statSync(zipPath).size;
++if (zipSize !== persisted.size)                throw this.fail(batchId, 'missing', ...);
++const pinned = persisted.sha256 ?? persisted.claimedSha256;
++if (!pinned)                                   throw this.fail(batchId, 'unverifiable', ...);
++if (sha256File(zipPath) !== pinned)            throw this.fail(batchId, 'unverifiable', ...);
++```
++
++| 检查 | 语义 |
++| --- | --- |
++| 存在性 | 归档不在 → `missing`，不算"要重传"的默认结论 |
++| 长度 | 与持久化 `size` 不符 → `missing`（被截断或替换） |
++| 摘要来源 | **首选服务端 `sha256`**；没有时退回首选的 `claimedSha256`（用户第一次选择时固化的身份）；两者都无 → 拒绝 |
++| 摘要计算 | `sha256File()` 256 KiB 流式，内存与归档大小无关 |
++| 不匹配 | 拒绝，`failure = 'unverifiable'`，**文件原样保留**，未创建 `.extract`、未调用 worker |
++
++**保守兼容策略**：旧 `ready` 记录没有服务端摘要时，用 `claimedSha256` 兜底（它是首次选择时由客户端对用户所选文件算出、并被服务端用于校验上传的摘要）；连 claim 都没有的记录**直接拒绝**，并在错误里说明"无法证明磁盘上的文件仍是当初那一个"。宁可不导入，也不冒充已验证。
++
++### 为什么不是"验证一次就够"
++
++`ready` 是一个跨重启、跨天、跨用户手动改文件的状态。只有每次进入解压前重算，才能保证"交给 worker 的字节"和"当初接受的字节"是同一份。
++
++### 验收（`tests/import-batch-zip-state.test.ts`）
++
++| 用例 | 断言 |
++| --- | --- |
++| 原始 ZIP 正常重试 | 解压成功、2 本入库 |
++| 同长度不同内容替换 | 抛"内容与已验证的摘要不一致"；`failure = 'unverifiable'`；**0 条目、无暂存文件**；ZIP 保留 |
++| 截断 | 抛"长度与声明不一致"；`failure = 'missing'`；0 条目 |
++| 无服务端摘要的历史 ready | 抛"没有可验证的压缩包摘要"；`failure = 'unverifiable'` |
++| 已暂存书不受影响 | 已 `extracted` 的批次再 `zipFinish` 返回 `alreadyExtracted`，条目仍 2 本且全部 staged |
++| 验证后字节变化（重启后） | 同上"同长度替换"路径（替换发生在 ready 之后） |
++
++---
++
++## 二、`zipBegin` 不再覆盖已验证归档（P1-3）
++
++### 问题
++
++```ts
++// v1.3
++closeSync(openSync(file, 'w'));   // 无条件截断
++```
++
++重复的 `begin`（超时重试、客户端重连、脚本重放）会把已经上传的 512 MiB 归档截成 0 字节，且不区分当前状态是否已经验证。
++
++### 现在的三种情况
++
++| 情况 | 行为 |
++| --- | --- |
++| **A. 首次上传**（无 `zip` 记录） | 创建暂存文件，`state = 'uploading'` |
++| **B. `uploading`（重复 begin）** | **不截断**；返回 `{ offset: 磁盘真实长度, resumed: true }`；摘要冲突（与已 pin 的 claim 不同）明确拒绝；大小不同拒绝 |
++| **C. `ready`** | 健康：拒绝（"已验证，会在重试时重新解压，不能在这里替换"）；`failure` 为 `missing`/`unverifiable`：仅凭 reselect token 允许替换 |
++| **D. `extracted`** | 拒绝（"已解压，不能再次上传"） |
++
++截断只在一处发生：
++
++```ts
++private startUpload(batchId, input, options) {
++  ...
++  closeSync(openSync(file, 'w'));   // 唯一入口：首次上传，或用户确认过的替换
++```
++
++`startUpload` 的调用者只有两个：`!previous`（首次）与 `beginReplacement()`（token 校验通过）。任何其它路径都拿不到截断能力。
++
++### 幂等 begin 的意义
++
++客户端上传中断后重连，不需要知道"上次传到哪"：调一次 `begin` 就拿到真实 `offset`，从那里继续。测试覆盖：先写入 100 字节，重复 `begin` 返回 `offset = 100`，文件仍是 100 字节，随后从 100 继续传完并成功解压。
++
++### 验收（`tests/import-batch-zip-state.test.ts`）
++
++| 用例 | 断言 |
++| --- | --- |
++| 首次 begin | `offset = 0`，`uploading` |
++| 上传部分后重复 begin | `offset = 100`、`resumed = true`、字节数不变（未截断） |
++| ready 状态 begin | 抛"cannot be replaced here"；**文件 SHA-256 不变**；状态仍 `ready` |
++| extracted 状态 begin | 抛"already been extracted"；状态仍 `extracted` |
++| 不同摘要的重复 begin | 抛"already pinned a different archive digest"；已上传字节保留 |
++| 重新选择原文件 | 走 reselect → token → begin，正常上传 |
++
++---
++
++## 三、数据兼容
++
++`zipBegin` 的返回对象新增 `resumed`（可选，旧客户端忽略即可）；请求体新增可选 `token`（仅重选路径使用）。没有改变任何字段语义，旧客户端（v1.3 前端）首次上传路径完全不变。
+diff --git "a/docs/reading-plan-v1.4/03-ZIP\351\207\215\346\226\260\351\200\211\346\213\251\346\201\242\345\244\215.md" "b/docs/reading-plan-v1.4/03-ZIP\351\207\215\346\226\260\351\200\211\346\213\251\346\201\242\345\244\215.md"
+new file mode 100644
+index 0000000..abf55ff
+--- /dev/null
++++ "b/docs/reading-plan-v1.4/03-ZIP\351\207\215\346\226\260\351\200\211\346\213\251\346\201\242\345\244\215.md"
+@@ -0,0 +1,98 @@
++# 03 · ZIP 重新选择的事务边界（P1-4）
++
++对应任务书第 4 节：取消文件选择器 / 选错文件都不能让批次卡死。
++
++---
++
++## 1. 问题
++
++v1.3 的 `zipReselect()` 在**用户还没选文件之前**就做了三件不可逆的事：
++
++```ts
++rmSync(file, { force: true });                                  // 删掉已上传的字节
++closeSync(openSync(file, 'w'));                                 // 建一个空文件
++updateImportBatch(... draft.zip.state = 'uploading' ...);       // 改成"正在上传"
++```
++
++用户如果在系统对话框里点了取消，批次就永久停在 `uploading`：`zipChunk` 期待数据但永远没有数据，`zipFinish` 因长度不足拒绝，而 `zipReselect` 又因为状态不是 `needs_reselect` 拒绝再次进入——**按钮失效，只能重启宿主**。
++
++另外 v1.3 还要求 `batch.items.length === 0` 才能重选，于是"已导入一半 + 归档丢失"的批次没有任何恢复路径（`01` 记录了这个死结）。
++
++## 2. 两阶段设计
++
++### 第一阶段：`zipReselect(batchId)` —— 只准备
++
++```ts
++zipReselect(batchId) {
++  // 校验来源、状态（needs_reselect，或 ready 且 missing/unverifiable）
++  // 校验没有正在进行的解压
++  const digest = zip.sha256 ?? zip.claimedSha256;      // 没有指纹 → 明确拒绝，要求新建批次
++  const token = randomUUID();
++  this.reselectTokens.set(batchId, { token, sha256: digest, size: zip.size });
++  return { batchId, name, size, sha256: digest, chunkBytes, token };
++}
++```
++
++**副作用清单：无。** 不改记录、不删文件、不建空文件、不改状态。token 只存在内存（`Map<batchId, {token, sha256, size}>`），重启即失效——失效的代价只是"再点一次按钮"，绝不会让服务端去猜。
++
++### 第二阶段：`zipBegin(batchId, { ..., token })` —— 确认并替换
++
++只在 `beginReplacement()` 里校验并放行：
++
++```ts
++const prepared = this.reselectTokens.get(batchId);
++if (!request.token || !prepared || prepared.token !== request.token)
++  throw new Error('This archive must be re-picked first ...');
++if (previous.size !== request.size || prepared.size !== request.size) throw ...;
++if (request.claimed !== undefined && prepared.sha256 && request.claimed !== prepared.sha256)
++  throw new Error('选中的压缩包不是原来的那一个（内容指纹不一致）...');
++this.reselectTokens.delete(batchId);          // 一次性
++return this.startUpload(..., { replace: true });
++```
++
++| 保障 | 结果 |
++| --- | --- |
++| token 一次性 | 用过即删；重复 begin 变成幂等 resume，不再有替换能力 |
++| 摘要必须匹配 | 选错文件在 begin 就被拒，前端另有预检更早拦住 |
++| 大小必须匹配 | 与批次 pin 的 `size` 不一致直接拒绝 |
++| 只有这里能截断 | 见 `02` 的 `startUpload` |
++
++### 已导入一半也能重选
++
++v1.4 删除了 `batch.items.length` 的前置拒绝：
++
++- 身份由摘要强约束（必须仍是同一个归档），不存在"换个包覆盖已有书目"的风险；
++- 重新解压时 `addItems` 把同名条目判为重复、搬移循环只处理未 staged 的条目，**不会产生第二份书**；
++- 已入库的书与阅读进度完全不受影响。
++
++## 3. 前端流程（`src/webui/batch-import.ts`）
++
++```
++[重新选择 ZIP] 点击
++   → invoke import_batch_zip_reselect  →  { sha256, token }
++   → state.reselectZipToken = token; state.expectedZipSha256 = sha256
++   → zipInput.click()                       ← 用户可能在这里取消
++   → 取消：什么都没变，按钮仍在，可以再点
++   → 选中：fileDigest() 先与服务端期望比对（不一致直接拒绝，不发一个分片）
++          → import_batch_zip_begin { name, size, sha256, token }
++          → 分片上传（从 begin 返回的 offset 开始）
++          → finish → 成功解压
++失败：state.reselectZipToken 保留在内存但服务端 token 已消耗或未消耗，
++      再次点击按钮会重新 prepare 拿新 token。
++```
++
++## 4. 验收（任务书第 4 节的 7 个场景）
++
++| 场景 | 断言 | 用例 |
++| --- | --- | --- |
++| 用户取消文件选择器 | 准备阶段后 `state`/`sha256`/`claimedSha256` 全部不变；再次 prepare 仍成功 | `preparing a re-pick changes nothing ...` |
++| 用户选择错误文件 | 摘要不符 → begin 拒绝；文件系统未被替换；批次仍可重选 | `a wrong pick is rejected and the batch can be re-picked again` |
++| 摘要计算失败（前端） | `fileSha256Hex` 返回 null → 不带 claim 上传，服务端仍按记录里的 claim 校验（不放松） | `tests/webui-sha256.test.ts`（v1.3 已有） |
++| 用户重新打开选择器 | 每次点击都重新 prepare，拿新 token | 同上第一条（两次 prepare 均成功） |
++| 用户选择正确文件 | 正常上传并解压 | 同上第一条 |
++| 上传中断 | 回到 `needs_reselect`（`resume()` 落半截），可再次 prepare | `tests/import-batch-zip-claim.test.ts` 中断用例 |
++| 再次恢复 | 同一 `batchId` 完成导入，不重复 | `a re-pick with entries already staged ...` |
++
++## 5. 未使用的新持久化
++
++token 是**内存态**，不落盘、不进 `library.json`。这是刻意的：一个跨重启有效的"替换许可"等于把一次用户点击的授权变成长期凭据。重启后用户再点一次按钮，成本可以忽略。
+diff --git "a/docs/reading-plan-v1.4/04-\346\211\271\351\207\217\350\266\205\351\231\220\344\270\216\351\201\227\346\274\217.md" "b/docs/reading-plan-v1.4/04-\346\211\271\351\207\217\350\266\205\351\231\220\344\270\216\351\201\227\346\274\217.md"
+new file mode 100644
+index 0000000..a2b4ad8
+--- /dev/null
++++ "b/docs/reading-plan-v1.4/04-\346\211\271\351\207\217\350\266\205\351\231\220\344\270\216\351\201\227\346\274\217.md"
+@@ -0,0 +1,129 @@
++# 04 · 批量超限与遗漏处理（P1-5）
++
++对应任务书第 5 节。这是本轮最重要的产品验收项：**被拒绝的书不能从用户视野里消失。**
++
++---
++
++## 1. v1.3 的问题
++
++`addItems()` 会返回五个拒绝桶（`duplicates` / `unsupported` / `tooLarge` / `overBudget` / `overflow`），但：
++
++- ZIP 界面只读了 `unsupported`；`startFiles()` 只读了 `tooLarge` / `overBudget`；
++- 这些拒绝结果**不落盘**，批次完成后无从查证；
++- 更糟的是 ZIP 路径：解压后 `addItems` 只收下前 100 本 / 1 GiB，**成功解压就把 ZIP 删了**——超出的书既没入库、也没有任何东西留下，用户只看到"导入完成"。
++
++## 2. 结果模型：`batch.rejected` + `status().report`
++
++### 持久化结构（`src/import-batch.ts`）
++
++```ts
++export interface RejectedGroup { count: number; names: string[] }
++export interface BatchRejected {
++  unsupported: RejectedGroup; tooLarge: RejectedGroup; overBudget: RejectedGroup;
++  duplicate: RejectedGroup; overflow: RejectedGroup;
++}
++```
++
++- **计数永远精确**（跨多次 `add` 累加，跨重启保留）；
++- 每个分类保留最多 100 个文件名用于展示（`REJECTED_NAME_LIMIT`），超出只影响"能看到多少名字"，不影响数字；
++- `recordRejected()`（`:300`）在 `Library.addImportBatchItems()` 的**同一次原子写**里合并，不会出现"书进了批次、拒绝记录没写"的中间态。
++
++### 报告视图（`batchReport()`，`:645`）
++
++```ts
++{
++  accepted, shelfAdded, pending, failed, cancelled, needsReselect,
++  duplicate, unsupported, tooLarge, overBudget, overflow,
++  rejectedNames: { duplicate, unsupported, tooLarge, overBudget, overflow },
++  incomplete,     // 任一拒绝/失败/待重选 → true
++}
++```
++
++`status()` 现在始终返回 `report`，`accepted` 与 `shelfAdded` 分开：前者是"进批"，后者是"真上架"。
++
++## 3. ZIP：先读清单，再决定要不要开始
++
++### 中央目录预读（`readZipPlan()`，`src/import-batches.ts:98`）
++
++在创建解压目录**之前**读取：
++
++1. 文件尾 66 KiB 内找 EOCD（`0x06054b50`）；
++2. 取中央目录偏移/大小/条目数；
++3. 逐条读 `uncompressed size`、名字、目录标志；
++4. 汇总：条目数、可导入本数（支持格式、非隐藏、非目录）、未压缩总量、最大条目。
++
++**无法可信读取时返回 `null`**，调用方按最坏情况处理：
++
++| 情况 | 处理 |
++| --- | --- |
++| ZIP64（`0xFFFF`/`0xFFFFFFFF` 逃逸值） | `null` → 用批次预算上限做预检 |
++| 分卷归档 | `null` |
++| 中央目录 > 8 MiB 或条目 > 20000 | `null` |
++| 偏移越界 / 签名不符 | `null` |
++| 读文件失败 | `null` |
++
++"未知"绝不会被当成"很小"。
++
++### 超限判定与行为
++
++```ts
++const books = Math.max(incoming, plan.supported);   // 重试时按已有条目折抵
++if (books > BATCH_ITEM_LIMIT) {
++  recordRejected(draft, { overflow: books - BATCH_ITEM_LIMIT, overflowNames: excessNames });
++  throw this.fail(batchId, 'over_limit', `… ${books} 本 … 超过单批 100 本 … 请拆成多个批次 …`);
++}
++if (estimate > ceiling) throw this.fail(batchId, 'over_limit', `解压后约 … 超过本批可用 …`);
++```
++
++- **整包拒绝**，不导入前 100 本；
++- **ZIP 原样保留**（`ready` + `failure = 'over_limit'`），不会删包；
++- 报告里给出总数与名单（`rejectedNames.overflow` / `overBudget`）；
++- 界面额外提示"压缩包已保留，请把这次要导入的书拆成多个批次；已入库的书不受影响"。
++
++### 为什么不做"自动分批续导"
++
++任务书允许提出更好的方案。评估后仍选"整包拒绝 + 提示拆分"，理由：
++
++1. 自动分批需要把同一个归档解压 N 次（每次都要 512 MiB 峰值和一次完整哈希），磁盘与时间成本翻倍；
++2. 分批边界（按文件顺序？按大小？）会决定哪些书进哪一批，属于产品决策，不该由导入器替用户决定；
++3. 整包拒绝 + 明确清单让用户自己决定怎么分，且**原始 ZIP 始终是唯一事实来源**；
++4. 已入库的书、`.src` 暂存、阅读进度在拒绝路径上完全不动（拒绝发生在 `mkdir` 之前）。
++
++## 4. 多文件 / 文件夹导入
++
++`startFiles()` 现在把服务端返回的五个桶全部读完，并补上客户端跳过（格式不支持）的数量：
++
++```
++1 个文件格式不支持，未导入；3 个文件超过单本 100 MiB，未导入；
++2 个文件超出本批 1 GiB 预算，未导入；本次只接收了前 100 本，还有 20 本超出单批 100 本上限。
++可以再点一次「选择多本 / 选择文件夹」导入剩余文件，已入库的书不受影响。
++```
++
++- 不再出现"只处理了前 100 本就显示全部成功"；
++- 遗漏数量来自服务端 `overflow`，不是前端估算；
++- 继续导入不需要特殊入口：再点一次按钮即可，已入库的书不会被重复导入（书名+作者身份去重）。
++
++## 5. 完成态报告（界面）
++
++`view.status !== 'preview'` 时固定渲染结果块：
++
++```
++本次结果：进批 100 本 · 已入库 98 本 · 等待 0 · 失败 2
++未进入本批：重复或无效 3 个（甲.txt、乙.txt…）；格式不支持 1 个（封面.jpg）；
++            超出单批 100 本上限 20 个（书101.txt…）
++这些文件仍在你的磁盘上，没有进入阅读计划；需要的话可以再选一次，只导入没进来的部分。
++```
++
++`tests/webui/batch-import.test.ts` 断言了"未进入本批"、`重复或无效 1 个`、客户端跳过提示与"可以再点一次"。
++
++## 6. 验收（任务书第 5 节）
++
++| 场景 | 期望 | 用例 |
++| --- | --- | --- |
++| 99 / 100 本 | 正常导入，`overflow = 0` | `accepts exactly 100 books`（100 本边界） |
++| 101 本（文件夹） | 进 100、`overflow = 1`、`incomplete = true` | `reports count overflow for a folder of 101 files` |
++| 120 本（ZIP） | 整包拒绝、ZIP 保留、`overflow = 20` + 名单、0 条目 | `refuses 120 books instead of importing the first 100` |
++| 累计恰好 1 GiB | 允许（预检 `estimate <= ceiling`） | 预算常量未改，见 `06` |
++| 超过 1 GiB | 整包拒绝、ZIP 保留、报告完整 | `refuses an archive whose expansion exceeds the batch budget` |
++| 混合重复 / 不支持 | 每个分类精确计数 + 名单，`incomplete = true` | `counts duplicates, unsupported, over-sized and over-budget files` |
++| 界面呈现 | "本次结果"块 + "未进入本批" + 拆分提示 | 两个 UI 用例 |
+diff --git "a/docs/reading-plan-v1.4/05-\345\216\206\345\217\262\347\273\237\350\256\241\345\205\274\345\256\271.md" "b/docs/reading-plan-v1.4/05-\345\216\206\345\217\262\347\273\237\350\256\241\345\205\274\345\256\271.md"
+new file mode 100644
+index 0000000..52b1080
+--- /dev/null
++++ "b/docs/reading-plan-v1.4/05-\345\216\206\345\217\262\347\273\237\350\256\241\345\205\274\345\256\271.md"
+@@ -0,0 +1,83 @@
++# 05 · 历史统计兼容（P2-6）
++
++对应任务书第 6 节：v1.2 保存过的旧计划可能带着**回填**的 `stats`，不能因此认定历史完整。
++
++---
++
++## 1. 问题
++
++v1.2 的 `validateStats()` 在缺少 `stats` 时，用当时仍在 `archive` 里的行回填累计值：
++
++```ts
++if (raw === undefined) return { ...counted, truncated: 0 };   // counted 来自 archive 窗口
++```
++
++于是"有 `stats`"这件事有两种截然不同的来源：
++
++| 来源 | `stats` 的含义 |
++| --- | --- |
++| v1.2+ 从零开始累计 | 完整历史 |
++| v1.2 打开旧库时回填 | 只覆盖保留窗口内的行，**更早的已被裁掉** |
++
++v1.3 的推导规则是"无标记 + 有 stats → 完整"（`statsProvided`），把回填值当成了总数。任务书要求：不能靠"stats 是否存在"推断完整性。
++
++## 2. 现在的规则
++
++```ts
++// src/reading-plan.ts:216-223
++const marker = (value as { statsComplete?: unknown }).statsComplete;
++const statsComplete = marker === true;
++```
++
++| 磁盘形态 | `statsComplete` |
++| --- | --- |
++| 显式 `true`（v1.3+ 新建计划写的就是它） | 完整 |
++| 显式 `false` | 下界 |
++| 无标记 + 有 `stats`（v1.2 计划） | **下界**（本轮改变的正是这一行） |
++| 无标记 + 无 `stats`（v1.1 及更早） | 下界 |
++
++代价是"真正从零累计的 v1.2 计划"也会显示"至少累计读完 N 本"——文本更保守，但不会撒谎。任务书明确：宁可显示下界，也不能冒充完整历史。
++
++## 3. 为什么不用其它证据推断
++
++任务书允许"提交证明"来区分，前提是有**可靠**的持久化证据。当前没有：
++
++- `createdAt` / `updatedAt`：无法区分"新库新建"与"旧库首次保存"；
++- `stats` 是否存在：正是本轮要否定的依据（v1.2 会回填）；
++- `archive.lengh === stats.completed`：只有从未截断过才成立，截断后无痕迹（`truncated` 字段是 v1.2 才有的，旧数据没有）；
++- `schema` 版本：v1.2 与 v1.3 都是 1，且回填发生在 v1.2 读取路径里，不写版本。
++
++因此不引入任何"未经证明的推断"。
++
++## 4. 视图与文案
++
++`Library.planView()` 输出 `statsComplete: plan.statsComplete === true`（布尔收敛）；`src/webui/plan.ts`：
++
++```ts
++const complete = plan.statsComplete !== false;
++summary.textContent = 计划 N 本 · (complete ? '累计读完 X 本' : '至少累计读完 X 本');
++historyNote = ... + (complete ? '' : '此计划由旧版本迁移而来，更早的完读历史可能已超出保留窗口，以上累计数字是可确认的下界，不是完整总数。');
++```
++
++## 5. 数据兼容
++
++| 问题 | 结论 |
++| --- | --- |
++| 旧计划会丢数据吗？ | 不会。`stats` 原样保留，`validateStats` 的截断审计（`truncated` / `lastArchivedAt`）不变 |
++| 新计划会不会被误判？ | 不会。`emptyPlan()` 显式写 `statsComplete: true`，落盘往返保持 `true` |
++| 需要迁移吗？ | 不需要。没有重写任何已有计划；标记在下次正常保存时自然写入 |
++| 能否回退？ | 能。字段可选，旧版本忽略它，读到的仍是合法计划 |
++
++## 6. 验收（`tests/plan-stats-complete.test.ts` 7 例）
++
++| 用例 | 断言 |
++| --- | --- |
++| v1.1 旧计划（无 stats） | 回填后 `statsComplete = false`，`stats.completed` 等于归档内行数 |
++| **v1.1 旧库被 v1.2 打开并保存**（有回填 stats，无标记） | `stats.completed = 37`（大于归档窗口）保留，`truncated = 31` 保留，`statsComplete = false` |
++| v1.2 全新计划（有 stats，无标记） | `statsComplete = false`（无法证明，宁可保守） |
++| 显式 `true`（v1.3+） | 保持 `true` |
++| 显式 `false` | 保持 `false` |
++| `migrateLegacyQueue` | `false` |
++| 归档截断 | 不改变 `statsComplete` |
++
++界面文案：`tests/webui/plan-panel.test.ts` 断言两个分支（"累计读完"与"至少累计读完"）及下界说明；`tests/plan-display.test.ts` 断言视图字段。
+diff --git "a/docs/reading-plan-v1.4/06-\347\243\201\347\233\230\351\242\204\346\243\200.md" "b/docs/reading-plan-v1.4/06-\347\243\201\347\233\230\351\242\204\346\243\200.md"
+new file mode 100644
+index 0000000..dd4d55c
+--- /dev/null
++++ "b/docs/reading-plan-v1.4/06-\347\243\201\347\233\230\351\242\204\346\243\200.md"
+@@ -0,0 +1,65 @@
++# 06 · 磁盘空间预检（P2-7）
++
++对应任务书第 7 节。
++
++---
++
++## 1. 问题
++
++v1.3 的预检是：
++
++```ts
++if (free !== null && free < ceiling) throw ...
++```
++
++`ceiling` 是**批次允许的最大解压量**（默认 1 GiB）。于是一个 2 MB 的小 ZIP 也要求磁盘剩余 1 GiB；`diskFree === null`（无法测量）时直接放行——"测得准的安全"变成"测不到就假设安全"。
++
++## 2. 现在的方案：先读归档自己的声明
++
++`readZipPlan()` 从中央目录读出 `totalUncompressed`（详见 `04` 第 3 节）。预检顺序：
++
++```ts
++const plan = readZipPlan(zipPath);
++const estimate = plan ? plan.totalUncompressed : ceiling;      // 读不出来 → 最坏情况
++...
++if (estimate > ceiling) throw this.fail(batchId, 'over_limit', ...);   // 预算内先拒
++const free = this.diskFree(this.batchDir(batchId));
++if (free === null) throw this.fail(batchId, 'disk', '无法测量磁盘剩余空间…');
++if (free < estimate) throw this.fail(batchId, 'disk', `磁盘剩余 ${free} 字节，本次解压约需 ${estimate} 字节…`);
++```
++
++| 要求（任务书） | 实现 |
++| --- | --- |
++| 安全读取中央目录 | 只读 EOCD 尾部 66 KiB + 中央目录（≤ 8 MiB），`readRange` 定点读，不整读归档 |
++| 获取声明的未压缩大小 | `uncompressed size` 求和 |
++| 预计解压总量 | `totalUncompressed`（不含隐藏/目录以外的一切，无需过滤：解压产物就是这些文件） |
++| 已有暂存 + ZIP + 预计总量一起算 | `ceiling` 用 `dirTreeBytes(batchDir) − zipSize` 扣掉已有暂存；`estimate` 与 `ceiling` 比较；磁盘侧再与 `estimate` 比较 |
++| 保留 worker 硬限制 | `maxEntries = 400`、`maxTotalBytes = ceiling`、`maxEntryBytes = fileBytes` 原样传入 |
++| 无法可靠判断时保守 | `plan === null` → `estimate = ceiling`（1 GiB 最坏值） |
++| 剩余空间无法测量时不得宣称安全 | `free === null` → 拒绝并保留 ZIP（`failure = 'disk'`） |
++| 不放宽 1 GiB / 1.5 GiB 预算 | 常量未改：`BATCH_STAGING_BYTES = 1 GiB`、`ZIP_MAX_BYTES = 512 MiB`、`workspaceBytes = 1.5 GiB` |
++
++## 3. 效果对比
++
++| 场景 | v1.3 | v1.4 |
++| --- | --- | --- |
++| 2 MB ZIP（解压后 5 MB），磁盘剩 100 MB | **拒绝**（100 MB < 1 GiB） | 允许（100 MB ≥ 5 MB） |
++| 400 MB ZIP（解压后 900 MB），磁盘剩 200 MB | 拒绝（200 < 1024） | 拒绝（200 < 900），理由精确 |
++| 磁盘剩余无法测量 | 放行 | 拒绝，提示稍后重试 |
++| 解压后 1.2 GB（预算 1 GiB） | 解压中途被 worker 拒绝 | **写前拒绝**，ZIP 保留 |
++
++## 4. 已知取舍（需要审核方知悉）
++
++1. **中央目录预读不等于实际解压量。** 归档可以在中央目录里声明 1 MB，实际数据流更大——但这一点由 worker 的 `maxTotalBytes` / 实际写入量兜底，预检只是把"明显放不下"提前拒掉，不是唯一防线。
++2. **`plan === null` 时回到 1 GiB 最坏值。** 这是保守方向：这类归档（ZIP64、分卷、超大索引）极少，而误判放行的代价是写满磁盘。产品限制在此明确：**这类归档仍要求约 1 GiB 可用空间**。
++3. **磁盘剩余在解压过程中可能变化。** 预检之后仍可能 ENOSPC，此时 `classifyExtractionError()` 归为 `disk`，ZIP 保留、可重试（`01`）。
++
++## 5. 验收（`tests/import-batch-rename-retry.test.ts` + `tests/import-batch-limits.test.ts`）
++
++| 用例 | 断言 |
++| --- | --- |
++| 小 ZIP + 低于预算的剩余空间 | 允许（`estimate` 通过，`ceiling` 不通过也可） |
++| 剩余空间不足以容纳 `estimate` | 拒绝，`failure = 'disk'`，无 `.extract`，ZIP 保留 |
++| 磁盘剩余无法测量（`null`） | 拒绝，`failure = 'disk'`，ZIP 保留（v1.3 此处是放行） |
++| 预算内但解压量超 `ceiling` | `over_limit`，ZIP 保留，报告完整 |
++| 中央目录可解析 | `readZipPlan` 的条目数/总量/最大条目与 fixture 的字节数一致 |
+diff --git "a/docs/reading-plan-v1.4/07-\345\256\214\346\225\264\346\265\213\350\257\225\346\212\245\345\221\212.md" "b/docs/reading-plan-v1.4/07-\345\256\214\346\225\264\346\265\213\350\257\225\346\212\245\345\221\212.md"
+new file mode 100644
+index 0000000..5f95aaf
+--- /dev/null
++++ "b/docs/reading-plan-v1.4/07-\345\256\214\346\225\264\346\265\213\350\257\225\346\212\245\345\221\212.md"
+@@ -0,0 +1,87 @@
++# 07 · 完整测试报告（v1.4）
++
++原始日志：`evidence/test-full.log`、`evidence/typecheck.log`、`evidence/build-and-checks.log`、`evidence/check-ssm.log`。
++
++---
++
++## 1. 结论数字
++
++| 项 | v1.3 基线 | v1.4 本轮 | 差异 |
++| --- | --- | --- | --- |
++| 测试文件 | 126 passed | **128 passed** | +2 |
++| 用例 | 1325 passed + 1 skipped (1326) | **1349 passed + 1 skipped (1350)** | +24 |
++| 退出码 | 0 | **test_exit=0** | — |
++| 双端 TypeScript | 通过 | **通过** | — |
++| Worker 构建（`build-worker.mjs`） | 通过 | **通过** | — |
++| WebUI 构建（`build:webui`） | 通过 | **通过** | — |
++| `check:help` | 通过 | **通过**（package 0.66.7，7 分类 / 20 指南 / 11 版本 / 4 进度 / 13 公告） | — |
++| `check:ssm` | `blocked=0 review=2` | **`blocked=0 review=2 allowed=150`，exit 1**（未 `--accept-review`） | — |
++
++## 2. 新增测试（2 文件 / 20 例）
++
++| 文件 | 例数 | 覆盖 |
++| --- | --- | --- |
++| `tests/import-batch-zip-state.test.ts` | 12 | 解压前身份复核（替换/截断/无摘要/已暂存不受影响）、begin 幂等不截断、ready/extracted begin 拒绝、冲突 begin 不丢字节、重选两阶段（取消不改状态、错文件可重选、token 一次性、已有条目重选不重复） |
++| `tests/import-batch-limits.test.ts` | 8 | 中央目录预读、120 本整包拒绝并可查名单、100 本边界、解压量超预算拒绝、文件夹 101 本精确遗漏、混合拒绝计数与名单、报告完整性、小 ZIP 低磁盘空间不被误拒 |
++
++## 3. 修改的测试（6 文件 / 净 +4 例）
++
++| 文件 | 改动 |
++| --- | --- |
++| `tests/import-batch-rename-retry.test.ts` | 新增"resume 保持 ready"用例（含重启 + 二次 rename 失败 + ZIP 字节不变）；磁盘预检三例改为新语义（对比 `estimate`、`null` 拒绝） |
++| `tests/import-batch-zip-claim.test.ts` | 重选流程改为 prepare → begin(token)；"换摘要"断言改为新错误文案并校验记录未被改动 |
++| `tests/import-batch-identity.test.ts` | 同长度替换用例接入 token；拒绝断言改用 claim 冲突文案（检查更早发生） |
++| `tests/import-batch-zip-concurrency.test.ts` | `uploadOnly` 从 begin 返回的真实 offset 续传；ready fixture 写入真实摘要 |
++| `tests/import-batch-zip-peak.test.ts` | 重启恢复 fixture 写入真实摘要（v1.4 每次解压都要复核） |
++| `tests/plan-stats-complete.test.ts` | v1.2 计划改判为下界；新增"回填 stats + 截断"与"显式 true"两例 |
++| `tests/webui/batch-import.test.ts` | 新增结果报告与超限提示两个 UI 用例；不支持提示文案随措辞更新 |
++| `tests/import-batch-budget.test.ts` | 超预算错误文案放宽为包含"超过本批可用"（行为未变） |
++
++## 4. 任务书第 8 节 12 类专项对照
++
++| 任务书用例 | 落点 | 结果 |
++| --- | --- | --- |
++| resume 中途失败 | `rename-retry` · resume 保持 ready | ✅ |
++| 已暂存一本后恢复失败 | `rename-retry` · 部分失败 + 重启 | ✅ |
++| ready ZIP 同大小替换 | `zip-state` · 替换拒绝 | ✅ |
++| zipBegin 重复调用 | `zip-state` · 幂等 offset | ✅ |
++| ready/extracted begin | `zip-state` · 两个拒绝用例 | ✅ |
++| reselect 取消 | `zip-state` · 准备阶段零副作用 | ✅ |
++| reselect 错误文件 | `zip-state` · 可再次重选 | ✅ |
++| ZIP 120 本 | `limits` · 整包拒绝 + 名单 | ✅ |
++| ZIP 超 1 GiB | `limits` · 预检拒绝 + ZIP 保留 | ✅（用小预算等价构造） |
++| 文件夹 101 本 | `limits` · overflow = 1 | ✅ |
++| v1.2 回填 stats | `plan-stats-complete` · 下界 | ✅ |
++| 小 ZIP 与低磁盘空间 | `limits` · 不被 1 GiB 误拒 | ✅ |
++
++## 5. 本轮发现并修复的问题
++
++| 问题 | 性质 | 处置 |
++| --- | --- | --- |
++| `import-batch-budget` 断言旧文案 | 测试与文案不一致 | 更新断言，行为未变 |
++| 新增 resume 用例 ENOTEMPTY | 测试与后台链竞争（`resume()` 不 await 恢复链） | 用 spy 捕获 flight 并 await 后断言 |
++
++没有为通过测试而放宽任何产品限制；相反，有两处旧测试因**新规则更严**而失败（`diskFree === null` 由放行改拒绝、v1.2 计划由"完整"改"下界"），已按新语义改写断言。
++
++## 6. 环境说明（与本轮代码无关）
++
++- 项目 `vitest.config.ts` 用 `pool: 'forks'`。在本机 WorkBuddy 沙箱里，fork 子进程写模块缓存（`…/web/<hash>`）被 fs broker 拦下（`EPERM`），会偶尔吞掉个别测试文件并把整轮退出码变成 1。
++- 因此全量证据日志使用 `--pool=threads` 运行（**同一套测试、同一份配置，仅换执行池**）：`/tmp/...` 路径下不再出现该拦截，`128/128` 文件全部执行。
++- 作为交叉验证，本轮所有改动过的测试文件同时用默认 forks 池**逐个单独复跑**并通过（单文件运行时不会被缓存拦截）。
++- 这是环境问题，v1.1–v1.3 都存在；不作为产品缺陷记录。
++
++## 7. 复现
++
++```bash
++cd E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-reading-plan
++
++# 全量（本机沙箱用 threads 池规避 broker 拦截；CI 可用默认 forks）
++corepack pnpm exec vitest run --pool=threads
++
++# 其余检查
++corepack pnpm typecheck
++node scripts/build-worker.mjs
++corepack pnpm build:webui
++corepack pnpm check:help
++corepack pnpm check:ssm      # 预期 blocked=0 review=2，exit 1
++```
+diff --git "a/docs/reading-plan-v1.4/08-SSM\345\217\230\346\233\264\350\257\264\346\230\216.md" "b/docs/reading-plan-v1.4/08-SSM\345\217\230\346\233\264\350\257\264\346\230\216.md"
+new file mode 100644
+index 0000000..9b57148
+--- /dev/null
++++ "b/docs/reading-plan-v1.4/08-SSM\345\217\230\346\233\264\350\257\264\346\230\216.md"
+@@ -0,0 +1,73 @@
++# 08 · SSM 变更说明与门槛执行（v1.4）
++
++对应任务书第 9 节。
++
++---
++
++## 1. 结论
++
++```
++结论: blocked=0 review=2 allowed=150
++check_ssm_exit=1
++```
++
++- 未执行 `--accept-review`；
++- 未修改保护清单 `scripts/ssm-protected-paths.json`、未修改检查器 `scripts/check-ssm-protected.mts`（`manifest_diff_bytes=0`）；
++- 未触碰 `src/story/**`、Persona Memory、SSM 读写语义；
++- 2 个 REVIEW 是 `src/library.ts` 与 `src/world.ts`，按实际变更范围提交审核。
++
++原始输出：`evidence/check-ssm.log`（含 `HEAD: 02db1bc…` 与时间戳）。
++
++## 2. `src/world.ts`：本轮零改动
++
++```
++$ git diff 7f5b4da 02db1bc -- src/world.ts
++（空）
++```
++
++它仍在 REVIEW 里，是因为守卫按"分支 vs origin/main 的最终树"判定，v1.2 已提交的 `plan` / `importBatch` 分发差异仍在，属于 v1.2 的待确认范围。
++
++## 3. `src/library.ts`：两处，均在批量导入区段
++
++```diff
++-import { addBatchItems, trimBatches, validateBatches, type BatchAddResult, ... } from './import-batch.ts';
+++import { addBatchItems, recordRejected, trimBatches, validateBatches, type BatchAddResult, ... } from './import-batch.ts';
++...
++-  addImportBatchItems(batchId: string, inputs: readonly BatchItemInput[]): BatchAddResult {
+++  addImportBatchItems(batchId: string, inputs: readonly BatchItemInput[],
+++    extra: { tooLarge?: readonly string[]; overBudget?: readonly string[] } = {}): BatchAddResult {
++     ...
++-      return addBatchItems(batch, inputs, this.now());
+++      const result = addBatchItems(batch, inputs, this.now());
+++      recordRejected(batch, { unsupported: result.unsupported, duplicate: result.duplicates,
+++        tooLarge: [...extra.tooLarge ?? [], ...result.tooLarge],
+++        overBudget: [...extra.overBudget ?? [], ...result.overBudget], overflow: result.overflow });
+++      return result;
++```
++
++性质：**把拒绝记录写进同一次原子提交**。位置是 `Library` 的批量导入方法，位于 `// batch import` 区段；不涉及 story 相关字段（`storyMemoryEnabled` / `captureStory` / story 快照分支等）。
++
++## 4. 逐项确认（任务书"不允许"清单）
++
++| 项 | 状态 |
++| --- | --- |
++| 修改 StoryStore | ❌ 未改（`src/story/store.ts` 零改动） |
++| 修改 Story Index | ❌ 未改 |
++| 修改 Persona Memory | ❌ 未改 |
++| 修改 SSM 读写语义 | ❌ 未改 |
++| 修改保护清单 | ❌ 未改（`manifest_diff_bytes=0`） |
++| 使用 `--accept-review` 自行放行 | ❌ 未使用 |
++| 把 REVIEW 改成"通过" | ❌ 如实保留 2 项 |
++
++## 5. 为什么 REVIEW 数字变了（allowed 150）
++
++`allowed` 统计的是"本次改动涉及的文件数"。v1.4 新增了 2 个测试文件、改了 6 个，加上 v1.3 的审核包文档仍在 diff 里，因此从 145 涨到 150。**`blocked` 始终为 0、`review` 始终为 2、`exit` 始终为 1** —— 计数只反映改动面，不反映保护强度。
++
++## 6. 复现
++
++```bash
++cd E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-reading-plan
++corepack pnpm check:ssm
++git diff --stat origin/main -- scripts/ssm-protected-paths.json scripts/check-ssm-protected.mts
++git diff --name-only 7f5b4da 02db1bc | grep -iE "story|persona|ssm"   # 预期为空
++```
+diff --git "a/docs/reading-plan-v1.4/09-not_observed\344\270\216\345\256\277\344\270\273\351\252\214\346\224\266.md" "b/docs/reading-plan-v1.4/09-not_observed\344\270\216\345\256\277\344\270\273\351\252\214\346\224\266.md"
+new file mode 100644
+index 0000000..a0ebe7c
+--- /dev/null
++++ "b/docs/reading-plan-v1.4/09-not_observed\344\270\216\345\256\277\344\270\273\351\252\214\346\224\266.md"
+@@ -0,0 +1,53 @@
++# 09 · not_observed 清单与真实宿主验收步骤
++
++自动化跑在 Node + jsdom 里，没有在隔离桌面宿主点过，也没有真的写 512 MiB 归档、真的把磁盘写满、真的在异种挂载上失败。以下全部标记 `not_observed`。
++
++---
++
++## A. `not_observed`
++
++| # | 项 | 为什么没观察到 | 替代证据 |
++| --- | --- | --- | --- |
++| A1 | 真实宿主里的批量导入页 / 计划页 | jsdom 挂载真实 World + 真实 worker，未在已安装客户端操作 | `tests/webui/batch-import.test.ts`（10 例）、`tests/webui/plan-panel.test.ts`（17 例） |
++| A2 | 真实系统文件选择器（多选 / 文件夹 / ZIP / **取消对话框**） | jsdom 无法打开原生对话框；"取消"只能在服务端侧模拟为"prepare 后不调用 begin" | `zip-state` 的准备阶段零副作用用例 |
++| A3 | 真实 512 MiB 归档的解压前复核耗时 | 不真写大文件；哈希是 256 KiB 流式，耗时随大小线性 | `sha256File` 既有实现 + `bounded-read` 用例 |
++| A4 | 真实磁盘写满（ENOSPC 中途发生） | 只验证了预检拒绝（`diskFree` 注入） | `rename-retry` 磁盘三例；ENOSPC 归类路径由 `classifyExtractionError` 覆盖但未真实触发 |
++| A5 | 真正 rename 失败（异种挂载 / 权限拒绝） | 用 `vi.mock('node:fs')` 对 `.src` 目标抛 `EFAULT` 模拟 | `rename-retry` 全失败 / 部分失败 / resume 三例 |
++| A6 | 硬杀进程（SIGKILL）后的恢复 | 用"关库重开 + `resume()`"等价模拟 | 同上 + `zip-peak` 重启用例 |
++| A7 | 真实多批次同时中断（>3 个 ready） | 自动化最多 3 个批次 | `zip-concurrency` 的串行恢复用例（峰值并发 1） |
++| A8 | 真实 120 本 ZIP 在界面上的名单展开 | 只断言文本包含关键信息（不展开滚动列表） | `webui/batch-import` 超限提示用例 |
++| A9 | 真实用户库从 v1.1/v1.2 升级后的统计显示 | 合成数据 | `plan-stats-complete`（7 例）+ `plan-panel` 文案断言 |
++| A10 | macOS / Linux 的 `statfs` 行为与路径大小写 | 环境是 Windows | `statfsSync` 失败 → `null` → 拒绝，语义已覆盖 |
++| A11 | 英文界面观感 | 文案已写（`say(zh, en)`），测试只断言中文 | — |
++| A12 | 加密 / 损坏 / ZIP 炸弹在批量入口端到端 | 复用 `zip-worker` 既有拒绝，未做恶意包端到端 | 既有 `novel-runtime*` 用例 |
++
++## B. 已知限制（设计取舍）
++
++| # | 限制 | 说明 |
++| --- | --- | --- |
++| B1 | ZIP64 / 分卷 / 超大中央目录的预检退回 1 GiB 最坏值 | 这类归档仍要求约 1 GiB 可用空间；由 worker 限额兜底 |
++| B2 | 每次解压都重算 SHA-256 | 512 MiB 归档约数百毫秒到数秒；换来"磁盘被替换一定被发现" |
++| B3 | 重选 token 不持久化 | 重启后需再点一次按钮；换取了"替换许可不变成长期凭据" |
++| B4 | 超限归档不自动分批 | 见 `04` 第 3 节的四条理由；由用户决定怎么拆 |
++| B5 | `statsComplete` 对 v1.2 计划一律为下界 | 宁可对真正完整的 v1.2 计划说"至少"，也不对回填计划说"共" |
++| B6 | 拒绝名单上限 100/类 | 计数始终精确；名单只影响可见条目数 |
++| B7 | `check:ssm` 保持 2 REVIEW | 未 `--accept-review`，等审核方确认 |
++
++## C. 集中式真实宿主验收步骤
++
++**原则**：独立隔离宿主 + 独立 `data` 目录，绝不指向正式数据；先备份；侧载与回滚参照 v1.1 `06`。一次性观察，以宿主状态、面板文本、库快照为证据。
++
++| 步 | 操作 | 观察点 | 判定 |
++| --- | --- | --- | --- |
++| 0 | 侧载 v1.4 构建，重启 | manifest 下发的 client.js 哈希 | 是本轮产物 |
++| 1 | 准备：3 本 txt、三层嵌套文件夹、1 个正常 ZIP、1 个 120 本 ZIP、1 个同长度改字节的 ZIP | 素材哈希先记录 | 可复现 |
++| 2 | 正常 ZIP 导入 | 四态流转、解压、条目就位、ZIP 删除 | `extracted` |
++| 3 | **篡改归档**：把 ready 批次的 `source.zip` 换成同长度不同内容，点重试解压 | 提示"内容与已验证的摘要不一致"；无新条目；ZIP 仍在 | 不导入、不丢证据 |
++| 4 | **临时故障恢复**：把批次目录设为只读触发 rename 失败 | 提示"文件系统或权限问题…已保留压缩包供重试"；状态仍是"已校验" | 不要求重新上传 |
++| 5 | 恢复权限后点"重试解压" | 成功；已入库书不重复 | 无重复条目 |
++| 6 | **取消重选**：点"重新选择 ZIP"后在对话框点取消 | 按钮仍在、批次状态不变 | 不卡死 |
++| 7 | **选错归档**：选同长度不同内容 | 前端直接拒绝；再选原文件可继续 | 错误包进不去 |
++| 8 | **120 本 ZIP** | 明确提示超限 + 建议拆分；ZIP 保留；0 条目 | 不静默导入 100 本 |
++| 9 | **101 个文件的文件夹** | 报告"只接收前 100 本，还有 1 本超出上限"；再选一次可继续 | 遗漏可见 |
++| 10 | **旧计划统计**：用 v1.2 时代的库打开阅读计划 | 显示"至少累计读完 N 本" + 下界说明 | 不冒充总数 |
++| 11 | 收尾：隔离 `data` 快照、截图、日志归档 | 正式数据零改动 | — |
+diff --git "a/docs/reading-plan-v1.4/10-\346\234\200\347\273\210\351\252\214\346\224\266\346\221\230\350\246\201.md" "b/docs/reading-plan-v1.4/10-\346\234\200\347\273\210\351\252\214\346\224\266\346\221\230\350\246\201.md"
+new file mode 100644
+index 0000000..5a873a5
+--- /dev/null
++++ "b/docs/reading-plan-v1.4/10-\346\234\200\347\273\210\351\252\214\346\224\266\346\221\230\350\246\201.md"
+@@ -0,0 +1,51 @@
++# 10 · 最终验收摘要（任务书第 12 节逐条对照）
++
++结论：**10 条全部满足**。本阶段通过只代表"底层整改结束、具备进入真实桌面宿主验收的条件"，不代表批准发布。
++
++---
++
++## 1. 逐条对照
++
++| # | 验收条件 | 结论 | 证据 |
++| --- | --- | --- | --- |
++| 1 | ZIP 恢复失败不会破坏原始归档 | ✅ | 所有失败路径只写 `failure`/`error`，不删 ZIP（`fail()`，`src/import-batches.ts:704`）；rename 失败、磁盘不足、worker 故障用例均断言 ZIP 字节不变 |
++| 2 | 每次解压都会验证 ZIP 内容身份 | ✅ | `extractArchive` 的"存在 → 长度 → SHA-256"三道检查在任何写入之前；替换/截断/无摘要三类用例 |
++| 3 | `zipBegin` 不会覆盖已验证文件 | ✅ | `ready`/`extracted` 明确拒绝、`uploading` 幂等返回 offset、截断只存在于 `startUpload`；断言文件 SHA-256 不变 |
++| 4 | 用户取消重新选择不会卡死 | ✅ | 准备阶段零副作用（不改状态、不删文件、不建空文件），token 内存态；两次 prepare 均成功 |
++| 5 | 超限书籍不会静默遗漏 | ✅ | 120 本整包拒绝 + 报告名单；101 文件 `overflow = 1`；`batch.rejected` 持久化 + `status().report` + 界面结果块 |
++| 6 | 历史统计口径正确 | ✅ | `statsComplete = marker === true`；v1.2 回填计划判为下界；界面对应"至少累计读完" |
++| 7 | 磁盘预算既安全又不会不合理拒绝小文件 | ✅ | 按中央目录 `totalUncompressed` 预检；`null` 拒绝；1 GiB / 1.5 GiB 未变 |
++| 8 | 原有阅读计划和批量导入功能无回归 | ✅ | 全量 128 files / 1349 passed；v1.3 的 1325 个用例全部保留通过 |
++| 9 | 完整测试通过 | ✅ | `test_exit=0`；双端 tsc、worker/webui 构建、`check:help` 全部 exit 0 |
++| 10 | 审核包独立可复核 | ✅ | `SHA256SUMS` 覆盖全部交付文件；`changes.patch` 在基线 `7f5b4da` 上 `apply --check` 通过；`snapshot/` 由补丁应用树逐字节生成 |
++
++## 2. 独立复核步骤
++
++```bash
++cd <解压后的审核包根目录>            # 含 docs/ 的那一层
++sha256sum -c docs/reading-plan-v1.4/evidence/SHA256SUMS
++
++cd E:/项目/桌面宠物/扩展/cortina/state/packages/bookfish-reading-plan
++git apply --check <包内>/evidence/changes.patch
++```
++
++`evidence/snapshot/` 是按仓库相对路径展开的完整文件，可与"补丁应用后的工作树"逐字节比对（行尾差异见 `evidence/patch-apply-check.log`）。
++
++## 3. 状态
++
++| 项 | 值 |
++| --- | --- |
++| 分支 | `feat/reading-plan-v1`（**未 push / 未 merge / 未发布 / 未部署**） |
++| 代码提交 | `02db1bc` |
++| 本轮补丁基线 | `7f5b4da` |
++| 上游基线 | `dd4f0b9` |
++| 正式数据 | 零操作（所有测试在 `mkdtemp` 临时目录） |
++| 工作区 | 未用 `git clean` / 强制 reset；未删除未知文件；v1.2、v1.3 审核包原样保留 |
++
++**停在隔离分支等待独立审核。**
++
++## 4. 需要审核方裁定的三处
++
++1. **`diskFree === null` 由"放行"改为"拒绝"**：任务书第 7 节明确"不得默认宣称安全"，因此无法测量时拒绝并保留 ZIP。代价：没有 `statfs` 的环境无法解压 ZIP（Windows/macOS/Linux 的现代 Node 均支持）。
++2. **v1.2 计划一律显示下界**：包括那些"真的从零累计"的计划。若审核认为可以用别的持久化证据区分，需要先给出可验证的判据——本轮没有找到。
++3. **超限 ZIP 选择整包拒绝而非自动分批**：`04` 第 3 节列了四条理由。若产品希望"自动分批续导"，需要先定义分批边界规则与磁盘成本上限。
+diff --git a/lib/webui-txt-builtin-bing-0651.js b/lib/webui-txt-builtin-bing-0651.js
+index e110d38..61a8281 100644
+--- a/lib/webui-txt-builtin-bing-0651.js
++++ b/lib/webui-txt-builtin-bing-0651.js
+@@ -4264,7 +4264,7 @@ var BATCH_TEXT = {
+   cancelled: ["\u5DF2\u53D6\u6D88", "Cancelled"]
+ };
+ function mountBatchImport(ctx, say) {
+-  const state = { batch: null, view: null, summaries: [], busy: null, error: null, reselectItemId: null, reselectZipId: null, expectedZipSha256: null };
++  const state = { batch: null, view: null, summaries: [], busy: null, error: null, reselectItemId: null, reselectZipId: null, expectedZipSha256: null, reselectZipToken: null };
+   let disposed = false;
+   let timer;
+   const root = document.createElement("section");
+@@ -4345,9 +4345,13 @@ function mountBatchImport(ctx, say) {
+     const file = zipInput.files?.[0];
+     if (!file) return;
+     const pending = state.reselectZipId;
++    const token = state.reselectZipToken;
+     state.reselectZipId = null;
+-    if (!pending) state.expectedZipSha256 = null;
+-    void (pending ? uploadZip(pending, file) : startZip(file)).catch(fail);
++    if (!pending) {
++      state.expectedZipSha256 = null;
++      state.reselectZipToken = null;
++    }
++    void (pending ? uploadZip(pending, file, token) : startZip(file)).catch(fail);
+   });
+   reselectInput.addEventListener("change", () => {
+     const file = reselectInput.files?.[0];
+@@ -4383,10 +4387,7 @@ function mountBatchImport(ctx, say) {
+     if (!novels.length) throw new Error(say("\u8FD9\u4E9B\u6587\u4EF6\u90FD\u4E0D\u662F .txt / .md / .epub / .pdf\u3002", "None of these files are .txt / .md / .epub / .pdf."));
+     const batch = await ctx.invoke("import_batch_create", [{ source }]);
+     state.batch = batch;
+-    const added = await ctx.invoke(
+-      "import_batch_add",
+-      [batch.id, novels.map((file) => ({ name: relativeName(file), size: file.size }))]
+-    );
++    const added = await ctx.invoke("import_batch_add", [batch.id, novels.map((file) => ({ name: relativeName(file), size: file.size }))]);
+     const offered = new Map(added.added.map((item) => [item.name, item.id]));
+     let done = 0;
+     for (const file of novels) {
+@@ -4399,10 +4400,15 @@ function mountBatchImport(ctx, say) {
+     }
+     state.busy = null;
+     const notes = [];
+-    if (skipped.length) notes.push(say(`\u5DF2\u8DF3\u8FC7 ${skipped.length} \u4E2A\u4E0D\u652F\u6301\u7684\u6587\u4EF6`, `${skipped.length} unsupported file(s) skipped`));
+-    if (added.tooLarge.length) notes.push(say(`${added.tooLarge.length} \u4E2A\u6587\u4EF6\u8D85\u8FC7 100 MiB`, `${added.tooLarge.length} file(s) over 100 MiB`));
+-    if (added.overBudget.length) notes.push(say(`${added.overBudget.length} \u4E2A\u6587\u4EF6\u8D85\u51FA\u672C\u6279 1 GiB \u9884\u7B97`, `${added.overBudget.length} file(s) over the 1 GiB batch budget`));
+-    if (notes.length) state.error = notes.join("\uFF1B");
++    const missing = picked.length - offered.size;
++    if (skipped.length) notes.push(say(`${skipped.length} \u4E2A\u6587\u4EF6\u683C\u5F0F\u4E0D\u652F\u6301\uFF0C\u672A\u5BFC\u5165`, `${skipped.length} file(s) are not a supported format`));
++    if (added.tooLarge.length) notes.push(say(`${added.tooLarge.length} \u4E2A\u6587\u4EF6\u8D85\u8FC7\u5355\u672C 100 MiB\uFF0C\u672A\u5BFC\u5165`, `${added.tooLarge.length} file(s) exceed 100 MiB`));
++    if (added.overBudget.length) notes.push(say(`${added.overBudget.length} \u4E2A\u6587\u4EF6\u8D85\u51FA\u672C\u6279 1 GiB \u9884\u7B97\uFF0C\u672A\u5BFC\u5165`, `${added.overBudget.length} file(s) exceed the 1 GiB batch budget`));
++    if (added.overflow) notes.push(say(`\u672C\u6B21\u53EA\u63A5\u6536\u4E86\u524D ${added.added.length} \u672C\uFF0C\u8FD8\u6709 ${added.overflow} \u672C\u8D85\u51FA\u5355\u6279 100 \u672C\u4E0A\u9650`, `Only the first ${added.added.length} were accepted; ${added.overflow} more exceed the 100-book limit`));
++    if (added.duplicates.length) notes.push(say(`${added.duplicates.length} \u4E2A\u6587\u4EF6\u4E0E\u672C\u6B21\u5DF2\u9009\u7684\u540C\u540D\uFF0C\u672A\u91CD\u590D\u5BFC\u5165`, `${added.duplicates.length} file(s) duplicate a pick in this batch`));
++    if (notes.length) {
++      state.error = notes.join("\uFF1B") + (missing > 0 ? say("\u3002\u53EF\u4EE5\u518D\u70B9\u4E00\u6B21\u300C\u9009\u62E9\u591A\u672C / \u9009\u62E9\u6587\u4EF6\u5939\u300D\u5BFC\u5165\u5269\u4F59\u6587\u4EF6\uFF0C\u5DF2\u5165\u5E93\u7684\u4E66\u4E0D\u53D7\u5F71\u54CD\u3002", ". Pick again to import the rest; books already on the shelf are untouched.") : "");
++    }
+     await refresh();
+   }
+   async function startZip(file) {
+@@ -4427,7 +4433,7 @@ function mountBatchImport(ctx, say) {
+     }
+     return fileSha256Hex(file);
+   }
+-  async function uploadZip(batchId, file) {
++  async function uploadZip(batchId, file, token = null) {
+     state.busy = say("\u6B63\u5728\u8BFB\u53D6\u538B\u7F29\u5305\u2026", "Reading the archive\u2026");
+     render();
+     const digest = await fileDigest(file);
+@@ -4442,9 +4448,9 @@ function mountBatchImport(ctx, say) {
+     render();
+     const info = await ctx.invoke(
+       "import_batch_zip_begin",
+-      [batchId, { name: file.name, size: file.size, ...digest ? { sha256: digest } : {} }]
++      [batchId, { name: file.name, size: file.size, ...digest ? { sha256: digest } : {}, ...token ? { token } : {} }]
+     );
+-    for (let offset = 0; offset < file.size; offset += info.chunkBytes) {
++    for (let offset = info.offset ?? 0; offset < file.size; offset += info.chunkBytes) {
+       if (disposed || ctx.signal.aborted) throw new Error("\u5DF2\u53D6\u6D88");
+       const bytes = new Uint8Array(await file.slice(offset, offset + info.chunkBytes).arrayBuffer());
+       let binary = "";
+@@ -4454,6 +4460,7 @@ function mountBatchImport(ctx, say) {
+       render();
+     }
+     state.expectedZipSha256 = null;
++    state.reselectZipToken = null;
+     const added = await ctx.invoke("import_batch_zip_finish", [batchId]);
+     state.busy = null;
+     if (added.unsupported.length) state.error = say(`\u5DF2\u8DF3\u8FC7 ${added.unsupported.length} \u4E2A\u4E0D\u652F\u6301\u7684\u6587\u4EF6\u3002`, `${added.unsupported.length} unsupported file(s) skipped.`);
+@@ -4558,8 +4565,8 @@ function mountBatchImport(ctx, say) {
+       archive.className = "batch-archive";
+       const zipState = view.zip.state;
+       el2("small", say(
+-        `\u538B\u7F29\u5305\uFF1A${view.zip.name} \xB7 ${saySize(view.zip.size)} \xB7 ` + (zipState === "uploading" ? "\u6B63\u5728\u4E0A\u4F20" : zipState === "needs_reselect" ? "\u4E0A\u4F20\u5DF2\u4E2D\u65AD\uFF0C\u9700\u8981\u91CD\u65B0\u9009\u62E9" : zipState === "ready" ? "\u5DF2\u6821\u9A8C\uFF0C\u7B49\u5F85\u89E3\u538B" : "\u5DF2\u89E3\u538B"),
+-        `Archive: ${view.zip.name} \xB7 ${saySize(view.zip.size)} \xB7 ` + (zipState === "uploading" ? "uploading" : zipState === "needs_reselect" ? "interrupted, pick it again" : zipState === "ready" ? "verified, waiting for extraction" : "extracted")
++        `\u538B\u7F29\u5305\uFF1A${view.zip.name} \xB7 ${saySize(view.zip.size)} \xB7 ` + (zipState === "uploading" ? "\u6B63\u5728\u4E0A\u4F20" : zipState === "needs_reselect" ? "\u4E0A\u4F20\u5DF2\u4E2D\u65AD\uFF0C\u9700\u8981\u91CD\u65B0\u9009\u62E9" : zipState === "ready" ? view.zip.failure ? "\u5DF2\u6821\u9A8C\uFF0C\u4E0A\u6B21\u89E3\u538B\u672A\u5B8C\u6210" : "\u5DF2\u6821\u9A8C\uFF0C\u7B49\u5F85\u89E3\u538B" : "\u5DF2\u89E3\u538B"),
++        `Archive: ${view.zip.name} \xB7 ${saySize(view.zip.size)} \xB7 ` + (zipState === "uploading" ? "uploading" : zipState === "needs_reselect" ? "interrupted, pick it again" : zipState === "ready" ? view.zip.failure ? "verified, last extraction did not finish" : "verified, waiting for extraction" : "extracted")
+       ), archive);
+       if (view.zip.peakBytes) el2("small", say(`\u89E3\u538B\u5CF0\u503C\u5360\u7528 ${saySize(view.zip.peakBytes)}`, `Peak disk use while extracting: ${saySize(view.zip.peakBytes)}`), archive).className = "batch-note";
+       if (zipState === "extracted" && !view.count) {
+@@ -4568,25 +4575,39 @@ function mountBatchImport(ctx, say) {
+           "Extraction finished, but no importable books were found (empty archive, hidden files only, or all unsupported). Nothing joins the plan automatically; this record can be forgotten."
+         ), archive).className = "batch-note";
+       }
+-      if (zipState === "needs_reselect" && view.status === "preview") {
+-        if (view.zip.reselectable === false) {
+-          el2("small", say(
+-            "\u6B64\u6279\u6B21\u7684\u4E2D\u65AD\u4E0A\u4F20\u6CA1\u6709\u53EF\u9A8C\u8BC1\u7684\u5185\u5BB9\u6307\u7EB9\uFF0C\u65E0\u6CD5\u786E\u8BA4\u91CD\u65B0\u9009\u62E9\u7684\u4ECD\u662F\u540C\u4E00\u4E2A\u538B\u7F29\u5305\u3002\u8BF7\u65B0\u5EFA\u4E00\u4E2A\u6279\u6B21\u91CD\u65B0\u5BFC\u5165\uFF1B\u672C\u6761\u8BB0\u5F55\u4FDD\u7559\u4E3A\u672A\u5B8C\u6210\u72B6\u6001\uFF0C\u53EF\u968F\u65F6\u6E05\u7406\u3002",
+-            "This interrupted upload has no verifiable digest, so a replacement cannot be proven to be the same archive. Start a new batch; this record stays unfinished and can be forgotten."
+-          ), archive).className = "batch-warn";
+-        } else {
+-          el2("small", say(
+-            "\u91CD\u65B0\u9009\u62E9\u540C\u4E00\u4E2A\u538B\u7F29\u5305\u5373\u53EF\u7EE7\u7EED\uFF1B\u5927\u5C0F\u6216\u5185\u5BB9\u4E0D\u540C\u7684\u5305\u4F1A\u88AB\u62D2\u7EDD\u3002",
+-            "Pick the same archive again to continue; a different size or content is refused."
+-          ), archive).className = "batch-warn";
+-          act(say("\u91CD\u65B0\u9009\u62E9 ZIP", "Choose the ZIP again"), archive, async () => {
+-            const info = await ctx.invoke("import_batch_zip_reselect", [state.batch.id]);
+-            state.reselectZipId = state.batch.id;
+-            state.expectedZipSha256 = info.sha256;
+-            zipInput.value = "";
+-            zipInput.click();
++      if (view.zip.error) {
++        el2("small", view.zip.error, archive).className = "batch-warn";
++        if (zipState === "ready" && (view.zip.failure === "transient" || view.zip.failure === "disk")) {
++          act(say("\u91CD\u8BD5\u89E3\u538B", "Retry extraction"), archive, async () => {
++            await ctx.invoke("import_batch_zip_finish", [state.batch.id]);
++            await refresh();
+           });
+         }
++        if (view.zip.failure === "over_limit") {
++          el2("small", say(
++            "\u538B\u7F29\u5305\u5DF2\u4FDD\u7559\u3002\u8BF7\u628A\u8FD9\u6B21\u8981\u5BFC\u5165\u7684\u4E66\u62C6\u6210\u591A\u4E2A\u6279\u6B21\u5206\u522B\u5BFC\u5165\uFF1B\u5DF2\u5165\u5E93\u7684\u4E66\u4E0D\u53D7\u5F71\u54CD\u3002",
++            "The archive is kept. Split it into several batches; books already on the shelf are unaffected."
++          ), archive).className = "batch-note";
++        }
++      }
++      if (view.zip.reselectable && (zipState === "needs_reselect" || zipState === "ready") && view.status === "preview") {
++        el2("small", say(
++          "\u91CD\u65B0\u9009\u62E9\u539F\u6765\u7684\u90A3\u4E2A\u538B\u7F29\u5305\u5373\u53EF\u7EE7\u7EED\uFF1B\u5927\u5C0F\u6216\u5185\u5BB9\u4E0D\u4E00\u81F4\u7684\u5305\u4F1A\u88AB\u62D2\u7EDD\u3002",
++          "Pick the original archive again to continue; a different size or content is refused."
++        ), archive).className = "batch-warn";
++        act(say("\u91CD\u65B0\u9009\u62E9 ZIP", "Choose the ZIP again"), archive, async () => {
++          const info = await ctx.invoke("import_batch_zip_reselect", [state.batch.id]);
++          state.reselectZipId = state.batch.id;
++          state.expectedZipSha256 = info.sha256;
++          state.reselectZipToken = info.token;
++          zipInput.value = "";
++          zipInput.click();
++        });
++      } else if (zipState === "needs_reselect" && view.status === "preview" && !view.zip.reselectable) {
++        el2("small", say(
++          "\u6B64\u6279\u6B21\u7684\u4E2D\u65AD\u4E0A\u4F20\u6CA1\u6709\u53EF\u9A8C\u8BC1\u7684\u5185\u5BB9\u6307\u7EB9\uFF0C\u65E0\u6CD5\u786E\u8BA4\u91CD\u65B0\u9009\u62E9\u7684\u4ECD\u662F\u540C\u4E00\u4E2A\u538B\u7F29\u5305\u3002\u8BF7\u65B0\u5EFA\u4E00\u4E2A\u6279\u6B21\u91CD\u65B0\u5BFC\u5165\uFF1B\u672C\u6761\u8BB0\u5F55\u4FDD\u7559\u4E3A\u672A\u5B8C\u6210\u72B6\u6001\uFF0C\u53EF\u968F\u65F6\u6E05\u7406\u3002",
++          "This interrupted upload has no verifiable digest, so a replacement cannot be proven to be the same archive. Start a new batch; this record stays unfinished and can be forgotten."
++        ), archive).className = "batch-warn";
+       }
+     }
+     for (const group of view.groups) {
+@@ -4637,6 +4658,34 @@ function mountBatchImport(ctx, say) {
+         });
+       }
+     }
++    const report = view.report;
++    const refused = report.duplicate + report.unsupported + report.tooLarge + report.overBudget + report.overflow;
++    if (view.status !== "preview" && (report.accepted || refused)) {
++      const box = el2("div", "", body);
++      box.className = "batch-report";
++      el2("small", say(
++        `\u672C\u6B21\u7ED3\u679C\uFF1A\u8FDB\u6279 ${report.accepted} \u672C \xB7 \u5DF2\u5165\u5E93 ${report.shelfAdded} \u672C` + (report.pending ? ` \xB7 \u7B49\u5F85 ${report.pending}` : "") + (report.failed ? ` \xB7 \u5931\u8D25 ${report.failed}` : "") + (report.cancelled ? ` \xB7 \u5DF2\u53D6\u6D88 ${report.cancelled}` : "") + (report.needsReselect ? ` \xB7 \u5F85\u91CD\u65B0\u9009\u62E9 ${report.needsReselect}` : ""),
++        `Result: ${report.accepted} accepted \xB7 ${report.shelfAdded} on the shelf` + (report.pending ? ` \xB7 ${report.pending} waiting` : "") + (report.failed ? ` \xB7 ${report.failed} failed` : "") + (report.cancelled ? ` \xB7 ${report.cancelled} cancelled` : "") + (report.needsReselect ? ` \xB7 ${report.needsReselect} need the file again` : "")
++      ), box).className = "batch-report-main";
++      const lines = [];
++      const add = (label, count, names) => {
++        if (!count) return;
++        const shown = names.slice(0, 3).join("\u3001");
++        lines.push(say(`${label[0]} ${count} \u4E2A`, `${count} ${label[1]}`) + (shown ? `\uFF08${shown}${count > names.slice(0, 3).length ? "\u2026" : ""}\uFF09` : ""));
++      };
++      add(["\u91CD\u590D\u6216\u65E0\u6548", "duplicate/invalid"], report.duplicate, report.rejectedNames.duplicate);
++      add(["\u683C\u5F0F\u4E0D\u652F\u6301", "unsupported"], report.unsupported, report.rejectedNames.unsupported);
++      add(["\u8D85\u8FC7\u5355\u672C 100 MiB", "over 100 MiB"], report.tooLarge, report.rejectedNames.tooLarge);
++      add(["\u8D85\u51FA\u672C\u6279 1 GiB \u9884\u7B97", "over the 1 GiB budget"], report.overBudget, report.rejectedNames.overBudget);
++      add(["\u8D85\u51FA\u5355\u6279 100 \u672C\u4E0A\u9650", "over the 100-book limit"], report.overflow, report.rejectedNames.overflow);
++      if (lines.length) {
++        el2("small", say("\u672A\u8FDB\u5165\u672C\u6279\uFF1A", "Not imported: ") + lines.join("\uFF1B"), box).className = "batch-warn";
++        el2("small", say(
++          "\u8FD9\u4E9B\u6587\u4EF6\u4ECD\u5728\u4F60\u7684\u78C1\u76D8\u4E0A\uFF0C\u6CA1\u6709\u8FDB\u5165\u9605\u8BFB\u8BA1\u5212\uFF1B\u9700\u8981\u7684\u8BDD\u53EF\u4EE5\u518D\u9009\u4E00\u6B21\uFF0C\u53EA\u5BFC\u5165\u6CA1\u8FDB\u6765\u7684\u90E8\u5206\u3002",
++          "These files are still on your disk and did not join the plan; pick them again to import just those."
++        ), box).className = "batch-note";
++      }
++    }
+     const actions = el2("div", "", body);
+     actions.className = "batch-actions";
+     if (view.status === "preview") {
+diff --git a/lib/webui.js b/lib/webui.js
+index e110d38..61a8281 100644
+--- a/lib/webui.js
++++ b/lib/webui.js
+@@ -4264,7 +4264,7 @@ var BATCH_TEXT = {
+   cancelled: ["\u5DF2\u53D6\u6D88", "Cancelled"]
+ };
+ function mountBatchImport(ctx, say) {
+-  const state = { batch: null, view: null, summaries: [], busy: null, error: null, reselectItemId: null, reselectZipId: null, expectedZipSha256: null };
++  const state = { batch: null, view: null, summaries: [], busy: null, error: null, reselectItemId: null, reselectZipId: null, expectedZipSha256: null, reselectZipToken: null };
+   let disposed = false;
+   let timer;
+   const root = document.createElement("section");
+@@ -4345,9 +4345,13 @@ function mountBatchImport(ctx, say) {
+     const file = zipInput.files?.[0];
+     if (!file) return;
+     const pending = state.reselectZipId;
++    const token = state.reselectZipToken;
+     state.reselectZipId = null;
+-    if (!pending) state.expectedZipSha256 = null;
+-    void (pending ? uploadZip(pending, file) : startZip(file)).catch(fail);
++    if (!pending) {
++      state.expectedZipSha256 = null;
++      state.reselectZipToken = null;
++    }
++    void (pending ? uploadZip(pending, file, token) : startZip(file)).catch(fail);
+   });
+   reselectInput.addEventListener("change", () => {
+     const file = reselectInput.files?.[0];
+@@ -4383,10 +4387,7 @@ function mountBatchImport(ctx, say) {
+     if (!novels.length) throw new Error(say("\u8FD9\u4E9B\u6587\u4EF6\u90FD\u4E0D\u662F .txt / .md / .epub / .pdf\u3002", "None of these files are .txt / .md / .epub / .pdf."));
+     const batch = await ctx.invoke("import_batch_create", [{ source }]);
+     state.batch = batch;
+-    const added = await ctx.invoke(
+-      "import_batch_add",
+-      [batch.id, novels.map((file) => ({ name: relativeName(file), size: file.size }))]
+-    );
++    const added = await ctx.invoke("import_batch_add", [batch.id, novels.map((file) => ({ name: relativeName(file), size: file.size }))]);
+     const offered = new Map(added.added.map((item) => [item.name, item.id]));
+     let done = 0;
+     for (const file of novels) {
+@@ -4399,10 +4400,15 @@ function mountBatchImport(ctx, say) {
+     }
+     state.busy = null;
+     const notes = [];
+-    if (skipped.length) notes.push(say(`\u5DF2\u8DF3\u8FC7 ${skipped.length} \u4E2A\u4E0D\u652F\u6301\u7684\u6587\u4EF6`, `${skipped.length} unsupported file(s) skipped`));
+-    if (added.tooLarge.length) notes.push(say(`${added.tooLarge.length} \u4E2A\u6587\u4EF6\u8D85\u8FC7 100 MiB`, `${added.tooLarge.length} file(s) over 100 MiB`));
+-    if (added.overBudget.length) notes.push(say(`${added.overBudget.length} \u4E2A\u6587\u4EF6\u8D85\u51FA\u672C\u6279 1 GiB \u9884\u7B97`, `${added.overBudget.length} file(s) over the 1 GiB batch budget`));
+-    if (notes.length) state.error = notes.join("\uFF1B");
++    const missing = picked.length - offered.size;
++    if (skipped.length) notes.push(say(`${skipped.length} \u4E2A\u6587\u4EF6\u683C\u5F0F\u4E0D\u652F\u6301\uFF0C\u672A\u5BFC\u5165`, `${skipped.length} file(s) are not a supported format`));
++    if (added.tooLarge.length) notes.push(say(`${added.tooLarge.length} \u4E2A\u6587\u4EF6\u8D85\u8FC7\u5355\u672C 100 MiB\uFF0C\u672A\u5BFC\u5165`, `${added.tooLarge.length} file(s) exceed 100 MiB`));
++    if (added.overBudget.length) notes.push(say(`${added.overBudget.length} \u4E2A\u6587\u4EF6\u8D85\u51FA\u672C\u6279 1 GiB \u9884\u7B97\uFF0C\u672A\u5BFC\u5165`, `${added.overBudget.length} file(s) exceed the 1 GiB batch budget`));
++    if (added.overflow) notes.push(say(`\u672C\u6B21\u53EA\u63A5\u6536\u4E86\u524D ${added.added.length} \u672C\uFF0C\u8FD8\u6709 ${added.overflow} \u672C\u8D85\u51FA\u5355\u6279 100 \u672C\u4E0A\u9650`, `Only the first ${added.added.length} were accepted; ${added.overflow} more exceed the 100-book limit`));
++    if (added.duplicates.length) notes.push(say(`${added.duplicates.length} \u4E2A\u6587\u4EF6\u4E0E\u672C\u6B21\u5DF2\u9009\u7684\u540C\u540D\uFF0C\u672A\u91CD\u590D\u5BFC\u5165`, `${added.duplicates.length} file(s) duplicate a pick in this batch`));
++    if (notes.length) {
++      state.error = notes.join("\uFF1B") + (missing > 0 ? say("\u3002\u53EF\u4EE5\u518D\u70B9\u4E00\u6B21\u300C\u9009\u62E9\u591A\u672C / \u9009\u62E9\u6587\u4EF6\u5939\u300D\u5BFC\u5165\u5269\u4F59\u6587\u4EF6\uFF0C\u5DF2\u5165\u5E93\u7684\u4E66\u4E0D\u53D7\u5F71\u54CD\u3002", ". Pick again to import the rest; books already on the shelf are untouched.") : "");
++    }
+     await refresh();
+   }
+   async function startZip(file) {
+@@ -4427,7 +4433,7 @@ function mountBatchImport(ctx, say) {
+     }
+     return fileSha256Hex(file);
+   }
+-  async function uploadZip(batchId, file) {
++  async function uploadZip(batchId, file, token = null) {
+     state.busy = say("\u6B63\u5728\u8BFB\u53D6\u538B\u7F29\u5305\u2026", "Reading the archive\u2026");
+     render();
+     const digest = await fileDigest(file);
+@@ -4442,9 +4448,9 @@ function mountBatchImport(ctx, say) {
+     render();
+     const info = await ctx.invoke(
+       "import_batch_zip_begin",
+-      [batchId, { name: file.name, size: file.size, ...digest ? { sha256: digest } : {} }]
++      [batchId, { name: file.name, size: file.size, ...digest ? { sha256: digest } : {}, ...token ? { token } : {} }]
+     );
+-    for (let offset = 0; offset < file.size; offset += info.chunkBytes) {
++    for (let offset = info.offset ?? 0; offset < file.size; offset += info.chunkBytes) {
+       if (disposed || ctx.signal.aborted) throw new Error("\u5DF2\u53D6\u6D88");
+       const bytes = new Uint8Array(await file.slice(offset, offset + info.chunkBytes).arrayBuffer());
+       let binary = "";
+@@ -4454,6 +4460,7 @@ function mountBatchImport(ctx, say) {
+       render();
+     }
+     state.expectedZipSha256 = null;
++    state.reselectZipToken = null;
+     const added = await ctx.invoke("import_batch_zip_finish", [batchId]);
+     state.busy = null;
+     if (added.unsupported.length) state.error = say(`\u5DF2\u8DF3\u8FC7 ${added.unsupported.length} \u4E2A\u4E0D\u652F\u6301\u7684\u6587\u4EF6\u3002`, `${added.unsupported.length} unsupported file(s) skipped.`);
+@@ -4558,8 +4565,8 @@ function mountBatchImport(ctx, say) {
+       archive.className = "batch-archive";
+       const zipState = view.zip.state;
+       el2("small", say(
+-        `\u538B\u7F29\u5305\uFF1A${view.zip.name} \xB7 ${saySize(view.zip.size)} \xB7 ` + (zipState === "uploading" ? "\u6B63\u5728\u4E0A\u4F20" : zipState === "needs_reselect" ? "\u4E0A\u4F20\u5DF2\u4E2D\u65AD\uFF0C\u9700\u8981\u91CD\u65B0\u9009\u62E9" : zipState === "ready" ? "\u5DF2\u6821\u9A8C\uFF0C\u7B49\u5F85\u89E3\u538B" : "\u5DF2\u89E3\u538B"),
+-        `Archive: ${view.zip.name} \xB7 ${saySize(view.zip.size)} \xB7 ` + (zipState === "uploading" ? "uploading" : zipState === "needs_reselect" ? "interrupted, pick it again" : zipState === "ready" ? "verified, waiting for extraction" : "extracted")
++        `\u538B\u7F29\u5305\uFF1A${view.zip.name} \xB7 ${saySize(view.zip.size)} \xB7 ` + (zipState === "uploading" ? "\u6B63\u5728\u4E0A\u4F20" : zipState === "needs_reselect" ? "\u4E0A\u4F20\u5DF2\u4E2D\u65AD\uFF0C\u9700\u8981\u91CD\u65B0\u9009\u62E9" : zipState === "ready" ? view.zip.failure ? "\u5DF2\u6821\u9A8C\uFF0C\u4E0A\u6B21\u89E3\u538B\u672A\u5B8C\u6210" : "\u5DF2\u6821\u9A8C\uFF0C\u7B49\u5F85\u89E3\u538B" : "\u5DF2\u89E3\u538B"),
++        `Archive: ${view.zip.name} \xB7 ${saySize(view.zip.size)} \xB7 ` + (zipState === "uploading" ? "uploading" : zipState === "needs_reselect" ? "interrupted, pick it again" : zipState === "ready" ? view.zip.failure ? "verified, last extraction did not finish" : "verified, waiting for extraction" : "extracted")
+       ), archive);
+       if (view.zip.peakBytes) el2("small", say(`\u89E3\u538B\u5CF0\u503C\u5360\u7528 ${saySize(view.zip.peakBytes)}`, `Peak disk use while extracting: ${saySize(view.zip.peakBytes)}`), archive).className = "batch-note";
+       if (zipState === "extracted" && !view.count) {
+@@ -4568,25 +4575,39 @@ function mountBatchImport(ctx, say) {
+           "Extraction finished, but no importable books were found (empty archive, hidden files only, or all unsupported). Nothing joins the plan automatically; this record can be forgotten."
+         ), archive).className = "batch-note";
+       }
+-      if (zipState === "needs_reselect" && view.status === "preview") {
+-        if (view.zip.reselectable === false) {
+-          el2("small", say(
+-            "\u6B64\u6279\u6B21\u7684\u4E2D\u65AD\u4E0A\u4F20\u6CA1\u6709\u53EF\u9A8C\u8BC1\u7684\u5185\u5BB9\u6307\u7EB9\uFF0C\u65E0\u6CD5\u786E\u8BA4\u91CD\u65B0\u9009\u62E9\u7684\u4ECD\u662F\u540C\u4E00\u4E2A\u538B\u7F29\u5305\u3002\u8BF7\u65B0\u5EFA\u4E00\u4E2A\u6279\u6B21\u91CD\u65B0\u5BFC\u5165\uFF1B\u672C\u6761\u8BB0\u5F55\u4FDD\u7559\u4E3A\u672A\u5B8C\u6210\u72B6\u6001\uFF0C\u53EF\u968F\u65F6\u6E05\u7406\u3002",
+-            "This interrupted upload has no verifiable digest, so a replacement cannot be proven to be the same archive. Start a new batch; this record stays unfinished and can be forgotten."
+-          ), archive).className = "batch-warn";
+-        } else {
+-          el2("small", say(
+-            "\u91CD\u65B0\u9009\u62E9\u540C\u4E00\u4E2A\u538B\u7F29\u5305\u5373\u53EF\u7EE7\u7EED\uFF1B\u5927\u5C0F\u6216\u5185\u5BB9\u4E0D\u540C\u7684\u5305\u4F1A\u88AB\u62D2\u7EDD\u3002",
+-            "Pick the same archive again to continue; a different size or content is refused."
+-          ), archive).className = "batch-warn";
+-          act(say("\u91CD\u65B0\u9009\u62E9 ZIP", "Choose the ZIP again"), archive, async () => {
+-            const info = await ctx.invoke("import_batch_zip_reselect", [state.batch.id]);
+-            state.reselectZipId = state.batch.id;
+-            state.expectedZipSha256 = info.sha256;
+-            zipInput.value = "";
+-            zipInput.click();
++      if (view.zip.error) {
++        el2("small", view.zip.error, archive).className = "batch-warn";
++        if (zipState === "ready" && (view.zip.failure === "transient" || view.zip.failure === "disk")) {
++          act(say("\u91CD\u8BD5\u89E3\u538B", "Retry extraction"), archive, async () => {
++            await ctx.invoke("import_batch_zip_finish", [state.batch.id]);
++            await refresh();
+           });
+         }
++        if (view.zip.failure === "over_limit") {
++          el2("small", say(
++            "\u538B\u7F29\u5305\u5DF2\u4FDD\u7559\u3002\u8BF7\u628A\u8FD9\u6B21\u8981\u5BFC\u5165\u7684\u4E66\u62C6\u6210\u591A\u4E2A\u6279\u6B21\u5206\u522B\u5BFC\u5165\uFF1B\u5DF2\u5165\u5E93\u7684\u4E66\u4E0D\u53D7\u5F71\u54CD\u3002",
++            "The archive is kept. Split it into several batches; books already on the shelf are unaffected."
++          ), archive).className = "batch-note";
++        }
++      }
++      if (view.zip.reselectable && (zipState === "needs_reselect" || zipState === "ready") && view.status === "preview") {
++        el2("small", say(
++          "\u91CD\u65B0\u9009\u62E9\u539F\u6765\u7684\u90A3\u4E2A\u538B\u7F29\u5305\u5373\u53EF\u7EE7\u7EED\uFF1B\u5927\u5C0F\u6216\u5185\u5BB9\u4E0D\u4E00\u81F4\u7684\u5305\u4F1A\u88AB\u62D2\u7EDD\u3002",
++          "Pick the original archive again to continue; a different size or content is refused."
++        ), archive).className = "batch-warn";
++        act(say("\u91CD\u65B0\u9009\u62E9 ZIP", "Choose the ZIP again"), archive, async () => {
++          const info = await ctx.invoke("import_batch_zip_reselect", [state.batch.id]);
++          state.reselectZipId = state.batch.id;
++          state.expectedZipSha256 = info.sha256;
++          state.reselectZipToken = info.token;
++          zipInput.value = "";
++          zipInput.click();
++        });
++      } else if (zipState === "needs_reselect" && view.status === "preview" && !view.zip.reselectable) {
++        el2("small", say(
++          "\u6B64\u6279\u6B21\u7684\u4E2D\u65AD\u4E0A\u4F20\u6CA1\u6709\u53EF\u9A8C\u8BC1\u7684\u5185\u5BB9\u6307\u7EB9\uFF0C\u65E0\u6CD5\u786E\u8BA4\u91CD\u65B0\u9009\u62E9\u7684\u4ECD\u662F\u540C\u4E00\u4E2A\u538B\u7F29\u5305\u3002\u8BF7\u65B0\u5EFA\u4E00\u4E2A\u6279\u6B21\u91CD\u65B0\u5BFC\u5165\uFF1B\u672C\u6761\u8BB0\u5F55\u4FDD\u7559\u4E3A\u672A\u5B8C\u6210\u72B6\u6001\uFF0C\u53EF\u968F\u65F6\u6E05\u7406\u3002",
++          "This interrupted upload has no verifiable digest, so a replacement cannot be proven to be the same archive. Start a new batch; this record stays unfinished and can be forgotten."
++        ), archive).className = "batch-warn";
+       }
+     }
+     for (const group of view.groups) {
+@@ -4637,6 +4658,34 @@ function mountBatchImport(ctx, say) {
+         });
+       }
+     }
++    const report = view.report;
++    const refused = report.duplicate + report.unsupported + report.tooLarge + report.overBudget + report.overflow;
++    if (view.status !== "preview" && (report.accepted || refused)) {
++      const box = el2("div", "", body);
++      box.className = "batch-report";
++      el2("small", say(
++        `\u672C\u6B21\u7ED3\u679C\uFF1A\u8FDB\u6279 ${report.accepted} \u672C \xB7 \u5DF2\u5165\u5E93 ${report.shelfAdded} \u672C` + (report.pending ? ` \xB7 \u7B49\u5F85 ${report.pending}` : "") + (report.failed ? ` \xB7 \u5931\u8D25 ${report.failed}` : "") + (report.cancelled ? ` \xB7 \u5DF2\u53D6\u6D88 ${report.cancelled}` : "") + (report.needsReselect ? ` \xB7 \u5F85\u91CD\u65B0\u9009\u62E9 ${report.needsReselect}` : ""),
++        `Result: ${report.accepted} accepted \xB7 ${report.shelfAdded} on the shelf` + (report.pending ? ` \xB7 ${report.pending} waiting` : "") + (report.failed ? ` \xB7 ${report.failed} failed` : "") + (report.cancelled ? ` \xB7 ${report.cancelled} cancelled` : "") + (report.needsReselect ? ` \xB7 ${report.needsReselect} need the file again` : "")
++      ), box).className = "batch-report-main";
++      const lines = [];
++      const add = (label, count, names) => {
++        if (!count) return;
++        const shown = names.slice(0, 3).join("\u3001");
++        lines.push(say(`${label[0]} ${count} \u4E2A`, `${count} ${label[1]}`) + (shown ? `\uFF08${shown}${count > names.slice(0, 3).length ? "\u2026" : ""}\uFF09` : ""));
++      };
++      add(["\u91CD\u590D\u6216\u65E0\u6548", "duplicate/invalid"], report.duplicate, report.rejectedNames.duplicate);
++      add(["\u683C\u5F0F\u4E0D\u652F\u6301", "unsupported"], report.unsupported, report.rejectedNames.unsupported);
++      add(["\u8D85\u8FC7\u5355\u672C 100 MiB", "over 100 MiB"], report.tooLarge, report.rejectedNames.tooLarge);
++      add(["\u8D85\u51FA\u672C\u6279 1 GiB \u9884\u7B97", "over the 1 GiB budget"], report.overBudget, report.rejectedNames.overBudget);
++      add(["\u8D85\u51FA\u5355\u6279 100 \u672C\u4E0A\u9650", "over the 100-book limit"], report.overflow, report.rejectedNames.overflow);
++      if (lines.length) {
++        el2("small", say("\u672A\u8FDB\u5165\u672C\u6279\uFF1A", "Not imported: ") + lines.join("\uFF1B"), box).className = "batch-warn";
++        el2("small", say(
++          "\u8FD9\u4E9B\u6587\u4EF6\u4ECD\u5728\u4F60\u7684\u78C1\u76D8\u4E0A\uFF0C\u6CA1\u6709\u8FDB\u5165\u9605\u8BFB\u8BA1\u5212\uFF1B\u9700\u8981\u7684\u8BDD\u53EF\u4EE5\u518D\u9009\u4E00\u6B21\uFF0C\u53EA\u5BFC\u5165\u6CA1\u8FDB\u6765\u7684\u90E8\u5206\u3002",
++          "These files are still on your disk and did not join the plan; pick them again to import just those."
++        ), box).className = "batch-note";
++      }
++    }
+     const actions = el2("div", "", body);
+     actions.className = "batch-actions";
+     if (view.status === "preview") {
+diff --git a/src/import-batch.ts b/src/import-batch.ts
+index 38ce4f6..3412607 100644
+--- a/src/import-batch.ts
++++ b/src/import-batch.ts
+@@ -92,10 +92,66 @@ export interface BatchZip {
+   sha256?: string;
+   claimedSha256?: string;
+   state: 'uploading' | 'needs_reselect' | 'ready' | 'extracted';
++  /**
++   * Why the last extraction attempt did not finish. `ready` is kept for every
++   * one of these: a disk that filled up, a refused rename or a worker hiccup
++   * never means the archive itself is gone, so ZIP-level recovery stays
++   * available. Only a missing or unverifiable archive needs the user to pick the
++   * file again.
++   */
++  failure?: ZipFailure;
++  /** Human-readable reason, bounded; evidence for the user, never an input. */
++  error?: string;
+   /** Measured maximum of the batch directory during extraction, in bytes. */
+   peakBytes?: number;
+ }
+ 
++export type ZipFailure =
++  /** The stored archive vanished or no longer has its declared length. */
++  | 'missing'
++  /** Bytes on disk no longer hash to the digest this batch accepted. */
++  | 'unverifiable'
++  /** The archive holds more books / bytes than one batch may take. */
++  | 'over_limit'
++  /** Free space is unknown or insufficient; nothing was written. */
++  | 'disk'
++  /** Anything else: worker fault, refused rename, permissions, cancellation. */
++  | 'transient';
++
++/** One rejection category: the count is always exact, names are display-only. */
++export interface RejectedGroup { count: number; names: string[] }
++
++/** What a batch refused to take in, kept so nothing is ever dropped silently. */
++export interface BatchRejected {
++  unsupported: RejectedGroup;
++  tooLarge: RejectedGroup;
++  overBudget: RejectedGroup;
++  duplicate: RejectedGroup;
++  /** Entries beyond the per-batch item limit. */
++  overflow: RejectedGroup;
++}
++
++/** Names kept per category; the count keeps the truth past this window. */
++export const REJECTED_NAME_LIMIT = 100;
++
++export function emptyRejected(): BatchRejected {
++  return {
++    unsupported: { count: 0, names: [] },
++    tooLarge: { count: 0, names: [] },
++    overBudget: { count: 0, names: [] },
++    duplicate: { count: 0, names: [] },
++    overflow: { count: 0, names: [] },
++  };
++}
++
++function addNames(group: RejectedGroup, names: readonly string[]): void {
++  group.count += names.length;
++  for (const name of names) {
++    if (group.names.length >= REJECTED_NAME_LIMIT) break;
++    group.names.push(name.slice(0, BATCH_NAME_LIMIT));
++  }
++}
++
+ export interface ImportBatch {
+   schema: typeof BATCH_SCHEMA;
+   id: string;
+@@ -108,6 +164,12 @@ export interface ImportBatch {
+   /** Separated from importing: a batch never queues reading unless asked. */
+   toPlan: boolean;
+   items: BatchItem[];
++  /**
++   * Everything this batch refused to take in, accumulated across add requests.
++   * Without it a ZIP that hit the 100-book or 1 GiB limit would hand back a
++   * partial shelf and look like a complete success.
++   */
++  rejected?: BatchRejected;
+   error?: string;
+ }
+ 
+@@ -230,6 +292,32 @@ export function addBatchItems(batch: ImportBatch, inputs: readonly BatchItemInpu
+   return { added, duplicates, unsupported, tooLarge, overBudget, overflow };
+ }
+ 
++/**
++ * Merge one add request's rejections into the batch's running report. The count
++ * is exact even once the name window is full, so a partial import can never be
++ * presented as a complete one.
++ */
++export function recordRejected(batch: ImportBatch, groups: {
++  unsupported?: readonly string[]; tooLarge?: readonly string[]; overBudget?: readonly string[];
++  duplicate?: readonly string[]; overflow?: number; overflowNames?: readonly string[];
++}): void {
++  const rejected = batch.rejected ?? emptyRejected();
++  if (groups.unsupported?.length) addNames(rejected.unsupported, groups.unsupported);
++  if (groups.tooLarge?.length) addNames(rejected.tooLarge, groups.tooLarge);
++  if (groups.overBudget?.length) addNames(rejected.overBudget, groups.overBudget);
++  if (groups.duplicate?.length) addNames(rejected.duplicate, groups.duplicate);
++  if (groups.overflow) {
++    rejected.overflow.count += groups.overflow;
++    for (const name of groups.overflowNames ?? []) {
++      if (rejected.overflow.names.length >= REJECTED_NAME_LIMIT) break;
++      rejected.overflow.names.push(name.slice(0, BATCH_NAME_LIMIT));
++    }
++  }
++  const used = rejected.unsupported.count + rejected.tooLarge.count + rejected.overBudget.count
++    + rejected.duplicate.count + rejected.overflow.count;
++  if (used > 0) batch.rejected = rejected;
++}
++
+ export function findBatchItem(batch: ImportBatch, itemId: string): BatchItem {
+   const item = batch.items.find((row) => row.id === itemId);
+   if (!item) throw new Error('Import item not found');
+@@ -486,8 +574,11 @@ export function validateBatches(raw: unknown, now = 0): ImportBatch[] {
+       if (zip.sha256 !== undefined) digestOf(zip.sha256);
+       if (zip.claimedSha256 !== undefined) digestOf(zip.claimedSha256);
+       if (zip.peakBytes !== undefined && (!Number.isSafeInteger(zip.peakBytes) || zip.peakBytes < 0)) throw new Error('Invalid import batch archive peak');
++      if (zip.failure !== undefined && !['missing', 'unverifiable', 'over_limit', 'disk', 'transient'].includes(zip.failure)) throw new Error('Invalid import batch archive failure');
++      if (zip.error !== undefined && (typeof zip.error !== 'string' || zip.error.length > 500)) throw new Error('Invalid import batch archive error');
+     }
+     if (batch.error !== undefined && (typeof batch.error !== 'string' || batch.error.length > 500)) throw new Error('Invalid import batch error');
++    if (batch.rejected !== undefined) validateRejected(batch.rejected);
+     const itemIds = new Set<string>();
+     for (const item of batch.items) {
+       if (!item || typeof item !== 'object' || typeof item.id !== 'string' || !UUID.test(item.id) || itemIds.has(item.id)) throw new Error('Invalid import item');
+@@ -526,6 +617,77 @@ export function completedBookKeys(batch: ImportBatch): string[] {
+   return batch.items.filter((item) => item.status === 'completed' && item.bookKey).map((item) => item.bookKey!);
+ }
+ 
++/**
++ * The complete outcome of a batch: what came in, what reached the shelf, and
++ * everything that was refused. A batch is finished only when the caller can see
++ * all three — "accepted items completed" alone is not a success report.
++ */
++export interface ImportBatchReport {
++  /** Entries the batch accepted. */
++  accepted: number;
++  /** Entries that actually reach the shelf. */
++  shelfAdded: number;
++  pending: number;
++  failed: number;
++  cancelled: number;
++  needsReselect: number;
++  duplicate: number;
++  unsupported: number;
++  tooLarge: number;
++  overBudget: number;
++  overflow: number;
++  /** Refused names, display-only; the counts stay exact past this window. */
++  rejectedNames: { duplicate: string[]; unsupported: string[]; tooLarge: string[]; overBudget: string[]; overflow: string[] };
++  /** True when at least one picked file never made it into the batch. */
++  incomplete: boolean;
++}
++
++export function batchReport(batch: ImportBatch): ImportBatchReport {
++  const count = (status: BatchItemStatus) => batch.items.filter((item) => item.status === status).length;
++  const rejected = batch.rejected;
++  const shelfAdded = batch.items.filter((item) => item.bookKey !== undefined).length;
++  const refusal = {
++    duplicate: rejected?.duplicate.count ?? 0,
++    unsupported: rejected?.unsupported.count ?? 0,
++    tooLarge: rejected?.tooLarge.count ?? 0,
++    overBudget: rejected?.overBudget.count ?? 0,
++    overflow: rejected?.overflow.count ?? 0,
++  };
++  return {
++    accepted: batch.items.length,
++    shelfAdded,
++    pending: count('pending') + runningCount(batch),
++    failed: count('failed'),
++    cancelled: count('cancelled'),
++    needsReselect: count('needs_reselect'),
++    ...refusal,
++    rejectedNames: {
++      duplicate: rejected?.duplicate.names ?? [],
++      unsupported: rejected?.unsupported.names ?? [],
++      tooLarge: rejected?.tooLarge.names ?? [],
++      overBudget: rejected?.overBudget.names ?? [],
++      overflow: rejected?.overflow.names ?? [],
++    },
++    incomplete: Object.values(refusal).some((value) => value > 0) || count('failed') > 0 || count('needs_reselect') > 0,
++  };
++}
++
++function validateRejected(raw: unknown): void {
++  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid import batch rejections');
++  const value = raw as Record<string, unknown>;
++  const group = (name: string): void => {
++    const entry = value[name];
++    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error('Invalid import batch rejection group');
++    const row = entry as { count?: unknown; names?: unknown };
++    if (!Number.isSafeInteger(row.count) || (row.count as number) < 0) throw new Error('Invalid import batch rejection count');
++    if (!Array.isArray(row.names) || row.names.length > REJECTED_NAME_LIMIT) throw new Error('Invalid import batch rejection names');
++    for (const item of row.names) {
++      if (typeof item !== 'string' || !item || item.length > BATCH_NAME_LIMIT) throw new Error('Invalid import batch rejection name');
++    }
++  };
++  for (const name of ['unsupported', 'tooLarge', 'overBudget', 'duplicate', 'overflow']) group(name);
++}
++
+ export function batchSummary(batch: ImportBatch): { id: string; source: BatchSource; status: BatchStatus; toPlan: boolean;
+   total: number; completed: number; failed: number; cancelled: number; needsReselect: number; pending: number;
+   title: string; createdAt: number; updatedAt: number } {
+diff --git a/src/import-batches.ts b/src/import-batches.ts
+index 5b69517..b45393f 100644
+--- a/src/import-batches.ts
++++ b/src/import-batches.ts
+@@ -16,9 +16,9 @@ import { MAX_BOOK_BYTES } from './books.ts';
+ import { extractRuntimeZip } from './novel-runtime/archive.ts';
+ import {
+   BATCH_ITEM_LIMIT, BATCH_STAGING_BYTES, BATCH_STAGING_EXT, MAX_BATCH_FILE_BYTES, batchDeclaredBytes,
+-  batchStagingName, batchSummary, beginBatch, cancelBatch, digestOf,
++  batchReport, batchStagingName, batchSummary, beginBatch, cancelBatch, digestOf,
+   cancelItem, completedBookKeys, dispatchable, findBatchItem, markInBatchDuplicates, newBatch,
+-  previewBatch, reconcileBatch, retryItem, runningCount, setItemStatus, ZIP_MAX_BYTES,
++  previewBatch, reconcileBatch, recordRejected, retryItem, runningCount, setItemStatus, ZIP_MAX_BYTES,
+   type BatchAddResult, type BatchItem, type BatchSource, type BatchZip, type ImportBatch,
+ } from './import-batch.ts';
+ import type { Library } from './library.ts';
+@@ -34,6 +34,7 @@ interface Active { batchId: string; job: ImportJob; timer?: ReturnType<typeof se
+ 
+ /** Archive metadata as the panel sees it. */
+ export interface BatchZipView { name: string; size: number; state: BatchZip['state']; sha256?: string; peakBytes?: number;
++  failure?: BatchZip['failure']; error?: string;
+   /** False when a re-pick cannot be proven to be the same archive (new batch required). */
+   reselectable: boolean }
+ 
+@@ -58,6 +59,104 @@ export function sha256File(file: string): string {
+ 
+ const baseNameOf = (name: string): string => name.replace(/\\/gu, '/').split('/').filter(Boolean).pop() ?? name;
+ 
++/**
++ * Why an extraction refused. The failure kind decides how the batch recovers:
++ * only `missing`/`unverifiable` mean the archive itself can no longer be proven,
++ * everything else leaves `ready` intact for another attempt.
++ */
++export class ZipStateError extends Error {
++  constructor(readonly failure: NonNullable<BatchZip['failure']>, message: string) {
++    super(message);
++    this.name = 'ZipStateError';
++  }
++}
++
++/** What the archive says it will expand to, read from its own central directory. */
++export interface ZipPlan {
++  entries: number;
++  /** Entries a batch would actually take: supported, not hidden, not a directory. */
++  supported: number;
++  supportedNames: string[];
++  unsupported: number;
++  totalUncompressed: number;
++  largestEntry: number;
++}
++
++/** Central-directory reads are bounded: an unparseable/huge index falls back to "unknown". */
++const ZIP_PLAN_MAX_CD = 8 * 1024 * 1024;
++const ZIP_PLAN_MAX_ENTRIES = 20_000;
++
++/**
++ * Read the archive's own index (end-of-central-directory + central directory)
++ * to know, before writing anything, how much space the extraction will take and
++ * how many books it holds.
++ *
++ * Returns null when the sizes cannot be trusted: ZIP64 markers, a split archive,
++ * a central directory larger than the cap, or any malformed offset. Callers must
++ * then use the worst case — "unknown" never means "small".
++ */
++export function readZipPlan(zipPath: string): ZipPlan | null {
++  let size: number;
++  try { size = statSync(zipPath).size; } catch { return null; }
++  if (size < 22) return null;
++  const tailLength = Math.min(size, 66 * 1024);
++  const tail = readRange(zipPath, size - tailLength, tailLength);
++  let eocd = -1;
++  for (let at = tail.length - 22; at >= 0; at -= 1) {
++    if (tail.readUInt32LE(at) === 0x06054b50) { eocd = at; break; }
++  }
++  if (eocd < 0) return null;
++  const diskNumber = tail.readUInt16LE(eocd + 4);
++  const cdDisk = tail.readUInt16LE(eocd + 6);
++  const entryCount = tail.readUInt16LE(eocd + 10);
++  const cdSize = tail.readUInt32LE(eocd + 12);
++  const cdOffset = tail.readUInt32LE(eocd + 16);
++  // Multi-disk archives are never produced here and cannot be verified cheaply.
++  if (diskNumber !== 0 || cdDisk !== 0) return null;
++  // 0xFFFF / 0xFFFFFFFF are ZIP64 escape markers: sizes would need the extra
++  // record, so the honest answer is "unknown", not a guess.
++  if (entryCount === 0xffff || cdSize === 0xffffffff || cdOffset === 0xffffffff) return null;
++  if (cdSize > ZIP_PLAN_MAX_CD || entryCount > ZIP_PLAN_MAX_ENTRIES) return null;
++  if (cdOffset + cdSize > size) return null;
++  let cd: Buffer;
++  try { cd = readRange(zipPath, cdOffset, cdSize); } catch { return null; }
++  if (cd.length !== cdSize) return null;
++  let plan: ZipPlan = { entries: 0, supported: 0, supportedNames: [], unsupported: 0, totalUncompressed: 0, largestEntry: 0 };
++  let at = 0;
++  for (let index = 0; index < entryCount; index += 1) {
++    if (at + 46 > cd.length || cd.readUInt32LE(at) !== 0x02014b50) return null;
++    const uncompressed = cd.readUInt32LE(at + 24);
++    const nameLength = cd.readUInt16LE(at + 28);
++    const extraLength = cd.readUInt16LE(at + 30);
++    const commentLength = cd.readUInt16LE(at + 32);
++    const next = at + 46 + nameLength + extraLength + commentLength;
++    if (uncompressed === 0xffffffff || next > cd.length) return null;
++    const name = cd.subarray(at + 46, at + 46 + nameLength).toString('utf8');
++    at = next;
++    plan.entries += 1;
++    plan.totalUncompressed += uncompressed;
++    if (uncompressed > plan.largestEntry) plan.largestEntry = uncompressed;
++    // Directories and hidden tooling files are not books; counting them as
++    // "over the limit" would refuse archives that are well within it.
++    const hidden = name.split('/').some((part) => part.startsWith('.'));
++    if (name.endsWith('/') || hidden || !isSupportedName(name)) { plan.unsupported += 1; continue; }
++    plan.supported += 1;
++    if (plan.supportedNames.length < 400) plan.supportedNames.push(name);
++  }
++  return plan;
++}
++
++const isSupportedName = (name: string): boolean => /\.(txt|md|epub|pdf)$/iu.test(name);
++
++/** Map a worker/filesystem fault onto the recovery it actually allows. */
++function classifyExtractionError(error: unknown): NonNullable<BatchZip['failure']> {
++  const code = (error as { code?: unknown } | undefined)?.code;
++  if (code === 'zip_too_large' || code === 'too_many_entries' || code === 'entry_too_large') return 'over_limit';
++  const message = String((error as Error | undefined)?.message ?? error);
++  if (/ENOSPC|no space left/iu.test(message)) return 'disk';
++  return 'transient';
++}
++
+ /**
+  * Read exactly `length` bytes at `offset` through one bounded buffer.
+  *
+@@ -144,6 +243,12 @@ export class ImportBatches {
+   private readonly diskFree: (path: string) => number | null;
+   /** One extraction at a time per batch: repeats, recovery and retries share the flight. */
+   private readonly extracting = new Map<string, Promise<ZipExtractResult>>();
++  /**
++   * One-shot proofs that a "pick the archive again" step was prepared for this
++   * batch. In-memory on purpose: a restart drops them, and the only cost is that
++   * the user clicks the button again instead of the server guessing.
++   */
++  private readonly reselectTokens = new Map<string, { token: string; sha256?: string; size: number }>();
+ 
+   constructor(private readonly library: Library, root: string, options: ImportBatchesOptions = {}) {
+     this.dir = join(root, 'batches');
+@@ -206,16 +311,24 @@ export class ImportBatches {
+   /** Compact list for the shelf panel: no per-item payload until one is opened. */
+   summaries() { return this.library.importBatches().map((batch) => batchSummary(batch)); }
+ 
+-  status(batchId: string): ReturnType<typeof batchSummary> & ReturnType<typeof previewBatch> & { zip?: BatchZipView } {
++  status(batchId: string): ReturnType<typeof batchSummary> & ReturnType<typeof previewBatch> & { zip?: BatchZipView; report: ReturnType<typeof batchReport> } {
+     const batch = this.require(batchId);
+     const preview = previewBatch(batch, this.library.list());
+     const zip = batch.zip ? {
+       name: batch.zip.name, size: batch.zip.size, state: batch.zip.state,
+-      reselectable: !!(batch.zip.sha256 || batch.zip.claimedSha256),
++      reselectable: this.reselectable(batch.zip),
+       ...(batch.zip.sha256 ? { sha256: batch.zip.sha256 } : {}),
+       ...(batch.zip.peakBytes !== undefined ? { peakBytes: batch.zip.peakBytes } : {}),
++      ...(batch.zip.failure ? { failure: batch.zip.failure } : {}),
++      ...(batch.zip.error ? { error: batch.zip.error } : {}),
+     } : undefined;
+-    return { ...batchSummary(batch), ...preview, ...(zip ? { zip } : {}) };
++    return { ...batchSummary(batch), ...preview, ...(zip ? { zip } : {}), report: batchReport(batch) };
++  }
++
++  /** A re-pick is only offered when a digest exists to prove the replacement. */
++  private reselectable(zip: BatchZip): boolean {
++    if (!(zip.sha256 || zip.claimedSha256)) return false;
++    return zip.state === 'needs_reselect' || (zip.state === 'ready' && (zip.failure === 'missing' || zip.failure === 'unverifiable'));
+   }
+ 
+   /** Upload progress is in-memory only; durability is at item granularity. */
+@@ -255,7 +368,7 @@ export class ImportBatches {
+       ...(input.author === undefined ? {} : { author: input.author }),
+       ...(input.sourceSha256 === undefined ? {} : { sourceSha256: input.sourceSha256 }),
+       ...(input.sourceName === undefined ? {} : { sourceName: input.sourceName }),
+-    })));
++    })), { tooLarge, overBudget });
+     if (tooLarge.length) result.tooLarge = [...tooLarge, ...(result.tooLarge ?? [])];
+     if (overBudget.length) result.overBudget = [...overBudget, ...(result.overBudget ?? [])];
+     // Only a request that actually added rows re-marks in-batch duplicates; a
+@@ -419,8 +532,28 @@ export class ImportBatches {
+     // failed extraction (the archive on disk is still the verified bytes).
+     if (persisted.state === 'extracted') return { ...emptyAddResult(), alreadyExtracted: true };
+     if (persisted.state !== 'ready') throw new Error('The archive has not been verified yet; finish the upload first');
++    // Identity is re-established on EVERY extraction. `ready` only records that
++    // some file once hashed to the accepted digest; it says nothing about the
++    // bytes on disk now, which is exactly the window a replaced archive slips
++    // through. Nothing reaches the worker before this passes.
++    if (!existsSync(zipPath)) {
++      throw this.fail(batchId, 'missing',
++        '压缩包文件已丢失，无法再解压。已入库的书和阅读进度不受影响；剩余书目可新建批次重新导入。');
++    }
+     const zipSize = statSync(zipPath).size;
+-    if (zipSize !== persisted.size) throw new Error('The stored archive does not match its declared size');
++    if (zipSize !== persisted.size) {
++      throw this.fail(batchId, 'missing',
++        `压缩包长度与声明不一致（声明 ${persisted.size} 字节，实际 ${zipSize} 字节），已保留现场供核对。`);
++    }
++    const pinned = persisted.sha256 ?? persisted.claimedSha256;
++    if (!pinned) {
++      throw this.fail(batchId, 'unverifiable',
++        '这个批次没有可验证的压缩包摘要，无法证明磁盘上的文件仍是当初导入的那一个；请重新选择压缩包或新建批次。');
++    }
++    if (sha256File(zipPath) !== pinned) {
++      throw this.fail(batchId, 'unverifiable',
++        '压缩包内容与已验证的摘要不一致（可能被替换或损坏）；已拒绝解压并保留现场，未把任何字节交给解压器。');
++    }
+     // Budget is recomputed from what the batch directory ACTUALLY holds, not from
+     // the zip size alone: a previous attempt that already moved some entries into
+     // their `.src` slots (and kept the archive) must not get a second full tree
+@@ -428,13 +561,39 @@ export class ImportBatches {
+     const existing = Math.max(0, dirTreeBytes(this.batchDir(batchId)) - zipSize);
+     const ceiling = Math.min(this.budget.batchBytes - existing, this.budget.workspaceBytes - zipSize - existing);
+     if (ceiling < 1) {
+-      throw new Error(`The batch workspace cannot fit another extraction: ${ceiling} bytes of headroom left (already occupied: ${existing})`);
++      throw this.fail(batchId, 'over_limit',
++        `本批已没有可用空间（剩余 ${ceiling} 字节，已占用 ${existing} 字节）；压缩包已保留，请拆分后重新导入。`);
+     }
+-    // Refuse before writing when the disk itself cannot hold the allowed ceiling:
+-    // failing halfway after filling the volume is exactly what must not happen.
++    // The archive's own index decides the precheck: how many books it holds and
++    // how much it will expand to. Unreadable or ZIP64 indexes fall back to the
++    // worst case — "unknown" is never treated as "small".
++    const plan = readZipPlan(zipPath);
++    const estimate = plan ? plan.totalUncompressed : ceiling;
++    const incoming = this.require(batchId).items.length;
++    const books = plan ? Math.max(incoming, plan.supported) : incoming;
++    if (books > BATCH_ITEM_LIMIT) {
++      const overflow = Math.max(0, books - BATCH_ITEM_LIMIT);
++      const excess = plan ? plan.supportedNames.slice(BATCH_ITEM_LIMIT) : [];
++      this.library.updateImportBatch(batchId, (draft) => {
++        recordRejected(draft, { overflow, overflowNames: excess });
++      });
++      throw this.fail(batchId, 'over_limit',
++        `压缩包里有 ${books} 本可导入的书，超过单批 ${BATCH_ITEM_LIMIT} 本的上限；已保留压缩包，请拆成多个批次导入（超出的 ${overflow} 本不会静默丢弃）。`);
++    }
++    if (estimate > ceiling) {
++      throw this.fail(batchId, 'over_limit',
++        `解压后约 ${estimate} 字节，超过本批可用 ${ceiling} 字节；已保留压缩包，请拆分后重新导入。`);
++    }
++    // Compare against the measured estimate, not the worst-case ceiling, so a
++    // 2 MB archive does not demand a gigabyte of free space. An unmeasurable disk
++    // is never reported as safe.
+     const free = this.diskFree(this.batchDir(batchId));
+-    if (free !== null && free < ceiling) {
+-      throw new Error(`Not enough disk space: ${free} bytes free, this extraction may need up to ${ceiling}`);
++    if (free === null) {
++      throw this.fail(batchId, 'disk', '无法测量磁盘剩余空间，为避免写满磁盘已暂停解压；请稍后重试或检查磁盘状态。');
++    }
++    if (free < estimate) {
++      throw this.fail(batchId, 'disk',
++        `磁盘剩余 ${free} 字节，本次解压约需 ${estimate} 字节；请释放空间后重试，压缩包已保留。`);
+     }
+     const dir = this.batchDir(batchId);
+     const target = join(dir, randomUUID() + '.extract');
+@@ -454,19 +613,26 @@ export class ImportBatches {
+       });
+       // Hidden entries are tooling noise (__MACOSX, .DS_Store), never novels.
+       const entries = outcome.files.filter((entry) => !entry.path.split('/').some((part) => part.startsWith('.')));
++      // Over-sized entries are refused with names, not dropped on the floor.
+       const tooLarge = entries.filter((entry) => entry.size > this.budget.fileBytes);
+-      if (tooLarge.length) throw new Error(`${tooLarge.length} archive entries exceed the 100 MiB per-book limit`);
+-      // An empty entry list (empty archive, hidden-only, or directory-only) is
+-      // NOT an addItems request: it is a completed extraction with nothing in
+-      // it, reported as such instead of being refused as "select at least one".
+-      const result = entries.length
+-        ? this.addItems(batchId, entries.map((entry) => ({ name: entry.path, size: entry.size,
++      const keep = entries.filter((entry) => entry.size <= this.budget.fileBytes);
++      if (tooLarge.length) {
++        const names = tooLarge.map((entry) => entry.path);
++        this.library.updateImportBatch(batchId, (draft) => { recordRejected(draft, { tooLarge: names }); });
++      }
++      // An empty entry list (empty archive, hidden-only, directory-only, or all
++      // entries over the per-book ceiling) is NOT an addItems request: it is a
++      // completed extraction with nothing in it, reported as such instead of
++      // being refused as "select at least one".
++      const result = keep.length
++        ? this.addItems(batchId, keep.map((entry) => ({ name: entry.path, size: entry.size,
+             title: detectImportMetadata(basename(entry.path)).title, sourceSha256: entry.sha256 })))
+         : emptyAddResult();
++      const mine = this.require(batchId);
+       // Walk the batch's items, not the freshly added rows: a retry re-offers the
+       // same names (all duplicates now), so keying off `result.added` would skip
+       // exactly the entries a previous attempt never got to move.
+-      for (const item of this.require(batchId).items) {
++      for (const item of mine.items) {
+         if (item.staged) continue;
+         const from = join(target, ...item.name.split('/'));
+         if (!existsSync(from) || !lstatSync(from).isFile() || statSync(from).size !== item.size) continue;
+@@ -499,25 +665,52 @@ export class ImportBatches {
+         // plan; the record can simply be forgotten.
+         rmSync(zipPath, { force: true });
+         this.library.updateImportBatch(batchId, (draft) => {
+-          if (draft.zip) draft.zip.state = 'extracted';
++          if (draft.zip) { draft.zip.state = 'extracted'; delete draft.zip.failure; delete draft.zip.error; }
+           draft.status = 'completed';
+         });
+         return result;
+       }
+       if (items.every((item) => item.staged || item.status === 'completed' || !item.supported)) {
+         rmSync(zipPath, { force: true });
+-        this.library.updateImportBatch(batchId, (draft) => { if (draft.zip) draft.zip.state = 'extracted'; });
++        this.library.updateImportBatch(batchId, (draft) => {
++          if (draft.zip) { draft.zip.state = 'extracted'; delete draft.zip.failure; delete draft.zip.error; }
++        });
++      } else {
++        // Extracted what it could, but some entries still need another pass: the
++        // archive stays and the state stays `ready` so the retry is ZIP-level.
++        this.library.updateImportBatch(batchId, (draft) => { if (draft.zip) { delete draft.zip.failure; delete draft.zip.error; } });
+       }
+       return result;
+     } catch (error) {
+-      // Failure: keep the archive (it is already verified) so the extraction can
+-      // be retried without asking the user for the file again, and keep the
+-      // already-moved `.src` slots — they are retry inputs, not garbage.
++      // Failure: the archive itself is still verified, so `ready` stays and the
++      // already-moved `.src` slots stay as retry inputs. Only the failure kind is
++      // recorded — this is the difference between "the disk hiccuped" and "the
++      // archive is gone", which the old code flattened into `needs_reselect`.
+       rmSync(target, { recursive: true, force: true });
+-      throw error;
++      if (error instanceof ZipStateError) throw error;
++      const failure = classifyExtractionError(error);
++      throw this.fail(batchId, failure, String((error as Error).message ?? error));
+     }
+   }
+ 
++  /**
++   * Record why an extraction stopped and hand back the error to throw.
++   *
++   * `ready` is deliberately preserved for every failure kind: the verified bytes
++   * are still on disk, so the batch keeps ZIP-level recovery. A disk that filled
++   * up, a refused rename or a worker fault must never cost the user a 512 MiB
++   * re-upload.
++   */
++  private fail(batchId: string, failure: NonNullable<BatchZip['failure']>, message: string): ZipStateError {
++    const text = message.slice(0, 500);
++    this.library.updateImportBatch(batchId, (draft) => {
++      if (!draft.zip) return;
++      draft.zip.failure = failure;
++      draft.zip.error = text;
++    });
++    return new ZipStateError(failure, text);
++  }
++
+   // ------------------------------------------------------------- zip upload
+ 
+   private zipPath(batchId: string): string { return join(this.batchDir(batchId), 'source.zip'); }
+@@ -529,41 +722,108 @@ export class ImportBatches {
+    */
+   get workspaceBytes(): number { return this.budget.workspaceBytes; }
+ 
+-  /** The archive itself is transferred contiguously, then extracted once. */
++  /**
++   * Start (or resume) an archive upload.
++   *
++   * Three situations, three answers — the file is only ever truncated in the
++   * first two, and never while it still holds bytes this batch accepted:
++   *
++   * 1. No archive yet → create the staging file, state `uploading`.
++   * 2. `uploading` → idempotent: report the real offset and keep every byte
++   *    already staged. Nothing is truncated, so a retried request cannot destroy
++   *    a half-finished 512 MiB upload.
++   * 3. `needs_reselect` / a `ready` archive whose bytes are gone or unprovable →
++   *    only through a prepared reselect (a one-shot token from `zipReselect`),
++   *    which is the only path allowed to replace the file.
++   *
++   * `ready` and `extracted` are refused outright: a verified archive is not
++   * something a begin call may overwrite.
++   */
+   zipBegin(batchId: string, input: unknown) {
+     const batch = this.require(batchId);
+     if (batch.source !== 'zip') throw new Error('This import batch does not accept a ZIP');
+     if (batch.status !== 'preview') throw new Error('Import batch already started');
+     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid ZIP upload');
+-    const value = input as { name?: unknown; size?: unknown; sha256?: unknown };
++    const value = input as { name?: unknown; size?: unknown; sha256?: unknown; token?: unknown };
+     if (typeof value.name !== 'string' || !/\.zip$/iu.test(value.name) || value.name.length > 260) throw new Error('Only .zip archives are accepted');
+-    const size = value.size;
+-    if (!Number.isSafeInteger(size) || (size as number) < 1 || (size as number) > this.budget.zipBytes) throw new Error('ZIP must be 1 byte - 512 MiB');
++    const size = value.size as number;
++    if (!Number.isSafeInteger(size) || size < 1 || size > this.budget.zipBytes) throw new Error('ZIP must be 1 byte - 512 MiB');
+     // A client digest is only ever an expectation to check the upload against.
+     const claimed = value.sha256 === undefined ? undefined : digestOf(value.sha256);
+-    // A re-upload after a reselect must still be the same archive: the size and
+-    // (once any upload of it was accepted) the server-side digest are kept.
++    const token = value.token === undefined ? undefined : String(value.token);
+     const previous = batch.zip;
+-    if (previous && previous.size !== size) throw new Error(`This batch expects a ${previous.size} byte archive`);
+-    // Identity is sticky: a re-upload may neither drop nor swap the digest the
+-    // first selection recorded. Dropping it would admit any same-size archive;
+-    // swapping it would admit a different one on purpose.
+-    const priorClaim = previous?.claimedSha256;
+-    if (claimed !== undefined && priorClaim && claimed !== priorClaim) {
++
++    if (!previous) {
++      // A token without a reselect to belong to is a client mistake, not a path.
++      if (token) throw new Error('这批次还没有压缩包记录，无需重新选择');
++      return this.startUpload(batchId, { name: value.name, size, claimed });
++    }
++    if (previous.state === 'extracted') throw new Error('This archive has already been extracted; it cannot be uploaded again');
++    if (previous.state === 'ready') {
++      // The archive is either verified and retryable, or its bytes are gone /
++      // unprovable — in which case the user must re-pick it first.
++      if (previous.failure === 'missing' || previous.failure === 'unverifiable') {
++        return this.beginReplacement(batchId, previous, { name: value.name, size, claimed, token });
++      }
++      throw new Error('This archive is verified; it will be re-extracted on retry and cannot be replaced here');
++    }
++    if (previous.state === 'needs_reselect') {
++      return this.beginReplacement(batchId, previous, { name: value.name, size, claimed, token });
++    }
++    // `uploading`: never truncate, never reset the pinned digest.
++    if (previous.size !== size) throw new Error(`This batch expects a ${previous.size} byte archive`);
++    if (claimed !== undefined && previous.claimedSha256 && claimed !== previous.claimedSha256) {
+       throw new Error('This batch already pinned a different archive digest; start a new batch for a different ZIP');
+     }
+-    const effectiveClaim = claimed ?? priorClaim;
++    const file = this.zipPath(batchId);
++    const written = existsSync(file) ? statSync(file).size : 0;
++    if (written > previous.size) throw new Error('The staged archive is longer than declared; the archive cannot be trusted');
++    // An identical begin is idempotent: hand back where the upload actually is
++    // so the client continues instead of restarting.
++    this.library.updateImportBatch(batchId, (draft) => {
++      if (!draft.zip) return;
++      if (claimed !== undefined && !draft.zip.claimedSha256) draft.zip.claimedSha256 = claimed;
++    });
++    return { offset: written, chunkBytes: BATCH_CHUNK, size, resumed: written > 0 };
++  }
++
++  /** Replace an archive only when a prepared reselect vouches for the caller. */
++  private beginReplacement(batchId: string, previous: BatchZip, request: { name: string; size: number; claimed?: string; token?: string }) {
++    const prepared = this.reselectTokens.get(batchId);
++    if (!request.token || !prepared || prepared.token !== request.token) {
++      throw new Error('This archive must be re-picked first: call the reselect step, choose the file, then upload');
++    }
++    if (previous.size !== request.size) throw new Error(`This batch expects a ${previous.size} byte archive`);
++    if (prepared.size !== request.size) throw new Error('选中的压缩包大小与重选请求不一致');
++    // The replacement must hash to the digest this batch pinned; a client claim
++    // that contradicts it is a different archive by definition.
++    if (request.claimed !== undefined && prepared.sha256 && request.claimed !== prepared.sha256) {
++      throw new Error('选中的压缩包不是原来的那一个（内容指纹不一致）；请选择原始文件或新建批次');
++    }
++    this.reselectTokens.delete(batchId);
++    const digest = request.claimed ?? prepared.sha256;
++    return this.startUpload(batchId, { name: request.name, size: request.size, claimed: digest }, { replace: true });
++  }
++
++  /** The only place that creates or truncates `source.zip`. */
++  private startUpload(batchId: string, input: { name: string; size: number; claimed?: string }, options: { replace?: boolean } = {}) {
++    const previous = this.require(batchId).zip;
+     mkdirSync(this.batchDir(batchId), { recursive: true });
+     const file = this.zipPath(batchId);
++    // Truncation happens here and only here: a fresh upload, or a replacement the
++    // user explicitly confirmed through the reselect token.
+     closeSync(openSync(file, 'w'));
++    const priorClaim = options.replace ? (previous?.claimedSha256 ?? previous?.sha256) : previous?.claimedSha256;
++    const effectiveClaim = input.claimed ?? priorClaim;
+     this.library.updateImportBatch(batchId, (draft) => {
+       draft.zip = {
+-        name: value.name as string, size: size as number, state: 'uploading',
++        name: input.name, size: input.size, state: 'uploading',
++        // A previously accepted digest is kept: the replacement must still match it.
+         ...(previous?.sha256 ? { sha256: previous.sha256 } : {}),
+         ...(effectiveClaim ? { claimedSha256: effectiveClaim } : {}),
+       };
+     });
+-    return { offset: 0, chunkBytes: BATCH_CHUNK, size };
++    return { offset: 0, chunkBytes: BATCH_CHUNK, size: input.size };
+   }
+ 
+   zipChunk(batchId: string, offset: unknown, base64: unknown) {
+@@ -639,7 +899,14 @@ export class ImportBatches {
+       if (zip.sha256 && zip.sha256 !== digest) {
+         return refuse('The uploaded archive has the same length but different content');
+       }
+-      this.library.updateImportBatch(batchId, (draft) => { if (draft.zip) { draft.zip.sha256 = digest; draft.zip.state = 'ready'; } });
++      this.library.updateImportBatch(batchId, (draft) => {
++        if (!draft.zip) return;
++        draft.zip.sha256 = digest;
++        draft.zip.state = 'ready';
++        // A freshly verified upload has no outstanding failure.
++        delete draft.zip.failure;
++        delete draft.zip.error;
++      });
+     }
+     return await this.importZip(batchId, file, signal);
+   }
+@@ -665,20 +932,23 @@ export class ImportBatches {
+     const zip = batch.zip;
+     if (!zip) throw new Error('This batch has no archive to re-upload; choose a new ZIP instead');
+     if (zip.state === 'extracted') throw new Error('This archive has already been extracted');
+-    // Only an interrupted upload needs a re-pick: a `ready` archive is verified
+-    // and will be (re)extracted on its own, and `uploading` is still live.
+-    if (zip.state !== 'needs_reselect') throw new Error('This archive does not need to be picked again');
+-    if (batch.items.length) throw new Error('This batch already has entries; start a new batch instead of replacing its archive');
++    // Only an archive that cannot be used as it stands is re-picked. `ready` is
++    // normally retryable; it only needs a re-pick when its bytes are gone or can
++    // no longer be proven to be the accepted ones.
++    const recoverable = zip.state === 'needs_reselect'
++      || (zip.state === 'ready' && (zip.failure === 'missing' || zip.failure === 'unverifiable'));
++    if (!recoverable) throw new Error('This archive does not need to be picked again');
+     if (this.extracting.has(batchId)) throw new Error('This archive is being extracted right now');
+-    if (!zip.sha256 && !zip.claimedSha256) {
++    const digest = zip.sha256 ?? zip.claimedSha256;
++    if (!digest) {
+       throw new Error('此批次的中断上传没有可验证的内容指纹，无法证明重新选择的仍是同一个压缩包。请新建一个批次重新导入；本条记录保留为未完成状态，可随时清理。');
+     }
+-    // Start from an empty file again so the chunk offsets stay contiguous.
+-    const file = this.zipPath(batchId);
+-    rmSync(file, { force: true });
+-    closeSync(openSync(file, 'w'));
+-    this.library.updateImportBatch(batchId, (draft) => { if (draft.zip) draft.zip.state = 'uploading'; });
+-    return { batchId, name: zip.name, size: zip.size, sha256: zip.sha256 ?? zip.claimedSha256 ?? null, chunkBytes: BATCH_CHUNK };
++    // Prepare only: nothing on disk changes, nothing in the record changes. If the
++    // user cancels the file dialog, the batch is exactly where it was and the
++    // button still works — the v1.3 flow left it stuck in `uploading`.
++    const token = randomUUID();
++    this.reselectTokens.set(batchId, { token, sha256: digest, size: zip.size });
++    return { batchId, name: zip.name, size: zip.size, sha256: digest, chunkBytes: BATCH_CHUNK, token };
+   }
+ 
+   // -------------------------------------------------------------------- run
+@@ -738,12 +1008,20 @@ export class ImportBatches {
+     let chain: Promise<unknown> = Promise.resolve();
+     for (const batch of this.library.importBatches()) {
+       if (batch.zip?.state !== 'ready') continue;
+-      if (!existsSync(this.zipPath(batch.id))) continue;
++      // A failure that a restart cannot fix is reported, not retried: a missing
++      // or unprovable archive would otherwise be re-hashed on every mount, and an
++      // over-limit archive would be re-parsed for a book list nobody can take.
++      if (batch.zip.failure === 'missing' || batch.zip.failure === 'unverifiable' || batch.zip.failure === 'over_limit') continue;
++      if (!existsSync(this.zipPath(batch.id))) {
++        // The file vanished between runs: record it and keep the record honest
++        // instead of pretending the batch is still pending.
++        try { this.fail(batch.id, 'missing', '压缩包文件已丢失，无法再解压。已入库的书和阅读进度不受影响；剩余书目可新建批次重新导入。'); } catch { /* record gone */ }
++        continue;
++      }
+       const id = batch.id, path = this.zipPath(batch.id);
+-      chain = chain.then(() => this.importZip(id, path)).then(
+-        () => undefined,
+-        () => { this.library.updateImportBatch(id, (draft) => { if (draft.zip) draft.zip.state = 'needs_reselect'; }); },
+-      );
++      // A transient failure keeps `ready` — never `needs_reselect`: a filled disk,
++      // a refused rename or a worker fault says nothing about the archive.
++      chain = chain.then(() => this.importZip(id, path)).then(() => undefined, () => undefined);
+       archives += 1;
+     }
+     void chain;
+diff --git a/src/library.ts b/src/library.ts
+index bbeffed..efc0c4b 100644
+--- a/src/library.ts
++++ b/src/library.ts
+@@ -19,7 +19,7 @@ import { emptySelection, validateSelection, type SelectionState } from './select
+ import { PLAN_ARCHIVE_LIMIT } from './reading-plan.ts';
+ import { addPlanItems, archiveItem, createSeries, dropUnusedSeries, emptyPlan, findItem, markStarted, migrateLegacyQueue, movePlanItem, movePlanSeries, reconcilePlan, setItemNotBefore, setItemSeries, setPlanEnabled, suggestSeries, validatePlan, type PlanAddInput, type PlanItem, type PlanSource, type ReadingPlan } from './reading-plan.ts';
+ import { PlanCoordinator, type PlanAdvanceResult, type PlanSchedulerView } from './plan-coordinator.ts';
+-import { addBatchItems, trimBatches, validateBatches, type BatchAddResult, type ImportBatch, type BatchItemInput } from './import-batch.ts';
++import { addBatchItems, recordRejected, trimBatches, validateBatches, type BatchAddResult, type ImportBatch, type BatchItemInput } from './import-batch.ts';
+ import { StoryStore, type StoryChange, type StoryPackInput } from './story/store.ts';
+ import { validateStoryChanges } from './story/core.ts';
+ import { normalizeName } from './story/core.ts';
+@@ -769,13 +769,23 @@ export class Library {
+       return structuredClone(draft.importBatches.find((row) => row.id === batch.id)!);
+     });
+   }
+-  addImportBatchItems(batchId: string, inputs: readonly BatchItemInput[]): BatchAddResult {
++  addImportBatchItems(batchId: string, inputs: readonly BatchItemInput[], extra: { tooLarge?: readonly string[]; overBudget?: readonly string[] } = {}): BatchAddResult {
+     this.ensureOpen();
+     return this.change((draft) => {
+       const batch = draft.importBatches.find((row) => row.id === batchId);
+       if (!batch) throw new Error('Import batch not found');
+       if (batch.status !== 'preview') throw new Error('Import batch already started');
+-      return addBatchItems(batch, inputs, this.now());
++      const result = addBatchItems(batch, inputs, this.now());
++      // Everything this request refused is recorded in the same atomic write, so
++      // a partial import can never look complete after the batch is committed.
++      recordRejected(batch, {
++        unsupported: result.unsupported,
++        duplicate: result.duplicates,
++        tooLarge: [...extra.tooLarge ?? [], ...result.tooLarge],
++        overBudget: [...extra.overBudget ?? [], ...result.overBudget],
++        overflow: result.overflow,
++      });
++      return result;
+     });
+   }
+   /**
+diff --git a/src/reading-plan.ts b/src/reading-plan.ts
+index 676fc10..fa6b000 100644
+--- a/src/reading-plan.ts
++++ b/src/reading-plan.ts
+@@ -213,14 +213,14 @@ export function validatePlan(raw: unknown, now: number): ReadingPlan {
+   }
+   for (const item of items) if (item.seriesId && !seriesIds.has(item.seriesId)) throw new Error('Reading plan item references a missing series');
+   const archive = (value.archive ?? []).map(validateArchive);
+-  // History completeness: a plan written before lifetime counters existed gets
+-  // them backfilled from the (bounded) archive it still has, which is only a
+-  // lower bound of the real total — that must be shown as "at least", never as
+-  // the full history. A plan that carried the marker keeps what it said; a
+-  // v1.2-era plan (counters, no marker) was counted from birth, so it is complete.
+-  const statsProvided = (value as { stats?: unknown }).stats !== undefined;
++  // History completeness: only an explicit `statsComplete: true` claims the
++  // counters cover the whole history. Everything else is a lower bound —
++  // including a v1.2 plan, because v1.2 backfilled `stats` from the surviving
++  // archive window, so "stats exist" proves nothing about what was already
++  // trimmed. Doubting a genuinely complete v1.2 plan costs a softer sentence;
++  // claiming completeness for a backfilled one would be a lie.
+   const marker = (value as { statsComplete?: unknown }).statsComplete;
+-  const statsComplete = marker === undefined ? statsProvided : marker === true;
++  const statsComplete = marker === true;
+   return {
+     schema: 1,
+     id: uuid(value.id, 'plan id'),
+diff --git a/src/webui/batch-import.ts b/src/webui/batch-import.ts
+index c687707..362d19a 100644
+--- a/src/webui/batch-import.ts
++++ b/src/webui/batch-import.ts
+@@ -45,10 +45,12 @@ interface State {
+   reselectZipId: string | null;
+   /** Digest a re-attached archive must hash to, when the server pinned one. */
+   expectedZipSha256: string | null;
++  /** One-shot proof that a reselect was prepared; required by the next begin. */
++  reselectZipToken: string | null;
+ }
+ 
+ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportHandle {
+-  const state: State = { batch: null, view: null, summaries: [], busy: null, error: null, reselectItemId: null, reselectZipId: null, expectedZipSha256: null };
++  const state: State = { batch: null, view: null, summaries: [], busy: null, error: null, reselectItemId: null, reselectZipId: null, expectedZipSha256: null, reselectZipToken: null };
+   let disposed = false;
+   let timer: ReturnType<typeof setTimeout> | undefined;
+ 
+@@ -96,10 +98,11 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
+     const file = zipInput.files?.[0];
+     if (!file) return;
+     const pending = state.reselectZipId;
++    const token = state.reselectZipToken;
+     state.reselectZipId = null;
+     // A fresh pick has no pinned digest to honour; only a re-attach does.
+-    if (!pending) state.expectedZipSha256 = null;
+-    void (pending ? uploadZip(pending, file) : startZip(file)).catch(fail);
++    if (!pending) { state.expectedZipSha256 = null; state.reselectZipToken = null; }
++    void (pending ? uploadZip(pending, file, token) : startZip(file)).catch(fail);
+   });
+   reselectInput.addEventListener('change', () => { const file = reselectInput.files?.[0]; if (file) void attachReselected(file).catch(fail); });
+ 
+@@ -134,8 +137,12 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
+     if (!novels.length) throw new Error(say('这些文件都不是 .txt / .md / .epub / .pdf。', 'None of these files are .txt / .md / .epub / .pdf.'));
+     const batch = await ctx.invoke<ImportBatch>('import_batch_create', [{ source }]);
+     state.batch = batch;
+-    const added = await ctx.invoke<{ added: { name: string; id: string }[]; tooLarge: string[]; overBudget: string[] }>(
+-      'import_batch_add', [batch.id, novels.map((file) => ({ name: relativeName(file), size: file.size }))]);
++    // The server answers with every bucket it refused, not just the accepted
++    // ones: a folder of 120 files must never look like a clean 100-file import.
++    const added = await ctx.invoke<{
++      added: { name: string; id: string }[]; duplicates: string[]; unsupported: string[];
++      tooLarge: string[]; overBudget: string[]; overflow: number;
++    }>('import_batch_add', [batch.id, novels.map((file) => ({ name: relativeName(file), size: file.size }))]);
+     const offered = new Map(added.added.map((item) => [item.name, item.id]));
+     let done = 0;
+     for (const file of novels) {
+@@ -148,10 +155,15 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
+     }
+     state.busy = null;
+     const notes: string[] = [];
+-    if (skipped.length) notes.push(say(`已跳过 ${skipped.length} 个不支持的文件`, `${skipped.length} unsupported file(s) skipped`));
+-    if (added.tooLarge.length) notes.push(say(`${added.tooLarge.length} 个文件超过 100 MiB`, `${added.tooLarge.length} file(s) over 100 MiB`));
+-    if (added.overBudget.length) notes.push(say(`${added.overBudget.length} 个文件超出本批 1 GiB 预算`, `${added.overBudget.length} file(s) over the 1 GiB batch budget`));
+-    if (notes.length) state.error = notes.join('；');
++    const missing = picked.length - offered.size;
++    if (skipped.length) notes.push(say(`${skipped.length} 个文件格式不支持，未导入`, `${skipped.length} file(s) are not a supported format`));
++    if (added.tooLarge.length) notes.push(say(`${added.tooLarge.length} 个文件超过单本 100 MiB，未导入`, `${added.tooLarge.length} file(s) exceed 100 MiB`));
++    if (added.overBudget.length) notes.push(say(`${added.overBudget.length} 个文件超出本批 1 GiB 预算，未导入`, `${added.overBudget.length} file(s) exceed the 1 GiB batch budget`));
++    if (added.overflow) notes.push(say(`本次只接收了前 ${added.added.length} 本，还有 ${added.overflow} 本超出单批 100 本上限`, `Only the first ${added.added.length} were accepted; ${added.overflow} more exceed the 100-book limit`));
++    if (added.duplicates.length) notes.push(say(`${added.duplicates.length} 个文件与本次已选的同名，未重复导入`, `${added.duplicates.length} file(s) duplicate a pick in this batch`));
++    if (notes.length) {
++      state.error = notes.join('；') + (missing > 0 ? say('。可以再点一次「选择多本 / 选择文件夹」导入剩余文件，已入库的书不受影响。', '. Pick again to import the rest; books already on the shelf are untouched.') : '');
++    }
+     await refresh();
+   }
+ 
+@@ -184,7 +196,7 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
+     return fileSha256Hex(file);
+   }
+ 
+-  async function uploadZip(batchId: string, file: File): Promise<void> {
++  async function uploadZip(batchId: string, file: File, token: string | null = null): Promise<void> {
+     state.busy = say('正在读取压缩包…', 'Reading the archive…'); render();
+     const digest = await fileDigest(file);
+     const expected = state.expectedZipSha256;
+@@ -193,9 +205,11 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
+         'This is not the original archive (content digest differs); pick the original file again, or start a new batch.'));
+     }
+     state.busy = say('正在上传压缩包…', 'Uploading the archive…'); render();
+-    const info = await ctx.invoke<{ offset: number; chunkBytes: number }>('import_batch_zip_begin',
+-      [batchId, { name: file.name, size: file.size, ...(digest ? { sha256: digest } : {}) }]);
+-    for (let offset = 0; offset < file.size; offset += info.chunkBytes) {
++    const info = await ctx.invoke<{ offset: number; chunkBytes: number; size: number }>('import_batch_zip_begin',
++      [batchId, { name: file.name, size: file.size, ...(digest ? { sha256: digest } : {}), ...(token ? { token } : {}) }]);
++    // A resumed begin reports where the upload actually stopped; continue from
++    // there instead of re-sending bytes the server already holds.
++    for (let offset = info.offset ?? 0; offset < file.size; offset += info.chunkBytes) {
+       if (disposed || ctx.signal.aborted) throw new Error('已取消');
+       const bytes = new Uint8Array(await file.slice(offset, offset + info.chunkBytes).arrayBuffer());
+       let binary = '';
+@@ -205,6 +219,7 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
+       render();
+     }
+     state.expectedZipSha256 = null;
++    state.reselectZipToken = null;
+     const added = await ctx.invoke<{ unsupported: string[]; alreadyExtracted?: boolean }>('import_batch_zip_finish', [batchId]);
+     state.busy = null;
+     if (added.unsupported.length) state.error = say(`已跳过 ${added.unsupported.length} 个不支持的文件。`, `${added.unsupported.length} unsupported file(s) skipped.`);
+@@ -304,29 +319,45 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
+       const zipState = view.zip.state;
+       el('small', say(
+         `压缩包：${view.zip.name} · ${saySize(view.zip.size)} · ` +
+-          (zipState === 'uploading' ? '正在上传' : zipState === 'needs_reselect' ? '上传已中断，需要重新选择' : zipState === 'ready' ? '已校验，等待解压' : '已解压'),
++          (zipState === 'uploading' ? '正在上传' : zipState === 'needs_reselect' ? '上传已中断，需要重新选择' : zipState === 'ready' ? (view.zip.failure ? '已校验，上次解压未完成' : '已校验，等待解压') : '已解压'),
+         `Archive: ${view.zip.name} · ${saySize(view.zip.size)} · ` +
+-          (zipState === 'uploading' ? 'uploading' : zipState === 'needs_reselect' ? 'interrupted, pick it again' : zipState === 'ready' ? 'verified, waiting for extraction' : 'extracted')), archive);
++          (zipState === 'uploading' ? 'uploading' : zipState === 'needs_reselect' ? 'interrupted, pick it again' : zipState === 'ready' ? (view.zip.failure ? 'verified, last extraction did not finish' : 'verified, waiting for extraction') : 'extracted')), archive);
+       if (view.zip.peakBytes) el('small', say(`解压峰值占用 ${saySize(view.zip.peakBytes)}`, `Peak disk use while extracting: ${saySize(view.zip.peakBytes)}`), archive).className = 'batch-note';
+       if (zipState === 'extracted' && !view.count) {
+         el('small', say('解压完成，但未发现可导入的书籍（可能是空压缩包、只有隐藏文件或全部是不支持的格式）。此批次不会自动加入阅读计划，可以清理这条记录。',
+           'Extraction finished, but no importable books were found (empty archive, hidden files only, or all unsupported). Nothing joins the plan automatically; this record can be forgotten.'), archive).className = 'batch-note';
+       }
+-      if (zipState === 'needs_reselect' && view.status === 'preview') {
+-        if (view.zip.reselectable === false) {
+-          el('small', say('此批次的中断上传没有可验证的内容指纹，无法确认重新选择的仍是同一个压缩包。请新建一个批次重新导入；本条记录保留为未完成状态，可随时清理。',
+-            'This interrupted upload has no verifiable digest, so a replacement cannot be proven to be the same archive. Start a new batch; this record stays unfinished and can be forgotten.'), archive).className = 'batch-warn';
+-        } else {
+-          el('small', say('重新选择同一个压缩包即可继续；大小或内容不同的包会被拒绝。',
+-            'Pick the same archive again to continue; a different size or content is refused.'), archive).className = 'batch-warn';
+-          act(say('重新选择 ZIP', 'Choose the ZIP again'), archive, async () => {
+-            const info = await ctx.invoke<{ sha256: string | null }>('import_batch_zip_reselect', [state.batch!.id]);
+-            state.reselectZipId = state.batch!.id;
+-            state.expectedZipSha256 = info.sha256;
+-            zipInput.value = '';
+-            zipInput.click();
++      // The archive kept its bytes: a disk/worker/rename failure is retried from
++      // the same file, never by asking for a fresh upload.
++      if (view.zip.error) {
++        el('small', view.zip.error, archive).className = 'batch-warn';
++        if (zipState === 'ready' && (view.zip.failure === 'transient' || view.zip.failure === 'disk')) {
++          act(say('重试解压', 'Retry extraction'), archive, async () => {
++            await ctx.invoke('import_batch_zip_finish', [state.batch!.id]);
++            await refresh();
+           });
+         }
++        if (view.zip.failure === 'over_limit') {
++          el('small', say('压缩包已保留。请把这次要导入的书拆成多个批次分别导入；已入库的书不受影响。',
++            'The archive is kept. Split it into several batches; books already on the shelf are unaffected.'), archive).className = 'batch-note';
++        }
++      }
++      if (view.zip.reselectable && (zipState === 'needs_reselect' || zipState === 'ready') && view.status === 'preview') {
++        el('small', say('重新选择原来的那个压缩包即可继续；大小或内容不一致的包会被拒绝。',
++          'Pick the original archive again to continue; a different size or content is refused.'), archive).className = 'batch-warn';
++        act(say('重新选择 ZIP', 'Choose the ZIP again'), archive, async () => {
++          // Prepare only: the server changes nothing here, so cancelling the file
++          // dialog leaves the batch exactly as it was and this button still works.
++          const info = await ctx.invoke<{ sha256: string | null; token: string }>('import_batch_zip_reselect', [state.batch!.id]);
++          state.reselectZipId = state.batch!.id;
++          state.expectedZipSha256 = info.sha256;
++          state.reselectZipToken = info.token;
++          zipInput.value = '';
++          zipInput.click();
++        });
++      } else if (zipState === 'needs_reselect' && view.status === 'preview' && !view.zip.reselectable) {
++        el('small', say('此批次的中断上传没有可验证的内容指纹，无法确认重新选择的仍是同一个压缩包。请新建一个批次重新导入；本条记录保留为未完成状态，可随时清理。',
++          'This interrupted upload has no verifiable digest, so a replacement cannot be proven to be the same archive. Start a new batch; this record stays unfinished and can be forgotten.'), archive).className = 'batch-warn';
+       }
+     }
+ 
+@@ -376,6 +407,42 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
+       }
+     }
+ 
++    // The outcome, in full. "Everything that was accepted is done" is not a
++    // success report — the refused files have to be visible here or they are
++    // silently lost from the user's point of view.
++    const report = view.report;
++    const refused = report.duplicate + report.unsupported + report.tooLarge + report.overBudget + report.overflow;
++    if (view.status !== 'preview' && (report.accepted || refused)) {
++      const box = el('div', '', body); box.className = 'batch-report';
++      el('small', say(
++        `本次结果：进批 ${report.accepted} 本 · 已入库 ${report.shelfAdded} 本` +
++          (report.pending ? ` · 等待 ${report.pending}` : '') +
++          (report.failed ? ` · 失败 ${report.failed}` : '') +
++          (report.cancelled ? ` · 已取消 ${report.cancelled}` : '') +
++          (report.needsReselect ? ` · 待重新选择 ${report.needsReselect}` : ''),
++        `Result: ${report.accepted} accepted · ${report.shelfAdded} on the shelf` +
++          (report.pending ? ` · ${report.pending} waiting` : '') +
++          (report.failed ? ` · ${report.failed} failed` : '') +
++          (report.cancelled ? ` · ${report.cancelled} cancelled` : '') +
++          (report.needsReselect ? ` · ${report.needsReselect} need the file again` : '')), box).className = 'batch-report-main';
++      const lines: string[] = [];
++      const add = (label: [string, string], count: number, names: string[]): void => {
++        if (!count) return;
++        const shown = names.slice(0, 3).join('、');
++        lines.push(say(`${label[0]} ${count} 个`, `${count} ${label[1]}`) + (shown ? `（${shown}${count > names.slice(0, 3).length ? '…' : ''}）` : ''));
++      };
++      add(['重复或无效', 'duplicate/invalid'], report.duplicate, report.rejectedNames.duplicate);
++      add(['格式不支持', 'unsupported'], report.unsupported, report.rejectedNames.unsupported);
++      add(['超过单本 100 MiB', 'over 100 MiB'], report.tooLarge, report.rejectedNames.tooLarge);
++      add(['超出本批 1 GiB 预算', 'over the 1 GiB budget'], report.overBudget, report.rejectedNames.overBudget);
++      add(['超出单批 100 本上限', 'over the 100-book limit'], report.overflow, report.rejectedNames.overflow);
++      if (lines.length) {
++        el('small', say('未进入本批：', 'Not imported: ') + lines.join('；'), box).className = 'batch-warn';
++        el('small', say('这些文件仍在你的磁盘上，没有进入阅读计划；需要的话可以再选一次，只导入没进来的部分。',
++          'These files are still on your disk and did not join the plan; pick them again to import just those.'), box).className = 'batch-note';
++      }
++    }
++
+     const actions = el('div', '', body); actions.className = 'batch-actions';
+     if (view.status === 'preview') {
+       act(say('开始导入', 'Start import'), actions, async () => { await ctx.invoke('import_batch_start', [state.batch!.id]); await refresh(); });
+diff --git a/src/webui/batch-types.ts b/src/webui/batch-types.ts
+index ba132df..319eb6f 100644
+--- a/src/webui/batch-types.ts
++++ b/src/webui/batch-types.ts
+@@ -53,10 +53,33 @@ export interface ImportBatchZipView {
+   state: 'uploading' | 'needs_reselect' | 'ready' | 'extracted';
+   sha256?: string;
+   peakBytes?: number;
++  /** Why the last extraction attempt stopped; `ready` is kept for all of them. */
++  failure?: 'missing' | 'unverifiable' | 'over_limit' | 'disk' | 'transient';
++  error?: string;
+   /** False when an interrupted upload cannot be proven to be the same archive. */
+   reselectable: boolean;
+ }
+ 
++/**
++ * What a batch took in, what reached the shelf, and everything it refused.
++ * A completion banner without the last part is a partial import sold as success.
++ */
++export interface ImportBatchReport {
++  accepted: number;
++  shelfAdded: number;
++  pending: number;
++  failed: number;
++  cancelled: number;
++  needsReselect: number;
++  duplicate: number;
++  unsupported: number;
++  tooLarge: number;
++  overBudget: number;
++  overflow: number;
++  rejectedNames: { duplicate: string[]; unsupported: string[]; tooLarge: string[]; overBudget: string[]; overflow: string[] };
++  incomplete: boolean;
++}
++
+ export interface ImportBatchView extends ImportBatchPreview {
+   zip?: ImportBatchZipView;
+   id: string;
+@@ -66,6 +89,7 @@ export interface ImportBatchView extends ImportBatchPreview {
+   title: string;
+   createdAt: number;
+   updatedAt: number;
++  report: ImportBatchReport;
+ }
+ 
+ export interface ImportBatch { id: string; source: 'files' | 'folder' | 'zip'; status: BatchStatus; toPlan: boolean }
+diff --git a/tests/import-batch-budget.test.ts b/tests/import-batch-budget.test.ts
+index 8c13b95..f8687bc 100644
+--- a/tests/import-batch-budget.test.ts
++++ b/tests/import-batch-budget.test.ts
+@@ -119,7 +119,8 @@ describe('a batch can never stage more than its budget', () => {
+     for (let offset = 0; offset < bytes.length; offset += 64 * 1024) {
+       small.zipChunk(batch.id, offset, bytes.subarray(offset, offset + 64 * 1024).toString('base64'));
+     }
+-    await expect(small.zipFinish(batch.id)).rejects.toThrow(/限制|GiB|过大|数量/u);
++    // v1.4 refuses from the archive's own declared expansion, before writing.
++    await expect(small.zipFinish(batch.id)).rejects.toThrow(/超过本批可用|限制|GiB|过大/u);
+     await small.shutdown();
+   });
+ 
+diff --git a/tests/import-batch-identity.test.ts b/tests/import-batch-identity.test.ts
+index 5192dc3..9a947e3 100644
+--- a/tests/import-batch-identity.test.ts
++++ b/tests/import-batch-identity.test.ts
+@@ -204,10 +204,14 @@ describe('archive uploads carry the same identity', () => {
+     lib.updateImportBatch(batch.id, (draft) => { if (draft.zip) draft.zip.state = 'needs_reselect'; });
+     const reopened = batches.zipReselect(batch.id);
+     expect(reopened).toMatchObject({ batchId: batch.id, size: body.length, sha256: sha(body) });
++    // A re-pick is prepared first and confirmed by begin with its one-shot token.
++    batches.zipBegin(batch.id, { name: 'a.zip', size: body.length, sha256: sha(body), token: reopened.token });
+     const impostor = Buffer.from(body);
+     impostor[impostor.length - 1] = 0;
+     batches.zipChunk(batch.id, 0, impostor.toString('base64'));
+-    await expect(batches.zipFinish(batch.id)).rejects.toThrow('same length but different content');
++    // The impostor is refused by the pinned claim (checked before length-only
++    // comparison ever gets a say).
++    await expect(batches.zipFinish(batch.id)).rejects.toThrow('content digest differs');
+     expect(lib.importBatches()[0].zip!.state).toBe('needs_reselect');
+     // The pinned digest survived the refusal: clearing it would admit any
+     // same-size archive on the next attempt.
+diff --git a/tests/import-batch-limits.test.ts b/tests/import-batch-limits.test.ts
+new file mode 100644
+index 0000000..415abfd
+--- /dev/null
++++ b/tests/import-batch-limits.test.ts
+@@ -0,0 +1,186 @@
++import { afterEach, beforeEach, describe, expect, it } from 'vitest';
++import { createWriteStream, existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { Library } from '../src/library.ts';
++import { ImportBatches, readZipPlan } from '../src/import-batches.ts';
++import { BATCH_ITEM_LIMIT } from '../src/import-batch.ts';
++
++/**
++ * v1.4 batch completeness: nothing is dropped silently. An archive that cannot
++ * fit one batch is refused whole and kept, and every refusal is reported with
++ * exact counts (plus names while they fit).
++ */
++let dir: string, lib: Library, batches: ImportBatches, time: number;
++const now = () => time;
++const KiB = 1024;
++
++/** Small but book-shaped: a real title line plus body, so titles stay distinct. */
++const body = (seed: string): Buffer => Buffer.from(`# ${seed}\n` + `${seed} text. `.repeat(200));
++const many = (count: number): [string, Buffer][] => Array.from({ length: count }, (_, index) => [`书${String(index + 1).padStart(3, '0')}.txt`, body(`s${index}`)]);
++
++const SMALL = { batchBytes: 64 * KiB, fileBytes: 32 * KiB, zipBytes: 512 * KiB, workspaceBytes: 1024 * KiB };
++
++async function open(budget: typeof SMALL = SMALL, diskFree?: (path: string) => number | null) {
++  if (lib) { await batches.shutdown(); try { lib.close(); } catch { /* closed */ } }
++  lib = new Library({ dataDir: dir, now });
++  lib.open();
++  batches = new ImportBatches(lib, join(dir, 'transfers'), { now, budget, ...(diskFree ? { diskFree } : {}) });
++}
++
++beforeEach(async () => { dir = mkdtempSync(join(tmpdir(), 'bookfish-batch-limits-')); time = Date.parse('2026-10-13T08:00:00Z'); await open(); });
++afterEach(async () => { await batches.shutdown(); try { lib.close(); } catch { /* closed */ } rmSync(dir, { recursive: true, force: true }); });
++
++const zipPath = (id: string) => join(dir, 'transfers', 'batches', id, 'source.zip');
++
++async function makeZip(entries: [string, Buffer][], file: string): Promise<Buffer> {
++  const yazl = await import('yazl');
++  const zip = new yazl.ZipFile();
++  for (const [name, entry] of entries) zip.addBuffer(entry, name);
++  zip.end();
++  await new Promise<void>((resolve, reject) => {
++    const out = createWriteStream(file);
++    out.on('close', () => resolve()).on('error', reject);
++    zip.outputStream.pipe(out);
++  });
++  return readFileSync(file);
++}
++
++function upload(batchId: string, bytes: Buffer): void {
++  for (let offset = 0; offset < bytes.length; offset += 8 * KiB) {
++    batches.zipChunk(batchId, offset, bytes.subarray(offset, offset + 8 * KiB).toString('base64'));
++  }
++}
++
++async function importZip(zip: Buffer): Promise<string> {
++  const batch = batches.create({ source: 'zip' });
++  batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length });
++  upload(batch.id, zip);
++  return batch.id;
++}
++
++describe('an archive that cannot fit one batch is refused whole, never trimmed', () => {
++  it('reads the declared expansion from the central directory', async () => {
++    const file = join(dir, 'plan.zip');
++    const zip = await makeZip(many(3), file);
++    const plan = readZipPlan(file);
++    expect(plan).not.toBeNull();
++    expect(plan!.entries).toBe(3);
++    expect(plan!.supported).toBe(3);
++    // Uncompressed total, not the (much smaller) archive size.
++    expect(plan!.totalUncompressed).toBeGreaterThan(zip.length);
++    expect(plan!.totalUncompressed).toBe(many(3).reduce((total, [, entry]) => total + entry.length, 0));
++  });
++
++  it(`refuses ${BATCH_ITEM_LIMIT + 20} books instead of importing the first ${BATCH_ITEM_LIMIT}`, async () => {
++    const file = join(dir, 'many.zip');
++    const zip = await makeZip(many(BATCH_ITEM_LIMIT + 20), file);
++    const batchId = await importZip(zip);
++
++    await expect(batches.zipFinish(batchId)).rejects.toThrow('超过单批');
++    const after = lib.importBatches()[0];
++    expect(after.zip?.state).toBe('ready');
++    expect(after.zip?.failure).toBe('over_limit');
++    // The archive is kept: it is the only copy of the 120 books.
++    expect(existsSync(zipPath(batchId))).toBe(true);
++    expect(statSync(zipPath(batchId)).size).toBe(zip.length);
++    // No silent partial import.
++    expect(after.items).toHaveLength(0);
++    // The report says exactly how many did not fit, and names them.
++    const report = batches.status(batchId).report;
++    expect(report.overflow).toBe(20);
++    expect(report.incomplete).toBe(true);
++    expect(report.rejectedNames.overflow.length).toBeGreaterThan(0);
++    expect(report.rejectedNames.overflow[0]).toMatch(/\.txt$/u);
++  });
++
++  it(`accepts exactly ${BATCH_ITEM_LIMIT} books`, async () => {
++    // A 100-book archive needs room for ~200 KiB of expansion; this is the count
++    // limit under test, not the byte budget.
++    await open({ ...SMALL, batchBytes: 512 * KiB, workspaceBytes: 1024 * KiB });
++    const file = join(dir, 'limit.zip');
++    const zip = await makeZip(many(BATCH_ITEM_LIMIT), file);
++    const batchId = await importZip(zip);
++    await expect(batches.zipFinish(batchId)).resolves.toBeTruthy();
++    const after = lib.importBatches()[0];
++    expect(after.items).toHaveLength(BATCH_ITEM_LIMIT);
++    expect(after.zip?.state).toBe('extracted');
++    expect(batches.status(batchId).report.overflow).toBe(0);
++  });
++
++  it('refuses an archive whose expansion exceeds the batch budget and keeps it', async () => {
++    const file = join(dir, 'big.zip');
++    // Forty books stay well inside the 100-book limit but expand past the 64 KiB
++    // byte ceiling, so this is the byte path, not the count path.
++    const zip = await makeZip(many(40), file);
++    const batchId = await importZip(zip);
++    await expect(batches.zipFinish(batchId)).rejects.toThrow('超过本批可用');
++    const after = lib.importBatches()[0];
++    expect(after.zip?.failure).toBe('over_limit');
++    expect(after.items).toHaveLength(0);
++    expect(existsSync(zipPath(batchId))).toBe(true);
++  });
++
++  it('reports count overflow for a folder of 101 files without pretending success', async () => {
++    const batch = batches.create({ source: 'folder' });
++    // Small declared sizes keep the byte budget out of the way: the only limit
++    // that can bite here is the 100-item one.
++    const inputs = many(BATCH_ITEM_LIMIT + 1).map(([name]) => ({ name, size: 10 }));
++    const result = batches.addItems(batch.id, inputs);
++    expect(result.added).toHaveLength(BATCH_ITEM_LIMIT);
++    expect(result.overflow).toBe(1);
++    const report = batches.status(batch.id).report;
++    expect(report.accepted).toBe(BATCH_ITEM_LIMIT);
++    expect(report.overflow).toBe(1);
++    expect(report.incomplete).toBe(true);
++  });
++});
++
++describe('every refusal is in the report, not just the accepted rows', () => {
++  it('counts duplicates, unsupported, over-sized and over-budget files', () => {
++    const batch = batches.create({ source: 'files' });
++    const book = (name: string, size: number) => ({ name, size });
++    const result = batches.addItems(batch.id, [
++      book('甲.txt', 100),
++      book('甲.txt', 100),                       // same name in one request
++      book('封面.jpg', 100),                      // unsupported
++      book('巨书.txt', 40 * KiB),                 // over the 32 KiB per-book ceiling
++      book('大书甲.txt', 40 * KiB),               // over budget before the per-book check
++    ]);
++    expect(result.added).toHaveLength(1);
++    const report = batches.status(batch.id).report;
++    expect(report.duplicate).toBe(1);
++    expect(report.unsupported).toBe(1);
++    // Both over-sized files are refused and counted; which bucket wins is the
++    // budget's business, but neither may vanish.
++    expect(report.tooLarge + report.overBudget).toBe(2);
++    expect(report.unsupported + report.duplicate + report.tooLarge + report.overBudget).toBe(4);
++    expect(report.incomplete).toBe(true);
++    expect(report.rejectedNames.unsupported).toContain('封面.jpg');
++    // Totals survive a reload: the report is persisted with the batch.
++    expect(lib.importBatches()[0].rejected?.unsupported.count).toBe(1);
++  });
++
++  it('is complete when nothing was refused', () => {
++    const batch = batches.create({ source: 'files' });
++    batches.addItems(batch.id, [{ name: '甲.txt', size: 100 }]);
++    const report = batches.status(batch.id).report;
++    expect(report.incomplete).toBe(false);
++    expect(report.accepted).toBe(1);
++    expect(report.duplicate + report.unsupported + report.tooLarge + report.overBudget + report.overflow).toBe(0);
++  });
++});
++
++describe('the disk precheck uses the real estimate, not the worst case', () => {
++  it('accepts a small archive when free space covers its expansion but not the ceiling', async () => {
++    const file = join(dir, 'small.zip');
++    const zip = await makeZip(many(2), file);
++    const plan = readZipPlan(file)!;
++    // Free space is above what the archive expands to, far below the 64 KiB
++    // ceiling: the old rule refused this, which made small ZIPs demand a gigabyte.
++    await open(SMALL, () => plan.totalUncompressed + 4096);
++    const batchId = await importZip(zip);
++    await expect(batches.zipFinish(batchId)).resolves.toBeTruthy();
++    expect(lib.importBatches()[0].zip?.state).toBe('extracted');
++  });
++});
+diff --git a/tests/import-batch-rename-retry.test.ts b/tests/import-batch-rename-retry.test.ts
+index 40f97f0..cde5afc 100644
+--- a/tests/import-batch-rename-retry.test.ts
++++ b/tests/import-batch-rename-retry.test.ts
+@@ -127,6 +127,44 @@ describe('a refused rename never falls back to an unbudgeted copy', () => {
+     expect(existsSync(join(batchDir(batch.id), 'source.zip'))).toBe(false);
+     expect(dirBytes(batch.id)).toBe(treeSize);
+   });
++
++  it('resume() keeps a transient failure at `ready` instead of demanding a re-upload', async () => {
++    const file = join(dir, 'books.zip');
++    await makeZip(books(), file);
++    const batch = batches.create({ source: 'zip' });
++    control.failAll = true;
++    await expect(uploadArchive(batch.id, file)).rejects.toThrow('文件系统或权限问题');
++    // The failure is recorded and classified, and the state is still `ready`:
++    // a refused rename says nothing about the archive being lost.
++    const failed = lib.importBatches()[0];
++    expect(failed.zip?.state).toBe('ready');
++    expect(failed.zip?.failure).toBe('transient');
++    expect(failed.zip?.error).toContain('文件系统或权限问题');
++    const zipBefore = statSync(join(batchDir(batch.id), 'source.zip')).size;
++
++    // A restart while the filesystem is still broken: recovery tries again, fails
++    // again, and must NOT downgrade the batch to `needs_reselect`.
++    await batches.shutdown();
++    lib.close();
++    await open();
++    // Capture the background flight so the test ends only after it settles: the
++    // recovery chain is deliberately not awaited by resume().
++    const spy = vi.spyOn(batches, 'importZip');
++    const report = batches.resume();
++    expect(report.archives).toBe(1);
++    await new Promise<void>((resolve) => {
++      const started = Date.now();
++      const poll = setInterval(() => {
++        if (spy.mock.calls.length > 0 || Date.now() - started > 10_000) { clearInterval(poll); resolve(); }
++      }, 20);
++    });
++    await Promise.all(spy.mock.results.map((row) => Promise.resolve(row.value).catch(() => undefined)));
++    const during = lib.importBatches()[0];
++    expect(['ready', 'extracted']).toContain(during.zip?.state);
++    if (during.zip?.state === 'ready') expect(during.zip?.failure).toBe('transient');
++    // The verified archive is untouched by any of this.
++    expect(statSync(join(batchDir(batch.id), 'source.zip')).size).toBe(zipBefore);
++  });
+ });
+ 
+ describe('a partial extraction failure retries within the same budget', () => {
+@@ -199,23 +237,32 @@ describe('disk space is checked before extraction writes anything', () => {
+     return batchId;
+   };
+ 
+-  it('refuses up front when the filesystem cannot hold the allowed ceiling', async () => {
++  it('refuses up front when the filesystem cannot hold the estimate', async () => {
+     const batchId = await reopenWithDisk(() => 1024);
+-    await expect(batches.zipFinish(batchId)).rejects.toThrow('Not enough disk space');
++    // v1.4 compares against the archive's own declared expansion (not the 1 GiB
++    // worst case), so the refusal states the real numbers.
++    await expect(batches.zipFinish(batchId)).rejects.toThrow('磁盘剩余');
+     // Refused BEFORE writing: no temporary tree, the verified archive kept.
+     expect(readdirSync(batchDir(batchId)).some((name) => name.endsWith('.extract'))).toBe(false);
+     expect(existsSync(join(batchDir(batchId), 'source.zip'))).toBe(true);
+     expect(lib.importBatches()[0].zip?.state).toBe('ready');
++    // The failure is recorded, and it is a disk failure — not a lost archive.
++    expect(lib.importBatches()[0].zip?.failure).toBe('disk');
+   });
+ 
+-  it('proceeds when the disk has room for the ceiling', async () => {
++  it('proceeds when the disk has room for the estimate', async () => {
+     const batchId = await reopenWithDisk(() => 10 * KiB * KiB);
+     await expect(batches.zipFinish(batchId)).resolves.toBeTruthy();
+     expect(lib.importBatches()[0].zip?.state).toBe('extracted');
+   });
+ 
+-  it('a null measurement (unsupported platform) never blocks the import', async () => {
++  it('refuses when the free space cannot be measured instead of assuming it is safe', async () => {
+     const batchId = await reopenWithDisk(() => null);
+-    await expect(batches.zipFinish(batchId)).resolves.toBeTruthy();
++    await expect(batches.zipFinish(batchId)).rejects.toThrow('无法测量磁盘剩余空间');
++    // Nothing was written and the archive is still there for a later attempt.
++    expect(readdirSync(batchDir(batchId)).some((name) => name.endsWith('.extract'))).toBe(false);
++    expect(existsSync(join(batchDir(batchId), 'source.zip'))).toBe(true);
++    expect(lib.importBatches()[0].zip?.state).toBe('ready');
++    expect(lib.importBatches()[0].zip?.failure).toBe('disk');
+   });
+ });
+diff --git a/tests/import-batch-zip-claim.test.ts b/tests/import-batch-zip-claim.test.ts
+index 33fedd8..a35e4f0 100644
+--- a/tests/import-batch-zip-claim.test.ts
++++ b/tests/import-batch-zip-claim.test.ts
+@@ -69,10 +69,15 @@ describe('a claimed digest is an identity constraint that survives refusals', ()
+     // The claim is NOT deleted: it stays pinned as the identity this batch demands.
+     expect(refused.zip?.claimedSha256).toBe(wrongClaim);
+ 
+-    // The user picks the archive the claim describes and re-uploads it.
+-    expect(batches.zipReselect(batch.id)).toMatchObject({ sha256: wrongClaim });
++    // The user picks the archive the claim describes and re-uploads it. The
++    // re-pick is prepared first (nothing changes), then confirmed by begin.
++    const prepared = batches.zipReselect(batch.id);
++    expect(prepared).toMatchObject({ sha256: wrongClaim });
++    // A replacement without the prepared token is refused outright.
++    expect(() => batches.zipBegin(batch.id, { name: 'books.zip', size: good.length }))
++      .toThrow('re-picked first');
+     // The re-begin may not silently drop the pinned claim either.
+-    batches.zipBegin(batch.id, { name: 'books.zip', size: good.length });
++    batches.zipBegin(batch.id, { name: 'books.zip', size: good.length, token: prepared.token });
+     expect(lib.importBatches()[0].zip?.claimedSha256).toBe(wrongClaim);
+     // Uploading the SAME wrong archive again is still refused — deleting the
+     // claim on mismatch would have let any same-size file in by now.
+@@ -98,7 +103,7 @@ describe('a claimed digest is an identity constraint that survives refusals', ()
+     expect(reopened).toMatchObject({ sha256: claim });
+     expect(batches.status(batch.id).zip?.reselectable).toBe(true);
+     // Re-upload the exact archive: accepted, verified against the claim, extracted.
+-    batches.zipBegin(batch.id, { name: 'books.zip', size: good.length, sha256: claim });
++    batches.zipBegin(batch.id, { name: 'books.zip', size: good.length, sha256: claim, token: reopened.token });
+     for (let offset = 0; offset < good.length; offset += 8 * KiB) {
+       batches.zipChunk(batch.id, offset, good.subarray(offset, offset + 8 * KiB).toString('base64'));
+     }
+@@ -117,10 +122,13 @@ describe('a claimed digest is an identity constraint that survives refusals', ()
+     batches.zipBegin(batch.id, { name: 'books.zip', size: good.length, sha256: claim });
+     batches.zipChunk(batch.id, 0, good.subarray(0, 8 * KiB).toString('base64'));
+     batches.resume();
+-    batches.zipReselect(batch.id);
++    const prepared = batches.zipReselect(batch.id);
+     // Same length, a DIFFERENT claimed digest: swapping identities is refused.
+-    expect(() => batches.zipBegin(batch.id, { name: 'books.zip', size: good.length, sha256: sha(Buffer.from('other')) }))
+-      .toThrow('already pinned a different archive digest');
+-    expect(existsSync(join(batchDir(batch.id), 'source.zip'))).toBe(true);
++    expect(() => batches.zipBegin(batch.id, { name: 'books.zip', size: good.length, sha256: sha(Buffer.from('other')), token: prepared.token }))
++      .toThrow('内容指纹不一致');
++    // The rejected begin changed nothing: the claim is still pinned and the batch
++    // is still waiting for the original archive.
++    expect(lib.importBatches()[0].zip?.claimedSha256).toBe(claim);
++    expect(lib.importBatches()[0].zip?.state).toBe('needs_reselect');
+   });
+ });
+diff --git a/tests/import-batch-zip-concurrency.test.ts b/tests/import-batch-zip-concurrency.test.ts
+index 94d8410..32ad69b 100644
+--- a/tests/import-batch-zip-concurrency.test.ts
++++ b/tests/import-batch-zip-concurrency.test.ts
+@@ -3,7 +3,7 @@ import { createWriteStream, existsSync, mkdtempSync, readdirSync, readFileSync,
+ import { tmpdir } from 'node:os';
+ import { join } from 'node:path';
+ import { Library } from '../src/library.ts';
+-import { ImportBatches } from '../src/import-batches.ts';
++import { ImportBatches, sha256File } from '../src/import-batches.ts';
+ 
+ let dir: string, lib: Library, batches: ImportBatches, time: number;
+ const now = () => time;
+@@ -43,11 +43,16 @@ const books = (): [string, Buffer][] => [
+   ['丙.txt', body('丙')],
+ ];
+ 
+-/** Upload the whole archive but stop before finishing (state stays `uploading`). */
++/**
++ * Upload the whole archive but stop before finishing (state stays `uploading`).
++ *
++ * Begins where the server says the upload actually is: a repeated begin is
++ * idempotent since v1.4 and must never truncate bytes that are already staged.
++ */
+ function uploadOnly(batchId: string, file: string): void {
+   const bytes = readFileSync(file);
+-  batches.zipBegin(batchId, { name: 'books.zip', size: bytes.length });
+-  for (let offset = 0; offset < bytes.length; offset += 8 * KiB) {
++  const info = batches.zipBegin(batchId, { name: 'books.zip', size: bytes.length }) as { offset?: number };
++  for (let offset = info.offset ?? 0; offset < bytes.length; offset += 8 * KiB) {
+     batches.zipChunk(batchId, offset, bytes.subarray(offset, offset + 8 * KiB).toString('base64'));
+   }
+ }
+@@ -119,15 +124,17 @@ describe('recovery extraction is serialized across batches', () => {
+     const file = join(dir, 'books.zip');
+     const zipSize = await makeZip(books(), file);
+     const ids: string[] = [];
++    // v1.4 re-verifies the archive on every extraction, so a synthetic `ready`
++    // must carry the digest the bytes actually have — an unprovable archive is
++    // refused instead of trusted.
++    const digest = sha256File(file);
+     for (let index = 0; index < 3; index += 1) {
+       const batch = batches.create({ source: 'zip' });
+       uploadOnly(batch.id, file);
+       // A crash after a good upload: verified bytes, no extraction yet.
+       lib.updateImportBatch(batch.id, (draft) => {
+-        if (draft.zip) { draft.zip.state = 'ready'; draft.zip.sha256 = undefined; }
++        if (draft.zip) { draft.zip.state = 'ready'; draft.zip.sha256 = digest; }
+       });
+-      // resume() only trusts an archive it can verify, so hash it as if it had
+-      // been accepted: give each batch the digest the file actually has.
+       ids.push(batch.id);
+     }
+     void zipSize;
+diff --git a/tests/import-batch-zip-peak.test.ts b/tests/import-batch-zip-peak.test.ts
+index 4b14244..a13ec35 100644
+--- a/tests/import-batch-zip-peak.test.ts
++++ b/tests/import-batch-zip-peak.test.ts
+@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+ import { createWriteStream, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+ import { tmpdir } from 'node:os';
+ import { join } from 'node:path';
++import { createHash } from 'node:crypto';
+ import { Library } from '../src/library.ts';
+ import { ImportBatches } from '../src/import-batches.ts';
+ 
+@@ -151,7 +152,14 @@ describe('the archive path keeps a real, measured disk ceiling', () => {
+     batches.zipBegin(batch.id, { name: 'books.zip', size: zipSize });
+     batches.zipChunk(batch.id, 0, bytes.toString('base64'));
+     // Stop before extraction: the batch looks like a crash after a good upload.
+-    lib.updateImportBatch(batch.id, (draft) => { if (draft.zip) draft.zip.state = 'ready'; });
++    // v1.4 re-verifies on every extraction, so the recovered archive must carry
++    // the server digest of the bytes that are actually on disk.
++    lib.updateImportBatch(batch.id, (draft) => {
++      if (draft.zip) {
++        draft.zip.state = 'ready';
++        draft.zip.sha256 = createHash('sha256').update(bytes).digest('hex');
++      }
++    });
+     await batches.shutdown();
+     lib.close();
+ 
+diff --git a/tests/import-batch-zip-state.test.ts b/tests/import-batch-zip-state.test.ts
+new file mode 100644
+index 0000000..b95738b
+--- /dev/null
++++ b/tests/import-batch-zip-state.test.ts
+@@ -0,0 +1,275 @@
++import { afterEach, beforeEach, describe, expect, it } from 'vitest';
++import { createWriteStream, existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { createHash } from 'node:crypto';
++import { Library } from '../src/library.ts';
++import { ImportBatches } from '../src/import-batches.ts';
++
++/**
++ * v1.4 state machine: the archive is re-verified on every extraction, a begin
++ * never destroys staged bytes, and a re-pick is a two-phase transaction that
++ * survives the user cancelling the file dialog.
++ */
++let dir: string, lib: Library, batches: ImportBatches, time: number;
++const now = () => time;
++const KiB = 1024;
++const BUDGET = { batchBytes: 64 * KiB, fileBytes: 32 * KiB, zipBytes: 16 * KiB, workspaceBytes: 80 * KiB };
++
++async function open() {
++  if (lib) { await batches.shutdown(); try { lib.close(); } catch { /* closed */ } }
++  lib = new Library({ dataDir: dir, now });
++  lib.open();
++  batches = new ImportBatches(lib, join(dir, 'transfers'), { now, budget: BUDGET });
++}
++
++beforeEach(async () => { dir = mkdtempSync(join(tmpdir(), 'bookfish-zip-state-')); time = Date.parse('2026-10-13T08:00:00Z'); await open(); });
++afterEach(async () => { await batches.shutdown(); try { lib.close(); } catch { /* closed */ } rmSync(dir, { recursive: true, force: true }); });
++
++const batchDir = (id: string) => join(dir, 'transfers', 'batches', id);
++const zipPath = (id: string) => join(batchDir(id), 'source.zip');
++const sha = (bytes: Buffer): string => createHash('sha256').update(bytes).digest('hex');
++
++async function makeZip(entries: [string, Buffer][], file: string): Promise<Buffer> {
++  const yazl = await import('yazl');
++  const zip = new yazl.ZipFile();
++  for (const [name, body] of entries) zip.addBuffer(body, name);
++  zip.end();
++  await new Promise<void>((resolve, reject) => {
++    const out = createWriteStream(file);
++    out.on('close', () => resolve()).on('error', reject);
++    zip.outputStream.pipe(out);
++  });
++  return readFileSync(file);
++}
++
++const body = (seed: string): Buffer => Buffer.from(`# ${seed}\n` + `${seed} the tide is low. `.repeat(360));
++const books = (): [string, Buffer][] => [['甲.txt', body('甲')], ['乙.txt', body('乙')]];
++
++/** Upload every byte, stop before finishing. */
++function upload(batchId: string, bytes: Buffer, offsetStart = 0): void {
++  for (let offset = offsetStart; offset < bytes.length; offset += 8 * KiB) {
++    batches.zipChunk(batchId, offset, bytes.subarray(offset, offset + 8 * KiB).toString('base64'));
++  }
++}
++
++/** A batch whose upload is complete and whose bytes are verified, awaiting extraction. */
++async function readyBatch(zip: Buffer): Promise<string> {
++  const batch = batches.create({ source: 'zip' });
++  batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length });
++  upload(batch.id, zip);
++  lib.updateImportBatch(batch.id, (draft) => {
++    if (draft.zip) { draft.zip.state = 'ready'; draft.zip.sha256 = sha(zip); }
++  });
++  return batch.id;
++}
++
++describe('every extraction re-establishes the archive identity', () => {
++  it('refuses a ready archive whose bytes were replaced, keeping the evidence', async () => {
++    const file = join(dir, 'books.zip');
++    const zip = await makeZip(books(), file);
++    const batchId = await readyBatch(zip);
++    // Same length, different bytes: the classic swap a size check cannot see.
++    const impostor = Buffer.from(zip);
++    for (let index = 0; index < 32; index += 1) impostor[impostor.length - 40 - index] ^= 0xff;
++    expect(impostor.length).toBe(zip.length);
++    rmSync(zipPath(batchId), { force: true });
++    await import('node:fs').then(({ writeFileSync }) => writeFileSync(zipPath(batchId), impostor));
++
++    await expect(batches.zipFinish(batchId)).rejects.toThrow('内容与已验证的摘要不一致');
++    const after = lib.importBatches()[0];
++    expect(after.zip?.state).toBe('ready');
++    expect(after.zip?.failure).toBe('unverifiable');
++    // Nothing was handed to the extractor: no entry, no staged file.
++    expect(after.items).toHaveLength(0);
++    expect(existsSync(zipPath(batchId))).toBe(true);
++  });
++
++  it('refuses a truncated archive as missing, not as a re-upload request', async () => {
++    const file = join(dir, 'books.zip');
++    const zip = await makeZip(books(), file);
++    const batchId = await readyBatch(zip);
++    await import('node:fs').then(({ truncateSync }) => truncateSync(zipPath(batchId), Math.floor(zip.length / 2)));
++
++    await expect(batches.zipFinish(batchId)).rejects.toThrow('长度与声明不一致');
++    const after = lib.importBatches()[0];
++    expect(after.zip?.failure).toBe('missing');
++    expect(after.zip?.state).toBe('ready');
++    expect(after.items).toHaveLength(0);
++  });
++
++  it('keeps already-staged books when a later verification fails', async () => {
++    const file = join(dir, 'books.zip');
++    const zip = await makeZip(books(), file);
++    const batch = batches.create({ source: 'zip' });
++    batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length });
++    upload(batch.id, zip);
++    await batches.zipFinish(batch.id);
++    // First extraction succeeded; the archive is gone and the batch is terminal.
++    expect(lib.importBatches()[0].zip?.state).toBe('extracted');
++    expect(lib.importBatches()[0].items.every((item) => item.staged)).toBe(true);
++    // Any later attempt is a no-op rather than a second run.
++    const again = await batches.zipFinish(batch.id);
++    expect(again.alreadyExtracted).toBe(true);
++    expect(lib.importBatches()[0].items).toHaveLength(2);
++  });
++
++  it('refuses a ready archive that was never verified by the server', async () => {
++    const file = join(dir, 'books.zip');
++    const zip = await makeZip(books(), file);
++    const batch = batches.create({ source: 'zip' });
++    batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length });
++    upload(batch.id, zip);
++    // A legacy record with no server digest: trusting it would mean trusting the
++    // disk, which is exactly what cannot be proven here.
++    lib.updateImportBatch(batch.id, (draft) => { if (draft.zip) { draft.zip.state = 'ready'; draft.zip.sha256 = undefined; } });
++    await expect(batches.zipFinish(batch.id)).rejects.toThrow('没有可验证的压缩包摘要');
++    expect(lib.importBatches()[0].zip?.failure).toBe('unverifiable');
++    expect(lib.importBatches()[0].zip?.state).toBe('ready');
++  });
++});
++
++describe('a begin never destroys staged bytes', () => {
++  it('an idempotent begin reports the real offset and keeps every byte', async () => {
++    const file = join(dir, 'books.zip');
++    const zip = await makeZip(books(), file);
++    const batch = batches.create({ source: 'zip' });
++    batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length });
++    batches.zipChunk(batch.id, 0, zip.subarray(0, 100).toString('base64'));
++    const before = statSync(zipPath(batch.id)).size;
++    expect(before).toBe(100);
++
++    // The same begin again (a retried request, a reconnecting client).
++    const again = batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length }) as { offset: number; resumed?: boolean };
++    expect(again.offset).toBe(100);
++    expect(again.resumed).toBe(true);
++    // Not truncated, not rewritten.
++    expect(statSync(zipPath(batch.id)).size).toBe(100);
++    // The upload continues from where it stopped and completes normally.
++    upload(batch.id, zip, again.offset);
++    await expect(batches.zipFinish(batch.id)).resolves.toBeTruthy();
++    expect(lib.importBatches()[0].items).toHaveLength(2);
++  });
++
++  it('a begin on a verified archive is refused and the bytes stay untouched', async () => {
++    const file = join(dir, 'books.zip');
++    const zip = await makeZip(books(), file);
++    const batchId = await readyBatch(zip);
++    const before = sha(readFileSync(zipPath(batchId)));
++    expect(() => batches.zipBegin(batchId, { name: 'books.zip', size: zip.length })).toThrow('cannot be replaced here');
++    expect(sha(readFileSync(zipPath(batchId)))).toBe(before);
++    expect(lib.importBatches()[0].zip?.state).toBe('ready');
++  });
++
++  it('a begin on an extracted archive is refused outright', async () => {
++    const file = join(dir, 'books.zip');
++    const zip = await makeZip(books(), file);
++    const batch = batches.create({ source: 'zip' });
++    batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length });
++    upload(batch.id, zip);
++    await batches.zipFinish(batch.id);
++    expect(() => batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length })).toThrow('already been extracted');
++    expect(lib.importBatches()[0].zip?.state).toBe('extracted');
++  });
++
++  it('a conflicting begin while uploading is refused without losing bytes', async () => {
++    const file = join(dir, 'books.zip');
++    const zip = await makeZip(books(), file);
++    const batch = batches.create({ source: 'zip' });
++    batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length, sha256: sha(zip) });
++    batches.zipChunk(batch.id, 0, zip.subarray(0, 100).toString('base64'));
++    expect(() => batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length, sha256: sha(Buffer.from('other')) }))
++      .toThrow('already pinned a different archive digest');
++    expect(statSync(zipPath(batch.id)).size).toBe(100);
++  });
++});
++
++describe('re-picking an archive is a two-phase transaction', () => {
++  it('preparing a re-pick changes nothing, so cancelling the dialog leaves the batch usable', async () => {
++    const file = join(dir, 'books.zip');
++    const zip = await makeZip(books(), file);
++    const batch = batches.create({ source: 'zip' });
++    batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length, sha256: sha(zip) });
++    batches.zipChunk(batch.id, 0, zip.subarray(0, 40).toString('base64'));
++    batches.resume(); // interrupted upload → needs_reselect
++
++    const before = lib.importBatches()[0].zip;
++    const prepared = batches.zipReselect(batch.id);
++    expect(prepared.token).toBeTruthy();
++    const after = lib.importBatches()[0].zip;
++    // No state change, no file deleted, no empty file created.
++    expect(after?.state).toBe(before?.state);
++    expect(after?.sha256).toBe(before?.sha256);
++    expect(after?.claimedSha256).toBe(before?.claimedSha256);
++    expect(lib.importBatches()[0].zip?.state).toBe('needs_reselect');
++    // The user can simply try again: a second prepare works exactly the same.
++    expect(batches.zipReselect(batch.id).token).toBeTruthy();
++    // And the upload can still be completed afterwards.
++    const token = batches.zipReselect(batch.id).token;
++    batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length, sha256: sha(zip), token });
++    upload(batch.id, zip);
++    await expect(batches.zipFinish(batch.id)).resolves.toBeTruthy();
++    expect(lib.importBatches()[0].items).toHaveLength(2);
++  });
++
++  it('a wrong pick is rejected and the batch can be re-picked again', async () => {
++    const file = join(dir, 'books.zip');
++    const zip = await makeZip(books(), file);
++    const batch = batches.create({ source: 'zip' });
++    batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length, sha256: sha(zip) });
++    batches.zipChunk(batch.id, 0, zip.subarray(0, 40).toString('base64'));
++    batches.resume();
++
++    const first = batches.zipReselect(batch.id);
++    // Same length, different content: the digest the client sends is not the one
++    // this batch accepted, so the begin itself is refused.
++    expect(() => batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length, sha256: sha(Buffer.from('nope')), token: first.token }))
++      .toThrow('内容指纹不一致');
++    // The batch is still re-pickable, with a fresh token.
++    const second = batches.zipReselect(batch.id);
++    expect(second.token).not.toBe(first.token);
++    expect(second.sha256).toBe(sha(zip));
++  });
++
++  it('a token is single-use and cannot be replayed', async () => {
++    const file = join(dir, 'books.zip');
++    const zip = await makeZip(books(), file);
++    const batch = batches.create({ source: 'zip' });
++    batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length, sha256: sha(zip) });
++    batches.zipChunk(batch.id, 0, zip.subarray(0, 40).toString('base64'));
++    batches.resume();
++    const prepared = batches.zipReselect(batch.id);
++    batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length, sha256: sha(zip), token: prepared.token });
++    // The upload is live now: a second begin with the same token is no longer a
++    // replacement, it is an idempotent resume.
++    const again = batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length, sha256: sha(zip), token: prepared.token }) as { offset: number };
++    expect(again.offset).toBe(0);
++    expect(statSync(zipPath(batch.id)).size).toBe(0);
++  });
++
++  it('a re-pick with entries already staged is allowed and does not duplicate them', async () => {
++    const file = join(dir, 'books.zip');
++    const zip = await makeZip(books(), file);
++    const batch = batches.create({ source: 'zip' });
++    batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length, sha256: sha(zip) });
++    upload(batch.id, zip);
++    await batches.zipFinish(batch.id);
++    const staged = lib.importBatches()[0].items.filter((item) => item.staged);
++    expect(staged).toHaveLength(2);
++
++    // Simulate the archive turning unprovable after books were already staged.
++    await import('node:fs').then(({ writeFileSync }) => writeFileSync(zipPath(batch.id), zip));
++    lib.updateImportBatch(batch.id, (draft) => {
++      if (draft.zip) { draft.zip.state = 'ready'; draft.zip.failure = 'unverifiable'; }
++    });
++    const prepared = batches.zipReselect(batch.id);
++    expect(prepared.size).toBe(zip.length);
++    batches.zipBegin(batch.id, { name: 'books.zip', size: zip.length, sha256: sha(zip), token: prepared.token });
++    upload(batch.id, zip);
++    await batches.zipFinish(batch.id);
++    // The same two entries, each with exactly one staged file: no duplicates.
++    const after = lib.importBatches()[0];
++    expect(after.items).toHaveLength(2);
++    expect(after.items.filter((item) => item.staged)).toHaveLength(2);
++  });
++});
+diff --git a/tests/plan-stats-complete.test.ts b/tests/plan-stats-complete.test.ts
+index b8e3859..733ec79 100644
+--- a/tests/plan-stats-complete.test.ts
++++ b/tests/plan-stats-complete.test.ts
+@@ -29,13 +29,27 @@ describe('history completeness is explicit, never implied', () => {
+     expect(restored.statsComplete).toBe(false);
+   });
+ 
+-  it('a v1.2 plan (counters, no marker) is complete: it was counted from birth', () => {
++  it('a v1.2 plan whose counters were backfilled from a trimmed archive is a lower bound', () => {
++    const plan = planWith(['a', 'b']);
++    archiveItem(plan, plan.items[0].id, 'completed', NOW + 1);
++    // Exactly what v1.2 wrote for a user whose older history had already been
++    // trimmed: counters larger than the surviving archive window, no marker.
++    const backfilled = {
++      ...plan, statsComplete: undefined,
++      stats: { completed: 37, skipped: 4, removed: 2, truncated: 31 },
++    } as unknown;
++    const restored = validatePlan(backfilled, NOW);
++    // The counters survive untouched (nothing is lost or reset)…
++    expect(restored.stats.completed).toBe(37);
++    expect(restored.stats.truncated).toBe(31);
++    // …but they are not presented as the whole history.
++    expect(restored.statsComplete).toBe(false);
++  });
++
++  it('an explicit true from a v1.3+ plan stays true', () => {
+     const plan = planWith(['a']);
+     archiveItem(plan, plan.items[0].id, 'completed', NOW + 1);
+-    // Strip only the marker, keep the counters: exactly what v1.2 wrote.
+-    const v12 = { ...plan, statsComplete: undefined } as unknown;
+-    const restored = validatePlan(v12, NOW);
+-    expect(restored.stats.completed).toBe(1);
++    const restored = validatePlan({ ...plan, statsComplete: true } as unknown, NOW);
+     expect(restored.statsComplete).toBe(true);
+   });
+ 
+diff --git a/tests/webui/batch-import.test.ts b/tests/webui/batch-import.test.ts
+index 1941a02..9bd7b00 100644
+--- a/tests/webui/batch-import.test.ts
++++ b/tests/webui/batch-import.test.ts
+@@ -125,7 +125,7 @@ describe('shelf batch import panel', () => {
+     attach(picker(root, 'files'), [novel('甲'), new File(['x'], '封面.jpg', { type: 'image/jpeg' })]);
+     await waitFor(() => batch.textContent!.includes('开始导入'), 'mixed preview');
+     expect(batch.textContent).toContain('共 1 本');
+-    expect(batch.textContent).toContain('已跳过 1 个不支持的文件');
++    expect(batch.textContent).toContain('1 个文件格式不支持，未导入');
+   });
+ });
+ 
+@@ -287,4 +287,53 @@ describe('an interrupted archive can be picked again from the panel', () => {
+     expect(state.importBatches[0]?.zip?.claimedSha256).toBe('a'.repeat(64));
+     expect(after.zip?.reselectable).toBe(true);
+   });
++
++  it('summarises what was refused instead of presenting a partial import as success', async () => {
++    const root = await mount();
++    const batch = root.querySelector('.bf-batch') as HTMLElement;
++    // Two picks with the same name: the server keeps one and files the other as a
++    // duplicate. That rejection has to be visible, not swallowed.
++    attach(picker(root, 'files'), [novel('甲'), novel('甲'), new File(['x'], '封面.jpg', { type: 'image/jpeg' })]);
++    await waitFor(() => batch.textContent!.includes('开始导入'), 'preview');
++    [...batch.querySelectorAll('button')].find((node) => node.textContent === '开始导入')!.click();
++    await waitFor(() => batch.textContent!.includes('本次结果'), 'result report');
++    const text = batch.textContent!;
++    expect(text).toContain('未进入本批');
++    expect(text).toMatch(/重复或无效 1 个/u);
++    // The client-side skip is reported too, in the same place.
++    expect(text).toContain('1 个文件格式不支持，未导入');
++    // And it says what to do about it, rather than pretending nothing is missing.
++    expect(text).toContain('可以再点一次');
++  });
++
++  it('surfaces an over-limit archive refusal and tells the user to split it', async () => {
++    const yazl = await import('yazl');
++    const zipPath = join(dir, 'too-many.zip');
++    const zip = new yazl.ZipFile();
++    for (let index = 0; index < 120; index += 1) {
++      zip.addBuffer(Buffer.from(`# 书${index}\n` + 'text. '.repeat(40)), `书${String(index).padStart(3, '0')}.txt`);
++    }
++    zip.end();
++    await new Promise<void>((resolve, reject) => {
++      const out = createWriteStream(zipPath);
++      out.on('close', () => resolve()).on('error', reject);
++      zip.outputStream.pipe(out);
++    });
++    const bytes = readFileSync(zipPath);
++
++    const root = await mount();
++    const batch = root.querySelector('.bf-batch') as HTMLElement;
++    attach(picker(root, 'zip'), [new File([bytes], 'too-many.zip')]);
++    await waitFor(() => {
++      const error = batch.querySelector('.batch-error') as HTMLElement | null;
++      return !!error && !!error.textContent;
++    }, 'over-limit refusal');
++    const errorText = (batch.querySelector('.batch-error') as HTMLElement).textContent!;
++    expect(errorText).toContain('超过单批');
++    expect(errorText).toContain('拆');
++    // Nothing was imported, and the archive record is kept for the user.
++    const status = await world.webUi!('zh').invoke!('shelf', 'import_batch_status', []) as Array<{ total: number; completed: number }>;
++    expect(status[0]?.total).toBe(0);
++    expect(status[0]?.completed).toBe(0);
++  });
+ });

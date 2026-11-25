@@ -1,0 +1,58 @@
+# SHA256SUMS - BookFish-ReadingPlan-v1.4 最终状态机与批量完整性审核包
+# generated: 2026-11-25T09:22:53Z
+#
+# 覆盖审核包内【全部实际交付文件】，路径相对审核包解压根目录（含 docs/ 的那一层）。
+# - docs/reading-plan-v1.4/00-10*.md        11 份审核文档
+# - evidence/*.log                           原始测试 / 类型 / 构建 / 守卫 / apply-check 日志
+# - evidence/changes.patch                   完整可应用补丁（基线 7f5b4da）
+# - evidence/git-info.txt                    Git 信息
+# - evidence/snapshot/**                     29 个完整文件快照（补丁应用树逐字节生成）
+# - 本文件自身不列入（自引用）；审核包 zip 由同名 .sha256 旁文件覆盖。
+# 校验：在解压根目录执行 sha256sum -c docs/reading-plan-v1.4/evidence/SHA256SUMS
+43b699a33d2e7ca15c496f595d1ed1c15c82ff0be139703c12cf5383ea3ae9cd  docs/reading-plan-v1.4/00-审核入口.md
+62ab12abf326884c3b4935a46d1478f1084863635aa27e240309f16ea5877996  docs/reading-plan-v1.4/01-ZIP状态机修复.md
+95a71e0b6b416d4cd5873bf067c2d955a69ba0a16a0524053de3c4ad7077b10f  docs/reading-plan-v1.4/02-ZIP内容身份.md
+420bcac627f390345225a3cac281aa3a0536198f16eb550b610f3330dd036c70  docs/reading-plan-v1.4/03-ZIP重新选择恢复.md
+cb2306dcea2ae83c19f4bebc4ebc0abacf4ba8aa933e177dbd357447a05f2c57  docs/reading-plan-v1.4/04-批量超限与遗漏.md
+673060c7cbe00f013d31d432c64e59c1152465af35792c62cb76f9ff72620051  docs/reading-plan-v1.4/05-历史统计兼容.md
+ef39f71ff001a24f226c6fbf3917a682712317a1735e16344883494e75510428  docs/reading-plan-v1.4/06-磁盘预检.md
+fa5c08d51fa694c78781f89c12345e2c945d58d69a12c428c40823920dc73d95  docs/reading-plan-v1.4/07-完整测试报告.md
+41fe5dc90296345742aa2965987d08a6a85be707a141b7525820b5d37db4428a  docs/reading-plan-v1.4/08-SSM变更说明.md
+1b48d8b41a4e5f2dd3a174e540c787674f75f0dd1f4311136bd598846b9131bb  docs/reading-plan-v1.4/09-not_observed与宿主验收.md
+41f6de8ba460fc8c7dce84b3ae9141954c5c788bbc07d05cc8744d25b9068f54  docs/reading-plan-v1.4/10-最终验收摘要.md
+ac8668bd790bfada4d0e0ae6fa88b4a6d2ef31bc667f5ff900f36d45fdc76b2f  docs/reading-plan-v1.4/evidence/build-and-checks.log
+78ec71b3c2456382eb14e96e119521be35717723d4f914122e4518154d6affc6  docs/reading-plan-v1.4/evidence/changes.patch
+9087a695ee1d8ffa8a7cf9fe9f624f54cedff507eaf03451d3c1832c547f6d01  docs/reading-plan-v1.4/evidence/check-ssm.log
+983c888c6b306db8aa2ede866a702f10613e34e5bf737bb6c35f966156f0f228  docs/reading-plan-v1.4/evidence/git-info.txt
+e41ce52f06b9a2a4cc75c681bdb3ef147b4cfef1d08056432f946a61bde3313c  docs/reading-plan-v1.4/evidence/patch-apply-check.log
+3cd70f8890ba48f747cd9a08192806ca252183b9129690157f20aced6cd4a108  docs/reading-plan-v1.4/evidence/test-full.log
+e90d6d3e1cf37c71f4e166604c510eca45bff14d296d23346e4a2a631f0f85f4  docs/reading-plan-v1.4/evidence/typecheck.log
+1e3294827a2235609932ff0a99bf7ac8307fd9205423c3480506bce1e6c26a45  docs/reading-plan-v1.4/evidence/snapshot/docs/reading-plan-v1.4/00-审核入口.md
+b42dfc33f650aa89e4eee5d04477aed029ae43dbcf1b3d4689c658726be9d50f  docs/reading-plan-v1.4/evidence/snapshot/docs/reading-plan-v1.4/01-ZIP状态机修复.md
+2867ba4bd0bd7acde263303349e00c603b88315fba1ed4ea5247e534652fcea0  docs/reading-plan-v1.4/evidence/snapshot/docs/reading-plan-v1.4/02-ZIP内容身份.md
+bc2e36ff48c223515752b625a855ddbd6c75cd67901a8168ca645edf981d4edf  docs/reading-plan-v1.4/evidence/snapshot/docs/reading-plan-v1.4/03-ZIP重新选择恢复.md
+5e94290f5a85c358dbe5677fd708b2df99a49f11f94569599cc6a63e5ad5601a  docs/reading-plan-v1.4/evidence/snapshot/docs/reading-plan-v1.4/04-批量超限与遗漏.md
+a725d55e873366b672db2de3c55fecac5b870da6b0de7c67510ad507b2f9f4f6  docs/reading-plan-v1.4/evidence/snapshot/docs/reading-plan-v1.4/05-历史统计兼容.md
+edcde101a9a0feac2f685cd22ca13e5888a502c6aa27980de160583a7f19269c  docs/reading-plan-v1.4/evidence/snapshot/docs/reading-plan-v1.4/06-磁盘预检.md
+ab6648b2fcd3b637fdd054e392279643152037711d808b41cfe6c93a9a0c5fd7  docs/reading-plan-v1.4/evidence/snapshot/docs/reading-plan-v1.4/07-完整测试报告.md
+f4221bd2c37915c337ef620681043aeeda730dd1e4f4f348f2299ea6adf638dd  docs/reading-plan-v1.4/evidence/snapshot/docs/reading-plan-v1.4/08-SSM变更说明.md
+39045a1f20c4ebdfbc692c75934e451b2d1ef1259946bc093b231c552e2722ad  docs/reading-plan-v1.4/evidence/snapshot/docs/reading-plan-v1.4/09-not_observed与宿主验收.md
+bf30b71e5fc7cb9d3280892e66e3fa91d0c11c394d5d1faca2e3e0afe5268e8f  docs/reading-plan-v1.4/evidence/snapshot/docs/reading-plan-v1.4/10-最终验收摘要.md
+24d2391e09718e54d4c6e5c84d1127113f3e448b303123c71bb285c697499e81  docs/reading-plan-v1.4/evidence/snapshot/lib/webui-txt-builtin-bing-0651.js
+24d2391e09718e54d4c6e5c84d1127113f3e448b303123c71bb285c697499e81  docs/reading-plan-v1.4/evidence/snapshot/lib/webui.js
+3f330a52daf318acc05ea9ea11c5b8c83c939eab20bb2c5bbc90ee479cfa16ff  docs/reading-plan-v1.4/evidence/snapshot/src/import-batch.ts
+cb4ad984edaf9e334048d6c795cb42c00ee0b3d1bdee8f57744f15b5ab58f2fe  docs/reading-plan-v1.4/evidence/snapshot/src/import-batches.ts
+0c8d29f4f3928c93ed2b54d302e744229752155678d95b1b7686510f66a3748a  docs/reading-plan-v1.4/evidence/snapshot/src/library.ts
+251d44348b4c04c2ebc77030b7419ff1987546afc30658f44ae5a4ab81ece54b  docs/reading-plan-v1.4/evidence/snapshot/src/reading-plan.ts
+bc9c7da23dd1aa097e7b008df19c7dc9fe84c10c7a8775643660fe2d3e2bfae5  docs/reading-plan-v1.4/evidence/snapshot/src/webui/batch-import.ts
+9a536ef8cb0a7f91aeebc5cf55089826558e9f0c9a6af01977cccd2a4c654932  docs/reading-plan-v1.4/evidence/snapshot/src/webui/batch-types.ts
+d26e2ef375a67a48d582660a58dd8535081a824e5e171b5cd215d6a2d19db213  docs/reading-plan-v1.4/evidence/snapshot/tests/import-batch-budget.test.ts
+d274114fb696c369894af52c36b6a87a453beeb452e422d08ff8c02dea0d1bf9  docs/reading-plan-v1.4/evidence/snapshot/tests/import-batch-identity.test.ts
+4c56e266c02169b59a1b88b1607ce7a53e422f76389235c3e2667fffb8c853c5  docs/reading-plan-v1.4/evidence/snapshot/tests/import-batch-limits.test.ts
+c50db49b48e20703f04ce58f83ec4388ece2134c7c69da0eef799924ce9ea88c  docs/reading-plan-v1.4/evidence/snapshot/tests/import-batch-rename-retry.test.ts
+ecdd1aef9c0b3b27ad4095356c92e9956f2cf826be072c67b965940ac8548433  docs/reading-plan-v1.4/evidence/snapshot/tests/import-batch-zip-claim.test.ts
+1fa6d7cd5027e924eedf95f3f8b92ff349f025cce0f10cd65f0b1f40b76200cf  docs/reading-plan-v1.4/evidence/snapshot/tests/import-batch-zip-concurrency.test.ts
+515d45c0e56453815efc4aec4af28e110768c11af781897e2ba70cf26b49f4bd  docs/reading-plan-v1.4/evidence/snapshot/tests/import-batch-zip-peak.test.ts
+b23de1d090ac05cc87ccb8045af42d55ebf73d71f316d02b1300665e763fb9d1  docs/reading-plan-v1.4/evidence/snapshot/tests/import-batch-zip-state.test.ts
+a2c7248662dbd1b2644eb7e4461a524dd28c98387537669380f9fb488936f060  docs/reading-plan-v1.4/evidence/snapshot/tests/plan-stats-complete.test.ts
+b07d9bc3c2c5fd6c1acb7a4a6ce7ba6247bcfa8ea3f65393a75efa353527e99e  docs/reading-plan-v1.4/evidence/snapshot/tests/webui/batch-import.test.ts

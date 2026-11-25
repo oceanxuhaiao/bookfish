@@ -1,0 +1,20 @@
+# 补丁独立应用校验（v1.4）
+generated: 2026-11-25T09:22:47Z
+
+## 基线 7f5b4da 上独立应用
+$ git worktree add --detach <tmp> 7f5b4da
+$ git apply --check evidence/changes.patch
+apply_check_exit=0
+
+$ git apply evidence/changes.patch
+real_apply_exit=0
+
+## 快照复现比对（快照取自补丁应用后的树）
+patch_files=29
+snapshot_files=29
+byte_identical=9
+content_identical_crlf_only=20
+real_diff=0
+
+说明：仓库 core.autocrlf=true，主工作区部分文件为 CRLF，git apply 写入为 LF；
+20 个文件仅行尾差异（diff --strip-trailing-cr 判定内容一致），无任何实际内容差异。
