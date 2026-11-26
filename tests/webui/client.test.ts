@@ -47,15 +47,14 @@ async function mount(panelId='status') {
 function action(root: HTMLElement, label: string) { return [...root.querySelectorAll('button')].find(b => b.textContent === label)!; }
 async function settle() { await new Promise(resolve => setTimeout(resolve, 25)); }
 describe('library panel with real World data plane', () => {
-  it('offers browser TXT beside the engine and opens first-use guidance even when the engine is missing',async()=>{
+  it('does not offer the unfinished browser TXT route in online search',async()=>{
     const {root}=await mount('shelf');
-    action(root,'＋ 推荐书籍').click();await settle();
-    const picker=root.querySelector<HTMLSelectElement>('select[aria-label="导入方式"]')!;picker.value='title';picker.dispatchEvent(new Event('change',{bubbles:true}));await settle();
-    const route=root.querySelector<HTMLSelectElement>('select[aria-label="获取渠道"]')!;
-    expect(route.disabled).toBe(false);route.value='browser';route.dispatchEvent(new Event('change',{bubbles:true}));await settle();
-    const browser=root.querySelector<HTMLElement>('#bf-browser-txt')!;expect(browser.hidden).toBe(false);
-    expect(browser.querySelector('details')!.open).toBe(true);expect(browser.textContent).toContain('尚未接入正式安全控制器');
-    expect(action(browser,'发现 TXT 文件').disabled).toBe(true);
+    action(root,'＋ 推荐书籍').click();await settle();action(root,'在线找书').click();await settle();
+    const picker=root.querySelector<HTMLSelectElement>('select[aria-label="导入方式"]')!;
+    expect([...picker.options].map(option=>option.value)).toEqual(['link','title']);
+    expect(root.querySelector('select[aria-label="获取渠道"]')).toBeNull();
+    expect(root.querySelector('#bf-browser-txt')).toBeNull();
+    expect(root.querySelector<HTMLElement>('#bf-novel-fetch')!.hidden).toBe(false);
   });
   it('renders acquisition source identity from persisted Book metadata instead of the wanted title',async()=>{
     persist({txtAcquisitionEnabled:true,allowNetwork:true});const acq=(world as any).txtAcquisition;

@@ -31,19 +31,19 @@ async function mount() {
   dispose = () => handle.dispose();
 }
 
-it('groups the three import methods in one selector and marks experiments', async () => {
+it('keeps files in Local import and exposes only supported online methods', async () => {
   await mount();
   const recommend = root.querySelector<HTMLElement>('#bf-recommend-panel')!;
   expect(recommend.hidden).toBe(true);
   const picker = recommend.querySelector<HTMLSelectElement>('select[aria-label="导入方式"]')!;
-  expect([...picker.options].map(option => option.textContent)).toEqual(['文件导入', '链接获取', '书名或作者获取']);
+  expect([...picker.options].map(option => option.textContent)).toEqual(['链接获取', '书名或作者获取']);
   expect(recommend.querySelector('.badge.experimental')?.textContent).toBe('实验功能');
 
   const add = [...root.querySelectorAll('button')].find(button => button.textContent?.includes('推荐书籍'))!;
   add.click();
   expect(recommend.hidden).toBe(false);
   const forms = [...recommend.querySelectorAll('form')];
-  expect(forms).toHaveLength(5); // Three import methods; browser route has search plus optional manual discovery.
+  expect(forms).toHaveLength(3); // Hidden legacy file form, link form and engine search.
   expect(forms[0].parentElement?.hidden).toBe(false);
   expect(forms[1].parentElement?.hidden).toBe(true);
   expect(root.querySelector<HTMLElement>('#bf-novel-fetch')?.hidden).toBe(true);
@@ -61,9 +61,6 @@ it('groups the three import methods in one selector and marks experiments', asyn
   expect(gate.hidden).toBe(false);
   expect(gate.textContent).toContain('需要先安装小说获取引擎');
   expect(gate.compareDocumentPosition(forms[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  const route = recommend.querySelector<HTMLSelectElement>('select[aria-label="获取渠道"]')!;
-  expect([...route.options].map(option => option.textContent)).toEqual(['小说引擎','浏览器辅助 TXT 获取']);
-  route.value='browser';route.dispatchEvent(new Event('change',{bubbles:true}));
-  expect(root.querySelector<HTMLElement>('#bf-browser-txt')!.hidden).toBe(false);
-  expect(forms[2].parentElement!.hidden).toBe(true);
+  expect(recommend.querySelector('select[aria-label="获取渠道"]')).toBeNull();
+  expect(recommend.querySelector('#bf-browser-txt')).toBeNull();
 });
