@@ -1,0 +1,67 @@
+# git info
+generated: 2026-11-25T02:59:50Z
+
+## branch
+feat/reading-plan-v1
+
+## HEAD
+dd4f0b9cd3196529a02afc6de1d82c1ee3dcf1dc docs: record 0.66.7 npm, GitHub and market release
+
+## base
+dd4f0b9 (= origin/main v0.66.7)
+
+## remotes
+origin	https://github.com/oceanxuhaiao/bookfish.git (fetch)
+origin	https://github.com/oceanxuhaiao/bookfish.git (push)
+
+## status
+ M lib/import-worker.mjs
+ M lib/zip-worker.mjs
+ M src/library.ts
+ M src/protocol/reading.md
+ M src/selection.ts
+ M src/status.ts
+ M src/transfers.ts
+ M src/webui/client.ts
+ M src/world.ts
+ M tests/paged-book.test.ts
+ M tests/selection.test.ts
+ M tests/txt-acquisition-selection.test.ts
+ M tests/txt-acquisition-supplement.test.ts
+ M tests/webui/client.test.ts
+ M tests/webui/help-client.test.ts
+?? docs/reading-plan-v1/
+?? src/import-batch.ts
+?? src/import-batches.ts
+?? src/plan-coordinator.ts
+?? src/reading-plan.ts
+?? src/webui/batch-import.ts
+?? src/webui/batch-types.ts
+?? src/webui/plan.ts
+?? tests/import-batch-run.test.ts
+?? tests/import-batch.test.ts
+?? tests/plan-advance.test.ts
+?? tests/reading-plan-core.test.ts
+?? tests/reading-plan-library.test.ts
+?? tests/webui/batch-import.test.ts
+?? tests/webui/plan-panel.test.ts
+
+## diffstat vs base
+warning: in the working copy of 'lib/import-worker.mjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lib/zip-worker.mjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/protocol/reading.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/webui/help-client.test.ts', LF will be replaced by CRLF the next time Git touches it
+ src/library.ts                           | 388 ++++++++++++++++++++++++++++++-
+ src/protocol/reading.md                  |  10 +-
+ src/selection.ts                         | 171 ++++++--------
+ src/status.ts                            |  13 +-
+ src/transfers.ts                         |   8 +-
+ src/webui/client.ts                      |  26 ++-
+ src/world.ts                             |  62 ++++-
+ tests/paged-book.test.ts                 |   3 +-
+ tests/selection.test.ts                  |   6 +-
+ tests/txt-acquisition-selection.test.ts  |   7 +-
+ tests/txt-acquisition-supplement.test.ts |   4 +-
+ tests/webui/client.test.ts               |   6 +-
+ tests/webui/help-client.test.ts          |   2 +-
+ 13 files changed, 576 insertions(+), 130 deletions(-)

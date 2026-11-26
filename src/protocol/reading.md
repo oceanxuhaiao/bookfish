@@ -1,4 +1,4 @@
-<!-- protocol topic=reading v=4 since=0.66.7 tools=bookfish_read_next,bookfish_finish_reading,bookfish_defer_reading,bookfish_get_status,bookfish_acquire,bookfish_set_paused -->
+<!-- protocol topic=reading v=4 since=0.67.0 tools=bookfish_read_next,bookfish_finish_reading,bookfish_defer_reading,bookfish_get_status,bookfish_acquire,bookfish_set_paused -->
 # Reading protocol
 
 适用：取正文、按批阅读、确认进度、自动与手动阅读机会、作息与休息、阅读失败恢复。

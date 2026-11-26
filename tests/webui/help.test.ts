@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -28,7 +28,7 @@ afterEach(() => {
 function center(): HelpCenter {
   const dir = mkdtempSync(join(tmpdir(), 'bookfish-help-ui-'));
   dirs.push(dir);
-  const value = new HelpCenter({ dataDir: dir, currentVersion: '0.66.7', now: () => new Date('2026-11-21T12:00:00Z') });
+  const value = new HelpCenter({ dataDir: dir, currentVersion: '0.67.0', now: () => new Date('2026-11-21T12:00:00Z') });
   value.open();
   return value;
 }
@@ -63,7 +63,7 @@ describe('help center view', () => {
     const host = document.createElement('div');
     await view.open(host);
     expect(calls.map((call) => call.method)).toEqual(['help_index']);
-    expect(host.querySelectorAll('.bf-help-item').length).toBe(20);
+    expect(host.querySelectorAll('.bf-help-item').length).toBe(21);
     expect(host.textContent).toContain('大肥鱼 · 功能指南');
 
     const first = host.querySelector<HTMLButtonElement>('.bf-help-item')!;
