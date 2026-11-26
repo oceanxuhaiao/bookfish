@@ -35,7 +35,7 @@ async function mount(panelId='status') {
     invoke: async (method: string, args: unknown[]) => world.webUi!('zh').invoke!(panelId, method, args),
     setConfig: async (_group: string, values: Record<string, unknown>) => { persist(Object.fromEntries(Object.entries(values).map(([key,value]) => [key.replace('worlds.bookfish.',''),value]))); return 'Saved'; },
     interval: (callback: () => Promise<void>) => { intervals.push(callback); }, timeout: () => {}, own: () => {},
-    ui: {
+    ui: { drawer: (_title:string, body:HTMLElement) => { root.append(body); return {dispose(){body.remove();}}; },
       confirm: async (options: { title: string; body?: string; danger?: boolean }) => { lastConfirm = options; return confirmAnswer; },
       toast: (text: string) => { toasts.push(text); return { dispose() {} }; },
     },
@@ -49,7 +49,7 @@ async function settle() { await new Promise(resolve => setTimeout(resolve, 25));
 describe('library panel with real World data plane', () => {
   it('offers browser TXT beside the engine and opens first-use guidance even when the engine is missing',async()=>{
     const {root}=await mount('shelf');
-    action(root,'＋ 推荐一本书').click();await settle();
+    action(root,'＋ 推荐书籍').click();await settle();
     const picker=root.querySelector<HTMLSelectElement>('select[aria-label="导入方式"]')!;picker.value='title';picker.dispatchEvent(new Event('change',{bubbles:true}));await settle();
     const route=root.querySelector<HTMLSelectElement>('select[aria-label="获取渠道"]')!;
     expect(route.disabled).toBe(false);route.value='browser';route.dispatchEvent(new Event('change',{bubbles:true}));await settle();
@@ -83,7 +83,7 @@ describe('library panel with real World data plane', () => {
   });
   it('shows the single recommendation entry and explains a missing engine instead of enabling a fake download', async () => {
     const { root } = await mount('shelf');
-    const entry = action(root, '＋ 推荐一本书');
+    const entry = action(root, '＋ 推荐书籍');
     expect(entry).toBeTruthy();
     entry.click(); await settle();
     expect(root.textContent).toContain('目前仅支持笔趣阁');
@@ -105,7 +105,7 @@ describe('library panel with real World data plane', () => {
     vi.spyOn(fetches, 'startSearch').mockReturnValue({ ...validating, state: 'searching', checked: 0, checkTotal: 0 });
     vi.spyOn(fetches, 'searchStatus').mockReturnValueOnce(validating).mockReturnValue(complete);
     const { root } = await mount('shelf');
-    action(root, '＋ 推荐一本书').click(); await settle();
+    action(root, '＋ 推荐书籍').click(); await settle();
     const picker = root.querySelector<HTMLSelectElement>('#bf-recommend-panel select[aria-label="导入方式"]')!;
     picker.value = 'title'; picker.dispatchEvent(new Event('change', { bubbles: true })); await settle();
     const novel = root.querySelector<HTMLElement>('#bf-novel-fetch')!;
@@ -124,7 +124,7 @@ describe('library panel with real World data plane', () => {
     vi.spyOn(fetches, 'startSearch').mockReturnValue({ id: 'search-2', state: 'searching', title: '海边的信', author: '小鱼', completed: 0, total: 2, checked: 0, checkTotal: 0, createdAt: '', updatedAt: '' });
     vi.spyOn(fetches, 'searchStatus').mockReturnValue(complete);
     const { root } = await mount('shelf');
-    action(root, '＋ 推荐一本书').click(); await settle();
+    action(root, '＋ 推荐书籍').click(); await settle();
     const picker = root.querySelector<HTMLSelectElement>('#bf-recommend-panel select[aria-label="导入方式"]')!;
     picker.value = 'title'; picker.dispatchEvent(new Event('change', { bubbles: true })); await settle();
     const novel = root.querySelector<HTMLElement>('#bf-novel-fetch')!;
@@ -142,7 +142,7 @@ describe('library panel with real World data plane', () => {
     vi.spyOn(fetches, 'startSearch').mockReturnValue({ id: 'search-3', state: 'searching', title: '女将星', author: '千山茶客', completed: 0, total: 2, checked: 0, checkTotal: 0, createdAt: '', updatedAt: '' });
     vi.spyOn(fetches, 'searchStatus').mockReturnValue(complete);
     const { root } = await mount('shelf');
-    action(root, '＋ 推荐一本书').click(); await settle();
+    action(root, '＋ 推荐书籍').click(); await settle();
     const picker = root.querySelector<HTMLSelectElement>('#bf-recommend-panel select[aria-label="导入方式"]')!;
     picker.value = 'title'; picker.dispatchEvent(new Event('change', { bubbles: true })); await settle();
     const novel = root.querySelector<HTMLElement>('#bf-novel-fetch')!;
@@ -163,7 +163,7 @@ describe('library panel with real World data plane', () => {
     vi.spyOn(fetches, 'startSearch').mockReturnValue({ id: 'search-4', state: 'searching', title: '凡人修仙传', author: '忘语', completed: 0, total: 2, checked: 0, checkTotal: 0, createdAt: '', updatedAt: '' });
     vi.spyOn(fetches, 'searchStatus').mockReturnValue(complete);
     const { root } = await mount('shelf');
-    action(root, '＋ 推荐一本书').click(); await settle();
+    action(root, '＋ 推荐书籍').click(); await settle();
     const picker = root.querySelector<HTMLSelectElement>('#bf-recommend-panel select[aria-label="导入方式"]')!;
     picker.value = 'title'; picker.dispatchEvent(new Event('change', { bubbles: true })); await settle();
     const novel = root.querySelector<HTMLElement>('#bf-novel-fetch')!;
@@ -219,10 +219,10 @@ describe('library panel with real World data plane', () => {
     expect(sources.contains(action(root, '导出这版读后感'))).toBe(false);
   });
   it('keeps configuration solely in the host group and preserves explicit reading preference',async()=>{
-    const {root}=await mount();expect([...root.querySelectorAll('nav button')].map(x=>x.textContent)).toEqual(['正在读','书架','阅读计划','阅读足迹','反馈']);
+    const {root}=await mount();expect([...root.querySelectorAll('nav button')].map(x=>x.textContent)).toEqual(['正在读','书架','阅读足迹','反馈']);
     expect(root.querySelector('#bf-speed')).toBeNull();expect(root.textContent).not.toContain('开启自主阅读');
     expect(BOOKFISH.defaults().automaticReading).toBe(true);
-    expect(world.webUi!('zh').config).toBeUndefined();expect(world.webUi!('zh').panels?.map(p=>p.id)).toEqual(['status','plan','shelf','trail','support','settings','help']);
+    expect(world.webUi!('zh').config).toBeUndefined();expect(world.webUi!('zh').panels?.map(p=>p.id)).toEqual(['status','shelf','trail','support','settings','help']);
     expect((await world.webUi!().invoke!('status','get',[]) as any).config.automaticReading).toBe(false);
   });
   it('shows that old confirmations have no recorded mood instead of synthesizing one', async () => {
@@ -364,7 +364,7 @@ it('renders a compact empty state with one clear call to action', async () => {
   const hero = root.querySelector<HTMLElement>('.reading-hero')!;
   expect(hero.classList.contains('is-empty')).toBe(true);
   expect(hero.textContent).toContain('书架还是空的');
-  const recommend = [...hero.querySelectorAll('button')].find(node => node.textContent === '＋ 推荐一本书');
+  const recommend = [...hero.querySelectorAll('button')].find(node => node.textContent === '＋ 推荐书籍');
   expect(recommend).toBeTruthy();
   expect(hero.querySelector('.hero-actions')!.textContent).toContain('页数怎么算');
   expect([...hero.querySelectorAll('button')].filter(node => node.textContent === '查看这本书 ↗' && !node.hidden)).toHaveLength(0);
@@ -399,7 +399,7 @@ it('disables Continue while routine is active and shows the reason even with aut
 });
 
 it.each(['shelf','trail'] as const)('opens the top-level %s panel directly without visible secondary navigation',async panel=>{
- const {root}=await mount(panel);expect(root.querySelector<HTMLElement>('[data-page='+ (panel==='shelf'?'shelf':'trail') +']')!.hidden).toBe(false);expect(root.querySelector('nav')!.hidden).toBe(true);expect(root.querySelector('h2')!.hidden).toBe(true);expect(world.webUi!('zh').panels!.map(p=>p.title)).toEqual(['正在读','阅读计划','书架','阅读足迹','反馈','配置','帮助与更新']);
+ const {root}=await mount(panel);expect(root.querySelector<HTMLElement>('[data-page='+ (panel==='shelf'?'shelf':'trail') +']')!.hidden).toBe(false);expect(root.querySelector('nav')!.hidden).toBe(true);expect(root.querySelector('h2')!.hidden).toBe(true);expect(world.webUi!('zh').panels!.map(p=>p.title)).toEqual(['正在读','书架','阅读足迹','反馈','配置','帮助与更新']);
 });
 
 it('lets the panel declare a later chapter as the reading start without marking it read',async()=>{

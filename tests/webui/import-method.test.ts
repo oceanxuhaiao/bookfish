@@ -23,6 +23,7 @@ afterEach(() => { dispose?.(); controller.abort(); document.body.replaceChildren
 
 async function mount() {
   const handle = await client.panels.shelf.mount({
+    ui:{drawer:(_title:string,body:HTMLElement)=>{root.append(body);return{dispose(){body.remove();}};}},
     root, language: 'zh', panelId: 'shelf', signal: controller.signal,
     interval: () => () => {},
     invoke: (method: string, args?: unknown[]) => world.webUi!('zh').invoke!('status', method, args ?? []),
@@ -38,7 +39,7 @@ it('groups the three import methods in one selector and marks experiments', asyn
   expect([...picker.options].map(option => option.textContent)).toEqual(['文件导入', '链接获取', '书名或作者获取']);
   expect(recommend.querySelector('.badge.experimental')?.textContent).toBe('实验功能');
 
-  const add = [...root.querySelectorAll('button')].find(button => button.textContent?.includes('推荐一本书'))!;
+  const add = [...root.querySelectorAll('button')].find(button => button.textContent?.includes('推荐书籍'))!;
   add.click();
   expect(recommend.hidden).toBe(false);
   const forms = [...recommend.querySelectorAll('form')];

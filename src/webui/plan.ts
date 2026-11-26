@@ -7,6 +7,7 @@
  * which is a different promise from skipping, removing or finishing.
  */
 import type { LibraryPanelState } from '../status.ts';
+import {coverDesign} from './cover.ts';
 
 type PlanView = NonNullable<LibraryPanelState['plan']>;
 type PlanItem = PlanView['items'][number];
@@ -20,12 +21,15 @@ export interface PlanPageOptions {
   confirm (options: { title: string; body: string; danger?: boolean }): Promise<boolean>;
   /** Re-read the panel state after a write. */
   refresh (): Promise<void>;
+  onAdd?(): void;
 }
 
 const SOURCE_LABEL = { user: ['你加的', 'added by you'], persona: ['她自己想读的', 'her own pick'] } as const;
 
 export function renderPlanPage(options: PlanPageOptions): void {
   const { page, say, state, invoke, confirm, refresh } = options;
+  const expanded=new Set([...page.querySelectorAll<HTMLDetailsElement>('details[data-key][open]')].map(node=>node.dataset.key));
+  const scroll=page.parentElement?.parentElement?.scrollTop;
   page.replaceChildren();
   // Not mounted yet: the panel has no plan to show and must not invent one.
   if (!state.plan) return;
@@ -55,19 +59,19 @@ export function renderPlanPage(options: PlanPageOptions): void {
     await refresh();
   };
 
-  el('h2', say('阅读计划', 'Reading plan'));
-  el('p', say('全扩展只有这一份计划。这里的位置只决定“接下来读哪本”，改顺序不会改动正文、进度、手账、读后感或故事记忆。',
-    'There is exactly one plan. Position only decides which book comes next; reordering never changes text, progress, journal, reviews or story memory.')).className = 'plan-lead';
-
+  const toolbar=el('div','');toolbar.className='order-toolbar';
+  el('span',say(`等待阅读 ${plan.items.filter(item=>!item.active).length} 本`,`Waiting: ${plan.items.filter(item=>!item.active).length}`),toolbar);
+  act(say('＋ 添加书籍','＋ Add books'),toolbar,async()=>options.onAdd?.());
   // An empty plan is only "empty" when nothing is being read either; a current
   // book outside the plan still has to be shown.
   if (!plan.total && !plan.reading) {
-    el('p', say('计划还是空的，现在也没有在读的书。到书架上打开一本书，把它加入阅读计划，就会出现在这里。',
+    el('p', say('还没有安排后续书籍。从书架添加，或导入后选择加入阅读顺序。',
       'The plan is empty and nothing is being read. Open a book in the bookshelf and add it to the plan.'), page);
     return;
   }
 
-  const summary = el('p', '', page); summary.className = 'plan-summary';
+  const historyDetails=el('details','');historyDetails.dataset.key='history';el('summary',say('最近变动与统计','Recent changes and totals'),historyDetails);
+  const summary = el('p', '', historyDetails); summary.className = 'plan-summary';
   // A legacy plan cannot recover history its old version already trimmed, so its
   // counters are a verified lower bound; saying "累计 N 本" there would claim a
   // completeness the data cannot support.
@@ -77,7 +81,7 @@ export function renderPlanPage(options: PlanPageOptions): void {
       (plan.series.length ? ` · ${plan.series.length} 个系列` : ''),
     `${plan.total} planned · ` + (complete ? `${plan.completedCount} finished in total` : `at least ${plan.completedCount} finished in total`) +
       (plan.series.length ? ` · ${plan.series.length} series` : ''));
-  const historyNote = el('small', '', page);
+  const historyNote = el('small', '', historyDetails);
   historyNote.className = 'plan-note plan-history';
   historyNote.textContent = say(
     `历史只保留最近 ${plan.archiveLimit} 条（当前 ${plan.archiveKept} 条）` +
@@ -91,9 +95,9 @@ export function renderPlanPage(options: PlanPageOptions): void {
 
   const toggleRow = el('div', '', page); toggleRow.className = 'plan-toggle';
   const enabled = document.createElement('button'); enabled.type = 'button';
-  enabled.textContent = plan.enabled ? say('自主阅读：按计划继续', 'Automatic reading: follow the plan') : say('自主阅读：暂停按计划', 'Automatic reading: plan paused');
+  enabled.textContent = plan.enabled ? say('读完后按顺序继续：已开启', 'Continue in order after finishing: on') : say('读完后按顺序继续：已关闭', 'Continue in order after finishing: off');
   enabled.setAttribute('aria-pressed', String(plan.enabled));
-  enabled.addEventListener('click', () => { void write({ action: 'enable', enabled: !plan.enabled }).catch(() => undefined); });
+  enabled.addEventListener('click', () => { void write({ action: 'enable', enabled: !plan.enabled }).catch(report); });
   toggleRow.append(enabled);
   el('small', say('关掉只影响“自动按计划接着读”，不会改动计划本身。', 'Turning this off only stops automatic plan following; the plan itself is untouched.'), toggleRow).className = 'plan-note';
 
@@ -117,17 +121,19 @@ export function renderPlanPage(options: PlanPageOptions): void {
     currentCard).className = 'plan-note';
     if (!reading.inPlan) {
       el('small', `《${reading.title}》${reading.chapter ? ' · ' + reading.chapter : ''}`, currentCard).className = 'plan-note';
-      act(say('把这本书加进计划', 'Add this book to the plan'), currentCard, async () => {
+      act(say('把这本书加入阅读顺序', 'Add this book to the plan'), currentCard, async () => {
         await invoke('plan_add', [{ bookKeys: [reading.bookKey] }]);
         await refresh();
       });
     }
+    const meter=el('progress','',currentCard);meter.max=1;meter.value=reading.progress;meter.setAttribute('aria-label',say('已确认阅读进度','Confirmed reading progress'));
+    const currentMenu=el('details','',currentCard);currentMenu.className='order-more';currentMenu.dataset.key='current';el('summary',say('更多操作','More actions'),currentMenu);
     if (reading.inPlan && current) {
       // Two distinct promises: hand over to the next book, or leave the playlist
       // and keep reading this one. Both keep the text and the progress.
       const readable = plan.items.filter((item) => !item.active && !item.complete && item.present
         && !(item.notBefore !== undefined && item.notBefore > Date.now()));
-      const stop = act(say('停止读这本，改读下一本', 'Stop this one and read the next'), currentCard, async () => {
+      const stop = act(say('停止读这本，改读下一本', 'Stop this one and read the next'), currentMenu, async () => {
         const ok = await confirm({ title: say('停止读这本书？', 'Stop reading this book?'), danger: true,
           body: say('它会从计划移到“已停止”，进度、手账和读后感都保留；不算读完，也不会删除书架上的原件。',
             'It moves to “stopped”. Progress, journal and reviews are kept; it is not marked finished and the shelf copy is not deleted.') });
@@ -139,15 +145,15 @@ export function renderPlanPage(options: PlanPageOptions): void {
         // Refusing is the honest answer; say why instead of failing silently.
         stop.disabled = true;
         el('small', say('没有其他可读的下一本，所以不能“换下一本”。如果你只想让它离开计划但仍继续读这本，用下面的按钮。',
-          'There is no other readable book to hand over to. If you only want it out of the plan while still reading it, use the button below.'), currentCard).className = 'plan-note';
+          'There is no other readable book to hand over to. If you only want it out of the plan while still reading it, use the button below.'), currentMenu).className = 'plan-note';
       }
-      act(say('移出计划，继续读这本', 'Remove from the plan, keep reading this'), currentCard, async () => {
-        const ok = await confirm({ title: say('移出计划但继续读？', 'Remove from the plan but keep reading?'),
+      act(say('移出阅读顺序，继续读这本', 'Remove from the plan, keep reading this'), currentMenu, async () => {
+        const ok = await confirm({ title: say('移出阅读顺序但继续读？', 'Remove from the plan but keep reading?'),
           body: say('它不再排在计划里，但仍然是当前在读的书，进度和手账都保留。',
             'It leaves the playlist but stays the current book; progress and journal are kept.') });
         if (!ok) return;
         await write({ action: 'remove', itemId: current.id, status: 'removed', keepReading: true, reason: 'removed_but_still_reading' });
-      }, say('不切换书，只把它移出计划', 'No switch: it only leaves the playlist'));
+      }, say('不切换书，只把它移出阅读顺序', 'No switch: it only leaves the playlist'));
     }
   } else if (current) {
     // Plan says an item is active but nothing is selected: show the entry, not a lie.
@@ -162,7 +168,7 @@ export function renderPlanPage(options: PlanPageOptions): void {
 
   const renderSeriesBlock = (): void => {
     if (!plan.series.length) return;
-    const box = el('section', '', page); box.className = 'card plan-series';
+    const box = el('div', '', seriesManager); box.className = 'plan-series';
     el('h3', say('系列分组', 'Series'), box);
     el('small', say('分组只是组织方式，不会另外排一套阅读顺序；整组移动时组内顺序保持不变。',
       'A series only organises rows; it never creates a second schedule, and moving a group keeps its inner order.'), box).className = 'plan-note';
@@ -170,7 +176,7 @@ export function renderPlanPage(options: PlanPageOptions): void {
       const group = document.createElement('details'); group.className = 'plan-series-group';
       const head = document.createElement('summary');
       head.textContent = `${series.name} · ${series.count}`;
-      group.append(head); box.append(group);
+      group.dataset.key=series.id;group.append(head); box.append(group);
       const members = plan.items.filter((item) => item.seriesId === series.id);
       for (const member of members) {
         const row = el('p', '', group); row.className = 'plan-series-member';
@@ -201,11 +207,18 @@ export function renderPlanPage(options: PlanPageOptions): void {
         await refresh();
       });
       const actions = el('div', '', group); actions.className = 'plan-actions';
-      if (members.length) {
+      if (members.length && !members.some(member=>member.active)) {
+        const moveGroup=async(to:number)=>{
+          const rest=plan.items.filter(item=>item.seriesId!==series.id);
+          const at=Math.max(plan.current?rest.findIndex(item=>item.active)+1:0,Math.min(rest.length,to-1));
+          const preview=[...rest.slice(0,at),...members,...rest.slice(at)];
+          if(!await confirm({title:say('确认整组移动后的顺序','Confirm the new reading order'),body:preview.map((item,index)=>`${index+1}. ${item.title}`).join('\n')}))return;
+          await write({action:'move_series',seriesId:series.id,to});
+        };
         const first = Math.min(...members.map((member) => member.position));
         const last = Math.max(...members.map((member) => member.position));
-        if (first > 1) act(say('整组上移', 'Move group up'), actions, async () => write({ action: 'move_series', seriesId: series.id, to: first - 1 }));
-        if (last < plan.total) act(say('整组下移', 'Move group down'), actions, async () => write({ action: 'move_series', seriesId: series.id, to: last + 1 }));
+        if (first > (plan.current?.position??0)+1) act(say('整组上移', 'Move group up'), actions, async () => moveGroup(first-1));
+        if (last < plan.total) act(say('整组下移', 'Move group down'), actions, async () => moveGroup(last+1));
       }
       act(say('解散分组', 'Ungroup'), actions, async () => {
         const ok = await confirm({ title: say('解散这个分组？', 'Ungroup this series?'),
@@ -223,7 +236,7 @@ export function renderPlanPage(options: PlanPageOptions): void {
    * proposal says so before it is adopted.
    */
   const renderSuggestions = (): void => {
-    const card = el('section', '', page); card.className = 'card plan-suggest';
+    const card = el('section', '', seriesManager); card.className = 'plan-suggest';
     el('h3', say('系列建议', 'Grouping proposals'), card);
     const box = el('div', '', card); box.className = 'plan-suggestions';
     const load = async (): Promise<void> => {
@@ -250,13 +263,24 @@ export function renderPlanPage(options: PlanPageOptions): void {
   const renderOrderBlock = (): void => {
     const list = el('section', '', page); list.className = 'card plan-order';
     el('h3', say('接下来读', 'Next to read'), list);
-    if (!plan.items.length) {
+    el('small',say('拖动调整顺序，也可在更多操作中上下移动。','Drag to reorder, or use Move up/down in More actions.'),list);
+    if (!plan.items.some(item=>!item.active)) {
       el('p', say('计划里还没有等待阅读的书。', 'No book is waiting in the plan.'), list);
       return;
     }
-    plan.items.forEach((item: PlanItem) => {
+    let dragged:string|null=null;
+    plan.items.filter(item=>!item.active).forEach((item: PlanItem) => {
       const card = el('article', '', list); card.className = 'plan-item' + (item.active ? ' is-active' : '');
+      card.dataset.itemId=item.id;
+      const grip=el('span','⋮⋮',card);grip.className='order-grip';grip.draggable=true;grip.title=say('拖动调整顺序','Drag to reorder');grip.setAttribute('aria-hidden','true');
+      grip.addEventListener('dragstart',event=>{dragged=item.id;event.dataTransfer?.setData('text/plain',item.id);if(event.dataTransfer)event.dataTransfer.effectAllowed='move';});
+      grip.addEventListener('dragend',()=>{dragged=null;list.querySelectorAll('.is-drop').forEach(node=>node.classList.remove('is-drop'));});
+      card.addEventListener('dragover',event=>{if(dragged&&dragged!==item.id){event.preventDefault();card.classList.add('is-drop');}});
+      card.addEventListener('dragleave',()=>card.classList.remove('is-drop'));
+      card.addEventListener('drop',event=>{event.preventDefault();card.classList.remove('is-drop');const id=dragged;dragged=null;if(id&&id!==item.id)void write({action:'move',itemId:id,to:item.position}).catch(report);});
       const head = el('div', '', card); head.className = 'plan-item-head';
+      const design=coverDesign({key:item.bookKey,title:item.title,author:item.author});
+      const cover=el('span','',card);cover.className='book-cover order-cover';cover.dataset.palette=String(design.palette);cover.setAttribute('aria-hidden','true');el('span',Array.from(item.title).slice(0,8).join(''),cover).className='cover-title';
       el('strong', `${item.position}. 《${item.title}》`, head);
       const deferred = item.notBefore !== undefined && item.notBefore > Date.now();
       if (item.active) el('span', say('正在读', 'Reading'), head).className = 'plan-badge is-active';
@@ -275,7 +299,10 @@ export function renderPlanPage(options: PlanPageOptions): void {
       // The book being read stays put: only an explicit stop can move it out.
       if (item.active) return;
 
-      const row = el('div', '', card); row.className = 'plan-actions';
+      const quick=el('div','',card);quick.className='order-quick';
+      act(say('设为下一本','Read next'),quick,async()=>write({action:'place',itemId:item.id,place:'next'}));
+      const more=el('details','',quick);more.className='order-more';more.dataset.key=item.id;el('summary','···',more).setAttribute('aria-label',say('书籍操作：','Book actions: ')+item.title);
+      const row = el('div', '', more); row.className = 'plan-actions';
       // Series membership is a per-row decision; creating one happens inline so
       // the user never has to leave the page to organise a playlist.
       const selector = document.createElement('select');
@@ -297,7 +324,7 @@ export function renderPlanPage(options: PlanPageOptions): void {
           }
           await invoke('plan_series', [{ action: 'assign', seriesId: selector.value || null, itemIds: [item.id] }]);
           await refresh();
-        })().catch(() => undefined);
+        })().catch(report);
       });
       row.append(selector);
       if (!item.present) el('small', say('原件已从书架删除，这一条不会再推进；可以移除它。', 'The revision is gone from the shelf, so this entry cannot advance. You can remove it.'), row).className = 'plan-note';
@@ -305,8 +332,7 @@ export function renderPlanPage(options: PlanPageOptions): void {
       // below that fixed head.
       const lockedHead = plan.current ? plan.current.position : 0;
       if (item.position > lockedHead + 1) act(say('上移一位', 'Move up'), row, async () => write({ action: 'move', itemId: item.id, to: item.position - 1 }));
-      act(say('置顶', 'Move to top'), row, async () => write({ action: 'place', itemId: item.id, place: 'top' }));
-      act(say('插到下一本', 'Insert next'), row, async () => write({ action: 'place', itemId: item.id, place: 'next' }));
+      if(item.position<plan.total)act(say('下移一位','Move down'),row,async()=>write({action:'move',itemId:item.id,to:item.position+1}));
       act(say('移到最后', 'Move to end'), row, async () => write({ action: 'place', itemId: item.id, place: 'bottom' }));
       act(say('暂时跳过', 'Skip for now'), row, async () => {
         const ok = await confirm({ title: say('暂时跳过这本？', 'Skip this book for now?'),
@@ -314,8 +340,8 @@ export function renderPlanPage(options: PlanPageOptions): void {
         if (!ok) return;
         await write({ action: 'remove', itemId: item.id, status: 'skipped', reason: 'skipped_in_panel' });
       });
-      act(say('移出计划', 'Remove from plan'), row, async () => {
-        const ok = await confirm({ title: say('把这本移出计划？', 'Remove this book from the plan?'), danger: true,
+      act(say('移出阅读顺序', 'Remove from plan'), row, async () => {
+        const ok = await confirm({ title: say('把这本移出阅读顺序？', 'Remove this book from the plan?'), danger: true,
           body: say('只改计划，不删除书架上的书，也不清空已经读过的进度。', 'This only changes the plan; the book and its progress stay.') });
         if (!ok) return;
         await write({ action: 'remove', itemId: item.id, status: 'removed', reason: 'removed_in_panel' });
@@ -323,16 +349,19 @@ export function renderPlanPage(options: PlanPageOptions): void {
     });
   };
 
-  renderSeriesBlock();
-  renderSuggestions();
   renderOrderBlock();
+  const seriesManager=el('details','');seriesManager.className='order-series-manager';seriesManager.dataset.key='series';el('summary',say('管理系列','Manage series'),seriesManager);
+  renderSeriesBlock();renderSuggestions();
+  page.append(historyDetails);
+  for(const node of page.querySelectorAll<HTMLDetailsElement>('details[data-key]'))node.open=expanded.has(node.dataset.key);
+  if(scroll!==undefined&&page.parentElement?.parentElement)page.parentElement.parentElement.scrollTop=scroll;
 
   const archive = plan.archive.slice(0, 10);
   if (!archive.length) return;
-  const box = document.createElement('details'); box.className = 'plan-archive';
-  const title = document.createElement('summary');
+  const box = document.createElement('div'); box.className = 'plan-archive';
+  const title = document.createElement('h4');
   title.textContent = say(`最近的计划变动（${archive.length} 条）`, `Recent plan changes (${archive.length})`);
-  box.append(title); page.append(box);
+  box.append(title); historyDetails.append(box);
   for (const entry of archive) {
     const row = el('div', '', box); row.className = 'plan-archive-row';
     const status = entry.status === 'completed' ? say('已读完', 'Finished') : entry.status === 'skipped' ? say('已跳过', 'Skipped') : say('已移除', 'Removed');

@@ -62,10 +62,16 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   const heading=old.querySelector('h2')!;heading.hidden=true;heading.textContent=say('🐟 看书吧！大肥鱼','🐟 Bookfish');
   const nav=document.createElement('nav');nav.hidden=true;nav.setAttribute('aria-label',say('阅读导航','Reading navigation'));heading.after(nav);
   const messages=old.querySelector('[role=status]') as HTMLElement;messages.className='messages';nav.after(messages);
-  const pages:Record<string,HTMLElement>={};for(const id of ['home','plan','shelf','trail','support','bookDetail','reader']){const el=document.createElement('section');el.dataset.page=id;old.append(el);pages[id]=el;}
+  const pages:Record<string,HTMLElement>={};for(const id of ['home','shelf','trail','support','bookDetail','reader']){const el=document.createElement('section');el.dataset.page=id;old.append(el);pages[id]=el;}
   function page(id:string){for(const[key,el]of Object.entries(pages))el.hidden=key!==id;for(const b of nav.querySelectorAll('button'))b.setAttribute('aria-current',(b.dataset.page===id||id==='bookDetail'&&b.dataset.page==='shelf')?'page':'false');if(id==='trail')footprint?.activate();else footprint?.deactivate();}
+  function navigate(id:'home'|'shelf'){
+    const base='#/provider/'+encodeURIComponent('world:bookfish');
+    const target=base+(id==='home'?'':'/shelf');
+    if(location.hash.startsWith(base)&&location.hash!==target)location.hash=target;
+    else page(id);
+  }
   const helpView=new HelpCenterView(ctx,say,()=>{});
-  const NAV:[string,string,string][]=[['home','正在读','Reading'],['shelf','书架','Bookshelf'],['plan','阅读计划','Plan'],['trail','阅读足迹','Journal'],['support','反馈','Support']];
+  const NAV:[string,string,string][]=[['home','正在读','Reading'],['shelf','书架','Bookshelf'],['trail','阅读足迹','Journal'],['support','反馈','Support']];
   for(const [id,label,english] of NAV){const b=document.createElement('button');b.textContent=en?english:label;b.dataset.page=id;b.onclick=()=>{if(id==='support')buildSupport();page(id);};nav.append(b);}
   function openHelpPanel(tab:'guide'|'updates'){
     try{sessionStorage.setItem('bookfish:help-tab',tab);}catch{}
@@ -113,8 +119,8 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   const articleDetail=articles.nextElementSibling as HTMLElement;
   const episodeDetail=old.querySelector('section[aria-label="'+say('感想与原文依据','Episode and evidence')+'"]') as HTMLElement;
   const controls=old.querySelector('[data-bookfish=controls]') as HTMLElement;
-  const recommend=el('section','',pages.shelf);recommend.className='card';recommend.id='bf-recommend-panel';recommend.hidden=true;recommend.setAttribute('aria-label',say('推荐一本书','Recommend a book'));
-  const recommendHead=el('div','',recommend);recommendHead.className='shelf-header';el('h3',say('推荐一本书','Recommend a book'),recommendHead);const closeRecommend=el('button',say('收起','Close'),recommendHead);closeRecommend.type='button';
+  const recommend=el('section','',pages.shelf);recommend.className='card';recommend.id='bf-recommend-panel';recommend.hidden=true;recommend.setAttribute('aria-label',say('推荐书籍','Recommend books'));
+  const recommendHead=el('div','',recommend);recommendHead.className='shelf-header';recommendHead.hidden=true;el('h3',say('推荐书籍','Recommend books'),recommendHead);const closeRecommend=el('button',say('收起','Close'),recommendHead);closeRecommend.type='button';
   el('p',say('选择导入方式，把小说交给她慢慢读。','Choose how to add a novel for her to read at her own pace.'),recommend);
   const methodPicker=el('div','',recommend);methodPicker.className='import-method';
   const methodLabel=el('label',say('导入方式','Import method'),methodPicker);
@@ -122,7 +128,7 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   for(const [value,label] of [['file',say('文件导入','Import a file')],['link',say('链接获取','Fetch from a link')],['title',say('书名或作者获取','Fetch by title or author')]] as Array<[string,string]>){const option=el('option',label,methodSelect);option.value=value;}
   methodLabel.append(methodSelect);
   const methodPanel=el('div','',recommend);methodPanel.className='import-method-panel';
-  const filePanel=el('div','',methodPanel);filePanel.append(importForm);
+  const filePanel=el('div','',methodPanel);importForm.hidden=true;filePanel.append(importForm);
   const linkPanel=el('div','',methodPanel);linkPanel.append(remoteForm);linkPanel.hidden=true;
   const importStatus=old.querySelector('[data-bookfish=import-status]');if(importStatus)pages.shelf.prepend(importStatus);
   pages.shelf.append(shelf);shelf.hidden=true;
@@ -149,7 +155,14 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   const novelSubmit=document.createElement('button');novelSubmit.type='submit';novelSubmit.className='primary';novelSubmit.textContent=say('搜索候选版本','Search versions');novelForm.append(novelSubmit);
   const novelProgress=document.createElement('progress');novelProgress.className='novel-search-progress';novelProgress.setAttribute('aria-label',say('搜索进度','Search progress'));novelProgress.hidden=true;novelForm.append(novelProgress);
   const novelProgressText=el('small','',novelForm);novelProgressText.hidden=true;
+  const methodTabs=el('div','',recommend);methodTabs.className='recommend-tabs';methodPicker.before(methodTabs);
+  const localTab=el('button',say('本地导入','Local files'),methodTabs);localTab.type='button';
+  const onlineTab=el('button',say('在线找书','Find online'),methodTabs);onlineTab.type='button';
+  localTab.onclick=()=>{methodSelect.value='file';selectImportMethod('file');};
+  onlineTab.onclick=()=>{methodSelect.value='title';selectImportMethod('title');};
   function selectImportMethod(method:string,focus=false){
+    methodPicker.hidden=method==='file';serial.hidden=method==='file';
+    localTab.setAttribute('aria-pressed',String(method==='file'));onlineTab.setAttribute('aria-pressed',String(method!=='file'));
     filePanel.hidden=method!=='file';linkPanel.hidden=method!=='link';novel.hidden=method!=='title';
     browserTxt.activate(method==='title'&&route.value==='browser',{title:novelTitleInput.value,author:novelAuthorInput.value});
     if(method==='title'&&route.value==='engine')void pollNovel();
@@ -159,7 +172,6 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
     else if(!novelGate.hidden)runtimeHost.querySelector<HTMLButtonElement>('button')?.focus();
     else novelTitleInput.focus();
   }
-  selectImportMethod('file');
   methodSelect.addEventListener('change',()=>selectImportMethod(methodSelect.value,true),{signal:ctx.signal});
   const novelNote=el('p','',novel);novelNote.setAttribute('role','status');novelNote.setAttribute('aria-live','polite');
   const novelResult=el('p','',novel);novelResult.className='novel-search-result';novelResult.setAttribute('role','status');novelResult.setAttribute('aria-live','polite');
@@ -195,6 +207,7 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
     return null;
   }
 
+  selectImportMethod('file');
   let novelPollTimer:ReturnType<typeof setTimeout>|undefined;const novelSeenComplete=new Set<string>();let novelRefreshPending=false;
   const novelStateLabel:Record<string,string>={queued:say('排队中','Queued'),fetching:say('正在获取','Fetching'),validating:say('正在校验','Validating'),complete:say('已加入书架','Added to shelf'),failed:say('获取失败','Failed'),cancelled:say('已取消','Cancelled')};
   const issueText:Record<string,string>={
@@ -395,14 +408,14 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
     el('p',say('已读 '+Math.ceil(data.book.confirmedChars/600)+' 页','Read '+Math.ceil(data.book.confirmedChars/600)+' pages')+(data.book.priorReadingSegments?say('（从「'+data.book.chapter+'」开始，此前在别处读过）',' (starts at “'+data.book.chapter+'”, read elsewhere before)'):''),detailInfo);
     const detailActions=el('div','',detailInfo);detailActions.className='detail-actions';
     button(detailActions,say('阅读正文','Read the novel'),async()=>{page('reader');await humanReader.open(key);}).className='primary';
-    if(state?.status.library.current?.key===key)button(detailActions,say('回到正在读','Back to reading'),async()=>page('home'));
-    if(!data.book.complete)button(detailActions,say('现在开始读这本','Start reading this book now'),async()=>{if(state?.status.library.current?.key!==key)await ctx.invoke('select',[key]);page('home');await requestReading(key);}).className='bf-start-reading';
+    if(state?.status.library.current?.key===key)button(detailActions,say('回到正在读','Back to reading'),async()=>navigate('home'));
+    if(!data.book.complete)button(detailActions,say('现在开始读这本','Start reading this book now'),async()=>{if(state?.status.library.current?.key!==key)await ctx.invoke('select',[key]);await requestReading(key);navigate('home');}).className='bf-start-reading';
     button(detailActions,say('查看阅读足迹','View reading journal'),async()=>{footprint?.selectScope(key);page('trail');});
     // Single-book plan membership lives here: the plan itself is edited on its
     // own page, so this is only "put it in the queue" / "it is already there".
     const planned=state?.plan?.items.find(item=>item.bookKey===key);
-    if(planned){const tag=el('small',say('已在阅读计划第 '+planned.position+' 位','Plan position '+planned.position),detailActions);tag.className='plan-badge';}
-    else if(!data.book.complete){const addPlan=button(detailActions,say('加入阅读计划','Add to the reading plan'),async()=>{await ctx.invoke('plan_add',[{bookKeys:[key]}]);await ctx.invoke('get',[]);await showBook(key);});addPlan.className='bf-add-plan';}
+    if(planned){const tag=el('small',say('已在阅读顺序第 '+planned.position+' 位','Plan position '+planned.position),detailActions);tag.className='plan-badge';button(detailActions,say('调整顺序','Adjust order'),async()=>openOrder());}
+    else if(!data.book.complete){const addPlan=button(detailActions,say('加入阅读顺序','Add to the reading plan'),async()=>{await ctx.invoke('plan_add',[{bookKeys:[key]}]);await refreshState();await showBook(key);ctx.ui.toast(say('已加入阅读顺序','Added to reading order'));});addPlan.className='bf-add-plan';}
     else{el('small',say('这本书已读完，不能再排进计划','This book is finished and cannot be queued again'),detailActions).className='plan-note';}
     const remove=el('button',say('移除这本书','Remove this book'),detailActions);remove.type='button';remove.className='danger';remove.dataset.action='remove-book';
     remove.addEventListener('click',()=>{void (async()=>{
@@ -495,15 +508,15 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   }
 
   function paintCover(parent:HTMLElement,book:LibraryPanelState['books'][number]){const design=coverDesign(book);parent.classList.add('book-cover');parent.dataset.palette=String(design.palette);parent.replaceChildren();const mark=document.createElement('span');mark.className='cover-mark';mark.textContent=design.mark;mark.setAttribute('aria-hidden','true');const copy=document.createElement('span');copy.className='cover-copy';const title=document.createElement('span');title.className='cover-title';title.textContent=design.title||say('未命名','Untitled');const rule=document.createElement('span');rule.className='cover-rule';rule.setAttribute('aria-hidden','true');const author=document.createElement('span');author.className='cover-author';author.textContent=design.author||say('作者未识别','Author unknown');copy.append(title,rule,author);const foot=document.createElement('span');foot.className='cover-foot';foot.textContent=design.sourceHost??(design.hasSource?say('网络书源','Online source'):say('本地导入','Local file'));parent.append(mark,copy,foot);}
-  const hero=el('div','',current);hero.className='reading-hero';current.prepend(hero);current.prepend(readingState);const heroCover=button(hero,say('查看当前书籍详情','View current book'),async()=>{if(state?.status.library.current)await showBook(state.status.library.current.key);});heroCover.className='cover-button';heroCover.setAttribute('aria-label',say('查看当前书籍详情','View current book'));const heroInfo=el('div','',hero);heroInfo.append(title,chapter,meter,meterLabel);const heroFooter=el('div','',heroInfo);heroFooter.className='hero-footer';heroFooter.append(pageText);const heroActions=el('div','',heroFooter);heroActions.className='hero-actions';const viewBookButton=button(heroActions,say('查看这本书 ↗','View this book ↗'),async()=>{if(state?.status.library.current)await showBook(state.status.library.current.key);});const emptyRecommend=button(heroActions,say('＋ 推荐一本书','＋ Recommend a book'),async()=>{page('shelf');addBook.click();});emptyRecommend.className='primary';emptyRecommend.hidden=true;heroActions.append(help);
+  const hero=el('div','',current);hero.className='reading-hero';current.prepend(hero);current.prepend(readingState);const heroCover=button(hero,say('查看当前书籍详情','View current book'),async()=>{if(state?.status.library.current)await showBook(state.status.library.current.key);});heroCover.className='cover-button';heroCover.setAttribute('aria-label',say('查看当前书籍详情','View current book'));const heroInfo=el('div','',hero);heroInfo.append(title,chapter,meter,meterLabel);const heroFooter=el('div','',heroInfo);heroFooter.className='hero-footer';heroFooter.append(pageText);const heroActions=el('div','',heroFooter);heroActions.className='hero-actions';const viewBookButton=button(heroActions,say('查看这本书 ↗','View this book ↗'),async()=>{if(state?.status.library.current)await showBook(state.status.library.current.key);});const emptyRecommend=button(heroActions,say('＋ 推荐书籍','＋ Recommend books'),async()=>{if(state?.books.length)navigate('shelf');else addBook.click();});emptyRecommend.className='primary';emptyRecommend.hidden=true;heroActions.append(help);
   let manualUiError='';
   async function requestReading(key:string){manualUiError='';readNow.disabled=true;readNotice.textContent=say('正在发送阅读请求…','Sending a reading request…');try{return await ctx.invoke('read_now',[key]);}catch(error){manualUiError=String(error).replace(/^(?:(?:WebUiInvokeError|Error):\s*)+/,'');readNotice.textContent=manualUiError;throw error;}}
   for(const b of controls.querySelectorAll('button'))if(b.textContent===say('暂停阅读','Pause')||b.textContent===say('继续阅读','Resume'))b.remove();
   const pauseReading=button(heroActions,say('暂停阅读','Pause reading'),async()=>{await ctx.invoke('pause',[true]);});
   const readActions=el('div','',current);hero.after(readActions);readActions.className='read-now';const readNow=button(readActions,say('继续读','Read a passage now'),async()=>{const key=state?.status.library.current?.key;if(key)await requestReading(key);});readNow.className='primary';heroActions.append(readNow,pauseReading);const readNotice=el('p','',readActions);readNotice.setAttribute('role','status');readNotice.setAttribute('aria-live','polite');const goalStatus=el('small','',readActions),restStatus=el('p','',readActions);restStatus.setAttribute('role','status');
   const shelfToolbar=el('div','',pages.shelf);shelfToolbar.className='shelf-toolbar';pages.shelf.prepend(shelfToolbar);const search=el('input','',shelfToolbar);search.type='search';search.placeholder=say('搜索书名或作者','Search title or author');search.setAttribute('aria-label',say('搜索书架','Search bookshelf'));const filter=el('select','',shelfToolbar);filter.setAttribute('aria-label',say('书架筛选','Filter bookshelf'));for(const[value,label]of [['all',say('全部','All')],['unfinished',say('未读完','Unfinished')],['finished',say('已读完','Finished')]]){const option=el('option',label,filter);option.value=value;}const sort=el('select','',shelfToolbar);sort.setAttribute('aria-label',say('书架排序','Sort bookshelf'));for(const[value,label]of [['added',say('最近入架','Recently added')],['title',say('书名排序','Title')]]){const option=el('option',label,sort);option.value=value;}
-  const coverGrid=el('div','',pages.shelf);coverGrid.className='cover-grid';recommend.after(coverGrid);
-  const addBook=el('button',say('＋ 推荐一本书','＋ Recommend a book'),shelfToolbar);addBook.type='button';addBook.className='primary';addBook.setAttribute('aria-controls',recommend.id);addBook.setAttribute('aria-expanded','false');
+  const coverGrid=el('div','',pages.shelf);coverGrid.className='cover-grid';
+  const addBook=el('button',say('＋ 推荐书籍','＋ Recommend books'),shelfToolbar);addBook.type='button';addBook.className='primary';addBook.setAttribute('aria-controls',recommend.id);addBook.setAttribute('aria-expanded','false');
   const selectionPanel=el('section','',pages.shelf);selectionPanel.className='selection-panel';selectionPanel.hidden=true;coverGrid.after(selectionPanel);const selectionNotice=el('p','',current);selectionNotice.className='selection-notice';selectionNotice.hidden=true;readingState.after(selectionNotice);
   const selectionStateLabel:Record<string,string>={proposed:say('准备找书','Preparing'),searching:say('正在找','Searching'),awaiting_choice:say('等你选版本','Awaiting a version choice'),acquiring:say('正在获取并校验','Acquiring and verifying'),fulfilled:say('已入架，排队中','Shelved and queued'),reading:say('自选书在读','Reading her pick'),completed:say('自选书已读完','Her pick is finished'),deferred:say('已暂停','Paused'),failed:say('这本没成功','This work failed'),cancelled:say('已取消','Cancelled'),abandoned:say('已放弃','Abandoned')};
   function selectionCard(intent:NonNullable<LibraryPanelState['selection']>['intents'][number],parent:HTMLElement=selectionPanel):HTMLElement{const card=el('article','',parent);card.className='selection-intent';const head=el('div','',card);head.className='selection-head';el('strong','《'+intent.title+'》'+(intent.author?' · '+intent.author:''),head);el('span',selectionStateLabel[intent.status]??intent.status,head).className='selection-badge';el('blockquote',intent.reason,card);if(intent.source)el('small',say('来源：','Source: ')+intent.source,card);if(intent.task){const bar=el('progress','',card);bar.max=100;bar.value=intent.task.percent;bar.setAttribute('aria-label',say('获取进度','Acquisition progress'));el('small',intent.task.stage+' · '+intent.task.downloaded+'/'+intent.task.total+(intent.task.warningCount?say(' · '+intent.task.warningCount+' 条警告',' · '+intent.task.warningCount+' warnings'):''),card);if(intent.task.error)el('small',intent.task.error,card).className='selection-error';}if(intent.failure)el('small',intent.failure.message,card).className='selection-error';
@@ -514,28 +527,55 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   function renderSelection(){if(!state)return;const selection=state.selection;const signature=JSON.stringify(selection);if(signature===selectionSignature)return;selectionSignature=signature;
     const activeIntents=selection?.intents.filter(intent=>!['failed','abandoned','cancelled'].includes(intent.status))??[];
     const pastIntents=selection?.intents.filter(intent=>['failed','abandoned','cancelled'].includes(intent.status))??[];
-    selectionPanel.hidden=!selection||(!activeIntents.length&&!pastIntents.length&&!selection.queue.length&&!selection.notice);selectionPanel.replaceChildren();if(!selection)return;
+    selectionPanel.hidden=!selection||(!activeIntents.length&&!pastIntents.length&&!selection.notice);selectionPanel.replaceChildren();if(!selection)return;
     el('h3',say('她想读的','She wants to read'),selectionPanel);
     if(selection.commitment)el('p',say('自选书《'+selection.commitment.title+'》还没读完，暂不找下一本；排队、暂停、临时切书和重启都不解除。','Her pick “'+selection.commitment.title+'” is unfinished, so she will not look for another yet. Queuing, pausing, switching books or restarting do not release this gate.'),selectionPanel).className='selection-gate';
     else if(selection.notice&&!selection.commitment)el('p',selection.notice,selectionPanel).className='selection-gate';
     if(selection.round&&(selection.round.status==='open'||selection.round.status==='paused'))el('small',say('本轮已尝试 ','Tried this round: ')+selection.round.attempts+'/3'+(selection.round.status==='paused'?say(' · 因全局原因暂停',' · paused for a global reason'):''),selectionPanel);
     for(const intent of activeIntents)selectionCard(intent);
     if(pastIntents.length){const history=document.createElement('details');history.className='selection-history';const summary=el('summary',say('未成功的想读记录（','Unsuccessful reading wishes (')+pastIntents.length+'）',history);summary.setAttribute('aria-label',say('展开查看未成功的想读记录','Show unsuccessful reading wishes'));selectionPanel.append(history);for(const intent of pastIntents)selectionCard(intent,history);}
-    if(selection.queue.length){el('h3',say('接下来读','Next to read'),selectionPanel);for(const item of selection.queue){const card=el('article','',selectionPanel);card.className='selection-queue';const head=el('div','',card);head.className='selection-head';el('strong','《'+item.title+'》',head);el('span',item.status==='active'?say('正在读','Reading'):item.status==='done'?say('已完成','Done'):item.status==='cancelled'?say('已移出','Removed'):say('排队中','Queued'),head).className='selection-badge';if(item.notBefore)el('small',say('最早安排：','Not before: ')+new Date(item.notBefore).toLocaleString(),card);if(item.bookExists&&item.status==='queued')button(card,say('现在切换到这本','Switch to this book'),async()=>ctx.invoke('select',[item.bookKey]));if(item.bookExists&&item.status==='queued'&&!item.bookComplete)button(card,say('放弃这本自选书','Abandon this pick'),async()=>{const intent=selection.intents.find(entry=>entry.bookKey===item.bookKey);if(!intent)return;if(!await ctx.ui.confirm({title:say('放弃这本自选书？','Abandon this self-selected book?'),body:say('只会结束承诺，不删除书或进度。','This only ends the promise; the book and progress stay.'),danger:true}))return;await ctx.invoke('selection_abandon',[intent.id]);});}}
-    if(!activeIntents.length&&!pastIntents.length&&!selection.queue.length)el('p',say('她还没有自己提出想读的书。开启“让她自己找书（实验功能）”后，她会在合适的时候提出。','She has not proposed a book yet. Enable “Let her find her own books (Experimental)” and she may propose one when appropriate.'),selectionPanel);}
+    if(!activeIntents.length&&!pastIntents.length)el('p',say('她还没有自己提出想读的书。开启“让她自己找书（实验功能）”后，她会在合适的时候提出。','She has not proposed a book yet. Enable “Let her find her own books (Experimental)” and she may propose one when appropriate.'),selectionPanel);}
   let selectionSignature='';
   let planSignature='';
-  // The plan page is rebuilt only when the plan itself changed, so polling never
-  // steals focus from the reorder buttons.
-  function renderPlan(){if(!state)return;const plan=state.plan;if(!plan){pages.plan.replaceChildren();planSignature='';return;}const signature=JSON.stringify(plan);if(signature===planSignature)return;planSignature=signature;
-    renderPlanPage({page:pages.plan,say,state,invoke:<T,>(method:string,args?:unknown[])=>ctx.invoke<T>(method,args),
-      confirm:options=>ctx.ui.confirm(options),refresh:async()=>{state=await ctx.invoke<LibraryPanelState>('get',[]);await update?.();}});}
-  addBook.addEventListener('click',()=>{recommend.hidden=false;addBook.setAttribute('aria-expanded','true');methodSelect.value='file';selectImportMethod('file',true);recommend.scrollIntoView?.({block:'nearest'});},{signal:ctx.signal});closeRecommend.addEventListener('click',()=>{recommend.hidden=true;addBook.setAttribute('aria-expanded','false');addBook.focus();},{signal:ctx.signal});
+  let planDrawer:{dispose():void}|undefined, recommendDrawer:{dispose():void}|undefined;
+  const planBody=document.createElement('section');planBody.className='bf bf-order-drawer';
+  const planCss=document.createElement('style');planCss.textContent=style;planBody.append(planCss);
+  const planContent=document.createElement('div');planContent.dataset.role='reading-order';planBody.append(planContent);
+  const orderButton=el('button','',heroActions);orderButton.type='button';orderButton.className='reading-order-entry';
+  orderButton.addEventListener('click',()=>openOrder(),{signal:ctx.signal});
+  function openOrder(){recommendDrawer?.dispose();planDrawer?.dispose();renderPlan();planDrawer=ctx.ui.drawer(say('阅读顺序','Reading order'),planBody);}
+  function renderPlan(){if(!state)return;const plan=state.plan;
+    const waiting=plan?.items.filter(item=>!item.active).length??0;
+    orderButton.textContent=waiting?say('阅读顺序 · 后续 '+waiting+' 本','Reading order · '+waiting+' next'):say('安排接下来读什么','Choose what comes next');
+    if(!plan)return;const signature=JSON.stringify(plan);if(signature===planSignature)return;planSignature=signature;
+    renderPlanPage({page:planContent,say,state,invoke:<T,>(method:string,args?:unknown[])=>ctx.invoke<T>(method,args),
+      confirm:options=>ctx.ui.confirm(options),onAdd:()=>{planDrawer?.dispose();navigate('shelf');messages.textContent=say('打开一本书，将它加入阅读顺序。','Open a book and add it to the reading order.');},
+      refresh:refreshState});}
+  async function refreshState(){const sequence=++getRevision;const fresh=await ctx.invoke<LibraryPanelState>('get',[]);if(disposed||ctx.signal.aborted||sequence!==getRevision)return;state=fresh;await update?.();}
+  const recommendBody=document.createElement('section');recommendBody.className='bf bf-recommend-drawer';
+  const recommendCss=document.createElement('style');recommendCss.textContent=style;recommendBody.append(recommendCss);
+  recommendBody.append(recommend);recommend.className='recommend-content';recommendBody.hidden=true;root.append(recommendBody);
+  function openRecommend(history=false){
+    planDrawer?.dispose();recommendDrawer?.dispose();recommendBody.hidden=false;recommend.hidden=false;addBook.setAttribute('aria-expanded','true');
+    methodSelect.value='file';selectImportMethod('file');batchImport.showHistory(history);
+    recommendDrawer=ctx.ui.drawer(say(history?'导入记录':'推荐书籍',history?'Import history':'Recommend books'),recommendBody);
+  }
+  addBook.addEventListener('click',()=>openRecommend(),{signal:ctx.signal});
+  closeRecommend.addEventListener('click',()=>{recommendDrawer?.dispose();addBook.setAttribute('aria-expanded','false');addBook.focus();},{signal:ctx.signal});
+  const importHistory=el('button',say('导入记录','Import history'),shelfToolbar);importHistory.type='button';addBook.before(importHistory);
+  importHistory.addEventListener('click',()=>openRecommend(true),{signal:ctx.signal});
+  const batchNotice=el('button','',pages.shelf);batchNotice.type='button';batchNotice.className='batch-notice';batchNotice.hidden=true;shelfToolbar.after(batchNotice);
+  batchNotice.addEventListener('click',()=>openRecommend(true),{signal:ctx.signal});
+  const batchImport=mountBatchImport(ctx,say,{
+    onChange:async(summaries)=>{
+      const running=summaries.filter(row=>row.status==='running');
+      batchNotice.hidden=!running.length;
+      batchNotice.textContent=say('正在导入 '+running.reduce((n,row)=>n+row.completed,0)+'/'+running.reduce((n,row)=>n+row.total,0)+' 本 · 查看详情','Importing '+running.reduce((n,row)=>n+row.completed,0)+'/'+running.reduce((n,row)=>n+row.total,0)+' · View details');
+      await refreshState();
+    },
+    onOrder:()=>openOrder(),onDone:()=>{recommendDrawer?.dispose();navigate('shelf');}
+  });filePanel.append(batchImport.root);
   pages.shelf.append(advanced);
-  const batchImport=mountBatchImport(ctx,say);batchImport.root.hidden=true;
-  const batchDetails=document.createElement('details');batchDetails.className='bf-batch-host';
-  const batchSummary=document.createElement('summary');batchSummary.textContent=say('批量导入（多本 / 文件夹 / ZIP）','Batch import (files / folder / ZIP)');
-  batchDetails.append(batchSummary,batchImport.root);pages.shelf.append(batchDetails);
   let shelfSignature='';
   function renderShelf(){if(!state)return;const signature=JSON.stringify([state.books,state.status.library.current?.key,search.value,filter.value,sort.value]);if(signature===shelfSignature)return;shelfSignature=signature;coverGrid.replaceChildren();const q=search.value.trim().toLocaleLowerCase();const books=[...state.books].reverse().filter(b=>(!q||(b.title+' '+b.author).toLocaleLowerCase().includes(q))&&(filter.value==='all'||(filter.value==='finished'?b.complete:!b.complete)));if(sort.value==='title')books.sort((a,b)=>a.title.localeCompare(b.title,en?undefined:'zh-Hans-CN',{numeric:true,sensitivity:'base'})||a.key.localeCompare(b.key));for(const b of books){const card=el('article','',coverGrid);const open=button(card,say('查看这本书：','View book: ')+b.title,async()=>showBook(b.key));open.className='cover-button';open.setAttribute('aria-label',say('查看这本书：','View book: ')+b.title);open.textContent='';const cover=el('span','',open);paintCover(cover,b);el('strong',b.title,card);el('small',b.key===state.status.library.current?.key?say('正在读','Reading'):b.serial?(b.readiness==='caught_up'?say('已追平','Caught up'):b.readiness==='waiting_content'?say('等待正文','Waiting for text'):b.readiness==='conflict'?say('目录冲突','Catalog conflict'):b.readiness==='finished'?say('已完结','Finished'):say('连载中','Serial')):b.complete?say('已读完','Finished'):b.priorReadingSegments&&!b.confirmedChars?say('从中途开始','Started mid-book'):b.confirmedChars?say('读过一些','Started'):say('未开始','Not started'),card);const more=details(card,'⋯');button(more,say('书籍详情与管理','Book details and management'),async()=>showBook(b.key));}if(!books.length)el('p',say('没有符合条件的书。','No matching books.'),coverGrid);}
   search.addEventListener('input',renderShelf,{signal:ctx.signal});filter.addEventListener('change',renderShelf,{signal:ctx.signal});sort.addEventListener('change',renderShelf,{signal:ctx.signal});
@@ -543,7 +583,8 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   update=async()=>{if(!state||disposed||ctx.signal.aborted)return;const c=state.status.library.current;const empty=!c;hero.classList.toggle('is-empty',empty);viewBookButton.hidden=empty;emptyRecommend.hidden=!empty;readActions.hidden=empty;readNow.hidden=empty;pauseReading.hidden=empty;reviews.hidden=empty;log.hidden=empty;renderShelf();renderSelection();renderPlan();renderNovelTasks(state.novel);const selection=state.selection;selectionNotice.hidden=!selection?.notice;selectionNotice.textContent=selection?.notice??'';if(state.novel.tasks.some(task=>['queued','fetching','validating'].includes(task.state)))startNovelPoll();heroCover.replaceChildren();if(c){const cover=el('span','',heroCover);paintCover(cover,c);}heroCover.hidden=!c;
     const messagesForEpisode=state.discussions.filter(d=>d.episodeId===discussionEpisode);const latest=messagesForEpisode.at(-1);if(latest?.delivery==='spoken'&&latest.segments.length)context.textContent=say('大肥鱼在桌面上回了你，记录同步在这里。','She replied on the desktop; the transcript is mirrored here.');else if(latest?.delivery==='unavailable'&&latest.segments.length)context.textContent=say('大肥鱼只说了一部分，已经说出的句子和中断原因都记录在这里。','Only part of the reply was spoken; the spoken lines and the interruption are recorded here.');else if(latest?.delivery==='unavailable')context.textContent=say('这次桌宠没有说出来，扩展里只记录原因。','This reply was not spoken on the desktop; only the reason is recorded here.');else if(latest?.segments.length)context.textContent=say('大肥鱼正在桌面上说，已经说出的句子会同步到这里。','She is speaking on the desktop; each spoken line appears here.');const replySignature=JSON.stringify(messagesForEpisode);if(replySignature!==conversationSignature){conversationSignature=replySignature;conversation.replaceChildren();for(const item of messagesForEpisode){const you=el('p','你：'+item.question,conversation);you.className='chat-line you';if(item.segments.length){for(const segment of item.segments){const line=el('p','🐟：'+segment,conversation);line.className='chat-line pet'+(item.delivery===null?' pending':'');}}if(item.delivery==='unavailable'){const line=el('p','🐟：'+(item.reason?say('没有说出来：','Not spoken: ')+item.reason:say('桌宠输出不可用，这次没有说出来。','Desktop output was unavailable; nothing was spoken.')),conversation);line.className='chat-line pet unavailable';}else if(!item.segments.length){const line=el('p',item.expired?say('🐟：这次请求已过期，请重新提问。','🐟 Request expired; ask again.'):say('🐟：正在想……','🐟 Thinking…'),conversation);line.className='chat-line pet';}}}
     const booksSignature=JSON.stringify([state.books.map(b=>[b.key,b.title]),c?.key]);if(booksSignature!==trailSignature){trailSignature=booksSignature;trailChoice.replaceChildren();for(const book of state.books){const option=el('option',book.title,trailChoice);option.value=book.key;}trailKey=c?.key;trailChoice.value=trailKey??'';notebook.hidden=false;episodeDetail.hidden=false;searchForm.hidden=false;otherTrail.hidden=true;}
-    title.textContent=c?c.title+(c.author?' · '+c.author:''):say('送她一本书吧','Recommend a book');chapter.textContent=c?.chapter??say('书架还是空的。点下面的按钮，选择文件、链接或书名/作者，把第一本小说交给她。','The shelf is empty. Use the button below to add a file, a link, or fetch by title/author.');meter.hidden=!c;if(c)meter.value=c.source?c.chapterProgress:c.progress;meterLabel.textContent=c?.source?say('本章已读 '+Math.round(c.chapterProgress*100)+'%','Chapter '+Math.round(c.chapterProgress*100)+'%'):'';
+    emptyRecommend.textContent=state.books.length?say('去书架选一本','Choose from bookshelf'):say('＋ 推荐书籍','＋ Recommend books');
+    title.textContent=c?c.title+(c.author?' · '+c.author:''):state.books.length?say('挑一本开始读吧','Choose a book to begin'):say('送她一本书吧','Recommend books');chapter.textContent=c?.chapter??(state.books.length?say('书已经在书架上了，选一本交给她开始读。也可以先安排后续阅读顺序。','Choose a shelved book to start, or arrange the reading order first.'):say('书架还是空的。点下面的按钮，选择文件、链接或书名/作者，把第一本小说交给她。','The shelf is empty. Use the button below to add a file, a link, or fetch by title/author.'));meter.hidden=!c;if(c)meter.value=c.source?c.chapterProgress:c.progress;meterLabel.textContent=c?.source?say('本章已读 '+Math.round(c.chapterProgress*100)+'%','Chapter '+Math.round(c.chapterProgress*100)+'%'):'';
     const known=c&&(!c.source||c.source.cachedChapters===c.source.totalChapters&&c.source.publicationStatus==='finished');pageText.textContent=c?((c.priorReadingSegments&&c.positionChars>c.confirmedChars?say('已到 ','Reached '):say('已读 ','Read '))+Math.ceil((c.priorReadingSegments&&c.positionChars>c.confirmedChars?c.positionChars:c.confirmedChars)/600)+say(' 页',' pages')+(known?' / '+Math.ceil(c.totalChars/600)+say(' 页',' pages'):say(' · 正文未完整获取，无法计算总页数',' · Total pages unknown'))):'';pageText.hidden=!c;
     zone.textContent=say('现实确认时间 · 最新在上 · ','Confirmation time · Newest first · ')+state.status.sharing.timezone;
     for(const b of controls.querySelectorAll('button')){if(b.textContent===say('结束休息','End rest'))b.hidden=state.status.scheduler.reason!=='resting';else b.hidden=!c;}
@@ -593,7 +634,7 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   };
   void helpView.prime(true).then(result=>{if(result.announcement)showAnnouncement(result.announcement);});
   const initialPanel=ctx.panelId==='shelf'?'shelf':ctx.panelId==='trail'?'trail':ctx.panelId==='support'?'support':'home';if(initialPanel==='support')buildSupport();page(initialPanel);await update();
-  return {dispose(){disposed=true;batchImport.dispose();footprint?.dispose();helpView.dispose();if(novelPollTimer!==undefined){clearTimeout(novelPollTimer);novelPollTimer=undefined;}handle.dispose();}};
+  return {dispose(){disposed=true;planDrawer?.dispose();recommendDrawer?.dispose();batchImport.dispose();footprint?.dispose();helpView.dispose();if(novelPollTimer!==undefined){clearTimeout(novelPollTimer);novelPollTimer=undefined;}handle.dispose();}};
 } } satisfies WebUiClientBundle['panels'][string];
 
 const helpPanel={ async mount(ctx:WebUiPanelContext){
@@ -618,4 +659,4 @@ const helpPanel={ async mount(ctx:WebUiPanelContext){
   return {dispose(){view.dispose();root.remove();}};
 } };
 
-export default {panels:{status:readingPanel,shelf:readingPanel,plan:readingPanel,trail:readingPanel,support:supportPanel,settings:settingsPanel,help:helpPanel}} satisfies WebUiClientBundle;
+export default {panels:{status:readingPanel,shelf:readingPanel,trail:readingPanel,support:supportPanel,settings:settingsPanel,help:helpPanel}} satisfies WebUiClientBundle;

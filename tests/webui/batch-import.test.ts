@@ -32,7 +32,7 @@ async function mount() {
   const ctx = { root, panelId: 'shelf', language: 'zh', signal: controller.signal,
     invoke: async (method: string, args: unknown[]) => world.webUi!('zh').invoke!('shelf', method, args),
     setConfig: async () => 'Saved', interval: () => {}, timeout: () => {}, own: () => {},
-    ui: { confirm: async () => true, toast: () => ({ dispose() {} }) },
+    ui: { drawer: (_title:string, body:HTMLElement) => { root.append(body); return {dispose(){body.remove();}}; }, confirm: async () => true, toast: () => ({ dispose() {} }) },
   } as unknown as WebUiPanelContext;
   const handle = await bundle.panels.shelf.mount(ctx);
   dispose = () => handle.dispose();
@@ -86,20 +86,22 @@ describe('shelf batch import panel', () => {
     const root = await mount();
     const batch = root.querySelector('.bf-batch') as HTMLElement;
     expect(batch).toBeTruthy();
-    expect(batch.textContent).toContain('批量导入');
+    expect(batch.textContent).toContain('本地导入');
     attach(picker(root, 'files'), [novel('甲'), novel('乙')]);
-    await waitFor(() => batch.textContent!.includes('开始导入'), 'batch preview');
+    await waitFor(() => batch.textContent!.includes('导入所选'), 'batch preview');
     expect(batch.textContent).toContain('共 2 本');
     expect(batch.textContent).toContain('《甲》');
     // Importing has not started, so the shelf is still empty.
     expect((await world.webUi!('zh').invoke!('shelf', 'get', []) as { books: unknown[] }).books).toHaveLength(0);
 
-    [...batch.querySelectorAll('button')].find((node) => node.textContent === '开始导入')!.click();
-    await waitFor(() => batch.textContent!.includes('加入阅读计划'), 'batch completion', 60_000);
+    [...batch.querySelectorAll('button')].find((node) => node.textContent?.startsWith('导入所选'))!.click();
+    await waitFor(() => batch.textContent!.includes('加入阅读顺序'), 'batch completion', 60_000);
     expect((await world.webUi!('zh').invoke!('shelf', 'get', []) as { books: unknown[] }).books).toHaveLength(2);
     expect((await world.webUi!('zh').invoke!('shelf', 'get', []) as { plan: { total: number } }).plan.total).toBe(0);
 
-    [...batch.querySelectorAll('button')].find((node) => node.textContent === '加入阅读计划')!.click();
+    [...batch.querySelectorAll('button')].find((node) => node.textContent === '选择书籍加入阅读顺序')!.click();
+    for(const check of batch.querySelectorAll<HTMLInputElement>('.batch-item input[type=checkbox]')){check.checked=true;check.dispatchEvent(new Event('change'));}
+    [...batch.querySelectorAll('button')].find(node=>node.textContent?.startsWith('加入阅读顺序（'))!.click();
     await waitFor(() => batch.textContent!.includes('再导一批'), 'plan hand-off');
     await settle(120);
     expect((await world.webUi!('zh').invoke!('shelf', 'get', []) as { plan: { total: number } }).plan.total).toBe(2);
@@ -113,7 +115,7 @@ describe('shelf batch import panel', () => {
     const second = new File(['# 二\n' + '海浪。'.repeat(200)], '2.txt', { type: 'text/plain' });
     Object.defineProperty(second, 'webkitRelativePath', { value: '长篇小说/2.txt', configurable: true });
     attach(picker(root, 'folder'), [first, second]);
-    await waitFor(() => batch.textContent!.includes('开始导入'), 'folder preview');
+    await waitFor(() => batch.textContent!.includes('导入所选'), 'folder preview');
     expect(batch.textContent).toContain('长篇小说');
     expect(batch.textContent).toContain('也可能是一本书拆开的多份');
     expect((await world.webUi!('zh').invoke!('shelf', 'get', []) as { plan: { total: number } }).plan.total).toBe(0);
@@ -123,7 +125,7 @@ describe('shelf batch import panel', () => {
     const root = await mount();
     const batch = root.querySelector('.bf-batch') as HTMLElement;
     attach(picker(root, 'files'), [novel('甲'), new File(['x'], '封面.jpg', { type: 'image/jpeg' })]);
-    await waitFor(() => batch.textContent!.includes('开始导入'), 'mixed preview');
+    await waitFor(() => batch.textContent!.includes('导入所选'), 'mixed preview');
     expect(batch.textContent).toContain('共 1 本');
     // v1.5: the refusal is in the persisted report, not a transient error line.
     // It is visible while the batch is STILL A PREVIEW, which is when the user
@@ -138,13 +140,13 @@ describe('recovery, cancellation and reselect from the panel', () => {
     const root = await mount();
     const batch = root.querySelector('.bf-batch') as HTMLElement;
     attach(picker(root, 'files'), [novel('甲'), novel('乙')]);
-    await waitFor(() => batch.textContent!.includes('开始导入'), 'preview');
-    [...batch.querySelectorAll('button')].find((node) => node.textContent === '开始导入')!.click();
+    await waitFor(() => batch.textContent!.includes('导入所选'), 'preview');
+    [...batch.querySelectorAll('button')].find((node) => node.textContent?.startsWith('导入所选'))!.click();
     await settle(120);
     const cancel = [...batch.querySelectorAll('button')].find((node) => node.textContent === '取消这本');
     expect(cancel).toBeTruthy();
     cancel!.click();
-    await waitFor(() => batch.textContent!.includes('加入阅读计划'), 'batch settles', 60_000);
+    await waitFor(() => batch.textContent!.includes('加入阅读顺序'), 'batch settles', 60_000);
     const rows = world.webUi!('zh').invoke!('shelf', 'get', []) as Promise<{ importBatches: { items: { status: string }[] }[] }>;
     const statuses = (await rows).importBatches[0].items.map((item) => item.status).sort();
     expect(statuses).toEqual(['cancelled', 'completed']);
@@ -165,7 +167,7 @@ describe('recovery, cancellation and reselect from the panel', () => {
     const open = [...batch.querySelectorAll('button')].find((node) => node.textContent!.includes('待续'));
     expect(open).toBeTruthy();
     open!.click();
-    await waitFor(() => batch.textContent!.includes('开始导入'), 'reopened batch');
+    await waitFor(() => batch.textContent!.includes('导入所选'), 'reopened batch');
     expect(batch.textContent).toContain('《待续》');
   });
 
@@ -210,9 +212,9 @@ describe('recovery, cancellation and reselect from the panel', () => {
     const root = await mount();
     const batch = root.querySelector('.bf-batch') as HTMLElement;
     attach(picker(root, 'files'), [novel('甲')]);
-    await waitFor(() => batch.textContent!.includes('开始导入'), 'preview');
-    [...batch.querySelectorAll('button')].find((node) => node.textContent === '开始导入')!.click();
-    await waitFor(() => batch.textContent!.includes('加入阅读计划'), 'completion', 60_000);
+    await waitFor(() => batch.textContent!.includes('导入所选'), 'preview');
+    [...batch.querySelectorAll('button')].find((node) => node.textContent?.startsWith('导入所选'))!.click();
+    await waitFor(() => batch.textContent!.includes('加入阅读顺序'), 'completion', 60_000);
     const forget = [...batch.querySelectorAll('button')].find((node) => node.textContent === '清理记录');
     expect(forget).toBeTruthy();
     forget!.click();
@@ -298,8 +300,8 @@ describe('an interrupted archive can be picked again from the panel', () => {
     // Two picks with the same name: the server keeps one and files the other as a
     // duplicate. That rejection has to be visible, not swallowed.
     attach(picker(root, 'files'), [novel('甲'), novel('甲'), new File(['x'], '封面.jpg', { type: 'image/jpeg' })]);
-    await waitFor(() => batch.textContent!.includes('开始导入'), 'preview');
-    [...batch.querySelectorAll('button')].find((node) => node.textContent === '开始导入')!.click();
+    await waitFor(() => batch.textContent!.includes('导入所选'), 'preview');
+    [...batch.querySelectorAll('button')].find((node) => node.textContent?.startsWith('导入所选'))!.click();
     await waitFor(() => batch.textContent!.includes('本次结果'), 'result report');
     const text = batch.textContent!;
     expect(text).toContain('未进入本批');
@@ -342,4 +344,22 @@ describe('an interrupted archive can be picked again from the panel', () => {
     expect(status[0]?.total).toBe(0);
     expect(status[0]?.completed).toBe(0);
   });
+});
+
+
+it('imports only checked preview rows and offers a separate empty selection for the reading order',async()=>{
+  const root=await mount();const batch=root.querySelector<HTMLElement>('.bf-batch')!;
+  attach(picker(root,'files'),[novel('甲'),novel('乙'),novel('丙')]);
+  await waitFor(()=>batch.textContent!.includes('导入所选 3 本'),'preview');
+  const check=batch.querySelector<HTMLInputElement>('input[aria-label="选择：乙"]')!;
+  check.checked=false;check.dispatchEvent(new Event('change'));
+  [...batch.querySelectorAll('button')].find(node=>node.textContent==='导入所选 2 本')!.click();
+  await waitFor(()=>batch.textContent!.includes('选择书籍加入阅读顺序'),'completion');
+  const before=await world.webUi!('zh').invoke!('shelf','get',[]) as {books:{title:string}[];plan:{total:number}};
+  expect(before.books.map(row=>row.title).sort()).toEqual(['丙','甲']);expect(before.plan.total).toBe(0);
+  [...batch.querySelectorAll('button')].find(node=>node.textContent==='选择书籍加入阅读顺序')!.click();
+  expect([...batch.querySelectorAll('button')].find(node=>node.textContent==='加入阅读顺序（0 本）')!.disabled).toBe(true);
+  const one=batch.querySelector<HTMLInputElement>('input[aria-label="选择：甲"]')!;one.checked=true;one.dispatchEvent(new Event('change'));
+  [...batch.querySelectorAll('button')].find(node=>node.textContent==='加入阅读顺序（1 本）')!.click();
+  await waitFor(async()=>((await world.webUi!('zh').invoke!('shelf','get',[])) as {plan:{total:number}}).plan.total===1,'selected hand-off');
 });

@@ -10,7 +10,12 @@ import type { WebUiPanelContext } from 'cortico/web/shared/client-panel.ts';
 import type { ImportBatch, ImportBatchSummary, ImportBatchView } from './batch-types.ts';
 import { fileSha256Hex } from './sha256.ts';
 
-export interface BatchImportHandle { root: HTMLElement; dispose(): void }
+export interface BatchImportHandle { root: HTMLElement; showHistory(show: boolean):void; dispose(): void }
+interface BatchImportOptions {
+  onChange?(summaries:ImportBatchSummary[]):Promise<void>;
+  onOrder?():void;
+  onDone?():void;
+}
 
 const ZIP = /\.zip$/iu;
 
@@ -48,9 +53,11 @@ interface State {
   reselectZipToken: string | null;
 }
 
-export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportHandle {
+export function mountBatchImport(ctx: WebUiPanelContext, say: Say, options:BatchImportOptions = {}): BatchImportHandle {
   const state: State = { batch: null, view: null, summaries: [], busy: null, error: null, reselectItemId: null, reselectZipId: null, expectedZipSha256: null, reselectZipToken: null };
   let disposed = false;
+  let showingHistory=false, choosingPlan=false, selectionBatch='';
+  const excluded=new Set<string>(), planSelected=new Set<string>(), groupSelected=new Set<string>();
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const root = document.createElement('section'); root.className = 'bf-batch';
@@ -95,8 +102,8 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
     })();
   }
 
-  el('h3', say('批量导入', 'Batch import'));
-  el('p', say('可以一次选多本，也可以选整个文件夹或一个 ZIP。先看清单再决定导入，导入完再决定要不要加进阅读计划。',
+  el('h3', say('本地导入', 'Local import'));
+  el('p', say('可以一次选多本，也可以选整个文件夹或一个 ZIP。先看清单再决定导入，导入完再决定要不要加进阅读顺序。',
     'Pick several books, a whole folder, or one ZIP. Review the list first, then import, then decide whether to add them to the plan.')).className = 'batch-lead';
 
   const fileInput = document.createElement('input');
@@ -113,8 +120,9 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
   reselectInput.dataset.role = 'batch-reselect';
   root.append(fileInput, folderInput, zipInput, reselectInput);
 
+  const steps=el('ol','');steps.className='batch-steps';
   const picker = el('div', ''); picker.className = 'batch-pickers';
-  act(say('选择多本', 'Choose files'), picker, async () => { fileInput.value = ''; fileInput.click(); });
+  act(say('选择文件（单本或多本）', 'Choose one or more files'), picker, async () => { fileInput.value = ''; fileInput.click(); });
   act(say('选择文件夹', 'Choose folder'), picker, async () => { folderInput.value = ''; folderInput.click(); });
   act(say('导入 ZIP', 'Import ZIP'), picker, async () => { zipInput.value = ''; zipInput.click(); });
 
@@ -267,8 +275,11 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
   }
 
   async function refreshSummaries(): Promise<void> {
-    state.summaries = await ctx.invoke<ImportBatchSummary[]>('import_batch_status', []);
+    const summaries=await ctx.invoke<ImportBatchSummary[]>('import_batch_status', []);
+    if(disposed)return;state.summaries=summaries;
     render();
+    await options.onChange?.(state.summaries);
+    schedulePoll();
   }
 
   async function refresh(): Promise<void> {
@@ -280,16 +291,16 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
   }
 
   async function openBatch(batchId: string): Promise<void> {
-    state.batch = { id: batchId } as ImportBatch;
+    showingHistory=false;choosingPlan=false;state.batch = { id: batchId } as ImportBatch;
     await refresh();
   }
 
   function schedulePoll(): void {
     if (timer) clearTimeout(timer);
     timer = undefined;
-    if (disposed || !state.view) return;
-    if (state.view.status !== 'running') return;
-    timer = setTimeout(() => { void refresh().catch(fail); }, 800);
+    if(disposed)return;
+    if(state.view?.status!=='running'&&!state.summaries.some(row=>row.status==='running'))return;
+    timer=setTimeout(()=>{void (state.view?.status==='running'?refresh():refreshSummaries()).catch(fail);},800);
   }
 
   function renderHistory(): void {
@@ -325,13 +336,19 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
 
   function render(): void {
     if (disposed) return;
-    renderHistory();
-    body.replaceChildren();
+    renderHistory();history.hidden=!showingHistory;body.hidden=showingHistory;steps.hidden=showingHistory;
+    body.replaceChildren();steps.replaceChildren();
+    const step=state.view?(state.view.status==='preview'?1:2):0;
+    ['选择文件','确认书目','导入结果'].forEach((label,index)=>{const li=el('li',say(label,['Choose files','Review books','Import result'][index]),steps);if(index===step)li.setAttribute('aria-current','step');});
+    picker.hidden=Boolean(state.view)||showingHistory;for(const node of picker.querySelectorAll('button'))node.disabled=Boolean(state.busy);
     errorLine.textContent = state.error ?? '';
     errorLine.hidden = !state.error;
     if (state.busy) { el('p', state.busy, body).className = 'batch-busy'; return; }
     const view = state.view;
     if (!view) return;
+    if(selectionBatch!==view.id){selectionBatch=view.id;excluded.clear();planSelected.clear();groupSelected.clear();choosingPlan=false;}
+    if(view.status==='running'){const progress=el('progress','',body);progress.max=Math.max(1,view.total);progress.value=view.completed+view.failed+view.cancelled;progress.setAttribute('aria-label',say('已处理书籍','Books processed'));el('p',say(`已入架 ${view.completed}/${view.total} 本，关闭后继续在后台进行。`,`${view.completed}/${view.total} imported; continues in the background.`),body);}
+    if(view.status==='completed'||view.status==='cancelled')el('h3',say(`已入架 ${view.completed} 本 · 失败 ${view.failed} 本`,`${view.completed} imported · ${view.failed} failed`),body);
 
     const summary = el('p', '', body); summary.className = 'batch-summary';
     summary.textContent = say(
@@ -352,7 +369,7 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
           (zipState === 'uploading' ? 'uploading' : zipState === 'needs_reselect' ? 'interrupted, pick it again' : zipState === 'ready' ? (view.zip.failure ? 'verified, last extraction did not finish' : 'verified, waiting for extraction') : 'extracted')), archive);
       if (view.zip.peakBytes) el('small', say(`解压峰值占用 ${saySize(view.zip.peakBytes)}`, `Peak disk use while extracting: ${saySize(view.zip.peakBytes)}`), archive).className = 'batch-note';
       if (zipState === 'extracted' && !view.count) {
-        el('small', say('解压完成，但未发现可导入的书籍（可能是空压缩包、只有隐藏文件或全部是不支持的格式）。此批次不会自动加入阅读计划，可以清理这条记录。',
+        el('small', say('解压完成，但未发现可导入的书籍（可能是空压缩包、只有隐藏文件或全部是不支持的格式）。此批次不会自动加入阅读顺序，可以清理这条记录。',
           'Extraction finished, but no importable books were found (empty archive, hidden files only, or all unsupported). Nothing joins the plan automatically; this record can be forgotten.'), archive).className = 'batch-note';
       }
       // The archive kept its bytes: a disk/worker/rename failure is retried from
@@ -389,11 +406,12 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
       }
     }
 
+    const grouping=el('details','',body);grouping.className='batch-grouping';grouping.hidden=!view.groups.length;el('summary',say('系列建议（确认后才建立分组）','Series suggestions (confirmation required)'),grouping);
     for (const group of view.groups) {
-      const box = el('div', '', body); box.className = 'batch-group';
+      const box = el('div', '', grouping); box.className = 'batch-group';
       const label = el('label', '', box);
       const check = document.createElement('input'); check.type = 'checkbox'; check.disabled = view.status !== 'completed';
-      check.dataset.group = group.key; label.append(check);
+      check.dataset.group = group.key;check.checked=groupSelected.has(group.key);check.addEventListener('change',()=>{if(check.checked)groupSelected.add(group.key);else groupSelected.delete(group.key);});label.append(check);
       label.append(document.createTextNode(` ${group.name}（${group.itemIds.length} 本）`));
       if (group.mayBeSplitNovel) el('small', say('这些文件也可能是一本书拆开的多份；确认是同一系列再勾选。', 'These may be one novel split into parts; only tick this if they are really one series.'), box).className = 'batch-warn';
     }
@@ -403,16 +421,22 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
     const list = el('div', '', body); list.className = 'batch-items';
     for (const item of view.items) {
       const row = el('div', '', list); row.className = 'batch-item';
+      if(view.status==='preview'&&item.status==='pending'||choosingPlan&&item.status==='completed'&&item.bookKey){
+        const check=el('input','',row);check.type='checkbox';check.setAttribute('aria-label',say('选择：','Select: ')+item.title);
+        check.checked=choosingPlan?planSelected.has(item.bookKey!):!excluded.has(item.id);
+        check.addEventListener('change',()=>{if(choosingPlan){if(check.checked)planSelected.add(item.bookKey!);else planSelected.delete(item.bookKey!);}else{if(check.checked)excluded.delete(item.id);else excluded.add(item.id);}render();});
+      }
+      if(item.author)el('small',item.author,row).className='batch-author';
       el('span', `《${item.title}》`, row);
       const status = STATUS_TEXT[item.status] ?? [item.status, item.status];
-      const meta: string[] = [saySize(item.size), status[0]];
+      const meta: string[] = [saySize(item.size), say(status[0],status[1])];
       if (item.duplicate === 'in_batch') meta.push(say('与本次另一本重名', 'same title as another pick'));
       else if (item.duplicate) meta.push(say('书架上已有同名同作者版本', 'same title and author already on the shelf'));
       el('small', meta.join(' · '), row);
       if (item.error) el('small', item.error, row).className = 'batch-error-inline';
       const actions = el('div', '', row); actions.className = 'batch-item-actions';
       const live = item.status === 'pending' || item.status === 'importing' || item.status === 'processing' || item.status === 'validating';
-      if (live) {
+      if (live && view.status !== 'preview') {
         act(say('取消这本', 'Cancel this book'), actions, async () => {
           await ctx.invoke('import_batch_cancel_item', [state.batch!.id, item.id]);
           await refresh();
@@ -445,7 +469,7 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
     const refused = report.duplicate + report.unsupported + report.tooLarge + report.overBudget + report.overflow
       + (report.archiveRejected ? 1 : 0);
     if (report.accepted || refused || report.failed || report.cancelled || report.needsReselect) {
-      const box = el('div', '', body); box.className = 'batch-report';
+      const box = el('details', '', body); box.className = 'batch-report';el('summary',say(`查看详细报告${refused?' · '+refused+' 项未导入':''}`,'View detailed report'),box);if(report.archiveRejected)box.open=true;
       el('small', say(
         `本次结果：进批 ${report.accepted} 本 · 已入库 ${report.shelfAdded} 本` +
           (report.pending ? ` · 等待 ${report.pending}` : '') +
@@ -495,30 +519,43 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
       }
       if (lines.length) {
         el('small', say('未进入本批：', 'Not imported: ') + lines.join('；'), box).className = 'batch-warn';
-        el('small', say('这些文件仍在你的磁盘上，没有进入阅读计划；需要的话可以再选一次，只导入没进来的部分。',
+        el('small', say('这些文件仍在你的磁盘上，没有进入阅读顺序；需要的话可以再选一次，只导入没进来的部分。',
           'These files are still on your disk and did not join the plan; pick them again to import just those.'), box).className = 'batch-note';
       }
     }
 
     const actions = el('div', '', body); actions.className = 'batch-actions';
     if (view.status === 'preview') {
-      act(say('开始导入', 'Start import'), actions, async () => { await ctx.invoke('import_batch_start', [state.batch!.id]); await refresh(); });
+      const eligible=view.items.filter(item=>item.status==='pending');
+      if(eligible.length&&(!view.zip||view.zip.state==='extracted')&&!view.report.archiveRejected){
+        const selected=eligible.filter(item=>!excluded.has(item.id));
+        const start=act(say(`导入所选 ${selected.length} 本`, `Import ${selected.length} selected`), actions, async () => {
+          for(const item of eligible.filter(item=>excluded.has(item.id)))await ctx.invoke('import_batch_cancel_item',[state.batch!.id,item.id]);
+          await ctx.invoke('import_batch_start', [state.batch!.id]); await refresh();
+        });start.className='primary';start.disabled=!selected.length;
+      }
       act(say('取消这批', 'Cancel this batch'), actions, async () => { await ctx.invoke('import_batch_cancel', [state.batch!.id]); await refresh(); });
     } else if (view.status === 'running') {
       act(say('取消这批', 'Cancel this batch'), actions, async () => { await ctx.invoke('import_batch_cancel', [state.batch!.id]); await refresh(); });
     } else {
       if (view.completed) {
-        const toPlan = el('button', say('加入阅读计划', 'Add to the reading plan'), actions); toPlan.type = 'button';
-        toPlan.addEventListener('click', () => {
-          const groups = [...body.querySelectorAll<HTMLInputElement>('input[data-group]')].filter((node) => node.checked)
-            .map((node) => ({ name: node.closest('label')?.textContent?.replace(/（.*$/u, '').trim() ?? '', key: node.dataset.group }))
-            .map((entry) => ({ name: entry.name, bookKeys: view.groups.find((group) => group.key === entry.key)?.itemIds.flatMap((id) => {
-              const item = view.items.find((row) => row.id === id); return item?.bookKey ? [item.bookKey] : []; }) ?? [] }))
-            .filter((group) => group.bookKeys.length > 1);
-          void ctx.invoke('import_batch_to_plan', [state.batch!.id, groups]).then(refresh).catch(fail);
-        });
+        if(!choosingPlan){act(say('选择书籍加入阅读顺序','Choose books for reading order'),actions,async()=>{choosingPlan=true;planSelected.clear();render();}).className='primary';}
+        else {
+          const add=act(say(`加入阅读顺序（${planSelected.size} 本）`,`Add to reading order (${planSelected.size})`),actions,async()=>{
+            const bookKeys=[...planSelected];await ctx.invoke('plan_add',[{bookKeys}]);
+            const fresh=await ctx.invoke<{plan:{items:{id:string;bookKey:string}[]}}>('get',[]);
+            for(const group of view.groups.filter(group=>groupSelected.has(group.key))){
+              const keys=group.itemIds.flatMap(id=>{const item=view.items.find(item=>item.id===id);return item?.bookKey&&bookKeys.includes(item.bookKey)?[item.bookKey]:[];});
+              const itemIds=fresh.plan.items.filter(item=>keys.includes(item.bookKey)).map(item=>item.id);
+              if(itemIds.length>1)await ctx.invoke('plan_series',[{action:'create',name:group.name,itemIds}]);
+            }
+            choosingPlan=false;await refresh();options.onOrder?.();
+          });add.disabled=!planSelected.size;add.className='primary';
+        }
       }
-      act(say('再导一批', 'Start another batch'), actions, async () => { state.batch = null; state.view = null; state.error = null; render(); });
+      if(view.items.some(item=>item.status==='failed'))act(say('重试失败项','Retry failed items'),actions,async()=>{for(const item of view.items.filter(item=>item.status==='failed'))await ctx.invoke('import_batch_retry',[state.batch!.id,item.id]);await refresh();});
+      act(say('回到书架','Back to bookshelf'),actions,async()=>options.onDone?.());
+      act(say('再导一批', 'Start another batch'), actions, async () => { state.batch = null; state.view = null; state.error = null; choosingPlan=false;showingHistory=false;render(); });
     }
   }
 
@@ -526,6 +563,7 @@ export function mountBatchImport(ctx: WebUiPanelContext, say: Say): BatchImportH
   void refreshSummaries().catch(fail);
 
   return { root,
+    showHistory(show:boolean){showingHistory=show;if(!show&&!state.busy){state.batch=null;state.view=null;choosingPlan=false;state.error=null;}render();void refreshSummaries().catch(fail);},
     dispose() {
       disposed = true;
       if (timer) clearTimeout(timer);

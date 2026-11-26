@@ -32,7 +32,7 @@ let failMethod: string | null = null;
 /** When set, the plan payload is patched to look like an incomplete legacy history. */
 let legacyHistory = false;
 
-async function mount() {
+async function mount(open=true) {
   const root = document.createElement('div'); document.body.append(root);
   const intervals: Array<() => Promise<void>> = [];
   const ctx = { root, panelId: 'plan', language: 'zh', signal: controller.signal,
@@ -46,16 +46,17 @@ async function mount() {
     },
     setConfig: async () => 'Saved',
     interval: (callback: () => Promise<void>) => { intervals.push(callback); }, timeout: () => {}, own: () => {},
-    ui: { confirm: async (options: { title: string; body?: string; danger?: boolean }) => { lastConfirm = options; return confirmAnswer; },
+    ui: { drawer: (_title:string, body:HTMLElement) => { root.append(body); return {dispose(){body.remove();}}; }, confirm: async (options: { title: string; body?: string; danger?: boolean }) => { lastConfirm = options; return confirmAnswer; },
       toast: () => ({ dispose() {} }) },
   } as unknown as WebUiPanelContext;
-  const handle = await bundle.panels.plan.mount(ctx);
+  const handle = await bundle.panels.status.mount(ctx);
   dispose = () => handle.dispose();
+  if(open)root.querySelector<HTMLButtonElement>('.reading-order-entry')!.click();
   return { root, poll: async () => { for (const callback of intervals) await callback(); } };
 }
 const settle = () => new Promise((resolve) => setTimeout(resolve, 30));
 function button(root: HTMLElement, label: string) { return [...root.querySelectorAll('button')].find((node) => node.textContent === label) as HTMLButtonElement | undefined; }
-function rows(root: HTMLElement) { return [...root.querySelectorAll('[data-page=plan] .plan-item strong')].map((node) => node.textContent); }
+function rows(root: HTMLElement) { return [...root.querySelectorAll('[data-role=reading-order] .plan-item strong')].map((node) => node.textContent); }
 
 async function planBooks(titles: string[]) {
   const keys: string[] = [];
@@ -71,34 +72,35 @@ async function planBooks(titles: string[]) {
 describe('the reading plan page', () => {
   it('shows the order, the current book and an empty state before anything is planned', async () => {
     const { root } = await mount();
-    expect(root.textContent).toContain('计划还是空的');
+    expect(root.textContent).toContain('还没有安排后续书籍');
   });
 
   it('lists planned books in order and locks the row being read', async () => {
     const keys = await planBooks(['甲', '乙', '丙']);
     await world.webUi!('zh').invoke!('plan', 'select', [keys[0]]);
     const { root } = await mount();
-    expect(rows(root)).toEqual(['1. 《甲》', '2. 《乙》', '3. 《丙》']);
+    expect(rows(root)).toEqual(['2. 《乙》', '3. 《丙》']);
     expect(root.textContent).toContain('正在读');
-    const first = root.querySelector('[data-page=plan] .plan-item.is-active') as HTMLElement;
+    const first = root.querySelector('[data-role=reading-order] .plan-current') as HTMLElement;
     expect(first.textContent).toContain('《甲》');
     // The active row offers no reorder or removal buttons at all; stopping is a
     // separate, explicit decision offered on the "reading now" card.
-    expect([...first.querySelectorAll('button')]).toHaveLength(0);
+    expect(first.querySelector('[draggable=true]')).toBeNull();
+    expect(root.querySelector('.plan-item.is-active')).toBeNull();
     expect(button(root, '停止读这本，改读下一本')).toBeTruthy();
-    expect(button(root, '移出计划')).toBeTruthy();
+    expect(button(root, '移出阅读顺序')).toBeTruthy();
   });
 
   it('moves a waiting book to the top through the panel', async () => {
     const keys = await planBooks(['甲', '乙', '丙']);
     await world.webUi!('zh').invoke!('plan', 'select', [keys[0]]);
     const { root } = await mount();
-    const third = [...root.querySelectorAll<HTMLElement>('[data-page=plan] .plan-item')][2];
-    const top = [...third.querySelectorAll('button')].find((node) => node.textContent === '置顶')!;
+    const third = [...root.querySelectorAll<HTMLElement>('[data-role=reading-order] .plan-item')][1];
+    const top = [...third.querySelectorAll('button')].find((node) => node.textContent === '设为下一本')!;
     top.click();
     await settle(); await settle();
     // Nothing can be placed before the book being read: "top" is right after it.
-    expect(rows(root)).toEqual(['1. 《甲》', '2. 《丙》', '3. 《乙》']);
+    expect(rows(root)).toEqual(['2. 《丙》', '3. 《乙》']);
     // The active book keeps its place and its progress.
     const status = await world.webUi!('zh').invoke!('plan', 'get', []) as { status: { library: { current: { title: string } } } };
     expect(status.status.library.current.title).toBe('甲');
@@ -108,11 +110,11 @@ describe('the reading plan page', () => {
     const keys = await planBooks(['甲', '乙']);
     await world.webUi!('zh').invoke!('plan', 'select', [keys[0]]);
     const { root } = await mount();
-    const second = [...root.querySelectorAll<HTMLElement>('[data-page=plan] .plan-item')][1];
+    const second = [...root.querySelectorAll<HTMLElement>('[data-role=reading-order] .plan-item')][0];
     [...second.querySelectorAll('button')].find((node) => node.textContent === '暂时跳过')!.click();
     await settle(); await settle();
     expect(lastConfirm?.title).toContain('暂时跳过');
-    expect(rows(root)).toEqual(['1. 《甲》']);
+    expect(rows(root)).toEqual([]);
     const plan = await world.webUi!('zh').invoke!('plan', 'get', []) as { plan: { completedCount: number; archive: Array<{ status: string; reason?: string }> } };
     expect(plan.plan.completedCount).toBe(0);
     expect(plan.plan.archive[0]).toMatchObject({ status: 'skipped' });
@@ -142,7 +144,7 @@ describe('the reading plan page', () => {
     await world.webUi!('zh').invoke!('plan', 'plan_series', [{ action: 'create', name: '四部曲', itemIds: [plan.plan.items[1].id, plan.plan.items[2].id] }]);
     const { root } = await mount();
     expect(root.textContent).toContain('四部曲');
-    const group = root.querySelector('[data-page=plan] .plan-series-group') as HTMLElement;
+    const group = root.querySelector('[data-role=reading-order] .plan-series-group') as HTMLElement;
     expect([...group.querySelectorAll('summary')][0].textContent).toContain('四部曲 · 2');
     [...group.querySelectorAll('button')].find((node) => node.textContent === '整组上移')!.click();
     await settle(); await settle();
@@ -158,7 +160,7 @@ describe('series management and single-book planning', () => {
     const view = await invocation('plan', 'get', []) as { plan: { items: { id: string }[] } };
     await invocation('plan', 'plan_series', [{ action: 'create', name: '三本一组', itemIds: [view.plan.items[1].id, view.plan.items[2].id] }]);
     const { root } = await mount();
-    const group = root.querySelector('[data-page=plan] .plan-series-group') as HTMLElement;
+    const group = root.querySelector('[data-role=reading-order] .plan-series-group') as HTMLElement;
     expect(group.querySelector('summary')!.textContent).toContain('三本一组 · 2');
 
     // Rename through the inline field.
@@ -217,7 +219,7 @@ describe('series management and single-book planning', () => {
     expect(card).toBeTruthy();
     card!.click();
     await settle(); await settle();
-    const add = [...root.querySelectorAll<HTMLButtonElement>('button')].find((node) => node.textContent === '加入阅读计划');
+    const add = [...root.querySelectorAll<HTMLButtonElement>('button')].find((node) => node.textContent === '加入阅读顺序');
     expect(add).toBeTruthy();
     add!.click();
     await settle(); await settle();
@@ -238,7 +240,7 @@ describe('the page keeps the reader oriented and never fails silently', () => {
     expect(root.textContent).toContain('《甲》');
     expect(root.textContent).toContain('计划外');
     expect(rows(root)).toEqual([]);
-    expect(button(root, '把这本书加进计划')).toBeTruthy();
+    expect(button(root, '把这本书加入阅读顺序')).toBeTruthy();
     expect(keys).toHaveLength(1);
   });
 
@@ -259,7 +261,7 @@ describe('the page keeps the reader oriented and never fails silently', () => {
     await world.webUi!('zh').invoke!('plan', 'select', [keys[0]]);
     const { root } = await mount();
     confirmAnswer = true;
-    button(root, '移出计划，继续读这本')!.click();
+    button(root, '移出阅读顺序，继续读这本')!.click();
     await settle(); await settle();
     const after = await world.webUi!('zh').invoke!('plan', 'get', []) as { plan: { items: { bookKey: string }[]; reading: { bookKey: string; inPlan: boolean } | null }; status: { library: { current: { key: string } | null } } };
     expect(after.plan.items.map((item) => item.bookKey)).toEqual([keys[1]]);
@@ -274,15 +276,15 @@ describe('the page keeps the reader oriented and never fails silently', () => {
     const stop = button(root, '停止读这本，改读下一本') as HTMLButtonElement;
     expect(stop.disabled).toBe(true);
     expect(root.textContent).toContain('没有其他可读的下一本');
-    expect(button(root, '移出计划，继续读这本')).toBeTruthy();
+    expect(button(root, '移出阅读顺序，继续读这本')).toBeTruthy();
   });
 
   it('surfaces a failed write instead of swallowing it', async () => {
     await planBooks(['甲', '乙']);
     const { root } = await mount();
     failMethod = 'plan_update';
-    const second = [...root.querySelectorAll<HTMLElement>('[data-page=plan] .plan-item')][1];
-    [...second.querySelectorAll<HTMLButtonElement>('button')].find((node) => node.textContent === '置顶')!.click();
+    const second = [...root.querySelectorAll<HTMLElement>('[data-role=reading-order] .plan-item')][1];
+    [...second.querySelectorAll<HTMLButtonElement>('button')].find((node) => node.textContent === '设为下一本')!.click();
     await settle(); await settle();
     expect(root.querySelector('.plan-error')!.textContent).toContain('磁盘已满');
     expect(root.querySelector<HTMLElement>('.plan-error')!.hidden).toBe(false);
@@ -326,5 +328,38 @@ describe('history honesty in the panel wording', () => {
     const { root } = await mount();
     expect(root.textContent).toContain('· 累计读完');
     expect(root.textContent).not.toContain('至少累计');
+  });
+});
+
+
+describe('reading order stays inside Reading now',()=>{
+  it('opens from a small entry without a plan page or changing the current selection',async()=>{
+    const keys=await planBooks(['当前','下一本','最后']);
+    await world.webUi!('zh').invoke!('status','select',[keys[0]]);
+    const {root}=await mount(false);
+    expect(world.webUi!('zh').panels!.some(panel=>panel.id==='plan')).toBe(false);
+    expect(root.querySelector('[data-page=plan]')).toBeNull();
+    expect(root.querySelector('[data-role=reading-order]')).toBeNull();
+    const entry=root.querySelector<HTMLButtonElement>('.reading-order-entry')!;
+    expect(entry.textContent).toContain('后续 2 本');entry.click();
+    expect(root.querySelector<HTMLElement>('[data-page=home]')!.hidden).toBe(false);
+    const content=root.querySelector('[data-role=reading-order]')!;
+    expect(content.querySelectorAll('.plan-current')).toHaveLength(1);
+    expect(content.querySelectorAll('.plan-item')).toHaveLength(2);
+    expect(content.querySelector('.plan-item.is-active')).toBeNull();
+    const after=await world.webUi!('zh').invoke!('status','get',[]) as {status:{library:{current:{key:string}}}};
+    expect(after.status.library.current.key).toBe(keys[0]);
+  });
+  it('reorders waiting rows by drag and preserves the current book and confirmed progress',async()=>{
+    const keys=await planBooks(['当前','乙','丙']);
+    await world.webUi!('zh').invoke!('status','select',[keys[0]]);
+    const {root}=await mount();
+    const waiting=[...root.querySelectorAll<HTMLElement>('.plan-item')];
+    waiting[1].querySelector('.order-grip')!.dispatchEvent(new Event('dragstart',{bubbles:true}));
+    waiting[0].dispatchEvent(new Event('drop',{bubbles:true,cancelable:true}));
+    await settle();await settle();
+    const after=await world.webUi!('zh').invoke!('status','get',[]) as {plan:{items:{bookKey:string}[]};status:{library:{current:{key:string;confirmedChars:number}}}};
+    expect(after.plan.items.map(row=>row.bookKey)).toEqual([keys[0],keys[2],keys[1]]);
+    expect(after.status.library.current.key).toBe(keys[0]);expect(after.status.library.current.confirmedChars).toBe(0);
   });
 });

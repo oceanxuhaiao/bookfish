@@ -39,7 +39,7 @@ async function mount() {
   const ctx = { root, panelId: 'shelf', language: 'zh', signal: controller.signal,
     invoke: async (method: string, args: unknown[]) => world.webUi!('zh').invoke!('shelf', method, args),
     setConfig: async () => 'Saved', interval: () => {}, timeout: () => {}, own: () => {},
-    ui: { confirm: async () => true, toast: () => ({ dispose() {} }) },
+    ui: { drawer: (_title:string, body:HTMLElement) => { root.append(body); return {dispose(){body.remove();}}; }, confirm: async () => true, toast: () => ({ dispose() {} }) },
   } as unknown as WebUiPanelContext;
   const handle = await bundle.panels.shelf.mount(ctx);
   dispose = () => handle.dispose();
@@ -104,7 +104,7 @@ describe('a preview batch already shows what it refused', () => {
       new File(['jpeg'], '封面.jpg', { type: 'image/jpeg' }),
       new File(['pdf'], '说明.pdf', { type: 'application/pdf' }),
     ]);
-    await waitFor(() => batch.textContent!.includes('开始导入'), 'folder preview');
+    await waitFor(() => batch.textContent!.includes('导入所选'), 'folder preview');
 
     // The batch has NOT been started, yet the refusal is already on screen.
     const text = batch.textContent!;
