@@ -465,6 +465,9 @@ describe('V2.1.1 KEY change keeps the played watermark', () => {
     expect(h.coordinator.status()).toMatchObject({ phase: 'idle', bookKey: 'book:1', voicedUpTo: 0 });
     expect(h.coordinator.gate()).toMatchObject({ enabled: true, upper: 0 });
 
+    // Saving a replacement KEY calls the same hook again and must not clear it.
+    await h.coordinator.onKeyChanged();
+    expect(h.coordinator.status().voicedUpTo).toBe(0);
     block.resolve();
     await h.coordinator.start();
     await waitFor(() => (h.coordinator.status().voicedUpTo ?? -1) >= 1);
@@ -517,6 +520,43 @@ describe('V2.1.1 late chapter fetch after chat', () => {
     await h.coordinator.start();
     await waitFor(() => h.coordinator.status().voicedUpTo === 1);
     expect(h.synthCalls).toContain('乙。');
+    await h.coordinator.dispose();
+  });
+});
+
+describe('V2.1.1 linked chat + KEY + new chapter', () => {
+  it('never auto-resumes; only an explicit start continues', async () => {
+    let interrupt = false;
+    let plays = 0;
+    const block = deferred();
+    const h = harness(['甲。', '乙。'], {
+      pollMs: 10,
+      shouldInterruptForChat: () => interrupt,
+      play: async (_bytes, { signal }) => {
+        plays += 1;
+        if (plays === 2) {
+          await Promise.race([block.promise, new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))]);
+        }
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0 && plays === 2);
+    interrupt = true;
+    h.coordinator.onRunPhase({ state: 'model' });
+    await waitFor(() => (h.coordinator.status().phase === 'paused' || h.coordinator.status().phase === 'idle')
+      && (h.coordinator.status().detail ?? '').includes('聊天优先'));
+    const watermark = h.coordinator.status().voicedUpTo;
+    await h.coordinator.onKeyChanged();
+    expect(h.coordinator.status().voicedUpTo).toBe(watermark);
+    h.texts.push('丙。'); h.state.totalSegments = 3;
+    interrupt = false;
+    await h.coordinator.revalidate();
+    await new Promise(resolve => setTimeout(resolve, 120));
+    expect(h.coordinator.status().phase).not.toBe('playing');
+    expect(h.synthCalls).not.toContain('丙。');
+    block.resolve();
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo !== null && h.synthCalls.includes('丙。'));
     await h.coordinator.dispose();
   });
 });
