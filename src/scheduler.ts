@@ -36,7 +36,7 @@ export class ReadingScheduler {
   private readonly file: string;
   constructor(private readonly lib: Library, private readonly cfg: BookfishConfigSection, private readonly timezone: string,
     private readonly now: () => number = Date.now,private readonly random:()=>number=Math.random,
-    private readonly hooks?: { autoAdvance?: () => boolean }) { this.file = join(lib.dir, 'reading-budget.json'); }
+    private readonly hooks?: { autoAdvance?: () => boolean; voiceGate?: () => { enabled: boolean; upper: number | null } }) { this.file = join(lib.dir, 'reading-budget.json'); }
   private day() { return new Intl.DateTimeFormat('en-CA', { timeZone: this.timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(this.now()); }
   private save(next: Ledger) {
     const temp = `${this.file}.${randomUUID()}.tmp`;
@@ -79,6 +79,32 @@ export class ReadingScheduler {
   private goal(){const limits=readingLimits(this.cfg),day=this.day(),completed=this.lib.dailyChapters(day,this.timezone);return {day,completed,target:limits.chapterGoal,reached:limits.chapterGoal>0&&completed>=limits.chapterGoal};}
   private restDuration(readingMs:number){return Math.round(readingMs*(0.25+Math.max(0,Math.min(1,this.random()))*0.25));}
   private signature() { return JSON.stringify([this.lib.generation(), this.cfg.automaticReading, this.cfg.readingMode]); }
+  /**
+   * Optional strict voice gate. Disabled voice returns true without reading any
+   * extra state, so the original scheduler path is untouched. When enabled, a
+   * batch may only be supplied if every segment has already been fully voiced.
+   */
+  private voiceCount(requested?: unknown): number {
+    const limits = readingLimits(this.cfg);
+    const current = this.lib.status().current;
+    if (!current) return 0;
+    const remaining = Math.max(0, current.totalSegments - current.positionSegments);
+    const wanted = Number.isSafeInteger(requested)
+      ? Math.max(1, Math.min(limits.batch, requested as number))
+      : limits.batch;
+    return Math.min(remaining, wanted);
+  }
+  private voiceAllows(count: number): boolean {
+    const gate = this.hooks?.voiceGate?.();
+    if (!gate?.enabled) return true;
+    if (count <= 0) return true;
+    const current = this.lib.status().current;
+    if (!current) return false;
+    return Number.isSafeInteger(gate.upper) && current.positionSegments + count - 1 <= gate.upper!;
+  }
+  private requireVoice(count: number): void {
+    if (!this.voiceAllows(count)) throw new Error('语音朗读尚未播放到下一段，思考不得超前朗读；请先继续朗读，或在配置中关闭语音开关恢复默读。');
+  }
   private cancel() {
     if (this.active?.taskId && this.lib.status().pending?.taskId === this.active.taskId) this.lib.cancelPending();
     if(this.active?.manual&&this.manual?.id===this.active.id&&['queued','reading'].includes(this.manual.state))this.manual.state='cancelled';
@@ -144,6 +170,7 @@ export class ReadingScheduler {
     if(!current.current||current.current.key!==bookKey)throw Error('正在读的书已改变，请刷新后重试。');
     if(current.current.complete)throw Error('这本书已经读完了。');
     if(current.current.readiness&&current.current.readiness!=='backlog')throw Error(current.current.readiness==='caught_up'?'已追平，等待更新；这不是全书完读。':current.current.readiness==='waiting_content'?'目录已发现新章，正文尚未同步完成，请稍后再读。':'连载目录存在冲突，已停止自动读取。');
+    this.requireVoice(this.voiceCount(undefined));
     if(this.active&&this.valid(this.active))return {accepted:true,duplicate:true,opportunityId:this.active.id};
     if(this.cognitionRunning)throw Error('上一次阅读仍在结束中，请稍后重试。');
     if(this.lib.activeRest()){this.lib.endRest('skipped');this.sessionReadMs=0;}
@@ -196,6 +223,7 @@ export class ReadingScheduler {
         this.reason = 'waiting_for_host_idle'; return;
       }
       if (this.phase !== 'idle' || this.now() - this.idleSince < 30000) { this.reason = 'chat_priority'; return; }
+      if (!this.voiceAllows(this.voiceCount(undefined))) { this.reason = 'waiting_voice'; return; }
       if (this.pacedChars + 0.000001 < this.paceSize()) { this.reason = 'waiting'; return; }
       const a: Opportunity = { id: randomUUID(), generation: this.lib.generation(), expires: this.now() + LEASE,
         delivered: false, mode: this.cfg.readingMode === 'auto' && this.host.cognition ? 'background' : 'main' };
@@ -245,8 +273,17 @@ export class ReadingScheduler {
     // A repeated call inside the same lease returns the already supplied batch
     // unchanged; it must not extend the run after text was exposed.
     const count = a?.taskIds?.length ?? (Number.isSafeInteger(requested) ? Math.max(1, Math.min(limits.batch, requested as number)) : limits.batch);
+    // Text issuance is the real gate: even a stale opportunity that passed the
+    // tick check must not receive a segment the voice has not finished.
+    if (!a?.taskIds?.length) this.requireVoice(Math.min(count, this.voiceCount(requested)));
     const result = this.lib.readNext(count);
     if (!result.complete) {
+      const gate = this.hooks?.voiceGate?.();
+      if (gate?.enabled) {
+        const upper = gate.upper;
+        const beyond = result.segments.find(item => !Number.isSafeInteger(upper) || item.segmentId > upper!);
+        if (beyond) { this.lib.cancelPending(); throw new Error('语音朗读尚未播放到这一段，思考不得超前朗读；请先继续朗读。'); }
+      }
       for (const item of result.segments) {
         const size = item.segment.end - item.segment.start;
         if (!this.ledger.reservations[item.taskId]) this.save({ ...this.ledger, tasks: this.ledger.tasks + 1, chars: this.ledger.chars + size,

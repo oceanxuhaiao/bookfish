@@ -31,15 +31,30 @@ import { assertWritableTextStoreDir } from './text-store.ts';
 import { HelpCenter } from './help-center.ts';
 import { loadOnlineAnnouncements } from './help-online.ts';
 import { BOOKFISH_VERSION } from './version.ts';
+import { VoiceCoordinator } from './voice/coordinator.ts';
+import { clearStoredSecret } from './voice/secret-store.ts';
+import type { VoiceLogger, VoicePlaybackEngine } from './voice/types.ts';
+
+const VOICE_KEY_ENV = 'BOOKFISH_TTS_API_KEY';
+
+function maskSecret(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return trimmed.length <= 4 ? '••••' : `••••${trimmed.slice(-4)}`;
+}
 
 const ENV_PROMPT_FILE = join(dirname(fileURLToPath(import.meta.url)), 'ENV_PROMPT.md');
 const PROTOCOL_DIR = join(dirname(fileURLToPath(import.meta.url)), 'protocol');
 const PACKAGE_BRIDGE_CLASSES = join(dirname(fileURLToPath(import.meta.url)), 'novel-bridge', 'classes');
 export interface BookfishWorldOptions { cfg: BookfishConfigSection; timezone: string; dataDir: string; persist?:(patch:Partial<BookfishConfigSection>)=>void;
+  /** Official WorldContext secret bridge. The KEY itself lives in the deployment .env. */
+  secret?: (name: string) => string; storeSecret?: (name: string, value: string) => void; botDir?: string;
   /** Isolated-test overrides; production defaults live under dataDir/bookfish. */
   novelEngineDir?: string; novelWorkDir?: string; novelPageProbe?: NovelPageProbe | null; novelEngine?: import('./novel-fetch.ts').NovelEngineLike;
   /** Isolated-test runtime overrides. */
   runtimeManager?: NovelRuntimeManager;
+  /** Isolated-test voice engine override; never a second World. */
+  voice?: VoicePlaybackEngine;
 }
 
 export class BookfishWorld implements World {
@@ -51,6 +66,7 @@ export class BookfishWorld implements World {
   private readonly library: Library;
   private readonly transfers: BookTransfers;
   private readonly sources: Sources;
+  private readonly voice: VoicePlaybackEngine;
   private readonly scheduler: ReadingScheduler;
   private readonly sharing: ReadingSharing;
   private readonly reviewFlow: ReviewFlow;
@@ -62,10 +78,20 @@ export class BookfishWorld implements World {
   private selection!: SelectionCoordinator;
   private txtAcquisition!: TxtAcquisition;
   private lifetime = new AbortController();
+  /** True while the main session is running BookFish's own reading opportunity, not a user chat. */
+  private readingTurn = false;
   constructor(private readonly opts: BookfishWorldOptions) {
     this.library = new Library({ dataDir: opts.dataDir, textStoreDir: opts.cfg.textStoreDir, storyMemoryEnabled: opts.cfg.storyMemoryEnabled === true }); this.transfers = new BookTransfers(this.library); this.sources = new Sources(this.library, undefined, () => opts.cfg.allowNetwork);
+    this.voice = opts.voice ?? new VoiceCoordinator({
+      port: { snapshot: () => this.library.voiceSnapshot(), segments: (from, max) => this.library.voiceSegments(from, max) },
+      enabled: () => this.opts.cfg.voiceOutputEnabled === true,
+      secret: () => this.opts.secret?.(VOICE_KEY_ENV) ?? '',
+      dataDir: opts.dataDir,
+      fetchNext: signal => this.fetchNextForVoice(signal),
+      logger: () => this.host?.log as VoiceLogger | undefined,
+    });
     this.scheduler = new ReadingScheduler(this.library, opts.cfg, opts.timezone, undefined, undefined,
-      { autoAdvance: () => this.selection?.autoAdvance() ?? false });
+      { autoAdvance: () => this.selection?.autoAdvance() ?? false, voiceGate: () => this.voice.gate() });
     this.sharing = new ReadingSharing(this.library, opts.cfg, opts.timezone);
     this.reviewFlow = new ReviewFlow(this.library, opts.cfg);
     this.serialSync = new SerialSync(this.library, { allowNetwork: () => opts.cfg.allowNetwork,
@@ -102,6 +128,23 @@ export class BookfishWorld implements World {
   }
   private requireNetwork(): void {
     if (!this.opts.cfg.allowNetwork) throw new SourceError('restricted', 'Network book access is disabled; cached text remains readable');
+  }
+  /**
+   * The voice module only reads cached text. When it reaches a cached end of a
+   * non-serial remote book it asks the World to reuse the existing source flow;
+   * this appends a whole chapter and never advances reading.
+   */
+  private async fetchNextForVoice(signal: AbortSignal): Promise<void> {
+    if (!this.host) throw new SourceError('cancelled', 'Bookfish is not mounted');
+    this.requireNetwork();
+    if (!this.library.voiceSourceDemand()?.needsNext) return;
+    await this.sources.ensureNextCached(this.sourceSignal(signal));
+  }
+  private voiceView() {
+    const stored = (this.opts.secret?.(VOICE_KEY_ENV) ?? '').trim();
+    return { config: { voiceOutputEnabled: this.opts.cfg.voiceOutputEnabled === true },
+      keyEnv: VOICE_KEY_ENV, keyConfigured: stored.length > 0, keyMask: stored ? maskSecret(stored) : null,
+      status: this.voice.status() };
   }
   status(): BookfishStatus {
     const available = this.host?.cognition !== undefined;
@@ -171,7 +214,7 @@ export class BookfishWorld implements World {
       bookfish_claim_share: args => this.sharing.claim(args), bookfish_report_share: args => this.sharing.report(args),
       bookfish_drop_share: args => this.sharing.drop(args.shareId),
       bookfish_get_status: () => this.modelStatus(), bookfish_list_books: () => this.library.list(),
-      bookfish_select_book: (args) => { const result = this.library.select(args.bookKey); this.scheduler.changed(); this.selection.onSelectionChanged(String(args.bookKey)); return result; },
+      bookfish_select_book: (args) => { const result = this.library.select(args.bookKey); this.scheduler.changed(); this.selection.onSelectionChanged(String(args.bookKey)); void this.voice.revalidate(); return result; },
       bookfish_read_next: async (args, signal) => {
         this.scheduler.authorize(args.opportunityId);
         const current = this.library.status().current;
@@ -195,7 +238,7 @@ export class BookfishWorld implements World {
       bookfish_get_episode: (args) => this.library.episode(args.episodeId),
       bookfish_record_reflection: (args) => this.library.reflect(args),
       bookfish_defer_reading: (args) => this.scheduler.defer(args.opportunityId, args.minutes),
-      bookfish_set_paused: (args) => { const result = this.library.setPaused(args.paused); this.scheduler.changed(); return result; },
+      bookfish_set_paused: (args) => { const result = this.library.setPaused(args.paused); this.scheduler.changed(); void this.voice.revalidate(); return result; },
       bookfish_recall_segment: (args) => this.library.reread(args.bookKey, args.segmentId),
       bookfish_resolve_source: async (args, signal) => {
         const combined = this.sourceSignal(signal); this.requireNetwork();
@@ -414,9 +457,30 @@ export class BookfishWorld implements World {
           if (method==='runtime_import_finish'&&args.length===1) return this.runtime.importFinish(args[0]);
           if (method==='runtime_import_cancel'&&args.length===1) return this.runtime.importCancel(args[0]);
         }
+        if((panel==='status'||panel==='settings')&&['voice_status','voice_start','voice_stop','voice_save_key','voice_clear_key'].includes(method)){
+          if(method==='voice_status'&&args.length===0)return this.voiceView();
+          if(method==='voice_start'&&args.length===0){await this.voice.start();return this.voiceView();}
+          if(method==='voice_stop'&&args.length===0){await this.voice.stop('user');return this.voiceView();}
+          if(method==='voice_save_key'&&args.length===1){
+            if(typeof args[0]!=='string')throw Error('Invalid voice KEY');
+            const key=args[0].trim();
+            if(!key||key.length>300||/[\x00-\x1f\s]/.test(key))throw Error('Invalid voice KEY');
+            if(!this.opts.storeSecret)throw Error('Host secret storage unavailable');
+            this.opts.storeSecret(VOICE_KEY_ENV,key);
+            await this.voice.onKeyChanged();
+            return this.voiceView();
+          }
+          if(method==='voice_clear_key'&&args.length===0){
+            if(!this.opts.botDir)throw Error('Host deployment directory unavailable');
+            clearStoredSecret(this.opts.botDir,VOICE_KEY_ENV);
+            await this.voice.onKeyChanged();
+            return this.voiceView();
+          }
+          throw Error('Unsupported voice method');
+        }
         if(panel==='settings'){
           if(method==='get'&&args.length===0)return {config:{...this.opts.cfg},timezone:this.opts.timezone,storage:this.library.textStoreStatus()};
-          if(method==='save'&&args.length===1){const patch=validateSettings(args[0]);if(patch.textStoreDir!==undefined)patch.textStoreDir=assertWritableTextStoreDir(patch.textStoreDir);if(!this.opts.persist)throw Error('Host settings persistence unavailable');this.opts.persist(patch);this.selection.onConfigChanged();this.txtAcquisition.onConfigChanged();return {config:{...this.opts.cfg},timezone:this.opts.timezone,storage:this.library.textStoreStatus()};}
+          if(method==='save'&&args.length===1){const patch=validateSettings(args[0]);if(patch.textStoreDir!==undefined)patch.textStoreDir=assertWritableTextStoreDir(patch.textStoreDir);if(!this.opts.persist)throw Error('Host settings persistence unavailable');this.opts.persist(patch);this.selection.onConfigChanged();this.txtAcquisition.onConfigChanged();if('voiceOutputEnabled' in patch)await this.voice.onConfigChanged();return {config:{...this.opts.cfg},timezone:this.opts.timezone,storage:this.library.textStoreStatus()};}
           // Pairing details for the Edge/Chrome extension. The panel shows the token;
           // it is never handed to the model.
           if(method==='txt_bridge'&&args.length===0)return this.txtAcquisition.bridgeInfo;
@@ -621,8 +685,8 @@ export class BookfishWorld implements World {
           this.requireNetwork(); await this.sources.ensureNext(this.sourceSignal()); return this.status();
         }
         if (method === 'reader' && args.length === 1) return this.library.reader(args[0]);
-        if (method === 'select' && args.length === 1) { const result = this.library.select(args[0]); this.scheduler.changed(); this.selection.onSelectionChanged(String(args[0])); return result; }
-        if (method === 'pause' && args.length === 1) { const result = this.library.setPaused(args[0]); this.scheduler.changed(); return result; }
+        if (method === 'select' && args.length === 1) { const result = this.library.select(args[0]); this.scheduler.changed(); this.selection.onSelectionChanged(String(args[0])); await this.voice.revalidate(); return result; }
+        if (method === 'pause' && args.length === 1) { const result = this.library.setPaused(args[0]); this.scheduler.changed(); await this.voice.revalidate(); return result; }
         if (method === 'chapters' && args.length === 1) return this.library.chapters(args[0]);
         // Human-only control: declares that the leading chapters were read elsewhere.
         // Deliberately not exposed as a model tool, so imported book text can never
@@ -633,12 +697,13 @@ export class BookfishWorld implements World {
           const options = value as { bookKey?: unknown; segment?: unknown };
           const result = this.library.setReadingStart(options.bookKey, options.segment);
           this.scheduler.changed();
+          await this.voice.revalidate();
           return result;
         }
         if (method === 'resume_rest' && args.length === 0) return this.scheduler.resume();
-        if (method === 'remove' && args.length === 1) { this.serialSync.cancelForBook(String(args[0])); const result = this.library.remove(args[0]); this.discussions.removeBook(String(args[0])); this.scheduler.changed(); this.sharing.status(); this.selection.summary(); return result; }
+        if (method === 'remove' && args.length === 1) { this.serialSync.cancelForBook(String(args[0])); const result = this.library.remove(args[0]); this.discussions.removeBook(String(args[0])); this.scheduler.changed(); this.sharing.status(); this.selection.summary(); await this.voice.revalidate(); return result; }
         if (method === 'export' && args.length === 0) return this.library.export();
-        if (method === 'restore' && args.length === 1) return this.library.restore(args[0]);
+        if (method === 'restore' && args.length === 1) { const result = this.library.restore(args[0]); await this.voice.revalidate(); return result; }
         throw new Error('Unsupported Bookfish panel request');
       },
       storage: [{ key: 'bookfish-library', label: en ? 'Books, progress and reading journal' : '书籍、已读进度与阅读手账', kind: 'disk', location: this.library.dir,
@@ -674,6 +739,7 @@ export class BookfishWorld implements World {
       try { this.helpCenter.open(); } catch (error) { host.log.warn('Bookfish help center unavailable', { error: String(error) }); }
       try { await this.runtime.start(); } catch { /* runtime faults stay inside the runtime card, not the whole World */ }
       try { await this.txtAcquisition.init(); } catch { /* acquisition state faults must not block reading */ }
+      this.voice.attach(host.log as VoiceLogger);
       this.scheduler.start(host);
       this.sharing.start(host);
       this.reviewFlow.start(host);
@@ -691,7 +757,27 @@ export class BookfishWorld implements World {
       throw error;
     }
   }
-  onRunPhase(phase: RunPhase): void { this.scheduler.onRunPhase(phase); this.selection.onRunPhase(phase); this.sharing.onRunPhase(phase); this.reviewFlow.onRunPhase(phase); }
+  onRunPhase(phase: RunPhase): void {
+    this.updateVoiceChatPriority(phase);
+    this.scheduler.onRunPhase(phase); this.selection.onRunPhase(phase); this.sharing.onRunPhase(phase); this.reviewFlow.onRunPhase(phase);
+  }
+  /**
+   * User chat has priority over read-aloud. A main-session turn caused by
+   * BookFish's own reading opportunity is not chat: without background cognition
+   * the automatic reader also uses the main session, and stopping the voice on
+   * those turns would make continuous read-aloud impossible.
+   */
+  private updateVoiceChatPriority(phase: RunPhase): void {
+    if (phase.state === 'idle') { this.readingTurn = false; return; }
+    if (this.readingTurn) return;
+    if (!['delivering', 'model', 'tools'].includes(phase.state)) return;
+    const scheduler = this.scheduler.status();
+    if (scheduler.active || scheduler.cognitionRunning) {
+      this.readingTurn = true;
+      return;
+    }
+    this.voice.onRunPhase(phase);
+  }
   onTurnEnded(): void { this.scheduler.onTurnEnded(); this.sharing.onTurnEnded(); }
   onEventsSettled(events: readonly EventEnvelope[], outcome: 'delivered' | 'discarded'): void { this.scheduler.onEventsSettled(events, outcome); this.sharing.onEventsSettled(events, outcome); }
   async stop(): Promise<void> {
@@ -702,7 +788,7 @@ export class BookfishWorld implements World {
     if (!this.backgroundNeedsStop) { this.library.close(); return; }
     const errors: unknown[] = [];
     for (const stop of [
-      () => this.selection.stop(), () => this.serialScheduler.stop(), () => this.serialSync.stop(),
+      () => this.voice.shutdown(), () => this.selection.stop(), () => this.serialScheduler.stop(), () => this.serialSync.stop(),
       () => this.reviewFlow.stop(), () => this.sharing.stop(), () => this.scheduler.stop(),
       () => this.txtAcquisition.stop(), () => this.novelFetches.stop(), () => this.runtime.stop(), () => this.transfers.shutdown(),
       () => this.discussions.clear(),

@@ -5,6 +5,8 @@ export interface BookfishConfigSection {
   readingMode: 'auto' | 'main';
   allowNetwork: boolean;
   automaticReading: boolean;
+  /** Optional read-aloud module. Off by default; enabling it sends cached text to cloud TTS. */
+  voiceOutputEnabled?: boolean;
   /** Opt-in autonomous search/acquire. Off by default. */
   autonomousAcquisition?: boolean;
   autonomousAcquisitionMode?: 'notify' | 'auto';
@@ -62,7 +64,7 @@ export interface BookfishConfigSection {
   browserStandardConsent?: boolean;
 }
 export const BOOKFISH_DEFAULTS: BookfishConfigSection = { enabled: false, readingMode: 'auto', allowNetwork: true,
-  automaticReading: true, autonomousAcquisition: false, autonomousAcquisitionMode: 'auto', autonomousSourceIds: '', autonomousDiskBudgetMb: 1024, textStoreDir: '',
+  automaticReading: true, voiceOutputEnabled: false, autonomousAcquisition: false, autonomousAcquisitionMode: 'auto', autonomousSourceIds: '', autonomousDiskBudgetMb: 1024, textStoreDir: '',
   dailyChapterGoal:0, readingSessionMinutes:10,realRoutineEnabled:true, speed: 'normal', readingCharsPerMinute: 0, dailyTasks: 40, dailyChars: 48000,
   readingBatchSegments:2, dailyReadingCap:0,
   automaticSharing: true, automaticReview: true, storyMemoryEnabled: false, shareCooldownMinutes: 60, shareQuietEnabled: true, shareQuietStart: 22, shareQuietEnd: 8, shareMaxSentenceChars: 80, shareQuietStartMinute: -1, shareQuietEndMinute: -1,
@@ -103,6 +105,7 @@ export function bookfishConfigGroup(english: boolean): ConfigGroup {
         'worlds.bookfish.shareQuietStart': { type: 'integer', minimum: 0, maximum: 23, title: english ? 'Quiet start hour' : '安静开始小时（部署时区）', 'x-hot': true },
         'worlds.bookfish.shareQuietEnd': { type: 'integer', minimum: 0, maximum: 23, title: english ? 'Quiet end hour (equal = all day)' : '安静结束小时（与开始相同为全天安静）', 'x-hot': true },
         'worlds.bookfish.automaticReading': { type: 'boolean', title: english ? 'Automatic reading' : '自主阅读', description: english ? 'Offers one segment while idle. On by default; existing explicit settings are preserved.' : '空闲时按目标字速逐段阅读；新配置默认开启，保留已有显式开关。', 'x-hot': true },
+        'worlds.bookfish.voiceOutputEnabled': { type: 'boolean', title: english ? 'Read aloud with cloud TTS (experimental)' : '语音朗读（实验）', description: english ? 'Off by default. When on, cached novel text is sent to Xiaomi MiMo TTS only after you click Start, and the model may only receive segments the voice has already fully played. Turning it off restores ordinary silent reading immediately. Not offline TTS.' : '默认关闭。开启并点击“开始朗读”后，已缓存的小说正文会发送给小米 MiMo 云端合成；模型只能取得语音已完整播放的段落。关闭开关立即恢复原有默读。不是本地离线朗读。', 'x-hot': true },
         'worlds.bookfish.autonomousAcquisition': { type: 'boolean', title: english ? 'Let her find her own books' : '让她自己找书', description: english ? 'Off by default. She may propose one concrete title/author, search, download a verified edition, add it to the shelf and queue it after the current book. Turning off pauses the chain; it never unlocks a paused book or ignores reading confirmation.' : '默认关闭。她可以提出具体书名/作者、搜索、下载经校验的版本、入架并排在当前书之后。关闭会暂停这条链路，不会解除阅读暂停，也不把获取当作已读。', 'x-hot': true },
         'worlds.bookfish.autonomousAcquisitionMode': { type: 'string', enum: ['auto', 'notify'], title: english ? 'When found' : '找到以后', description: english ? 'Auto acquires one exact allowed edition and queues it; notify stops at candidates for a human decision.' : '自动获取并排队：只接受书名、作者和允许书源都精确匹配的版本；找到后告诉我：只搜索并停在候选，等你决定。', 'x-hot': true },
         'worlds.bookfish.autonomousSourceIds': { type: 'string', title: english ? 'Allowed source ids (empty = all)' : '允许自主使用的书源 ID（空为全部）', description: english ? 'Comma-separated curated source ids, e.g. 5,7,8. Unknown ids are ignored; unknown usage rights are never treated as permission.' : '逗号分隔的已收录书源 ID，例如 5,7,8。空表示全部已收录来源；不会自动登录、购买或绕过限制。', 'x-hot': true },
@@ -176,7 +179,7 @@ export function bookfishConfigGroup(english: boolean): ConfigGroup {
 
 export function bookfishConfigGroups(english: boolean): ConfigGroup[] {
   const all=bookfishConfigGroup(english);const fields=all.schema.properties;
-  const main=['realRoutineEnabled','automaticReading','autonomousAcquisition','autonomousAcquisitionMode','autonomousSourceIds','autonomousDiskBudgetMb','speed','readingCharsPerMinute','dailyChapterGoal','readingSessionMinutes','readingBatchSegments','dailyReadingCap','automaticSharing','shareCooldownMinutes','shareMaxSentenceChars','shareQuietEnabled','shareQuietStartMinute','shareQuietEndMinute'];
+  const main=['realRoutineEnabled','automaticReading','voiceOutputEnabled','autonomousAcquisition','autonomousAcquisitionMode','autonomousSourceIds','autonomousDiskBudgetMb','speed','readingCharsPerMinute','dailyChapterGoal','readingSessionMinutes','readingBatchSegments','dailyReadingCap','automaticSharing','shareCooldownMinutes','shareMaxSentenceChars','shareQuietEnabled','shareQuietStartMinute','shareQuietEndMinute'];
   const advanced=['automaticReview','storyMemoryEnabled','allowNetwork','readingMode','textStoreDir','txtAcquisitionEnabled','browserDebugPort','browserPageChannel','browserFollowDownloadPage','browserBridgeEnabled','browserBridgePort','txtAcquisitionRetentionMb','browserProtectionMode','browserStandardConsent'];
   const pick=(names:string[])=>Object.fromEntries(names.map(k=>['worlds.bookfish.'+k,fields['worlds.bookfish.'+k]]));
   return [{...all,schema:{...all.schema,title:english?'Reading and sharing':'阅读与分享',properties:pick(main)}},{...all,id:'world:bookfish:advanced',schema:{...all.schema,title:english?'Advanced reading limits':'高级阅读限制',properties:pick(advanced)}}];

@@ -54,6 +54,19 @@ export class Sources {
   async ensureNext(signal?: AbortSignal): Promise<void> {
     const demand = this.library.sourceDemand();
     if (!demand?.needsNext) return;
+    await this.fetchNext(demand, signal);
+  }
+  /**
+   * Same validated fetch/append path as ensureNext, but keyed to the cached end
+   * instead of the confirmed frontier. The voice may run ahead of confirmation;
+   * this appends text only and never advances reading.
+   */
+  async ensureNextCached(signal?: AbortSignal): Promise<void> {
+    const demand = this.library.voiceSourceDemand();
+    if (!demand?.needsNext) return;
+    await this.fetchNext(demand, signal);
+  }
+  private async fetchNext(demand: NonNullable<ReturnType<Library['sourceDemand']>>, signal?: AbortSignal): Promise<void> {
     if (demand.paused) throw new SourceError('cancelled', 'Reading is paused');
     const key = `${demand.key}:${demand.generation}:${demand.index}`;
     const previous = this.inFlight.get(key);

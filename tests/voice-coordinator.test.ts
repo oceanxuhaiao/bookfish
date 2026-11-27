@@ -1,0 +1,290 @@
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { VoiceCoordinator } from '../src/voice/coordinator.ts';
+import type { VoiceBookSnapshot } from '../src/voice/types.ts';
+import { deferred, makeWav, waitFor, type Deferred } from './helpers/voice-fixtures.ts';
+
+let dir: string;
+beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'bookfish-voice-')); });
+afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+interface HarnessOptions {
+  enabled?: boolean;
+  key?: string;
+  synth?: (text: string, signal: AbortSignal) => Promise<Uint8Array>;
+  play?: (bytes: Uint8Array, options: { tempDir: string; signal: AbortSignal }) => Promise<unknown>;
+}
+
+function harness(texts: string[], options: HarnessOptions = {}) {
+  const state: VoiceBookSnapshot = {
+    bookKey: 'book:1', title: '测试书', generation: 1, frontier: 0,
+    totalSegments: texts.length, paused: false, complete: false, readiness: 'backlog',
+  };
+  const synthCalls: string[] = [];
+  const played: number[] = [];
+  let enabled = options.enabled ?? true;
+  const synth = options.synth ?? (async (text: string) => { synthCalls.push(text); return makeWav(); });
+  const play = options.play ?? (async () => { played.push(1); });
+  const coordinator = new VoiceCoordinator({
+    port: {
+      snapshot: () => ({ ...state }),
+      segments: (from, max) => texts.slice(from, from + max).map((text, index) => ({ id: from + index, text })),
+    },
+    enabled: () => enabled,
+    secret: () => options.key ?? 'test-key',
+    dataDir: dir,
+    synthesize: (text, signal) => synth(text, signal),
+    play: (bytes, opts) => play(bytes, opts),
+    pollMs: 0,
+  });
+  coordinator.attach();
+  return { state, texts, coordinator, synthCalls, played,
+    setEnabled(value: boolean) { enabled = value; } };
+}
+
+describe('voice coordinator lifecycle', () => {
+  it('plays cached segments in order and exposes the contiguous watermark', async () => {
+    const h = harness(['第一段。', '第二段。', '第三段。']);
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 2);
+    expect(h.synthCalls.join('')).toBe('第一段。第二段。第三段。');
+    expect(h.coordinator.status()).toMatchObject({ phase: 'waiting_content', totalSegments: 3 });
+    expect(h.coordinator.gate()).toMatchObject({ enabled: true, upper: 2 });
+    expect(h.state.frontier).toBe(0);
+    await h.coordinator.dispose();
+  });
+
+  it('treats an empty segment as passed without synthesis', async () => {
+    const h = harness(['', '有字。']);
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 1);
+    expect(h.synthCalls).toEqual(['有字。']);
+    await h.coordinator.dispose();
+  });
+
+  it('treats a repeated start as idempotent while playing', async () => {
+    const block = deferred();
+    const h = harness(['甲。', '乙。'], {
+      play: async (_bytes, { signal }) => {
+        await Promise.race([block.promise, new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))]);
+      },
+    });
+    const first = await h.coordinator.start();
+    const second = await h.coordinator.start();
+    expect(second.phase).toBe(first.phase);
+    expect(h.synthCalls.length).toBeLessThanOrEqual(2);
+    await h.coordinator.stop('user');
+    block.resolve();
+    await h.coordinator.dispose();
+  });
+
+  it('reports a playback failure and keeps the completed prefix', async () => {
+    let calls = 0;
+    const h = harness(['甲。', '乙。'], {
+      play: async () => {
+        calls += 1;
+        if (calls === 2) throw new Error('播放器失败');
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().phase === 'error');
+    expect(h.coordinator.status().error).toContain('播放器失败');
+    expect(h.coordinator.status().voicedUpTo).toBe(0);
+    await h.coordinator.dispose();
+  });
+
+  it('stops when the library closes while a task is still playing', async () => {
+    let closed = false;
+    const texts = ['甲。', '乙。'];
+    const port = {
+      snapshot: () => {
+        if (closed) throw new Error('Bookfish library is not mounted');
+        return { bookKey: 'book:1', title: '测试书', generation: 1, frontier: 0, totalSegments: 2, paused: false, complete: false, readiness: 'backlog' };
+      },
+      segments: (from: number, max: number) => texts.slice(from, from + max).map((text, index) => ({ id: from + index, text })),
+    };
+    const coordinator = new VoiceCoordinator({ port, enabled: () => true, secret: () => 'test-key', dataDir: dir,
+      synthesize: async () => makeWav(), play: async (_bytes, { signal }) => {
+        await Promise.race([new Promise<void>(resolve => setTimeout(resolve, 5000)), new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))]);
+      }, pollMs: 0 });
+    coordinator.attach();
+    await coordinator.start();
+    await waitFor(() => coordinator.status().phase === 'playing');
+    closed = true;
+    await coordinator.revalidate();
+    expect(coordinator.status()).toMatchObject({ phase: 'idle', bookKey: null, voicedUpTo: null });
+    await coordinator.dispose();
+  });
+
+  it('chat priority stops playback, keeps completed segments and never marks the interrupted one', async () => {
+    let playCount = 0;
+    const block = deferred();
+    const h = harness(['第一段。', '第二段。'], {
+      play: async (_bytes, { signal }) => {
+        playCount += 1;
+        if (playCount === 2) {
+          await Promise.race([block.promise, new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))]);
+        }
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0 && playCount === 2);
+    h.coordinator.onRunPhase({ state: 'model' });
+    await waitFor(() => h.coordinator.status().phase === 'paused');
+    expect(h.coordinator.status().voicedUpTo).toBe(0);
+    expect(h.coordinator.gate().upper).toBe(0);
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 1);
+    expect(h.synthCalls.at(-1)).toBe('第二段。');
+    await h.coordinator.dispose();
+  });
+
+  it('drops a late synthesis result after stop', async () => {
+    const slow = deferred<Uint8Array>();
+    const h = harness(['慢段落。'], { synth: (text) => { h.synthCalls.push(text); return slow.promise; } });
+    await h.coordinator.start();
+    await waitFor(() => h.synthCalls.length === 1);
+    const stopping = h.coordinator.stop('user');
+    slow.resolve(makeWav());
+    await stopping;
+    await new Promise(resolve => setTimeout(resolve, 30));
+    expect(h.played).toHaveLength(0);
+    expect(h.coordinator.status().phase).toBe('idle');
+    expect(h.coordinator.gate().upper).toBeNull();
+    await h.coordinator.dispose();
+  });
+
+  it('serializes rapid stop and restart without two concurrent players', async () => {
+    let active = 0;
+    let maxActive = 0;
+    let calls = 0;
+    const h = harness(['一段。', '二段。', '三段。'], {
+      synth: async (text) => { h.synthCalls.push(text); await new Promise(resolve => setTimeout(resolve, 15)); return makeWav(); },
+      play: async () => {
+        calls += 1; active += 1; maxActive = Math.max(maxActive, active);
+        await new Promise(resolve => setTimeout(resolve, 15));
+        active -= 1;
+      },
+    });
+    await h.coordinator.start();
+    await h.coordinator.stop('user');
+    await h.coordinator.start();
+    await waitFor(() => calls >= 1);
+    await h.coordinator.stop('user');
+    await waitFor(() => h.coordinator.status().phase === 'paused' || h.coordinator.status().phase === 'idle');
+    expect(maxActive).toBe(1);
+    await h.coordinator.dispose();
+  });
+
+  it('switching book or pausing clears the session and watermark', async () => {
+    const h = harness(['甲。', '乙。', '丙。']);
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo !== null);
+    h.state.bookKey = 'book:2'; h.state.generation = 2;
+    await h.coordinator.revalidate();
+    expect(h.coordinator.status()).toMatchObject({ phase: 'idle', bookKey: null, voicedUpTo: null });
+    expect(h.coordinator.gate().upper).toBeNull();
+    await h.coordinator.dispose();
+  });
+
+  it('pause clears the session and watermark as well', async () => {
+    const h = harness(['甲。', '乙。']);
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo !== null);
+    h.state.paused = true;
+    await h.coordinator.revalidate();
+    expect(h.coordinator.status().voicedUpTo).toBeNull();
+    expect(h.coordinator.status().phase).toBe('idle');
+    await h.coordinator.dispose();
+  });
+
+  it('reports a TTS failure and keeps the fully voiced prefix', async () => {
+    const h = harness(['甲。', '乙。'], {
+      synth: async (text) => { h.synthCalls.push(text); if (text === '乙。') throw new Error('合成失败'); return makeWav(); },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().phase === 'error');
+    expect(h.coordinator.status().error).toContain('合成失败');
+    expect(h.coordinator.status().voicedUpTo).toBe(0);
+    expect(h.coordinator.gate().upper).toBe(0);
+    await h.coordinator.dispose();
+  });
+
+  it('waits at a cached end and resumes when new chapters appear', async () => {
+    const h = harness(['甲。', '乙。']);
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().phase === 'waiting_content');
+    expect(h.coordinator.status().voicedUpTo).toBe(1);
+    h.texts.push('丙。', '丁。'); h.state.totalSegments = 4;
+    await h.coordinator.revalidate();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 3);
+    await h.coordinator.dispose();
+  });
+
+  it('asks the World source flow once for the next remote chapter', async () => {
+    const h = harness(['甲。']);
+    let fetches = 0;
+    let appended = false;
+    const coordinator = new VoiceCoordinator({
+      port: { snapshot: () => ({ ...h.state }), segments: (from, max) => h.texts.slice(from, from + max).map((text, index) => ({ id: from + index, text })) },
+      enabled: () => true, secret: () => 'test-key', dataDir: dir,
+      fetchNext: async () => { fetches += 1; if (!appended) { appended = true; h.texts.push('乙。'); h.state.totalSegments = 2; } },
+      synthesize: async text => { h.synthCalls.push(text); return makeWav(); },
+      play: async () => { h.played.push(1); }, pollMs: 0,
+    });
+    coordinator.attach();
+    await coordinator.start();
+    await waitFor(() => coordinator.status().voicedUpTo === 1);
+    expect(fetches).toBeGreaterThanOrEqual(1);
+    expect(h.texts).toHaveLength(2);
+    await coordinator.dispose();
+  });
+
+  it('bounds prefetch to one prepared chunk', async () => {
+    const block = deferred();
+    const h = harness(['甲。', '乙。', '丙。'], {
+      play: async (_bytes, { signal }) => {
+        await Promise.race([block.promise, new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))]);
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.synthCalls.length >= 1);
+    await new Promise(resolve => setTimeout(resolve, 30));
+    expect(h.synthCalls.length).toBeLessThanOrEqual(2);
+    await h.coordinator.stop('user');
+    block.resolve();
+    await h.coordinator.dispose();
+  });
+
+  it('clears the watermark when the setting is turned off and when the key changes', async () => {
+    const h = harness(['甲。', '乙。']);
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo !== null);
+    h.setEnabled(false);
+    await h.coordinator.revalidate();
+    expect(h.coordinator.status().phase).toBe('disabled');
+    expect(h.coordinator.gate()).toMatchObject({ enabled: false, upper: null });
+    h.setEnabled(true);
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo !== null);
+    await h.coordinator.onKeyChanged();
+    expect(h.coordinator.status()).toMatchObject({ phase: 'idle', bookKey: null, voicedUpTo: null });
+    await h.coordinator.dispose();
+  });
+
+  it('removes leftover audio files on start and dispose', async () => {
+    const temp = join(dir, 'bookfish', 'voice-tmp');
+    const h = harness(['甲。']);
+    rmSync(temp, { recursive: true, force: true });
+    const { mkdirSync } = await import('node:fs');
+    mkdirSync(temp, { recursive: true });
+    writeFileSync(join(temp, 'stale.wav'), makeWav());
+    await h.coordinator.start();
+    expect(readdirSync(temp).filter(name => name.endsWith('.wav'))).toHaveLength(0);
+    writeFileSync(join(temp, 'again.wav'), makeWav());
+    await h.coordinator.dispose();
+    expect(readdirSync(temp).filter(name => name.endsWith('.wav'))).toHaveLength(0);
+  });
+});

@@ -54,7 +54,11 @@
 
 这些图片用于本扩展的识别、展示和反馈，不自动授权他人单独转载、商用或用于其他项目。若权利人认为某张图不应以当前方式使用，请通过 GitHub Issues 联系，我们会核实并调整。图片的具体来源说明见 [`assets/branding/SOURCE.md`](assets/branding/SOURCE.md)。
 
-## 4. npm 依赖
+## 4. 云端语音服务
+
+语音朗读是可选的实验功能，默认关闭。启用并点击开始后，已缓存的小说正文会按小米 MiMo 的公开 HTTP 接口发送给该服务合成 WAV 音频。扩展不包含 MiMo SDK 或服务端代码，也不代表小米官方背书；使用需遵守 MiMo 的服务条款、隐私政策与计费规则。语音 KEY 只保存在部署 `.env`，不写入配置、日志、模型工具或备份。
+
+## 5. npm 依赖
 
 npm 包运行时会安装以下第三方依赖，它们不是 Bookfish 原创代码：
 
@@ -65,7 +69,7 @@ npm 包运行时会安装以下第三方依赖，它们不是 Bookfish 原创代
 
 开发依赖（TypeScript、Vitest、esbuild 等）不进入 npm 运行时依赖；其许可证以各自包为准。
 
-## 5. 原创部分
+## 6. 原创部分
 
 以下内容为 Bookfish 原创代码，除非另有标注，适用 MIT：
 
@@ -75,7 +79,7 @@ npm 包运行时会安装以下第三方依赖，它们不是 Bookfish 原创代
 - WebUI 面板、反馈页和品牌展示代码
 - `SonovelBridge.java` 适配代码
 
-## 6. 与官方的关系
+## 7. 与官方的关系
 
 Bookfish 是第三方 Coopanion/Cortico 扩展，不代表 Pal AI Lab、Cortico、Coopanion、so-novel 或 Temurin 官方背书。扩展市场中的认证/标签以市场维护者的实际审核结果为准。
 

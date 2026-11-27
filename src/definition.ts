@@ -4,7 +4,8 @@ import { BOOKFISH_TOOL_DECLS } from './tool-schemas.ts';
 import { BookfishWorld } from './world.ts';
 export const BOOKFISH: WorldDefinition<BookfishConfigSection> = {
   id: 'bookfish', label: '看书吧！大肥鱼', defaults: () => ({ ...BOOKFISH_DEFAULTS }),
-  create: (ctx) => new BookfishWorld({ cfg: ctx.cfg, timezone: ctx.timezone, dataDir: ctx.dataDir, persist:patch=>ctx.persist(patch) }),
+  create: (ctx) => new BookfishWorld({ cfg: ctx.cfg, timezone: ctx.timezone, dataDir: ctx.dataDir, persist: patch => ctx.persist(patch),
+    secret: name => ctx.secret(name), storeSecret: (name, value) => ctx.storeSecret(name, value), botDir: ctx.botDir }),
   describe: {
     tools: describeTools(BOOKFISH_TOOL_DECLS, {
       bookfish_get_status: { zh: '查询阅读进度、暂停状态、预算、分享摘要与等待原因。', en: 'Reports progress, pause, budgets, sharing summary and waiting reasons.' },

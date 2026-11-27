@@ -3,6 +3,7 @@ import type { LibraryPanelState } from '../status.ts';
 import type { Library } from '../library.ts';
 import { moodPrefix } from './mood.ts';
 import { describeImportError } from '../import-errors.ts';
+import { mountVoiceCard } from './voice.ts';
 
 export default {
   panels: {
@@ -21,6 +22,8 @@ export default {
         const schedule = document.createElement('p'); schedule.setAttribute('aria-label', say('自主阅读状态', 'Automatic reading status')); section.append(schedule);
         const messages = document.createElement('p'); messages.setAttribute('role', 'status'); section.append(messages);
         const controls = document.createElement('div'); controls.dataset.bookfish = 'controls'; controls.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap'; section.append(controls);
+        const voiceHost = document.createElement('section'); voiceHost.dataset.bookfish = 'voice'; section.append(voiceHost);
+        const voiceCard = mountVoiceCard(voiceHost, ctx);
         const notebook = document.createElement('section'); notebook.setAttribute('aria-label', say('阅读手账', 'Reading journal')); section.append(notebook);
         const shares = document.createElement('section'); shares.setAttribute('aria-label', say('阅读分享', 'Reading shares')); section.append(shares);
         const articles = document.createElement('section'); articles.setAttribute('aria-label', say('全书读后感', 'Full-book reviews')); section.append(articles);
@@ -285,7 +288,7 @@ export default {
               : say('尚未选择书籍。导入后点击“开始读这本”。', 'No book selected. Import and select a book.');
             pause.textContent = lib.paused ? say('继续阅读', 'Resume') : say('暂停阅读', 'Pause');
             const run = state.status.scheduler;
-            const reasons: Record<string, string> = { routine:'按作息暂停阅读', stopped: '未运行', waiting_for_host_idle: '等待宿主报告空闲', disabled: '自主阅读未开启', paused: '已暂停', no_book: '尚未选书', complete: '已全部确认', resting: '正在休息', daily_goal: '今天的章节目标已完成',chapter_goal_unavailable:'本书章节未识别，无法按章安排', awaiting_model: '等待模型处理', chat_priority: '聊天优先，等待空闲30秒', waiting: '等待下次机会', failed: '运行失败' };
+            const reasons: Record<string, string> = { routine:'按作息暂停阅读', stopped: '未运行', waiting_for_host_idle: '等待宿主报告空闲', disabled: '自主阅读未开启', paused: '已暂停', no_book: '尚未选书', complete: '已全部确认', resting: '正在休息', daily_goal: '今天的章节目标已完成',chapter_goal_unavailable:'本书章节未识别，无法按章安排', awaiting_model: '等待模型处理', chat_priority: '聊天优先，等待空闲30秒', waiting: '等待下次机会', waiting_voice: '等待语音读完下一段', failed: '运行失败' };
             schedule.textContent = `${say('自主阅读', 'Automatic reading')}: ${en ? run.reason : reasons[run.reason] ?? run.reason} · ${state.status.selectedMode} · ${say('今日提供', 'Supplied today')} ${run.budget.tasks} ${say('段', 'tasks')}, ${run.budget.chars} ${say('字符', 'characters')} · ${say('下次最早', 'Next earliest')} ${run.nextAt ? new Date(run.nextAt).toLocaleString() : '—'}${run.error ? ` · ${run.error}` : ''}`;
             const signature = JSON.stringify([state.books, current?.key]);
             if (signature === shelfRevision) { if (working) setDisabled(true); return; }
@@ -312,7 +315,7 @@ export default {
         section.append(searchForm);
         await refresh();await refreshImport();
         ctx.interval(() => { if (!working){void refresh();void refreshImport();} }, 2000);
-        return { dispose() { disposed = true; request++; } };
+        return { dispose() { disposed = true; request++; voiceCard.dispose(); } };
       },
     },
   },

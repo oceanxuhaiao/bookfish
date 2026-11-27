@@ -434,6 +434,39 @@ export class Library {
         error: b.remote.lastError ?? null, lastFetchedAt: layout?layout.lastFetchedAt:b.remote.cache[loaded - 1]?.fetchedAt ?? null } : null };
   }
   list() { this.ensureOpen(); return this.state.books.map((entry) => this.view(entry)); }
+  /**
+   * Read-only metadata for the optional voice module. It never creates a task,
+   * advances progress, changes the generation or writes to disk.
+   */
+  voiceSnapshot() {
+    this.ensureOpen();
+    const entry = this.state.books.find((e) => e.book.key === this.state.selected);
+    if (!entry) return null;
+    const book = entry.book;
+    const serial = serialSummary(book, entry.frontier, entry.serial ?? serialOf(book), entry.skip ?? 0);
+    const cached = book.remote?.cache.length ?? 0;
+    const complete = serial ? serial.complete
+      : entry.frontier === book.segments.length && (!book.remote || (cached === book.remote.catalog.chapters.length && book.remote.catalog.publicationStatus === 'finished'));
+    const readiness = serial ? serial.readiness : (entry.frontier === book.segments.length && book.remote ? 'caught_up' : 'backlog');
+    return { bookKey: book.key, title: book.title, generation: this.state.generation,
+      frontier: entry.frontier, totalSegments: book.segments.length,
+      paused: this.state.paused, complete, readiness: String(readiness) };
+  }
+  /** Cached, contiguous text for the voice reader. Read-only clone; never uncached text. */
+  voiceSegments(from: unknown, max: unknown) {
+    this.ensureOpen();
+    if (!Number.isSafeInteger(from) || (from as number) < 0) throw new Error('Invalid voice segment start');
+    const count = Number.isSafeInteger(max) ? Math.max(0, Math.min(4, max as number)) : 0;
+    const entry = this.state.books.find((e) => e.book.key === this.state.selected);
+    if (!entry || count === 0) return [];
+    return entry.book.segments.slice(from as number, (from as number) + count)
+      .map((segment) => ({ id: segment.id, text: segment.text }));
+  }
+  /** Raw next-unread index (includes a declared reading start), for the voice gate. */
+  readingFrontier(): number {
+    this.ensureOpen();
+    return this.state.books.find((e) => e.book.key === this.state.selected)?.frontier ?? 0;
+  }
   status() {
     const entry = this.state.books.find((e) => e.book.key === this.state.selected);
     const task = this.opened ? historySelect(this.state.tasks,{status:'pending'}).find(t=>t.expiresAt>this.now()) : undefined;
@@ -1367,6 +1400,21 @@ export class Library {
     const source = entry.book.remote;
     return { key: entry.book.key, generation: this.state.generation, catalog: structuredClone(source.catalog),
       index: source.cache.length, needsNext: entry.frontier === entry.book.segments.length && source.cache.length < source.catalog.chapters.length,
+      paused: this.state.paused, selected: this.state.selected === key };
+  }
+  /**
+   * Read-only demand at the cached end, for the optional voice reader that may
+   * run ahead of the confirmed frontier. Same fetch/cache validation applies;
+   * nothing here advances progress.
+   */
+  voiceSourceDemand(key = this.state.selected) {
+    this.ensureOpen();
+    const entry = this.state.books.find(e => e.book.key === key);
+    if (!entry?.book.remote) return null;
+    if (entry.book.remote.serial) return null;
+    const source = entry.book.remote;
+    return { key: entry.book.key, generation: this.state.generation, catalog: structuredClone(source.catalog),
+      index: source.cache.length, needsNext: source.cache.length < source.catalog.chapters.length,
       paused: this.state.paused, selected: this.state.selected === key };
   }
   cacheChapter(key: string, generation: number, chapter: CachedChapter) {
