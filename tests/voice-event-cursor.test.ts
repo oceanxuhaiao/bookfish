@@ -281,3 +281,32 @@ describe('V2.1.2 chat provenance best effort', () => {
     }
   });
 });
+
+describe('V2.1.3 start check has no consumption side effect', () => {
+  it('does not consume chat evidence at an idle boundary after a start check', async () => {
+    const { world, store } = await setup();
+    try {
+      store.addExternal('idle 期间到达的用户消息');
+      const hasExternal = () => (world as unknown as { shouldBlockVoiceStart(): boolean }).shouldBlockVoiceStart();
+      expect(hasExternal()).toBe(true);
+      // A pure start check must not mark a turn; an unrelated idle boundary with
+      // no delivering/model turn must therefore leave the evidence unconsumed.
+      world.onRunPhase!({ state: 'idle', running: [], enteredAt: new Date().toISOString() });
+      expect(hasExternal()).toBe(true);
+    } finally { await world.stop(); }
+  });
+
+  it('still consumes evidence once a real main turn settles it', async () => {
+    const { world, engine, store } = await setup();
+    try {
+      store.addExternal('真实用户消息');
+      const hasExternal = () => (world as unknown as { shouldBlockVoiceStart(): boolean }).shouldBlockVoiceStart();
+      expect(hasExternal()).toBe(true);
+      engine.calls.length = 0;
+      world.onRunPhase!({ state: 'model', running: [], enteredAt: new Date().toISOString() });
+      expect(engine.calls).toContain('phase');
+      world.onTurnEnded!();
+      expect(hasExternal()).toBe(false);
+    } finally { await world.stop(); }
+  });
+});

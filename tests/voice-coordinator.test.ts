@@ -693,3 +693,158 @@ describe('V2.1.2 generation change with old pending metadata', () => {
     await h.coordinator.dispose();
   });
 });
+
+type PendingMeta = { taskId: string; bookKey: string; segmentId: number; generation: number; expiresAt: number };
+
+describe('V2.1.3 recovery authorization lifetime', () => {
+  const abortAfter = (signal: AbortSignal) =>
+    new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }));
+
+  it('keeps the KEY recovery authorization through a TTS failure until the segment is voiced', async () => {
+    const pending = { current: [] as PendingMeta[] };
+    let failTts = false;
+    let plays = 0;
+    const block = deferred();
+    const h = harness(['甲。', '乙。'], {
+      pendingTasks: () => pending.current,
+      synth: async (text) => {
+        if (failTts && text === '乙。') throw new Error('HTTP 401');
+        return makeWav();
+      },
+      play: async (_bytes, { signal }) => {
+        plays += 1;
+        if (plays === 2) await Promise.race([block.promise, abortAfter(signal)]);
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0 && plays === 2);
+    await h.coordinator.onKeyChanged();
+    expect(h.coordinator.status().voicedUpTo).toBe(0);
+    block.resolve();
+    pending.current = [{ taskId: 't1', bookKey: 'book:1', segmentId: 1, generation: 1, expiresAt: Date.now() + 60_000 }];
+
+    // Starting playback is not completing it: a TTS failure must not consume the
+    // authorization, so the segment can still be resumed afterwards.
+    failTts = true;
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().phase === 'error');
+    expect(h.coordinator.status().voicedUpTo).toBe(0);
+    expect(h.coordinator.status().error).toMatch(/401/);
+
+    failTts = false;
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 1);
+    await h.coordinator.dispose();
+  });
+
+  it('keeps the KEY recovery authorization through a player failure until the segment is voiced', async () => {
+    const pending = { current: [] as PendingMeta[] };
+    let failPlay = false;
+    let plays = 0;
+    const block = deferred();
+    const h = harness(['甲。', '乙。'], {
+      pendingTasks: () => pending.current,
+      play: async (_bytes, { signal }) => {
+        plays += 1;
+        if (failPlay) throw new Error('player failed');
+        if (plays === 2) await Promise.race([block.promise, abortAfter(signal)]);
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0 && plays === 2);
+    await h.coordinator.onKeyChanged();
+    block.resolve();
+    pending.current = [{ taskId: 't1', bookKey: 'book:1', segmentId: 1, generation: 1, expiresAt: Date.now() + 60_000 }];
+
+    failPlay = true;
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().phase === 'error');
+    expect(h.coordinator.status().voicedUpTo).toBe(0);
+
+    failPlay = false;
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 1);
+    await h.coordinator.dispose();
+  });
+
+  it('keeps the KEY recovery authorization through a chat interruption until the segment is voiced', async () => {
+    const pending = { current: [] as PendingMeta[] };
+    let plays = 0;
+    const block1 = deferred();
+    const block2 = deferred();
+    const h = harness(['甲。', '乙。'], {
+      pendingTasks: () => pending.current,
+      play: async (_bytes, { signal }) => {
+        plays += 1;
+        if (plays === 2) await Promise.race([block1.promise, abortAfter(signal)]);
+        else if (plays === 3) await Promise.race([block2.promise, abortAfter(signal)]);
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0 && plays === 2);
+    await h.coordinator.onKeyChanged();
+    block1.resolve();
+    pending.current = [{ taskId: 't1', bookKey: 'book:1', segmentId: 1, generation: 1, expiresAt: Date.now() + 60_000 }];
+
+    await h.coordinator.start();
+    await waitFor(() => plays === 3);
+    h.coordinator.onRunPhase({ state: 'model' });
+    await waitFor(() => h.coordinator.status().phase !== 'playing');
+    expect(h.coordinator.status().voicedUpTo).toBe(0);
+    block2.resolve();
+
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 1);
+    await h.coordinator.dispose();
+  });
+
+  it('does not let the recovery authorization cover a later unplayed segment', async () => {
+    const pending = { current: [] as PendingMeta[] };
+    let plays = 0;
+    const block = deferred();
+    const later = deferred();
+    const h = harness(['甲。', '乙。', '丙。'], {
+      pendingTasks: () => pending.current,
+      play: async (_bytes, { signal }) => {
+        plays += 1;
+        if (plays === 2) await Promise.race([block.promise, abortAfter(signal)]);
+        else if (plays === 4) await Promise.race([later.promise, abortAfter(signal)]);
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0 && plays === 2);
+    await h.coordinator.onKeyChanged();
+    block.resolve();
+    pending.current = [{ taskId: 't1', bookKey: 'book:1', segmentId: 1, generation: 1, expiresAt: Date.now() + 60_000 }];
+    await h.coordinator.start();
+    // The authorized segment 1 completes; segment 2 is blocked so the watermark
+    // settles at 1 and the authorization is consumed at fulfillment.
+    await waitFor(() => h.coordinator.status().voicedUpTo === 1 && plays === 4);
+    await h.coordinator.stop('user');
+    later.resolve();
+    pending.current = [{ taskId: 't2', bookKey: 'book:1', segmentId: 2, generation: 1, expiresAt: Date.now() + 60_000 }];
+    await expect(h.coordinator.start()).rejects.toThrow(/未完成的阅读任务/);
+    await h.coordinator.dispose();
+  });
+
+  it('does not fabricate identity from a legacy pendingTask when authorizing recovery', async () => {
+    let plays = 0;
+    let pending: { taskId: string; segmentId: number } | null = null;
+    const block = deferred();
+    const h = harness(['甲。', '乙。'], {
+      pendingTask: () => pending,
+      play: async (_bytes, { signal }) => {
+        plays += 1;
+        if (plays === 2) await Promise.race([block.promise, abortAfter(signal)]);
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0 && plays === 2);
+    await h.coordinator.onKeyChanged();
+    block.resolve();
+    pending = { taskId: 't1', segmentId: 1 };
+    // Legacy port exposes no book/generation: recovery must not be authorized.
+    await expect(h.coordinator.start()).rejects.toThrow(/未完成的阅读任务/);
+    await h.coordinator.dispose();
+  });
+});

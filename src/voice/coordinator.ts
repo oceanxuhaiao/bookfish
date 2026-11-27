@@ -190,7 +190,10 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
       this.sweep();
       this.startTimer();
       this.startLoop();
-      this.keyRecovery = undefined;
+      // Do NOT consume the recovery authorization here. Starting playback is not
+      // the same as completing the authorized segment: a TTS failure, a player
+      // failure or a chat interruption can still abort before the segment is
+      // fully voiced. The authorization is consumed only in markVoiced().
       return this.status();
     });
   }
@@ -201,9 +204,8 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
    * generation, unexpired; the user must have explicitly pressed start.
    */
   private assertPendingTasksAllowStart(snap: VoiceBookSnapshot): void {
-    const single = this.opts.port.pendingTask?.();
-    const tasks = this.opts.port.pendingTasks?.()
-      ?? (single ? [{ ...single, bookKey: snap.bookKey, generation: snap.generation, expiresAt: Number.MAX_SAFE_INTEGER }] : []);
+    const tasks = this.opts.port.pendingTasks?.();
+    if (tasks === undefined) { this.assertLegacyPendingAllowsStart(); return; }
     if (tasks.length === 0) return;
     const now = Date.now();
     const active = tasks.filter(task => task.expiresAt > now);
@@ -229,6 +231,21 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
     }
     const first = active[0]!;
     throw new VoiceConfigError(`大肥鱼还有未完成的阅读任务（第 ${first.segmentId + 1} 段），请先等待本轮阅读结束或安全取消后再开始朗读。`);
+  }
+
+  /**
+   * Legacy ports expose only one pending task (`taskId`, `segmentId`) with no
+   * book, generation or expiry. We must not fabricate that identity. Without it
+   * we accept only a task that is provably already fully played (within the
+   * current watermark); anything unplayed blocks, and KEY recovery is never
+   * authorized here because its identity cannot be verified.
+   */
+  private assertLegacyPendingAllowsStart(): void {
+    const single = this.opts.port.pendingTask?.();
+    if (!single) return;
+    const watermark = this.voicedUpTo;
+    if (watermark !== null && single.segmentId <= watermark) return;
+    throw new VoiceConfigError(`大肥鱼还有未完成的阅读任务（第 ${single.segmentId + 1} 段），请先等待本轮阅读结束或安全取消后再开始朗读。`);
   }
 
   stop(reason: VoiceStopReason = 'user'): Promise<void> {
@@ -360,7 +377,10 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
   }
 
   private applyStop(reason: VoiceStopReason): void {
-    if (reason !== 'key') this.keyRecovery = undefined;
+    // A chat interruption, a user stop or a TTS/player error must NOT consume a
+    // still-unfulfilled recovery authorization: the authorized segment did not
+    // finish playing, so the user may resume it. Only a session that loses its
+    // identity (config/book_changed/pause/shutdown) or a finished book clears it.
     this.queue = [];
     this.playingSegmentId = null;
     this.sessionId = null;
@@ -369,6 +389,7 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
     this.sweep();
 
     if (reason === 'complete') {
+      this.keyRecovery = undefined;
       this.phase = 'idle';
       this.detail = '本书已读完。';
       this.error = null;
@@ -423,6 +444,7 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
       return;
     }
 
+    this.keyRecovery = undefined;
     this.bookKey = null;
     this.title = null;
     this.generation = null;
@@ -611,6 +633,15 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
 
   private markVoiced(segmentId: number): void {
     this.voicedUpTo = segmentId;
+    // Fulfillment, not start, ends the KEY recovery authorization. Once the
+    // authorized next segment (watermark+1) is fully voiced for the same book
+    // and generation, the authorization is consumed. Until then it survives
+    // chat/user stops, TTS failures and player failures so the user can resume.
+    const recovery = this.keyRecovery;
+    if (recovery && this.bookKey === recovery.bookKey && this.generation === recovery.generation
+      && segmentId >= recovery.watermark + 1) {
+      this.keyRecovery = undefined;
+    }
   }
 
   private validFor(snap: VoiceBookSnapshot | null, bookKey: string, generation: number): boolean {

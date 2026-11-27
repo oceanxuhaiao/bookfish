@@ -869,14 +869,15 @@ export class BookfishWorld implements World {
   /**
    * Manual start is blocked while external evidence is unsettled, even if the
    * host is idle and the user message has not reached a model turn yet.
+   *
+   * This is a READ-ONLY query. It must not mark the current turn as external:
+   * otherwise a later idle phase or an unrelated turn boundary would consume the
+   * evidence before a real main turn ever handled it. Consumption is driven only
+   * by updateVoiceChatPriority() on delivering/model phases and by the following
+   * idle/onTurnEnded boundary.
    */
   private shouldBlockVoiceStart(): boolean {
-    const hit = this.hasExternalSinceIdle();
-    if (hit) {
-      this.currentTurnExternal = true;
-      this.turnExternalCursor = Math.max(this.turnExternalCursor, this.pendingExternalCursor);
-    }
-    return hit;
+    return this.hasExternalSinceIdle();
   }
   /**
    * A turn boundary is also a safe consumption point. `onTurnEnded` covers a
