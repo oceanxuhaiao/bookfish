@@ -10,21 +10,24 @@ import { VoiceCoordinator } from '../src/voice/coordinator.ts';
 const OUT = process.env.VOICE_STRESS_OUT ?? 'voice-stability-30m.json';
 const DATA = process.env.VOICE_STRESS_DATA ?? join(process.cwd(), 'tmp', 'voice-stress-data');
 const DURATION_MS = Number(process.env.VOICE_STRESS_MS ?? 30 * 60 * 1000);
+const STOP_MS = Number(process.env.VOICE_STRESS_STOP_MS ?? 300_000);
 const SEGMENTS = 4000;
 const TEMP = join(DATA, 'bookfish', 'voice-tmp');
 mkdirSync(TEMP, { recursive: true });
 
-function wav(): Uint8Array {
+function wav(segmentId = 0): Uint8Array {
   const data = 320; const bytes = Buffer.alloc(44 + data);
   bytes.write('RIFF', 0, 'ascii'); bytes.writeUInt32LE(36 + data, 4); bytes.write('WAVE', 8, 'ascii');
   bytes.write('fmt ', 12, 'ascii'); bytes.writeUInt32LE(16, 16); bytes.writeUInt16LE(1, 20); bytes.writeUInt16LE(1, 22);
   bytes.writeUInt32LE(8000, 24); bytes.writeUInt32LE(8000, 28); bytes.writeUInt16LE(1, 32); bytes.writeUInt16LE(8, 34);
-  bytes.write('data', 36, 'ascii'); bytes.writeUInt32LE(data, 40); bytes.fill(128, 44); return new Uint8Array(bytes);
+  bytes.write('data', 36, 'ascii'); bytes.writeUInt32LE(data, 40); bytes.fill(128, 44);
+  bytes.writeUInt32LE(segmentId, 44);
+  return new Uint8Array(bytes);
 }
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 const state = { bookKey: 'A', title: '稳定性样本A', generation: 1, frontier: 0, totalSegments: SEGMENTS, paused: false, complete: false, readiness: 'backlog' };
-const sequences: Record<string, number[]> = { A: [], B: [] };
+const playedByBook: Record<string, number[]> = { A: [], B: [] };
 const synthByBook: Record<string, number[]> = { A: [], B: [] };
 let phase = 'playing';
 let maxActivePlayers = 0;
@@ -33,6 +36,8 @@ let maxTempFiles = 0;
 let tempSamples = 0;
 let errors: string[] = [];
 let rapidMaxActive = 0;
+process.on('unhandledRejection', (reason) => { const text = `unhandledRejection: ${String(reason)}`; errors.push(text); console.error(text); });
+process.on('uncaughtException', (error) => { const text = `uncaughtException: ${String(error)}`; errors.push(text); console.error(text); });
 
 const coordinator = new VoiceCoordinator({
   port: {
@@ -51,7 +56,7 @@ const coordinator = new VoiceCoordinator({
     if (!match) throw new Error('unexpected synthesis text');
     synthByBook[match[1]!]!.push(Number(match[2]));
     await sleep(40);
-    return wav();
+    return wav(Number(match[2]));
   },
   play: async (bytes, { tempDir, signal }) => {
     activePlayers += 1; maxActivePlayers = Math.max(maxActivePlayers, activePlayers);
@@ -64,6 +69,8 @@ const coordinator = new VoiceCoordinator({
       activePlayers -= 1;
     }
     if (signal.aborted) return { aborted: true };
+    const id = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).readUInt32LE(44);
+    playedByBook[state.bookKey]!.push(id);
     return { aborted: false };
   },
   pollMs: 1000,
@@ -86,38 +93,49 @@ timers.push(setInterval(() => {
 }, 60_000));
 
 // Scheduled interruptions: stop/resume, switch book, stop/resume.
-timers.push(setTimeout(async () => {
-  log('user stop #1');
-  await coordinator.stop('user');
-  await sleep(2000);
-  await coordinator.start();
-  log('resumed #1');
-}, 300_000));
-timers.push(setTimeout(async () => {
-  log('switch to book B');
-  state.bookKey = 'B'; state.title = '稳定性样本B'; state.generation += 1;
-  await coordinator.revalidate();
-  await coordinator.start();
-  log('book B started');
-}, 900_000));
-timers.push(setTimeout(async () => {
-  log('chat stop');
-  coordinator.onRunPhase({ state: 'model' });
-  await sleep(1500);
-  await coordinator.start();
-  log('resumed after chat');
-}, 1_500_000));
-timers.push(setTimeout(async () => {
-  log('20 rapid stop/start cycles');
-  for (let i = 0; i < 20; i += 1) {
-    const s = coordinator.start();
+timers.push(setTimeout(() => { void (async () => {
+  try {
+    log('user stop #1');
     await coordinator.stop('user');
-    await s.catch(() => {});
+    await sleep(2000);
     await coordinator.start();
+    log('resumed #1');
+  } catch (error) {
+    errors.push(`stop/resume: ${String(error)}`);
+    console.error('STOP_RESUME_ERROR', error);
   }
-  rapidMaxActive = maxActivePlayers;
-  log('rapid cycles done');
-}, 1_680_000));
+})(); }, STOP_MS));
+timers.push(setTimeout(() => { void (async () => {
+  try {
+    log('switch to book B');
+    state.bookKey = 'B'; state.title = '稳定性样本B'; state.generation += 1;
+    await coordinator.revalidate();
+    await coordinator.start();
+    log('book B started');
+  } catch (error) { errors.push(`switch: ${String(error)}`); console.error('SWITCH_ERROR', error); }
+})(); }, 900_000));
+timers.push(setTimeout(() => { void (async () => {
+  try {
+    log('chat stop');
+    coordinator.onRunPhase({ state: 'model' });
+    await sleep(1500);
+    await coordinator.start();
+    log('resumed after chat');
+  } catch (error) { errors.push(`chat: ${String(error)}`); console.error('CHAT_ERROR', error); }
+})(); }, 1_500_000));
+timers.push(setTimeout(() => { void (async () => {
+  try {
+    log('20 rapid stop/start cycles');
+    for (let i = 0; i < 20; i += 1) {
+      const s = coordinator.start();
+      await coordinator.stop('user');
+      await s.catch((error) => errors.push(`rapid start: ${String(error)}`));
+      await coordinator.start();
+    }
+    rapidMaxActive = maxActivePlayers;
+    log('rapid cycles done');
+  } catch (error) { errors.push(`rapid: ${String(error)}`); console.error('RAPID_ERROR', error); }
+})(); }, 1_680_000));
 
 await sleep(DURATION_MS);
 for (const timer of timers) clearInterval(timer as unknown as ReturnType<typeof setInterval>);
@@ -133,6 +151,9 @@ function prefixOk(list: number[]): { length: number; duplicates: number; missing
   const expected = list.length ? Math.max(...list) + 1 : 0;
   return { length, duplicates, missing: Math.max(0, expected - length - duplicates) };
 }
+const seqA = prefixOk(playedByBook.A);
+const seqB = prefixOk(playedByBook.B);
+const sequenceClean = [seqA, seqB].every(seq => seq.duplicates === 0 && seq.missing === 0);
 const result = {
   durationSeconds: Math.round(elapsed() / 1000),
   maxActivePlayers,
@@ -141,9 +162,10 @@ const result = {
   leftOverTempWav: readdirSync(TEMP).filter(name => name.endsWith('.wav')).length,
   finalPhase: coordinator.status().phase,
   errors,
-  sequences: { A: prefixOk(synthByBook.A), B: prefixOk(synthByBook.B) },
-  samples: { synthA: synthByBook.A.length, synthB: synthByBook.B.length, heap: heapSamples },
-  pass: maxActivePlayers <= 1 && rapidMaxActive <= 1 && maxTempFiles <= 2 && errors.length === 0,
+  sequences: { A: seqA, B: seqB },
+  prefetch: { A: synthByBook.A.length, B: synthByBook.B.length, playedA: playedByBook.A.length, playedB: playedByBook.B.length },
+  samples: { heap: heapSamples },
+  pass: maxActivePlayers <= 1 && rapidMaxActive <= 1 && maxTempFiles <= 2 && errors.length === 0 && sequenceClean,
 };
 writeFileSync(OUT, JSON.stringify(result, null, 2));
 console.log('RESULT', JSON.stringify({ ...result, samples: { ...result.samples, heap: 'see json' } }));

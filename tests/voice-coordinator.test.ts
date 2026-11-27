@@ -18,6 +18,7 @@ interface HarnessOptions {
   pendingTask?: () => { taskId: string; segmentId: number } | null;
   onSnapshot?: () => void;
   pollMs?: number;
+  shouldInterruptForChat?: () => boolean;
 }
 
 function harness(texts: string[], options: HarnessOptions = {}) {
@@ -42,6 +43,7 @@ function harness(texts: string[], options: HarnessOptions = {}) {
     synthesize: (text, signal) => synth(text, signal),
     play: (bytes, opts) => play(bytes, opts),
     pollMs: options.pollMs ?? 0,
+    shouldInterruptForChat: options.shouldInterruptForChat,
   });
   coordinator.attach();
   return { state, texts, coordinator, synthCalls, played,
@@ -366,6 +368,28 @@ describe('completion and pause boundaries', () => {
     await h.coordinator.revalidate();
     expect(h.coordinator.status()).toMatchObject({ phase: 'idle', detail: '本书已读完。' });
     await expect(h.coordinator.start()).rejects.toThrow(/读完了/);
+    await h.coordinator.dispose();
+  });
+});
+
+describe('chat safety net without a new phase callback', () => {
+  it('stops within a bounded poll when a user event arrives mid-turn', async () => {
+    let interrupt = false;
+    const block = deferred();
+    const h = harness(['甲。', '乙。'], {
+      pollMs: 10,
+      shouldInterruptForChat: () => interrupt,
+      play: async (_bytes, { signal }) => {
+        await Promise.race([block.promise, new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))]);
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().phase === 'playing');
+    interrupt = true;
+    await waitFor(() => (h.coordinator.status().phase === 'paused' || h.coordinator.status().phase === 'idle')
+      && (h.coordinator.status().detail ?? '').includes('聊天优先'));
+    expect(h.coordinator.status().detail).toContain('聊天优先');
+    block.resolve();
     await h.coordinator.dispose();
   });
 });

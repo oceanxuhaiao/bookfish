@@ -24,6 +24,8 @@ export interface VoiceCoordinatorOptions {
   logger?: () => VoiceLogger | undefined;
   pollMs?: number;
   chunkChars?: number;
+  /** Safety net for a user event that arrives mid-turn without a new phase callback. */
+  shouldInterruptForChat?: () => boolean;
 }
 
 interface PreparedChunk {
@@ -186,12 +188,21 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
         if (this.bookKey !== null || this.voicedUpTo !== null || this.loop) await this.stopNow('config');
         return;
       }
+      if (this.phase === 'playing' && this.opts.shouldInterruptForChat?.()) {
+        await this.stopNow('chat');
+        return;
+      }
       if (this.bookKey === null) return;
       const snap = this.safeSnapshot();
       if (!snap) { await this.stopNow('book_changed'); return; }
       if (snap.bookKey !== this.bookKey || snap.generation !== this.generation) { await this.stopNow('book_changed'); return; }
       if (snap.paused) { await this.stopNow('pause'); return; }
-      if (snap.complete) { await this.stopNow('complete'); return; }
+      if (snap.complete) {
+        // Let the producer finish the segment already playing; it will publish
+        // idle itself. Only an already-drained loop is stopped here.
+        if (this.phase === 'playing') return;
+        await this.stopNow('complete'); return;
+      }
       this.totalSegments = snap.totalSegments;
       const retryFetch = this.fetchFailures > 0 && this.fetchFailures < 3
         && this.fetchAttemptAt !== 0 && Date.now() - this.fetchAttemptAt >= 30000;

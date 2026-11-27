@@ -82,6 +82,8 @@ export class BookfishWorld implements World {
   private lifetime = new AbortController();
   /** True while the main session is running BookFish's own reading opportunity, not a user chat. */
   private readingTurn = false;
+  /** True while the main session is busy (any non-idle RunPhase). */
+  private mainTurnActive = false;
   /** Cursor observed at the last idle phase; external events after it mean chat. */
   private lastIdleCursor = 0;
   constructor(private readonly opts: BookfishWorldOptions) {
@@ -97,6 +99,7 @@ export class BookfishWorld implements World {
       dataDir: opts.dataDir,
       fetchNext: signal => this.fetchNextForVoice(signal),
       logger: () => this.host?.log as VoiceLogger | undefined,
+      shouldInterruptForChat: () => this.mainTurnActive && this.hasExternalSinceIdle(),
     });
     this.scheduler = new ReadingScheduler(this.library, opts.cfg, opts.timezone, undefined, undefined,
       { autoAdvance: () => this.selection?.autoAdvance() ?? false, voiceGate: () => this.voice.gate() });
@@ -790,6 +793,7 @@ export class BookfishWorld implements World {
    * the same batch, or any uncertain external event, stops the voice.
    */
   private updateVoiceChatPriority(phase: RunPhase): void {
+    this.mainTurnActive = phase.state !== 'idle';
     if (phase.state === 'idle') {
       this.readingTurn = false;
       if (this.host) this.lastIdleCursor = this.host.store.latestCursor();
@@ -798,22 +802,21 @@ export class BookfishWorld implements World {
     if (!['delivering', 'model'].includes(phase.state)) return;
     if (!this.opts.cfg.voiceOutputEnabled) return;
     const active = this.scheduler.status().active;
-    let hasExternalSinceIdle = true;
-    if (this.host) {
-      try {
-        hasExternalSinceIdle = this.host.store.range({
-          fromCursor: this.lastIdleCursor + 1, origin: 'external', limit: 1,
-        }).length > 0;
-      } catch {
-        // If provenance cannot be read, prefer stopping the voice over guessing.
-        hasExternalSinceIdle = true;
-      }
-    }
+    const hasExternalSinceIdle = this.hasExternalSinceIdle();
     this.readingTurn = isBookfishReadingTurn({
       activeReadingMode: active ? (active.mode === 'background' ? 'background' : 'main') : null,
       hasExternalSinceIdle,
     });
     if (!this.readingTurn) this.voice.onRunPhase(phase);
+  }
+  /** External events since the last idle observation; unreadable provenance is treated as chat. */
+  private hasExternalSinceIdle(): boolean {
+    if (!this.host) return false;
+    try {
+      return this.host.store.range({ fromCursor: this.lastIdleCursor + 1, origin: 'external', limit: 1 }).length > 0;
+    } catch {
+      return true;
+    }
   }
   onTurnEnded(): void { this.scheduler.onTurnEnded(); this.sharing.onTurnEnded(); }
   onEventsSettled(events: readonly EventEnvelope[], outcome: 'delivered' | 'discarded'): void { this.scheduler.onEventsSettled(events, outcome); this.sharing.onEventsSettled(events, outcome); }
