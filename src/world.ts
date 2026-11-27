@@ -837,9 +837,9 @@ export class BookfishWorld implements World {
         const events = this.host.store.range({
           fromCursor: this.lastScannedCursor + 1,
           toCursor: snapshot,
-          origin: 'external',
         });
         for (const event of events) {
+          if (!this.isChatEvent(event)) continue;
           this.pendingExternalCursor = Math.max(this.pendingExternalCursor, event.cursor);
         }
         this.lastScannedCursor = snapshot;
@@ -854,6 +854,17 @@ export class BookfishWorld implements World {
   }
   private hasExternalSinceIdle(): boolean {
     return this.scanExternalEvents();
+  }
+  /**
+   * Best-effort chat provenance. Console operator messages are internal in the
+   * official API; desktop-pet touch is external but not chat. Other external
+   * sources stay conservative. The host exposes no universal user-message type.
+   */
+  private isChatEvent(event: EventEnvelope): boolean {
+    if (event.type === 'console.message' || event.type === 'console.invite') return true;
+    if (event.origin !== 'external') return false;
+    if (event.source === 'desktop-pet') return false;
+    return true;
   }
   /**
    * Manual start is blocked while external evidence is unsettled, even if the

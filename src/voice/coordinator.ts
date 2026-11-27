@@ -206,25 +206,28 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
       ?? (single ? [{ ...single, bookKey: snap.bookKey, generation: snap.generation, expiresAt: Number.MAX_SAFE_INTEGER }] : []);
     if (tasks.length === 0) return;
     const now = Date.now();
+    const active = tasks.filter(task => task.expiresAt > now);
+    // An expired task can never be confirmed (Library rejects it) and would
+    // otherwise block start forever. Ignore it and build a fresh session; the
+    // model must fetch the range again after the voice replays it.
+    if (active.length === 0) return;
     const watermark = this.voicedUpTo;
-    const sameIdentity = tasks.every(task => task.bookKey === snap.bookKey && task.generation === snap.generation);
-    const unexpired = tasks.every(task => task.expiresAt > now);
-    const beyond = tasks.filter(task => watermark === null || task.segmentId > watermark);
-    const normalSafe = sameIdentity && unexpired && beyond.length === 0;
+    const sameIdentity = active.every(task => task.bookKey === snap.bookKey && task.generation === snap.generation);
+    const beyond = active.filter(task => watermark === null || task.segmentId > watermark);
+    const normalSafe = sameIdentity && beyond.length === 0;
     const recovery = this.keyRecovery;
     const recoveryValid = !!recovery && !!this.bookKey && this.generation !== null
       && recovery.bookKey === snap.bookKey && recovery.generation === snap.generation
       && this.bookKey === snap.bookKey && this.generation === snap.generation
       && recovery.watermark === watermark;
-    const keySafe = recoveryValid && sameIdentity && unexpired
+    const keySafe = recoveryValid && sameIdentity
       && beyond.length === 1 && watermark !== null && beyond[0]!.segmentId === watermark + 1;
     if (normalSafe || keySafe) return;
     if (!sameIdentity) throw new VoiceConfigError('未完成的阅读任务属于其他书籍或正文版本，不能恢复朗读。');
-    if (!unexpired) throw new VoiceConfigError('未完成的阅读任务已过期，请重新读取正文后再开始朗读。');
     if (recoveryValid && beyond.length === 1) {
       throw new VoiceConfigError('未完成的阅读任务不是已朗读水位之后的下一段，不能恢复朗读。');
     }
-    const first = tasks[0]!;
+    const first = active[0]!;
     throw new VoiceConfigError(`大肥鱼还有未完成的阅读任务（第 ${first.segmentId + 1} 段），请先等待本轮阅读结束或安全取消后再开始朗读。`);
   }
 

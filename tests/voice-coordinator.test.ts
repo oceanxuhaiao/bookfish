@@ -594,7 +594,7 @@ describe('V2.1.2 KEY recovery identity checks', () => {
     await h.coordinator.dispose();
   });
 
-  it('rejects a pending task from another book or an expired task', async () => {
+  it('rejects a pending task from another book', async () => {
     const pending = { current: [] as Array<{ taskId: string; bookKey: string; segmentId: number; generation: number; expiresAt: number }> };
     const { h, block } = keyedHarness(['甲。', '乙。'], pending);
     await h.coordinator.start();
@@ -602,9 +602,20 @@ describe('V2.1.2 KEY recovery identity checks', () => {
     await h.coordinator.onKeyChanged();
     pending.current = [{ taskId: 'other', bookKey: 'book:9', segmentId: 1, generation: 1, expiresAt: Date.now() + 60_000 }];
     await expect(h.coordinator.start()).rejects.toThrow(/其他书籍或正文版本/);
-    pending.current = [{ taskId: 'old', bookKey: 'book:1', segmentId: 1, generation: 1, expiresAt: Date.now() - 1 }];
-    await expect(h.coordinator.start()).rejects.toThrow(/已过期/);
     block.resolve();
+    await h.coordinator.dispose();
+  });
+
+  it('ignores an expired task instead of blocking start forever', async () => {
+    const pending = { current: [] as Array<{ taskId: string; bookKey: string; segmentId: number; generation: number; expiresAt: number }> };
+    const { h, block } = keyedHarness(['甲。', '乙。'], pending);
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0);
+    await h.coordinator.onKeyChanged();
+    pending.current = [{ taskId: 'old', bookKey: 'book:1', segmentId: 1, generation: 1, expiresAt: Date.now() - 1 }];
+    block.resolve();
+    await expect(h.coordinator.start()).resolves.toMatchObject({ phase: 'playing' });
+    await waitFor(() => h.coordinator.status().voicedUpTo === 1);
     await h.coordinator.dispose();
   });
 

@@ -30,6 +30,20 @@ class MutableStore {
     this.events.push(event);
     return event;
   }
+  addConsole(text = '控制台消息'): EventEnvelope {
+    this.cursor += 1;
+    const event = { cursor: this.cursor, type: 'console.message', ts: new Date().toISOString(),
+      source: 'console', origin: 'internal', text } as EventEnvelope;
+    this.events.push(event);
+    return event;
+  }
+  addTouch(): EventEnvelope {
+    this.cursor += 1;
+    const event = { cursor: this.cursor, type: 'desktop-pet.touch', ts: new Date().toISOString(),
+      source: 'desktop-pet', origin: 'external', text: '伙伴戳了戳桌宠' } as EventEnvelope;
+    this.events.push(event);
+    return event;
+  }
   latestCursor() { return this.cursor; }
   get(cursor: number) { return this.events.find(event => event.cursor === cursor); }
   range(q: { fromCursor?: number; toCursor?: number; origin?: string; source?: string; senderKey?: string; limit?: number }) {
@@ -238,6 +252,31 @@ describe('V2.1.2 external evidence blocks manual start while idle', () => {
         engine.calls.length = 0;
         world.onRunPhase!({ state: 'model', running: [], enteredAt: new Date().toISOString() });
         expect(engine.calls).toContain('phase');
+      } finally { await world.stop(); }
+    }
+  });
+});
+
+describe('V2.1.2 chat provenance best effort', () => {
+  it('treats console operator messages as chat but ignores desktop-pet touch', async () => {
+    {
+      const { world, engine, store } = await setup();
+      try {
+        store.addConsole();
+        world.onRunPhase!({ state: 'idle', running: [], enteredAt: new Date().toISOString() });
+        engine.calls.length = 0;
+        world.onRunPhase!({ state: 'model', running: [], enteredAt: new Date().toISOString() });
+        expect(engine.calls).toContain('phase');
+      } finally { await world.stop(); }
+    }
+    {
+      const { world, engine, store } = await setup();
+      try {
+        store.addTouch();
+        world.onRunPhase!({ state: 'idle', running: [], enteredAt: new Date().toISOString() });
+        engine.calls.length = 0;
+        world.onRunPhase!({ state: 'model', running: [], enteredAt: new Date().toISOString() });
+        expect(engine.calls).not.toContain('phase');
       } finally { await world.stop(); }
     }
   });
