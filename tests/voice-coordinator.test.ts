@@ -15,6 +15,9 @@ interface HarnessOptions {
   key?: string;
   synth?: (text: string, signal: AbortSignal) => Promise<Uint8Array>;
   play?: (bytes: Uint8Array, options: { tempDir: string; signal: AbortSignal }) => Promise<unknown>;
+  pendingTask?: () => { taskId: string; segmentId: number } | null;
+  onSnapshot?: () => void;
+  pollMs?: number;
 }
 
 function harness(texts: string[], options: HarnessOptions = {}) {
@@ -29,15 +32,16 @@ function harness(texts: string[], options: HarnessOptions = {}) {
   const play = options.play ?? (async () => { played.push(1); });
   const coordinator = new VoiceCoordinator({
     port: {
-      snapshot: () => ({ ...state }),
+      snapshot: () => { options.onSnapshot?.(); return { ...state }; },
       segments: (from, max) => texts.slice(from, from + max).map((text, index) => ({ id: from + index, text })),
+      pendingTask: options.pendingTask,
     },
     enabled: () => enabled,
     secret: () => options.key ?? 'test-key',
     dataDir: dir,
     synthesize: (text, signal) => synth(text, signal),
     play: (bytes, opts) => play(bytes, opts),
-    pollMs: 0,
+    pollMs: options.pollMs ?? 0,
   });
   coordinator.attach();
   return { state, texts, coordinator, synthCalls, played,
@@ -286,5 +290,82 @@ describe('voice coordinator lifecycle', () => {
     writeFileSync(join(temp, 'again.wav'), makeWav());
     await h.coordinator.dispose();
     expect(readdirSync(temp).filter(name => name.endsWith('.wav'))).toHaveLength(0);
+  });
+});
+describe('voice start boundary and timer lifecycle', () => {
+  it('refuses an unvoiced pending task but allows one already covered by the watermark', async () => {
+    let pending: { taskId: string; segmentId: number } | null = { taskId: 't0', segmentId: 0 };
+    const h = harness(['甲。', '乙。'], { pendingTask: () => pending });
+    await expect(h.coordinator.start()).rejects.toThrow(/未完成的阅读任务/);
+    pending = null;
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo !== null);
+    await h.coordinator.stop('user');
+    expect(h.coordinator.status().voicedUpTo).not.toBeNull();
+    pending = { taskId: 't0', segmentId: 0 };
+    await expect(h.coordinator.start()).resolves.toMatchObject({ phase: 'playing' });
+    await h.coordinator.dispose();
+  });
+
+  it('stops periodic revalidation after user stop and restarts it on the next start', async () => {
+    let snapshots = 0;
+    const block = deferred();
+    const h = harness(['甲。', '乙。'], {
+      pollMs: 10,
+      onSnapshot: () => { snapshots += 1; },
+      play: async (_bytes, { signal }) => {
+        await Promise.race([block.promise, new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))]);
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => snapshots > 0);
+    await h.coordinator.stop('user');
+    const stoppedAt = snapshots;
+    await new Promise(resolve => setTimeout(resolve, 120));
+    expect(snapshots - stoppedAt).toBeLessThanOrEqual(2);
+    await h.coordinator.start();
+    await new Promise(resolve => setTimeout(resolve, 60));
+    expect(snapshots).toBeGreaterThan(stoppedAt + 2);
+    block.resolve();
+    await h.coordinator.dispose();
+  });
+
+  it('stops periodic revalidation after an error', async () => {
+    let snapshots = 0;
+    const h = harness(['甲。'], {
+      pollMs: 10,
+      onSnapshot: () => { snapshots += 1; },
+      synth: async () => { throw new Error('合成失败'); },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().phase === 'error');
+    const stoppedAt = snapshots;
+    await new Promise(resolve => setTimeout(resolve, 120));
+    expect(snapshots - stoppedAt).toBeLessThanOrEqual(2);
+    await h.coordinator.dispose();
+  });
+
+  it('keeps bounded revalidation while waiting for later text', async () => {
+    let snapshots = 0;
+    const h = harness(['甲。'], { pollMs: 10, onSnapshot: () => { snapshots += 1; } });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().phase === 'waiting_content');
+    const waitingAt = snapshots;
+    await new Promise(resolve => setTimeout(resolve, 60));
+    expect(snapshots).toBeGreaterThan(waitingAt + 2);
+    await h.coordinator.dispose();
+  });
+});
+
+describe('completion and pause boundaries', () => {
+  it('leaves waiting_content for idle when the book becomes complete', async () => {
+    const h = harness(['最后一段。'], { pollMs: 0 });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().phase === 'waiting_content');
+    h.state.complete = true;
+    await h.coordinator.revalidate();
+    expect(h.coordinator.status()).toMatchObject({ phase: 'idle', detail: '本书已读完。' });
+    await expect(h.coordinator.start()).rejects.toThrow(/读完了/);
+    await h.coordinator.dispose();
   });
 });

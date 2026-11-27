@@ -447,7 +447,14 @@ export class Library {
     const cached = book.remote?.cache.length ?? 0;
     const complete = serial ? serial.complete
       : entry.frontier === book.segments.length && (!book.remote || (cached === book.remote.catalog.chapters.length && book.remote.catalog.publicationStatus === 'finished'));
-    const readiness = serial ? serial.readiness : (entry.frontier === book.segments.length && book.remote ? 'caught_up' : 'backlog');
+    // A non-serial remote book at the cached end is only "caught up" when every
+    // catalog chapter is cached. If the catalog still has uncached chapters the
+    // voice reader must be allowed to fetch the next whole chapter.
+    const readiness = serial ? serial.readiness
+      : !book.remote ? 'backlog'
+        : entry.frontier < book.segments.length ? 'backlog'
+          : cached < book.remote.catalog.chapters.length ? 'waiting_content'
+            : 'caught_up';
     return { bookKey: book.key, title: book.title, generation: this.state.generation,
       frontier: entry.frontier, totalSegments: book.segments.length,
       paused: this.state.paused, complete, readiness: String(readiness) };
@@ -466,6 +473,12 @@ export class Library {
   readingFrontier(): number {
     this.ensureOpen();
     return this.state.books.find((e) => e.book.key === this.state.selected)?.frontier ?? 0;
+  }
+  /** Read-only pending task probe for the voice start guard; never cancels it. */
+  voicePendingTask() {
+    this.ensureOpen();
+    const task = historySelect(this.state.tasks, { status: 'pending' }).find(t => t.expiresAt > this.now());
+    return task ? { taskId: task.id, segmentId: task.segmentId } : null;
   }
   status() {
     const entry = this.state.books.find((e) => e.book.key === this.state.selected);

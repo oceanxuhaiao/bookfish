@@ -87,6 +87,19 @@ async function readBounded(response: Response, limit: number): Promise<Uint8Arra
   return merged;
 }
 
+/** Extract only a short error code/type from a vendor response; never keep its text. */
+async function readVendorCode(response: Response): Promise<string> {
+  try {
+    const raw = await readBounded(response, 8192);
+    const json = JSON.parse(Buffer.from(raw).toString('utf8')) as
+      { error?: { code?: unknown; type?: unknown }; code?: unknown };
+    const value = json?.error?.code ?? json?.error?.type ?? json?.code;
+    return typeof value === 'string' && /^[A-Za-z0-9_.-]{1,64}$/.test(value) ? value : '';
+  } catch {
+    return '';
+  }
+}
+
 function decodeBase64Audio(data: unknown, maxAudioBytes: number): Uint8Array {
   if (typeof data !== 'string' || data.length === 0 || data.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) {
     throw new TtsError('invalid_audio', '语音合成没有返回有效音频数据');
@@ -153,10 +166,12 @@ export async function synthesize(endpoint: TtsEndpoint, input: string, options: 
     }
 
     if (!response.ok) {
-      const detail = await readBounded(response, 4096).then(bytes => Buffer.from(bytes).toString('utf8')).catch(() => '');
-      const message = redact(safeMessage(new Error(`HTTP ${response.status} ${detail}`), 200), apiKey);
+      // Never surface the vendor response body: it can echo input text or account
+      // details. Keep only the HTTP status and a bounded machine-readable code.
+      const code = await readVendorCode(response);
+      const message = `HTTP ${response.status}${code && code !== String(response.status) ? ` (${code})` : ''}`;
       if (retryable(response.status) && attempt < attempts) { await delay(400 * attempt, externalSignal ?? new AbortController().signal); continue; }
-      throw new TtsError('http', `语音合成请求失败：${message}`);
+      throw new TtsError('http', `语音合成请求失败：${redact(message, apiKey)}`);
     }
 
     let raw: Uint8Array;

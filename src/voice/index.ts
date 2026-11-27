@@ -4,6 +4,8 @@ export { splitChunks, DEFAULT_CHUNK_CHARS } from './chunk.ts';
 export { synthesize, isWav, MIMO_TTS } from './tts.ts';
 export { playWav, sweepTempDir, powershellPath, psSingleQuote } from './player.ts';
 export { VoiceError, VoiceConfigError, TtsError, AudioPlaybackError, safeMessage } from './errors.ts';
+export { voiceEnableBlocker } from './enable-guard.ts';
+export { isBookfishReadingTurn } from './turn-priority.ts';
 export type {
   VoiceBookSnapshot, VoiceGate, VoiceLogger, VoicePhase, VoicePlaybackEngine, VoiceReadPort,
   VoiceSegment, VoiceStatus, VoiceStopReason,

@@ -63,7 +63,7 @@ export function mountVoiceCard(container: HTMLElement, ctx: WebUiPanelContext) {
   const error = document.createElement('p'); error.className = 'bf-voice-error'; root.append(error);
   const actions = document.createElement('div'); actions.className = 'bf-voice-actions'; root.append(actions);
   const start = document.createElement('button'); start.type = 'button'; start.className = 'primary';
-  const stop = document.createElement('button'); stop.type = 'button';
+  const stop = document.createElement('button'); stop.type = 'button'; stop.textContent = say('停止朗读', 'Stop');
   actions.append(start, stop);
   const privacy = document.createElement('p'); privacy.className = 'bf-voice-privacy';
   privacy.textContent = say('使用小米 MiMo 云端语音合成：点击开始后，已缓存的小说正文会发送给该服务；不是本地离线朗读。关闭开关后立即恢复默读。',
@@ -94,8 +94,9 @@ export function mountVoiceCard(container: HTMLElement, ctx: WebUiPanelContext) {
     start.textContent = status.phase === 'paused' || status.phase === 'waiting_content' || status.phase === 'error'
       ? say('继续朗读', 'Resume') : say('开始朗读', 'Start reading');
     if (!view.keyConfigured) detail.textContent = key;
-    else if (status.detail) detail.textContent = status.detail;
     else if (!status.enabled) detail.textContent = say('语音朗读已在配置页关闭。开启后才会发送正文给云端。', 'Read aloud is off in Settings; no text is sent until you enable it.');
+    else if (status.detail) detail.textContent = status.detail;
+    else if (status.phase === 'idle') detail.textContent = say('语音已开启但尚未开始：大肥鱼暂时不会读取新的正文。点击“开始朗读”，或在配置中关闭语音恢复原有默读。', 'Read aloud is enabled but not started: she will not receive new text yet. Click Start, or turn the setting off to restore ordinary silent reading.');
   }
 
   async function refresh() {
@@ -188,7 +189,7 @@ export function mountVoiceKeyCard(container: HTMLElement, ctx: WebUiPanelContext
   })(); }, { signal: ctx.signal });
   remove.addEventListener('click', () => { void (async () => {
     if (busy || disposed) return;
-    if (!(await ctx.ui.confirm({ title: say('删除语音 KEY？', 'Delete the voice KEY?'), body: say('删除后，正在朗读的语音会停止；已完整播放的段落记录仍保留，但需要重新保存 KEY 才能继续。', 'Playback stops. Fully voiced segments remain recorded, but a new KEY is required to continue.') }))) return;
+    if (!(await ctx.ui.confirm({ title: say('删除语音 KEY？', 'Delete the voice KEY?'), body: say('删除或更换 KEY 会结束当前朗读会话，并清空本次临时朗读水位。BookFish 已确认的阅读进度不受影响；重新开始后会从当前确认位置重新朗读。', 'Deleting or changing the KEY ends the current read-aloud session and clears its temporary voicing watermark. Confirmed reading progress is unchanged; a new session starts from the current confirmed position.') }))) return;
     busy = true; save.disabled = true; remove.disabled = true;
     try {
       const view = await ctx.invoke<VoiceView>('voice_clear_key', []);

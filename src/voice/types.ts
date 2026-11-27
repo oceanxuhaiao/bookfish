@@ -2,7 +2,7 @@
 
 export type VoicePhase = 'disabled' | 'idle' | 'starting' | 'playing' | 'waiting_content' | 'paused' | 'error';
 
-export type VoiceStopReason = 'user' | 'chat' | 'book_changed' | 'pause' | 'shutdown' | 'config' | 'key' | 'restart' | 'error';
+export type VoiceStopReason = 'user' | 'chat' | 'book_changed' | 'pause' | 'shutdown' | 'config' | 'key' | 'restart' | 'error' | 'complete';
 
 export interface VoiceStatus {
   enabled: boolean;
@@ -40,6 +40,8 @@ export interface VoiceSegment {
 export interface VoiceReadPort {
   snapshot(): VoiceBookSnapshot | null;
   segments(from: number, max: number): VoiceSegment[];
+  /** Existing unconfirmed task, read-only. Starting the voice must not switch semantics mid-task. */
+  pendingTask?(): { taskId: string; segmentId: number } | null;
 }
 
 /** The scheduler reads this synchronously; `upper` is the last fully voiced segment. */

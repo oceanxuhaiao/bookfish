@@ -23,7 +23,12 @@ export class Sources {
     const result = this.library.importCatalog(p.catalog, p.generation, p.chapter); this.preview = undefined; return result;
   }
   private readonly get: HtmlFetcher;
-  private readonly inFlight = new Map<string, Promise<void>>();
+  /**
+   * One shared chapter download per key. Each caller subscribes with its own
+   * AbortSignal; cancelling one caller only removes that subscription. The
+   * underlying request is aborted when the last subscriber leaves.
+   */
+  private readonly inFlight = new Map<string, SharedFetch>();
   constructor(private readonly library: Library, get?: HtmlFetcher, networkAllowed = () => true) {
     const http = new SourceHttp();
     this.get = (url, signal) => {
@@ -68,21 +73,71 @@ export class Sources {
   }
   private async fetchNext(demand: NonNullable<ReturnType<Library['sourceDemand']>>, signal?: AbortSignal): Promise<void> {
     if (demand.paused) throw new SourceError('cancelled', 'Reading is paused');
+    if (signal?.aborted) throw new SourceError('cancelled', 'Source request cancelled');
     const key = `${demand.key}:${demand.generation}:${demand.index}`;
-    const previous = this.inFlight.get(key);
-    if (previous) { await previous; signal?.throwIfAborted(); return; }
-    const operation = (async () => {
+    let shared = this.inFlight.get(key);
+    if (shared?.settled) { this.inFlight.delete(key); shared = undefined; }
+    if (!shared) {
+      const controller = new AbortController();
+      const created: SharedFetch = {
+        controller, subscribers: 0, settled: false,
+        promise: this.runFetch(demand, controller.signal),
+      };
+      shared = created;
+      this.inFlight.set(key, created);
+      // A shared failure is delivered to subscribers; this handler only prevents
+      // an unhandled rejection when all subscribers cancelled first.
+      void created.promise.then(
+        () => { created.settled = true; if (this.inFlight.get(key) === created) this.inFlight.delete(key); },
+        () => { created.settled = true; if (this.inFlight.get(key) === created) this.inFlight.delete(key); },
+      );
+    }
+    shared.subscribers += 1;
+    const task = shared;
+    try {
+      if (signal) {
+        let onAbort!: () => void;
+        const cancelled = new Promise<never>((_, reject) => {
+          onAbort = () => reject(new SourceError('cancelled', 'Source request cancelled'));
+          signal.addEventListener('abort', onAbort, { once: true });
+        });
+        try { await Promise.race([task.promise, cancelled]); }
+        finally { signal.removeEventListener('abort', onAbort); }
+      } else {
+        await task.promise;
+      }
+    } finally {
+      task.subscribers -= 1;
+      if (task.subscribers === 0 && !task.settled) {
+        // No caller is waiting any more: stop the shared download and let a later
+        // caller create a fresh task. A late result cannot be reused.
+        if (this.inFlight.get(key) === task) this.inFlight.delete(key);
+        task.controller.abort();
+      }
+    }
+  }
+  private runFetch(demand: NonNullable<ReturnType<Library['sourceDemand']>>, signal: AbortSignal): Promise<void> {
+    return (async () => {
       try {
         const chapter = await fetchChapter(demand.catalog, demand.index, this.get, signal);
-        signal?.throwIfAborted();
+        signal.throwIfAborted();
         this.library.cacheChapter(demand.key, demand.generation, chapter);
       } catch (error) {
         const failure = sourceError(error, signal);
-        if (!signal?.aborted) this.library.sourceFailed(demand.key, demand.generation, failure);
+        // A cancelled shared request is not a source failure; never poison the
+        // book's source state when every subscriber simply walked away.
+        if (!signal.aborted && failure.code !== 'cancelled') {
+          this.library.sourceFailed(demand.key, demand.generation, failure);
+        }
         throw failure;
       }
     })();
-    this.inFlight.set(key, operation);
-    try { await operation; } finally { this.inFlight.delete(key); }
   }
+}
+
+interface SharedFetch {
+  controller: AbortController;
+  promise: Promise<void>;
+  subscribers: number;
+  settled: boolean;
 }

@@ -124,3 +124,67 @@ describe('read-only voice snapshot', () => {
     empty.close();
   });
 });
+describe('terminal confirmation guard', () => {
+  it('rejects an unvoiced single confirmation but keeps a committed replay idempotent', async () => {
+    gate = { enabled: false, upper: null };
+    await advance();
+    const id = active();
+    const task = scheduler.read(id, 1) as { taskId: string; segmentId: number; bookKey: string };
+    expect(lib.status().current!.confirmedSegments).toBe(0);
+
+    gate = { enabled: true, upper: null };
+    expect(() => scheduler.finish({ opportunityId: id, taskId: task.taskId, segmentId: task.segmentId, understanding: '' }))
+      .toThrow(/还没有被语音完整播放/);
+    expect(lib.status().current!.confirmedSegments).toBe(0);
+
+    gate = { enabled: true, upper: 0 };
+    scheduler.finish({ opportunityId: id, taskId: task.taskId, segmentId: task.segmentId, understanding: '' });
+    expect(lib.status().current!.confirmedSegments).toBe(1);
+
+    gate = { enabled: true, upper: null };
+    const replay = scheduler.finish({ opportunityId: id, taskId: task.taskId, segmentId: task.segmentId, understanding: '' }) as { duplicate: boolean };
+    expect(replay.duplicate).toBe(true);
+    expect(lib.status().current!.confirmedSegments).toBe(1);
+  });
+
+  it('rejects a batch when any uncommitted segment is beyond the voice watermark', async () => {
+    gate = { enabled: false, upper: null };
+    await advance();
+    const id = active();
+    const batch = scheduler.read(id) as { segments: Array<{ taskId: string; segmentId: number }> };
+    expect(batch.segments.map(item => item.segmentId)).toEqual([0, 1]);
+    gate = { enabled: true, upper: 0 };
+    expect(() => scheduler.finishBatch(id, batch.segments.map(item => ({ taskId: item.taskId, segmentId: item.segmentId, understanding: '' }))))
+      .toThrow(/还没有被语音完整播放/);
+    expect(lib.status().current!.confirmedSegments).toBe(0);
+
+    gate = { enabled: true, upper: 1 };
+    const result = scheduler.finishBatch(id, batch.segments.map(item => ({ taskId: item.taskId, segmentId: item.segmentId, understanding: '' })));
+    expect(result.confirmed).toBe(2);
+    expect(lib.status().current!.confirmedSegments).toBe(2);
+  });
+
+  it('keeps original confirmations unrestricted when voice is off', async () => {
+    gate = { enabled: false, upper: null };
+    await advance();
+    const id = active();
+    const batch = scheduler.read(id) as { segments: Array<{ taskId: string; segmentId: number }> };
+    const result = scheduler.finishBatch(id, batch.segments.map(item => ({ taskId: item.taskId, segmentId: item.segmentId, understanding: '' })));
+    expect(result.confirmed).toBe(2);
+  });
+});
+
+describe('pause clears the pending task instead of deadlocking', () => {
+  it('cancels an issued but unconfirmed task on pause and leaves no pending guard after resume', () => {
+    const task = lib.readNext(1);
+    if (task.complete) throw new Error('expected text');
+    expect(lib.voicePendingTask()).toEqual({ taskId: task.taskId, segmentId: task.segmentId });
+    lib.setPaused(true);
+    expect(lib.voicePendingTask()).toBeNull();
+    expect(lib.status().pending).toBeNull();
+    lib.setPaused(false);
+    expect(lib.voicePendingTask()).toBeNull();
+    expect(lib.status().pending).toBeNull();
+    expect(lib.status().current!.confirmedSegments).toBe(0);
+  });
+});

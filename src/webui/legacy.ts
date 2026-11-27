@@ -3,7 +3,6 @@ import type { LibraryPanelState } from '../status.ts';
 import type { Library } from '../library.ts';
 import { moodPrefix } from './mood.ts';
 import { describeImportError } from '../import-errors.ts';
-import { mountVoiceCard } from './voice.ts';
 
 export default {
   panels: {
@@ -22,8 +21,6 @@ export default {
         const schedule = document.createElement('p'); schedule.setAttribute('aria-label', say('自主阅读状态', 'Automatic reading status')); section.append(schedule);
         const messages = document.createElement('p'); messages.setAttribute('role', 'status'); section.append(messages);
         const controls = document.createElement('div'); controls.dataset.bookfish = 'controls'; controls.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap'; section.append(controls);
-        const voiceHost = document.createElement('section'); voiceHost.dataset.bookfish = 'voice'; section.append(voiceHost);
-        const voiceCard = mountVoiceCard(voiceHost, ctx);
         const notebook = document.createElement('section'); notebook.setAttribute('aria-label', say('阅读手账', 'Reading journal')); section.append(notebook);
         const shares = document.createElement('section'); shares.setAttribute('aria-label', say('阅读分享', 'Reading shares')); section.append(shares);
         const articles = document.createElement('section'); articles.setAttribute('aria-label', say('全书读后感', 'Full-book reviews')); section.append(articles);
@@ -315,7 +312,7 @@ export default {
         section.append(searchForm);
         await refresh();await refreshImport();
         ctx.interval(() => { if (!working){void refresh();void refreshImport();} }, 2000);
-        return { dispose() { disposed = true; request++; voiceCard.dispose(); } };
+        return { dispose() { disposed = true; request++; } };
       },
     },
   },

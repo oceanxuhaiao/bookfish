@@ -33,6 +33,8 @@ import { loadOnlineAnnouncements } from './help-online.ts';
 import { BOOKFISH_VERSION } from './version.ts';
 import { VoiceCoordinator } from './voice/coordinator.ts';
 import { clearStoredSecret } from './voice/secret-store.ts';
+import { voiceEnableBlocker } from './voice/enable-guard.ts';
+import { isBookfishReadingTurn } from './voice/turn-priority.ts';
 import type { VoiceLogger, VoicePlaybackEngine } from './voice/types.ts';
 
 const VOICE_KEY_ENV = 'BOOKFISH_TTS_API_KEY';
@@ -80,10 +82,16 @@ export class BookfishWorld implements World {
   private lifetime = new AbortController();
   /** True while the main session is running BookFish's own reading opportunity, not a user chat. */
   private readingTurn = false;
+  /** Cursor observed at the last idle phase; external events after it mean chat. */
+  private lastIdleCursor = 0;
   constructor(private readonly opts: BookfishWorldOptions) {
     this.library = new Library({ dataDir: opts.dataDir, textStoreDir: opts.cfg.textStoreDir, storyMemoryEnabled: opts.cfg.storyMemoryEnabled === true }); this.transfers = new BookTransfers(this.library); this.sources = new Sources(this.library, undefined, () => opts.cfg.allowNetwork);
     this.voice = opts.voice ?? new VoiceCoordinator({
-      port: { snapshot: () => this.library.voiceSnapshot(), segments: (from, max) => this.library.voiceSegments(from, max) },
+      port: {
+        snapshot: () => this.library.voiceSnapshot(),
+        segments: (from, max) => this.library.voiceSegments(from, max),
+        pendingTask: () => this.library.voicePendingTask(),
+      },
       enabled: () => this.opts.cfg.voiceOutputEnabled === true,
       secret: () => this.opts.secret?.(VOICE_KEY_ENV) ?? '',
       dataDir: opts.dataDir,
@@ -480,7 +488,18 @@ export class BookfishWorld implements World {
         }
         if(panel==='settings'){
           if(method==='get'&&args.length===0)return {config:{...this.opts.cfg},timezone:this.opts.timezone,storage:this.library.textStoreStatus()};
-          if(method==='save'&&args.length===1){const patch=validateSettings(args[0]);if(patch.textStoreDir!==undefined)patch.textStoreDir=assertWritableTextStoreDir(patch.textStoreDir);if(!this.opts.persist)throw Error('Host settings persistence unavailable');this.opts.persist(patch);this.selection.onConfigChanged();this.txtAcquisition.onConfigChanged();if('voiceOutputEnabled' in patch)await this.voice.onConfigChanged();return {config:{...this.opts.cfg},timezone:this.opts.timezone,storage:this.library.textStoreStatus()};}
+          if(method==='save'&&args.length===1){
+            const patch=validateSettings(args[0]);
+            if(patch.textStoreDir!==undefined)patch.textStoreDir=assertWritableTextStoreDir(patch.textStoreDir);
+            if(!this.opts.persist)throw Error('Host settings persistence unavailable');
+            if(patch.voiceOutputEnabled===true&&this.opts.cfg.voiceOutputEnabled!==true){
+              const scheduler=this.scheduler.status();
+              const blocked=voiceEnableBlocker({ pendingTask:!!this.library.status().pending,
+                activeOpportunity:!!scheduler.active, cognitionRunning:scheduler.cognitionRunning,
+                manualState:scheduler.manual?.state??null, hostPhase:scheduler.hostPhase });
+              if(blocked)throw Error(blocked);
+            }
+            this.opts.persist(patch);this.selection.onConfigChanged();this.txtAcquisition.onConfigChanged();if('voiceOutputEnabled' in patch)await this.voice.onConfigChanged();return {config:{...this.opts.cfg},timezone:this.opts.timezone,storage:this.library.textStoreStatus()};}
           // Pairing details for the Edge/Chrome extension. The panel shows the token;
           // it is never handed to the model.
           if(method==='txt_bridge'&&args.length===0)return this.txtAcquisition.bridgeInfo;
@@ -740,6 +759,8 @@ export class BookfishWorld implements World {
       try { await this.runtime.start(); } catch { /* runtime faults stay inside the runtime card, not the whole World */ }
       try { await this.txtAcquisition.init(); } catch { /* acquisition state faults must not block reading */ }
       this.voice.attach(host.log as VoiceLogger);
+      this.lastIdleCursor = host.store.latestCursor();
+      this.readingTurn = false;
       this.scheduler.start(host);
       this.sharing.start(host);
       this.reviewFlow.start(host);
@@ -762,21 +783,37 @@ export class BookfishWorld implements World {
     this.scheduler.onRunPhase(phase); this.selection.onRunPhase(phase); this.sharing.onRunPhase(phase); this.reviewFlow.onRunPhase(phase);
   }
   /**
-   * User chat has priority over read-aloud. A main-session turn caused by
-   * BookFish's own reading opportunity is not chat: without background cognition
-   * the automatic reader also uses the main session, and stopping the voice on
-   * those turns would make continuous read-aloud impossible.
+   * User chat has priority over read-aloud. A main-session turn is treated as
+   * BookFish's own reading turn only when a main-mode reading opportunity is
+   * active AND no external event has been stored since the last idle phase.
+   * Background cognition never proves a main turn is reading; a user message in
+   * the same batch, or any uncertain external event, stops the voice.
    */
   private updateVoiceChatPriority(phase: RunPhase): void {
-    if (phase.state === 'idle') { this.readingTurn = false; return; }
-    if (this.readingTurn) return;
-    if (!['delivering', 'model', 'tools'].includes(phase.state)) return;
-    const scheduler = this.scheduler.status();
-    if (scheduler.active || scheduler.cognitionRunning) {
-      this.readingTurn = true;
+    if (phase.state === 'idle') {
+      this.readingTurn = false;
+      if (this.host) this.lastIdleCursor = this.host.store.latestCursor();
       return;
     }
-    this.voice.onRunPhase(phase);
+    if (!['delivering', 'model'].includes(phase.state)) return;
+    if (!this.opts.cfg.voiceOutputEnabled) return;
+    const active = this.scheduler.status().active;
+    let hasExternalSinceIdle = true;
+    if (this.host) {
+      try {
+        hasExternalSinceIdle = this.host.store.range({
+          fromCursor: this.lastIdleCursor + 1, origin: 'external', limit: 1,
+        }).length > 0;
+      } catch {
+        // If provenance cannot be read, prefer stopping the voice over guessing.
+        hasExternalSinceIdle = true;
+      }
+    }
+    this.readingTurn = isBookfishReadingTurn({
+      activeReadingMode: active ? (active.mode === 'background' ? 'background' : 'main') : null,
+      hasExternalSinceIdle,
+    });
+    if (!this.readingTurn) this.voice.onRunPhase(phase);
   }
   onTurnEnded(): void { this.scheduler.onTurnEnded(); this.sharing.onTurnEnded(); }
   onEventsSettled(events: readonly EventEnvelope[], outcome: 'delivered' | 'discarded'): void { this.scheduler.onEventsSettled(events, outcome); this.sharing.onEventsSettled(events, outcome); }

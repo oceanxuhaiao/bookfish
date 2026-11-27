@@ -16,6 +16,7 @@ import type { AnnouncementView } from '../help-store.ts';
 import { mountFootprint, type FootprintHandle } from './footprint.ts';
 import { renderPlanPage } from './plan.ts';
 import { mountBatchImport } from './batch-import.ts';
+import { mountVoiceCard } from './voice.ts';
 
 const supportPanel={ async mount(ctx:WebUiPanelContext) {
   const en=ctx.language!=='zh'&&ctx.language!=='zh-Hant';const say=(zh:string,english:string)=>en?english:zh;
@@ -379,6 +380,8 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   current.append(controls);controls.className='controls';
   const help=details(current,say('页数怎么算？','How are pages counted?'));el('small',say('每600个正文码点折算一页，与字号无关。仅计已确认内容；网文全书尚未缓存时不显示总页数。','600 source code points per page, independent of font size. Only confirmed text counts; uncached remote totals remain unknown.'),help);
   const log=el('section','',current);el('h3',say('她什么时候读到这里','Reading timeline'),log);const zone=el('small','',log);const timeline=el('div','',log);timeline.className='timeline';timeline.tabIndex=0;timeline.setAttribute('role','region');timeline.setAttribute('aria-label',say('阅读时间轴，可上下滚动','Scrollable reading timeline'));
+  const voiceHost=el('section','',pages.home);voiceHost.dataset.bookfish='voice';current.after(voiceHost);
+  const voiceCard=mountVoiceCard(voiceHost,ctx);
   const mood=el('article','',pages.home);mood.className='card';el('h3',say('最近的心情','Latest mood'),mood);const moodText=el('p','',mood);moodText.className='mood';const moodTime=el('small','',mood);
   const thought=el('article','',pages.home);thought.className='card';el('h3',say('她读到这里时……','Her latest thought'),thought);const thoughtText=el('p','',thought);thoughtText.className='thought';pages.home.append(reviews);
   const chat=el('section','',pages.trail);chat.className='card';chat.hidden=true;const context=el('p','',chat);const question=el('textarea','',chat);question.setAttribute('aria-label',say('你想和她聊什么？','What would you like to discuss?'));let discussionEpisode:string|undefined;
@@ -627,7 +630,7 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   };
   void helpView.prime(true).then(result=>{if(result.announcement)showAnnouncement(result.announcement);});
   const initialPanel=ctx.panelId==='shelf'?'shelf':ctx.panelId==='trail'?'trail':ctx.panelId==='support'?'support':'home';if(initialPanel==='support')buildSupport();page(initialPanel);await update();
-  return {dispose(){disposed=true;planDrawer?.dispose();recommendDrawer?.dispose();batchImport.dispose();footprint?.dispose();helpView.dispose();if(novelPollTimer!==undefined){clearTimeout(novelPollTimer);novelPollTimer=undefined;}handle.dispose();}};
+  return {dispose(){disposed=true;planDrawer?.dispose();recommendDrawer?.dispose();batchImport.dispose();footprint?.dispose();helpView.dispose();voiceCard.dispose();if(novelPollTimer!==undefined){clearTimeout(novelPollTimer);novelPollTimer=undefined;}handle.dispose();}};
 } } satisfies WebUiClientBundle['panels'][string];
 
 const helpPanel={ async mount(ctx:WebUiPanelContext){

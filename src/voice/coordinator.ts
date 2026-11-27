@@ -146,7 +146,11 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
       if (!snap) throw new VoiceConfigError('书架为空，没有正在读的书。');
       if (snap.paused) throw new VoiceConfigError('阅读已暂停，请先继续阅读再开始朗读。');
       if (snap.complete) throw new VoiceConfigError('这本书已经读完了。');
-      if (snap.readiness && snap.readiness !== 'backlog') throw new VoiceConfigError(readinessMessage(snap.readiness));
+      if (snap.readiness === 'conflict') throw new VoiceConfigError(readinessMessage(snap.readiness));
+      const pending = this.opts.port.pendingTask?.();
+      if (pending && (this.voicedUpTo === null || pending.segmentId > this.voicedUpTo)) {
+        throw new VoiceConfigError(`大肥鱼还有未完成的阅读任务（第 ${pending.segmentId + 1} 段），请先等待本轮阅读结束或安全取消后再开始朗读。`);
+      }
 
       await this.awaitLoop();
 
@@ -187,10 +191,11 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
       if (!snap) { await this.stopNow('book_changed'); return; }
       if (snap.bookKey !== this.bookKey || snap.generation !== this.generation) { await this.stopNow('book_changed'); return; }
       if (snap.paused) { await this.stopNow('pause'); return; }
+      if (snap.complete) { await this.stopNow('complete'); return; }
       this.totalSegments = snap.totalSegments;
       const retryFetch = this.fetchFailures > 0 && this.fetchFailures < 3
         && this.fetchAttemptAt !== 0 && Date.now() - this.fetchAttemptAt >= 30000;
-      if (this.phase === 'waiting_content' && snap.readiness === 'backlog'
+      if (this.phase === 'waiting_content' && snap.readiness !== 'conflict'
         && (this.cursor < snap.totalSegments || retryFetch)) {
         this.startLoop();
         return;
@@ -202,7 +207,7 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
   onConfigChanged(): Promise<void> {
     return this.enqueue(async () => {
       if (!this.opts.enabled()) await this.stopNow('config');
-      else if (this.bookKey === null) this.phase = 'idle';
+      else if (this.bookKey === null) { this.phase = 'idle'; this.detail = null; this.error = null; }
     });
   }
 
@@ -236,7 +241,7 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
   private async stopNow(reason: VoiceStopReason): Promise<void> {
     const active = this.loop !== undefined || this.controller !== undefined
       || this.phase === 'playing' || this.phase === 'waiting_content' || this.phase === 'paused' || this.phase === 'error';
-    if (!active && !['config', 'book_changed', 'pause', 'shutdown', 'key'].includes(reason)) return;
+    if (!active && !['config', 'book_changed', 'pause', 'shutdown', 'key', 'complete'].includes(reason)) return;
     this.stopInProgress = true;
     this.stopReason = reason;
     this.abortLoop();
@@ -259,6 +264,7 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
     this.error = null;
     this.phase = 'playing';
     this.detail = null;
+    this.startTimer();
     const bookKey = this.bookKey;
     const generation = this.generation;
     const loop = this.pipeline(controller.signal, sessionId, bookKey, generation);
@@ -290,16 +296,30 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
     this.waitDetail = null;
     this.sweep();
 
+    if (reason === 'complete') {
+      this.phase = 'idle';
+      this.detail = '本书已读完。';
+      this.error = null;
+      this.stopTimer();
+      return;
+    }
+
     if (reason === 'user' || reason === 'chat' || reason === 'error') {
       if (this.bookKey !== null && this.voicedUpTo !== null) {
         this.phase = reason === 'error' ? 'error' : 'paused';
-        this.detail = reason === 'chat' ? '聊天优先，朗读已停止。' : reason === 'user' ? '朗读已停止。' : this.detail;
+        this.detail = reason === 'chat'
+          ? '聊天优先，朗读已停止；继续时可能重播尚未确认的段落。'
+          : reason === 'user' ? '朗读已停止；继续时可能重播尚未确认的段落。' : this.detail;
       } else {
         this.phase = reason === 'error' ? 'error' : 'idle';
-        this.detail = reason === 'chat' ? '聊天优先，朗读已停止。' : '朗读已停止。';
+        this.detail = reason === 'chat'
+          ? '聊天优先，朗读已停止；继续时可能重播尚未确认的段落。'
+          : '朗读已停止；继续时可能重播尚未确认的段落。';
       }
       if (reason !== 'error') this.error = null;
-      if (this.bookKey === null) this.stopTimer();
+      // A stopped/errored/paused session needs no periodic revalidation; the next
+      // start recreates the timer. waiting_content keeps its timer for new text.
+      this.stopTimer();
       return;
     }
 
@@ -313,8 +333,8 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
     this.error = null;
     this.detail = reason === 'config' ? '语音朗读已关闭。'
       : reason === 'book_changed' ? '已切换书籍或正文版本，朗读已停止。'
-        : reason === 'pause' ? '阅读已暂停，朗读已停止。'
-          : reason === 'key' ? '语音 KEY 已更改，朗读已停止。'
+        : reason === 'pause' ? '阅读已暂停，朗读已停止；恢复后会从当前确认位置重新朗读，可能重播未确认段落。'
+          : reason === 'key' ? null
             : reason === 'shutdown' ? 'Bookfish 已停止，朗读已结束。'
               : '朗读已停止。';
     this.stopTimer();
@@ -327,6 +347,7 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
     this.phase = 'error';
     this.detail = null;
     this.logger?.warn('Bookfish voice stopped after an error', { error: message });
+    this.stopTimer();
     this.abortLoop();
   }
 
@@ -357,6 +378,9 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
       this.phase = 'waiting_content';
       this.detail = this.waitDetail ?? '朗读循环已结束，等待后续正文。';
       this.waitDetail = null;
+    } else if (this.phase !== 'waiting_content' && this.phase !== 'paused') {
+      // complete / error / idle need no periodic polling until the next start.
+      this.stopTimer();
     }
   }
 
@@ -370,10 +394,12 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
         if (!snap) { this.requestStop('book_changed'); return; }
         if (snap.bookKey !== bookKey || snap.generation !== generation) { this.requestStop('book_changed'); return; }
         if (snap.paused) { this.requestStop('pause'); return; }
-        if (snap.complete) { this.phase = 'idle'; this.detail = '本书已读完。'; return; }
+        if (snap.complete) { this.phase = 'idle'; this.detail = '本书已读完。'; this.stopTimer(); return; }
+        if (snap.readiness === 'conflict') { this.waitForContent(readinessMessage('conflict')); return; }
         this.totalSegments = snap.totalSegments;
         if (this.cursor < snap.frontier) this.cursor = snap.frontier;
-        if (snap.readiness && snap.readiness !== 'backlog') { this.waitForContent(readinessMessage(snap.readiness)); return; }
+        // Cached text may still be read even while the serial source is waiting for
+        // new chapters; only a catalog conflict stops the voice outright.
         if (this.cursor >= snap.totalSegments) {
           const moved = await this.ensureContent(signal, sessionId, snap);
           if (moved) continue;
@@ -449,7 +475,8 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
   }
 
   private async ensureContent(signal: AbortSignal, sessionId: string, snap: VoiceBookSnapshot): Promise<boolean> {
-    this.waitForContent(snap.readiness === 'waiting_content' ? readinessMessage('waiting_content') : '已读到当前缓存末尾，等待后续正文。');
+    this.waitForContent(snap.readiness === 'waiting_content' ? readinessMessage('waiting_content')
+      : snap.readiness === 'caught_up' ? readinessMessage('caught_up') : '已读到当前缓存末尾，等待后续正文。');
     if (!this.opts.fetchNext) return false;
     const now = Date.now();
     if (this.fetchAttemptAt !== 0 && now - this.fetchAttemptAt < 30000) return false;
@@ -458,7 +485,7 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
       await this.opts.fetchNext(signal);
       if (signal.aborted || this.sessionId !== sessionId) return false;
       const after = this.safeSnapshot();
-      if (after && after.totalSegments > this.cursor && (!after.readiness || after.readiness === 'backlog')) {
+      if (after && after.totalSegments > this.cursor && after.readiness !== 'conflict') {
         this.phase = 'playing';
         this.detail = null;
         this.waitDetail = null;

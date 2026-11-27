@@ -99,3 +99,31 @@ describe('MiMo TTS client', () => {
     expect(isWav(new Uint8Array([1, 2, 3]))).toBe(false);
   });
 });
+describe('vendor error privacy', () => {
+  it('never returns the vendor body, input text or KEY', async () => {
+    const body = JSON.stringify({ error: { code: 'invalid_api_key', message: `SENTINEL_BODY ${KEY} 小说正文泄露测试` } });
+    const mock = vi.fn(async () => new Response(body, { status: 401, headers: { 'Content-Type': 'application/json' } }));
+    let caught: unknown;
+    try { await synthesize({ apiKey: KEY }, 'SENTINEL_INPUT_TEXT', { fetchImpl: asFetch(mock) }); }
+    catch (error) { caught = error; }
+    expect(caught).toBeInstanceOf(TtsError);
+    const message = (caught as Error).message;
+    expect(message).toContain('HTTP 401');
+    expect(message).toContain('invalid_api_key');
+    expect(message).not.toContain('SENTINEL_BODY');
+    expect(message).not.toContain('SENTINEL_INPUT_TEXT');
+    expect(message).not.toContain(KEY);
+    expect(message).not.toContain('小说正文泄露测试');
+  });
+
+  it('does not echo a non-JSON vendor body either', async () => {
+    const mock = vi.fn(async () => new Response(`SENTINEL_RAW ${KEY}`, { status: 403 }));
+    let caught: unknown;
+    try { await synthesize({ apiKey: KEY }, '文本', { fetchImpl: asFetch(mock) }); }
+    catch (error) { caught = error; }
+    const message = (caught as Error).message;
+    expect(message).toBe('语音合成请求失败：HTTP 403');
+    expect(message).not.toContain('SENTINEL_RAW');
+    expect(message).not.toContain(KEY);
+  });
+});

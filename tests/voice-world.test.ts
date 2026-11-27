@@ -99,9 +99,10 @@ describe('BookFish voice integration', () => {
   });
 
   it('stops read-aloud when the book or pause changes, but not on its own reading turn', async () => {
-    const { world, engine } = createWorld({}, {});
+    const { ctx, world, engine } = createWorld({}, {});
     const invoke = world.webUi!('zh').invoke!;
     await world.start(new FakeHost());
+    ctx.persist({ voiceOutputEnabled: true });
     try {
       const imported = await invoke('status', 'import', [{ filename: 'voice.txt', title: '语音世界样本',
         base64: Buffer.from('第一段。第二段。第三段。'.repeat(200)).toString('base64') }]) as { book: { key: string } };
@@ -124,5 +125,74 @@ describe('BookFish voice integration', () => {
     expect(engine.calls).toContain('key');
     expect(existsSync(join(ctx.botDir, '.env'))).toBe(false);
     expect(engine.calls).not.toContain('attach');
+  });
+});
+describe('Voice V2.1 safety boundaries', () => {
+  async function importBook(invoke: (panel: string, method: string, args: unknown[]) => Promise<unknown>) {
+    const imported = await invoke('status', 'import', [{ filename: 'voice.txt', title: '边界样本',
+      base64: Buffer.from('第一段正文。第二段正文。第三段正文。'.repeat(200)).toString('base64') }]) as { book: { key: string } };
+    await invoke('status', 'select', [imported.book.key]);
+    return imported.book.key;
+  }
+
+  it('rejects enabling voice while a reading opportunity is active and leaves config untouched', async () => {
+    const { ctx, world, engine } = createWorld({}, {});
+    const invoke = world.webUi!('zh').invoke!;
+    await world.start(new FakeHost());
+    try {
+      const key = await importBook(invoke);
+      const started = await invoke('status', 'read_now', [key]) as { accepted: boolean };
+      expect(started.accepted).toBe(true);
+      await expect(invoke('settings', 'save', [{ voiceOutputEnabled: true }])).rejects.toThrow(/阅读机会|未完成的阅读任务|阅读请求/);
+      expect(ctx.cfg.voiceOutputEnabled).not.toBe(true);
+      expect(engine.calls).not.toContain('config');
+    } finally { await world.stop(); }
+  });
+
+  it('does not stop for BookFish own main reading turn, but stops when an external event is present', async () => {
+    const { ctx, world, engine } = createWorld({}, {});
+    const host = new FakeHost();
+    const invoke = world.webUi!('zh').invoke!;
+    await world.start(host);
+    try {
+      const key = await importBook(invoke);
+      await invoke('status', 'read_now', [key]);
+      ctx.persist({ voiceOutputEnabled: true });
+      world.onRunPhase!({ state: 'model', running: [], enteredAt: new Date().toISOString() });
+      expect(engine.calls).not.toContain('phase');
+
+      const external = { cursor: 1, type: 'core.user', ts: new Date().toISOString(), source: 'core', origin: 'external', text: '用户说话' };
+      (host as unknown as { store: { range: () => unknown[] } }).store = {
+        ...host.store, range: () => [external],
+      };
+      world.onRunPhase!({ state: 'model', running: [], enteredAt: new Date().toISOString() });
+      expect(engine.calls).toContain('phase');
+    } finally { await world.stop(); }
+  });
+});
+
+describe('Voice V2.1 pending-task boundary', () => {
+  it('rejects enabling voice after text was supplied but before confirmation', async () => {
+    const { ctx, world, engine } = createWorld({}, {});
+    const host = new FakeHost();
+    const invoke = world.webUi!('zh').invoke!;
+    await world.start(host);
+    try {
+      const imported = await invoke('status', 'import', [{ filename: 'pending.txt', title: 'Pending样本',
+        base64: Buffer.from('这是已经发给模型但还没有确认的正文。'.repeat(300)).toString('base64') }]) as { book: { key: string } };
+      await invoke('status', 'select', [imported.book.key]);
+      await invoke('status', 'read_now', [imported.book.key]);
+      const opportunity = host.events.find(event => event.type === 'bookfish.reading_opportunity');
+      expect(opportunity).toBeDefined();
+      const read = await world.tools().find(tool => tool.name === 'bookfish_read_next')!.handler(
+        { opportunityId: opportunity!.meta!.opportunityId }, {} as ToolCallContext) as string;
+      expect(JSON.parse(read).segments.length).toBeGreaterThan(0);
+      const panel = await invoke('status', 'get', []) as { status: { library: { pending: unknown } } };
+      expect(panel.status.library.pending).not.toBeNull();
+
+      await expect(invoke('settings', 'save', [{ voiceOutputEnabled: true }])).rejects.toThrow(/未确认的正文/);
+      expect(ctx.cfg.voiceOutputEnabled).not.toBe(true);
+      expect(engine.calls).not.toContain('config');
+    } finally { await world.stop(); }
   });
 });

@@ -105,6 +105,21 @@ export class ReadingScheduler {
   private requireVoice(count: number): void {
     if (!this.voiceAllows(count)) throw new Error('语音朗读尚未播放到下一段，思考不得超前朗读；请先继续朗读，或在配置中关闭语音开关恢复默读。');
   }
+  /**
+   * Terminal guard: a task supplied before voice was enabled must not confirm
+   * text the voice never played. Committed ranges stay idempotent; fully played
+   * ranges keep the original confirmation path.
+   */
+  private voiceConfirmAllows(segmentId: unknown, taskId: unknown): boolean {
+    const gate = this.hooks?.voiceGate?.();
+    if (!gate?.enabled) return true;
+    if (typeof taskId === 'string' && this.lib.isCommitted(taskId)) return true;
+    const segment = Number(segmentId);
+    return Number.isSafeInteger(gate.upper) && Number.isSafeInteger(segment) && segment <= gate.upper!;
+  }
+  private requireVoiceConfirmation(segmentId: unknown, taskId: unknown): void {
+    if (!this.voiceConfirmAllows(segmentId, taskId)) throw new Error('这段正文还没有被语音完整播放，不能确认或推进阅读进度；请先继续朗读。');
+  }
   private cancel() {
     if (this.active?.taskId && this.lib.status().pending?.taskId === this.active.taskId) this.lib.cancelPending();
     if(this.active?.manual&&this.manual?.id===this.active.id&&['queued','reading'].includes(this.manual.state))this.manual.state='cancelled';
@@ -314,7 +329,7 @@ export class ReadingScheduler {
       ? rawArgs
       : { ...rawArgs, bookKey: this.lib.bookKeyOfTask(rawArgs.taskId) ?? this.lib.status().current?.key };
     if (this.signature() !== this.observed) this.changed();
-    const done=this.completedOpportunity;if(args.opportunityId!==undefined&&done&&args.opportunityId===done.id){if(done.generation!==this.lib.generation()||this.now()>=done.expires||done.taskId!==args.taskId)throw Error('Completed reading opportunity is stale');return this.lib.finish(args);}
+    const done=this.completedOpportunity;if(args.opportunityId!==undefined&&done&&args.opportunityId===done.id){if(done.generation!==this.lib.generation()||this.now()>=done.expires||done.taskId!==args.taskId)throw Error('Completed reading opportunity is stale');this.requireVoiceConfirmation(args.segmentId,args.taskId);return this.lib.finish(args);}
     this.requireAwake();
     let opportunity: Opportunity | undefined;
     if (args.opportunityId !== undefined || this.cfg.automaticReading || this.active?.taskId === args.taskId || this.active?.taskIds?.includes(String(args.taskId))) {
@@ -325,6 +340,7 @@ export class ReadingScheduler {
     if (opportunity?.segmentIds && !opportunity.segmentIds.includes(Number(args.segmentId))) {
       throw new Error(`segmentId ${String(args.segmentId)} was not supplied by this opportunity; read_next returned segmentIds ${opportunity.segmentIds.join(', ')}. Use the exact segmentId from that result, not a guessed one.`);
     }
+    this.requireVoiceConfirmation(args.segmentId, args.taskId);
     const ms=this.lib.segmentSize(args.bookKey,args.segmentId)/(this.active?.readRate??readingLimits(this.cfg).charsPerMinute)*60000;
     const accrued=this.sessionReadMs+ms;const rest=accrued>=readingLimits(this.cfg).sessionMinutes*60000?this.lib.planRest(this.restDuration(accrued),accrued,'session'):undefined;
     let result;
@@ -369,6 +385,8 @@ export class ReadingScheduler {
       const invalid = items.find(item => !a.segmentIds!.includes(Number(item.segmentId)));
       if (invalid) throw new Error(`segmentId ${String(invalid.segmentId)} was not supplied by this opportunity; read_next returned segmentIds ${a.segmentIds.join(', ')}. Use the exact segmentIds from that result, not guessed ones.`);
     }
+    const blocked = items.find(item => !this.voiceConfirmAllows(item.segmentId, item.taskId));
+    if (blocked) throw new Error('这段正文还没有被语音完整播放，不能确认或推进阅读进度；请先继续朗读。');
     const key = this.lib.status().current?.key;
     let chars = 0;
     for (const item of items) chars += this.lib.segmentSize(item.bookKey ?? this.lib.bookKeyOfTask(item.taskId) ?? key, item.segmentId);
