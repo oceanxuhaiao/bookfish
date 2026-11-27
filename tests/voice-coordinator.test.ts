@@ -401,7 +401,8 @@ describe('chat safety net without a new phase callback', () => {
 describe('V2.1.1 waiting_content chat priority', () => {
   it('stops waiting playback, ignores new text until the user starts again', async () => {
     let interrupt = false;
-    const h = harness(['甲。'], { pollMs: 10, shouldInterruptForChat: () => interrupt });
+    let snapshots = 0;
+    const h = harness(['甲。'], { pollMs: 10, shouldInterruptForChat: () => interrupt, onSnapshot: () => { snapshots += 1; } });
     await h.coordinator.start();
     await waitFor(() => h.coordinator.status().phase === 'waiting_content');
     interrupt = true;
@@ -410,8 +411,10 @@ describe('V2.1.1 waiting_content chat priority', () => {
       && (h.coordinator.status().detail ?? '').includes('聊天优先'));
 
     const watermark = h.coordinator.status().voicedUpTo;
+    const stoppedAt = snapshots;
     h.texts.push('丙。'); h.state.totalSegments = 2;
     await new Promise(resolve => setTimeout(resolve, 120));
+    expect(snapshots - stoppedAt).toBeLessThanOrEqual(2);
     expect(h.coordinator.status().phase === 'paused' || h.coordinator.status().phase === 'idle').toBe(true);
     expect(h.coordinator.status().voicedUpTo).toBe(watermark);
     expect(h.synthCalls).not.toContain('丙。');
