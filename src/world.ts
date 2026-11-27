@@ -82,8 +82,6 @@ export class BookfishWorld implements World {
   private lifetime = new AbortController();
   /** True while the main session is running BookFish's own reading opportunity, not a user chat. */
   private readingTurn = false;
-  /** True while the main session is busy (any non-idle RunPhase). */
-  private mainTurnActive = false;
   /** Highest external cursor scanned; only advances after a bounded snapshot was read. */
   private lastScannedCursor = 0;
   /** Highest external cursor seen but not yet associated with a main turn. */
@@ -103,20 +101,14 @@ export class BookfishWorld implements World {
         snapshot: () => this.library.voiceSnapshot(),
         segments: (from, max) => this.library.voiceSegments(from, max),
         pendingTask: () => this.library.voicePendingTask(),
+        pendingTasks: () => this.library.voicePendingTasks(),
       },
       enabled: () => this.opts.cfg.voiceOutputEnabled === true,
       secret: () => this.opts.secret?.(VOICE_KEY_ENV) ?? '',
       dataDir: opts.dataDir,
       fetchNext: signal => this.fetchNextForVoice(signal),
       logger: () => this.host?.log as VoiceLogger | undefined,
-      shouldInterruptForChat: () => {
-        const hit = this.mainTurnActive && this.hasExternalSinceIdle();
-        if (hit) {
-          this.currentTurnExternal = true;
-          this.turnExternalCursor = Math.max(this.turnExternalCursor, this.pendingExternalCursor);
-        }
-        return hit;
-      },
+      shouldInterruptForChat: () => this.shouldBlockVoiceStart(),
     });
     this.scheduler = new ReadingScheduler(this.library, opts.cfg, opts.timezone, undefined, undefined,
       { autoAdvance: () => this.selection?.autoAdvance() ?? false, voiceGate: () => this.voice.gate() });
@@ -786,7 +778,6 @@ export class BookfishWorld implements World {
       this.currentTurnExternal = false;
       this.turnExternalCursor = 0;
       this.readingTurn = false;
-      this.mainTurnActive = false;
       this.scheduler.start(host);
       this.sharing.start(host);
       this.reviewFlow.start(host);
@@ -816,7 +807,6 @@ export class BookfishWorld implements World {
    * the same batch, or any uncertain external event, stops the voice.
    */
   private updateVoiceChatPriority(phase: RunPhase): void {
-    this.mainTurnActive = phase.state !== 'idle';
     if (phase.state === 'idle') {
       this.settleExternalTurn();
       return;
@@ -866,11 +856,22 @@ export class BookfishWorld implements World {
     return this.scanExternalEvents();
   }
   /**
+   * Manual start is blocked while external evidence is unsettled, even if the
+   * host is idle and the user message has not reached a model turn yet.
+   */
+  private shouldBlockVoiceStart(): boolean {
+    const hit = this.hasExternalSinceIdle();
+    if (hit) {
+      this.currentTurnExternal = true;
+      this.turnExternalCursor = Math.max(this.turnExternalCursor, this.pendingExternalCursor);
+    }
+    return hit;
+  }
+  /**
    * A turn boundary is also a safe consumption point. `onTurnEnded` covers a
    * host that folds consecutive turns without an intervening idle phase.
    */
   private settleExternalTurn(): void {
-    this.mainTurnActive = false;
     this.readingTurn = false;
     const hadTurnExternal = this.currentTurnExternal;
     const turnCursor = this.turnExternalCursor;

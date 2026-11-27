@@ -18,7 +18,7 @@ let plays = 0;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'bookfish-voice-key-pending-'));
-  const time = Date.parse('2026-11-07T02:00:00Z');
+  const time = Date.now();
   lib = new Library({ dataDir: dir, now: () => time }); lib.open();
   const imported = lib.import({
     filename: 'key-pending.txt', title: 'KEY水位样本',
@@ -37,6 +37,7 @@ beforeEach(() => {
       snapshot: () => lib.voiceSnapshot(),
       segments: (from, max) => lib.voiceSegments(from, max),
       pendingTask: () => lib.voicePendingTask(),
+      pendingTasks: () => lib.voicePendingTasks(),
     },
     enabled: () => true, secret: () => 'test-key', dataDir: dir,
     synthesize: async () => makeWav(),
@@ -81,5 +82,30 @@ describe('V2.1.1 KEY change with a live pending task', () => {
     expect(result.duplicate).toBe(false);
     expect(lib.status().current!.confirmedSegments).toBe(1);
     expect(lib.status().pending).toMatchObject({ taskId: later!.taskId, segmentId: 1 });
+
+    // Verified KEY recovery: exactly the next segment is pending.
+    await coordinator.start();
+    await waitFor(() => coordinator.status().voicedUpTo === 1);
+    // Deleting the KEY again after recovery keeps the new watermark too.
+    await coordinator.onKeyChanged();
+    expect(coordinator.status().voicedUpTo).toBe(1);
+    const confirmed = scheduler.finish({ taskId: later!.taskId, bookKey: read.bookKey, segmentId: 1, understanding: '' });
+    expect(confirmed.duplicate).toBe(false);
+    expect(lib.status().current!.confirmedSegments).toBe(2);
+    expect(lib.status().pending).toBeNull();
+  });
+
+  it('keeps the ordinary start guard when there was no KEY interruption', async () => {
+    await coordinator.start();
+    await waitFor(() => coordinator.status().voicedUpTo === 0 && plays === 2);
+    const read = lib.readNext(2);
+    if (read.complete) throw new Error('expected text');
+    const [heard, later] = read.segments;
+    await coordinator.stop('user');
+    expect(coordinator.status().voicedUpTo).toBe(0);
+    await expect(coordinator.start()).rejects.toThrow(/未完成的阅读任务/);
+    expect(lib.status().current!.confirmedSegments).toBe(0);
+    expect(lib.status().pending).toMatchObject({ taskId: heard!.taskId, segmentId: 0 });
+    expect(later!.segmentId).toBe(1);
   });
 });

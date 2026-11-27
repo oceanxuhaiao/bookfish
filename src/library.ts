@@ -480,6 +480,14 @@ export class Library {
     const task = historySelect(this.state.tasks, { status: 'pending' }).find(t => t.expiresAt > this.now());
     return task ? { taskId: task.id, segmentId: task.segmentId } : null;
   }
+  /** Read-only metadata for every pending task, including expired ones. */
+  voicePendingTasks() {
+    this.ensureOpen();
+    return historySelect(this.state.tasks, { status: 'pending' }).map(task => ({
+      taskId: task.id, bookKey: task.bookKey, segmentId: task.segmentId,
+      generation: task.generation, expiresAt: task.expiresAt,
+    }));
+  }
   status() {
     const entry = this.state.books.find((e) => e.book.key === this.state.selected);
     const task = this.opened ? historySelect(this.state.tasks,{status:'pending'}).find(t=>t.expiresAt>this.now()) : undefined;

@@ -16,6 +16,7 @@ interface HarnessOptions {
   synth?: (text: string, signal: AbortSignal) => Promise<Uint8Array>;
   play?: (bytes: Uint8Array, options: { tempDir: string; signal: AbortSignal }) => Promise<unknown>;
   pendingTask?: () => { taskId: string; segmentId: number } | null;
+  pendingTasks?: () => Array<{ taskId: string; bookKey: string; segmentId: number; generation: number; expiresAt: number }>;
   onSnapshot?: () => void;
   pollMs?: number;
   shouldInterruptForChat?: () => boolean;
@@ -37,6 +38,7 @@ function harness(texts: string[], options: HarnessOptions = {}) {
       snapshot: () => { options.onSnapshot?.(); return { ...state }; },
       segments: (from, max) => texts.slice(from, from + max).map((text, index) => ({ id: from + index, text })),
       pendingTask: options.pendingTask,
+      pendingTasks: options.pendingTasks,
     },
     enabled: () => enabled,
     secret: () => options.key ?? 'test-key',
@@ -560,6 +562,123 @@ describe('V2.1.1 linked chat + KEY + new chapter', () => {
     block.resolve();
     await h.coordinator.start();
     await waitFor(() => h.coordinator.status().voicedUpTo !== null && h.synthCalls.includes('丙。'));
+    await h.coordinator.dispose();
+  });
+});
+
+describe('V2.1.2 KEY recovery identity checks', () => {
+  function keyedHarness(segments: string[], pendingRef: { current: Array<{ taskId: string; bookKey: string; segmentId: number; generation: number; expiresAt: number }> }) {
+    let plays = 0;
+    const block = deferred();
+    const h = harness(segments, {
+      pendingTasks: () => pendingRef.current,
+      play: async (_bytes, { signal }) => {
+        plays += 1;
+        if (plays === 2) {
+          await Promise.race([block.promise, new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))]);
+        }
+      },
+    });
+    return { h, block };
+  }
+
+  it('rejects a pending task that is not exactly the next segment', async () => {
+    const pending = { current: [] as Array<{ taskId: string; bookKey: string; segmentId: number; generation: number; expiresAt: number }> };
+    const { h, block } = keyedHarness(['甲。', '乙。', '丙。'], pending);
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0);
+    await h.coordinator.onKeyChanged();
+    pending.current = [{ taskId: 'gap', bookKey: 'book:1', segmentId: 2, generation: 1, expiresAt: Date.now() + 60_000 }];
+    await expect(h.coordinator.start()).rejects.toThrow(/不是已朗读水位之后的下一段/);
+    block.resolve();
+    await h.coordinator.dispose();
+  });
+
+  it('rejects a pending task from another book or an expired task', async () => {
+    const pending = { current: [] as Array<{ taskId: string; bookKey: string; segmentId: number; generation: number; expiresAt: number }> };
+    const { h, block } = keyedHarness(['甲。', '乙。'], pending);
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0);
+    await h.coordinator.onKeyChanged();
+    pending.current = [{ taskId: 'other', bookKey: 'book:9', segmentId: 1, generation: 1, expiresAt: Date.now() + 60_000 }];
+    await expect(h.coordinator.start()).rejects.toThrow(/其他书籍或正文版本/);
+    pending.current = [{ taskId: 'old', bookKey: 'book:1', segmentId: 1, generation: 1, expiresAt: Date.now() - 1 }];
+    await expect(h.coordinator.start()).rejects.toThrow(/已过期/);
+    block.resolve();
+    await h.coordinator.dispose();
+  });
+
+  it('does not inherit the watermark when generation changes after the KEY stop', async () => {
+    const pending = { current: [] as Array<{ taskId: string; bookKey: string; segmentId: number; generation: number; expiresAt: number }> };
+    const { h, block } = keyedHarness(['甲。', '乙。'], pending);
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0);
+    await h.coordinator.onKeyChanged();
+    h.state.generation = 2;
+    block.resolve();
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo !== null);
+    expect(h.synthCalls.filter(text => text === '甲。').length).toBeGreaterThanOrEqual(2);
+    await h.coordinator.dispose();
+  });
+
+  it('does not inherit the watermark when the book changes after the KEY stop', async () => {
+    const pending = { current: [] as Array<{ taskId: string; bookKey: string; segmentId: number; generation: number; expiresAt: number }> };
+    const { h, block } = keyedHarness(['甲。', '乙。'], pending);
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0);
+    await h.coordinator.onKeyChanged();
+    h.state.bookKey = 'book:2';
+    block.resolve();
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo !== null);
+    expect(h.synthCalls.filter(text => text === '甲。').length).toBeGreaterThanOrEqual(2);
+    await h.coordinator.dispose();
+  });
+
+  it('rebuilds the session when the old watermark exceeds the current text', async () => {
+    const pending = { current: [] as Array<{ taskId: string; bookKey: string; segmentId: number; generation: number; expiresAt: number }> };
+    const h = harness(['甲。', '乙。'], { pendingTasks: () => pending.current });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 1);
+    await h.coordinator.onKeyChanged();
+    h.state.totalSegments = 1;
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0);
+    expect(h.synthCalls.filter(text => text === '甲。').length).toBeGreaterThanOrEqual(2);
+    await h.coordinator.dispose();
+  });
+});
+
+describe('V2.1.2 generation change with old pending metadata', () => {
+  it('does not reuse a pending task from the old generation', async () => {
+    const pending = { current: [{ taskId: 'old-gen', bookKey: 'book:1', segmentId: 1, generation: 1, expiresAt: Date.now() + 60_000 }] };
+    const h = harness(['甲。', '乙。'], { pendingTasks: () => pending.current });
+    h.state.generation = 2;
+    await expect(h.coordinator.start()).rejects.toThrow(/其他书籍或正文版本/);
+    await h.coordinator.dispose();
+  });
+
+  it('invalidates a recovered session when generation changes afterwards', async () => {
+    let plays = 0;
+    const block = deferred();
+    const h = harness(['甲。', '乙。'], {
+      play: async (_bytes, { signal }) => {
+        plays += 1;
+        if (plays === 2) {
+          await Promise.race([block.promise, new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))]);
+        }
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0);
+    await h.coordinator.onKeyChanged();
+    block.resolve();
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 1);
+    h.state.generation = 2;
+    await h.coordinator.revalidate();
+    expect(h.coordinator.status()).toMatchObject({ phase: 'idle', bookKey: null, voicedUpTo: null });
     await h.coordinator.dispose();
   });
 });

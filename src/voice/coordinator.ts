@@ -84,6 +84,8 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
   private fetchFailures = 0;
   /** Detail to publish after the prepared/playing queue has fully drained. */
   private waitDetail: string | null = null;
+  /** A verified KEY stop that may resume over exactly one pending task. */
+  private keyRecovery?: { bookKey: string; generation: number; watermark: number };
 
   private lifecycle: Promise<unknown> = Promise.resolve();
   private timer: ReturnType<typeof setInterval> | undefined;
@@ -147,21 +149,33 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
       if (!this.hasKey()) throw new VoiceConfigError('尚未保存 MiMo 语音 KEY：请到配置页的语音设置中保存。');
       if (this.phase === 'playing') return this.status();
 
-      const snap = this.readSnapshot();
+      let snap = this.readSnapshot();
       if (!snap) throw new VoiceConfigError('书架为空，没有正在读的书。');
       if (snap.paused) throw new VoiceConfigError('阅读已暂停，请先继续阅读再开始朗读。');
       if (snap.complete) throw new VoiceConfigError('这本书已经读完了。');
       if (snap.readiness === 'conflict') throw new VoiceConfigError(readinessMessage(snap.readiness));
-      const pending = this.opts.port.pendingTask?.();
-      if (pending && (this.voicedUpTo === null || pending.segmentId > this.voicedUpTo)) {
-        throw new VoiceConfigError(`大肥鱼还有未完成的阅读任务（第 ${pending.segmentId + 1} 段），请先等待本轮阅读结束或安全取消后再开始朗读。`);
-      }
+      this.assertPendingTasksAllowStart(snap);
 
       await this.awaitLoop();
 
-      const resumable = this.bookKey === snap.bookKey && this.voicedUpTo !== null;
-      const from = resumable ? Math.max(snap.frontier, this.voicedUpTo! + 1) : snap.frontier;
-      if (!resumable) this.voicedUpTo = null;
+      const fresh = this.readSnapshot();
+      if (!fresh) throw new VoiceConfigError('书架为空，没有正在读的书。');
+      if (fresh.bookKey !== snap.bookKey || fresh.generation !== snap.generation) {
+        this.keyRecovery = undefined;
+        throw new VoiceConfigError('阅读书籍或正文版本已改变，请刷新后再开始朗读。');
+      }
+      if (this.opts.shouldInterruptForChat?.()) {
+        throw new VoiceConfigError('大肥鱼正在优先处理当前对话，请在聊天结束后再开始朗读。');
+      }
+      this.assertPendingTasksAllowStart(fresh);
+      snap = fresh;
+
+      const watermark = this.voicedUpTo;
+      const resumable = this.bookKey === snap.bookKey
+        && this.generation === snap.generation
+        && watermark !== null && watermark >= 0 && watermark < snap.totalSegments;
+      const from = resumable ? Math.max(snap.frontier, watermark + 1) : snap.frontier;
+      if (!resumable) { this.voicedUpTo = null; this.keyRecovery = undefined; }
       this.bookKey = snap.bookKey;
       this.title = snap.title;
       this.generation = snap.generation;
@@ -176,8 +190,42 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
       this.sweep();
       this.startTimer();
       this.startLoop();
+      this.keyRecovery = undefined;
       return this.status();
     });
+  }
+
+  /**
+   * Starting is conservative unless this is a verified KEY interruption. The
+   * ONLY exception is one pending task exactly at watermark+1, same book and
+   * generation, unexpired; the user must have explicitly pressed start.
+   */
+  private assertPendingTasksAllowStart(snap: VoiceBookSnapshot): void {
+    const single = this.opts.port.pendingTask?.();
+    const tasks = this.opts.port.pendingTasks?.()
+      ?? (single ? [{ ...single, bookKey: snap.bookKey, generation: snap.generation, expiresAt: Number.MAX_SAFE_INTEGER }] : []);
+    if (tasks.length === 0) return;
+    const now = Date.now();
+    const watermark = this.voicedUpTo;
+    const sameIdentity = tasks.every(task => task.bookKey === snap.bookKey && task.generation === snap.generation);
+    const unexpired = tasks.every(task => task.expiresAt > now);
+    const beyond = tasks.filter(task => watermark === null || task.segmentId > watermark);
+    const normalSafe = sameIdentity && unexpired && beyond.length === 0;
+    const recovery = this.keyRecovery;
+    const recoveryValid = !!recovery && !!this.bookKey && this.generation !== null
+      && recovery.bookKey === snap.bookKey && recovery.generation === snap.generation
+      && this.bookKey === snap.bookKey && this.generation === snap.generation
+      && recovery.watermark === watermark;
+    const keySafe = recoveryValid && sameIdentity && unexpired
+      && beyond.length === 1 && watermark !== null && beyond[0]!.segmentId === watermark + 1;
+    if (normalSafe || keySafe) return;
+    if (!sameIdentity) throw new VoiceConfigError('未完成的阅读任务属于其他书籍或正文版本，不能恢复朗读。');
+    if (!unexpired) throw new VoiceConfigError('未完成的阅读任务已过期，请重新读取正文后再开始朗读。');
+    if (recoveryValid && beyond.length === 1) {
+      throw new VoiceConfigError('未完成的阅读任务不是已朗读水位之后的下一段，不能恢复朗读。');
+    }
+    const first = tasks[0]!;
+    throw new VoiceConfigError(`大肥鱼还有未完成的阅读任务（第 ${first.segmentId + 1} 段），请先等待本轮阅读结束或安全取消后再开始朗读。`);
   }
 
   stop(reason: VoiceStopReason = 'user'): Promise<void> {
@@ -309,6 +357,7 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
   }
 
   private applyStop(reason: VoiceStopReason): void {
+    if (reason !== 'key') this.keyRecovery = undefined;
     this.queue = [];
     this.playingSegmentId = null;
     this.sessionId = null;
@@ -332,9 +381,13 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
         this.phase = 'idle';
         this.detail = '语音 KEY 已更改；已完整播放的连续水位保留，需要时请点击开始朗读。';
         this.error = null;
+        this.keyRecovery = this.voicedUpTo !== null && this.bookKey !== null && this.generation !== null
+          ? { bookKey: this.bookKey, generation: this.generation, watermark: this.voicedUpTo }
+          : undefined;
         this.stopTimer();
         return;
       }
+      this.keyRecovery = undefined;
       this.bookKey = null;
       this.title = null;
       this.generation = null;

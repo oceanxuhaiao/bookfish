@@ -42,6 +42,8 @@ export interface VoiceReadPort {
   segments(from: number, max: number): VoiceSegment[];
   /** Existing unconfirmed task, read-only. Starting the voice must not switch semantics mid-task. */
   pendingTask?(): { taskId: string; segmentId: number } | null;
+  /** Full read-only pending metadata, including expiry and identity. */
+  pendingTasks?(): Array<{ taskId: string; bookKey: string; segmentId: number; generation: number; expiresAt: number }>;
 }
 
 /** The scheduler reads this synchronously; `upper` is the last fully voiced segment. */

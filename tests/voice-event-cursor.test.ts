@@ -16,10 +16,17 @@ class MutableStore {
   events: EventEnvelope[] = [];
   fail = false;
   afterRange: (() => void) | null = null;
-  addExternal(text = '用户消息'): EventEnvelope {
+  addExternal(text = '用户消息', source = 'core'): EventEnvelope {
     this.cursor += 1;
     const event = { cursor: this.cursor, type: 'core.user', ts: new Date().toISOString(),
-      source: 'core', origin: 'external', text } as EventEnvelope;
+      source, origin: 'external', text } as EventEnvelope;
+    this.events.push(event);
+    return event;
+  }
+  addInternal(text = '内部事件'): EventEnvelope {
+    this.cursor += 1;
+    const event = { cursor: this.cursor, type: 'bookfish.started', ts: new Date().toISOString(),
+      source: 'bookfish', origin: 'internal', text } as EventEnvelope;
     this.events.push(event);
     return event;
   }
@@ -193,5 +200,45 @@ describe('V2.1.1 turn-end fallback without idle', () => {
       world.onRunPhase!({ state: 'model', running: [], enteredAt: new Date().toISOString() });
       expect(engine.calls).not.toContain('phase');
     } finally { await world.stop(); }
+  });
+});
+
+describe('V2.1.2 external evidence blocks manual start while idle', () => {
+  it('keeps the start hook true until a real main turn settles it', async () => {
+    const { world, engine, store } = await setup();
+    try {
+      store.addExternal('idle 期间到达的用户消息');
+      world.onRunPhase!({ state: 'idle', running: [], enteredAt: new Date().toISOString() });
+      const hasExternal = () => (world as unknown as { shouldBlockVoiceStart(): boolean }).shouldBlockVoiceStart();
+      expect(hasExternal()).toBe(true);
+
+      world.onRunPhase!({ state: 'model', running: [], enteredAt: new Date().toISOString() });
+      expect(engine.calls).toContain('phase');
+      world.onTurnEnded!();
+      expect(hasExternal()).toBe(false);
+    } finally { await world.stop(); }
+  });
+
+  it('ignores internal events and treats other World external events as chat', async () => {
+    {
+      const { world, engine, store } = await setup();
+      try {
+        store.addInternal();
+        world.onRunPhase!({ state: 'idle', running: [], enteredAt: new Date().toISOString() });
+        engine.calls.length = 0;
+        world.onRunPhase!({ state: 'model', running: [], enteredAt: new Date().toISOString() });
+        expect(engine.calls).not.toContain('phase');
+      } finally { await world.stop(); }
+    }
+    {
+      const { world, engine, store } = await setup();
+      try {
+        store.addExternal('其他世界事件', 'music-world');
+        world.onRunPhase!({ state: 'idle', running: [], enteredAt: new Date().toISOString() });
+        engine.calls.length = 0;
+        world.onRunPhase!({ state: 'model', running: [], enteredAt: new Date().toISOString() });
+        expect(engine.calls).toContain('phase');
+      } finally { await world.stop(); }
+    }
   });
 });
