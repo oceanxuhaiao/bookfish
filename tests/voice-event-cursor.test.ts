@@ -179,3 +179,19 @@ describe('V2.1.1 events arriving after a turn started', () => {
     } finally { await world.stop(); }
   });
 });
+
+describe('V2.1.1 turn-end fallback without idle', () => {
+  it('consumes the turn at onTurnEnded and releases the next reading turn', async () => {
+    const { world, engine, store } = await setup();
+    try {
+      store.addExternal();
+      world.onRunPhase!({ state: 'model', running: [], enteredAt: new Date().toISOString() });
+      expect(engine.calls).toContain('phase');
+
+      world.onTurnEnded!();
+      engine.calls.length = 0;
+      world.onRunPhase!({ state: 'model', running: [], enteredAt: new Date().toISOString() });
+      expect(engine.calls).not.toContain('phase');
+    } finally { await world.stop(); }
+  });
+});

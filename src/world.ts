@@ -818,18 +818,7 @@ export class BookfishWorld implements World {
   private updateVoiceChatPriority(phase: RunPhase): void {
     this.mainTurnActive = phase.state !== 'idle';
     if (phase.state === 'idle') {
-      this.readingTurn = false;
-      const hadTurnExternal = this.currentTurnExternal;
-      const turnCursor = this.turnExternalCursor;
-      this.scanExternalEvents();
-      // Consume only the evidence visible when the turn started. Events that
-      // arrived during/after the scan stay pending for the next turn, and a
-      // failed scan stays conservative.
-      if (hadTurnExternal && !this.externalScanFailed) {
-        this.consumedExternalCursor = Math.max(this.consumedExternalCursor, turnCursor);
-        this.currentTurnExternal = false;
-        this.turnExternalCursor = 0;
-      }
+      this.settleExternalTurn();
       return;
     }
     if (!['delivering', 'model'].includes(phase.state)) return;
@@ -876,7 +865,23 @@ export class BookfishWorld implements World {
   private hasExternalSinceIdle(): boolean {
     return this.scanExternalEvents();
   }
-  onTurnEnded(): void { this.scheduler.onTurnEnded(); this.sharing.onTurnEnded(); }
+  /**
+   * A turn boundary is also a safe consumption point. `onTurnEnded` covers a
+   * host that folds consecutive turns without an intervening idle phase.
+   */
+  private settleExternalTurn(): void {
+    this.mainTurnActive = false;
+    this.readingTurn = false;
+    const hadTurnExternal = this.currentTurnExternal;
+    const turnCursor = this.turnExternalCursor;
+    this.scanExternalEvents();
+    if (hadTurnExternal && !this.externalScanFailed) {
+      this.consumedExternalCursor = Math.max(this.consumedExternalCursor, turnCursor);
+      this.currentTurnExternal = false;
+      this.turnExternalCursor = 0;
+    }
+  }
+  onTurnEnded(): void { this.settleExternalTurn(); this.scheduler.onTurnEnded(); this.sharing.onTurnEnded(); }
   onEventsSettled(events: readonly EventEnvelope[], outcome: 'delivered' | 'discarded'): void { this.scheduler.onEventsSettled(events, outcome); this.sharing.onEventsSettled(events, outcome); }
   async stop(): Promise<void> {
     return this.queueLifecycle(() => this.stopMounted());
