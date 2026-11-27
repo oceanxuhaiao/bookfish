@@ -132,7 +132,7 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
   }
 
   onRunPhase(phase: { state: string }): void {
-    if (this.phase !== 'playing') return;
+    if (this.phase !== 'playing' && this.phase !== 'waiting_content') return;
     if (MAIN_PHASES.has(phase.state)) void this.stop('chat').catch(() => {});
   }
 
@@ -141,6 +141,9 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
       if (this.disposed) throw new VoiceError('state', '语音模块已关闭');
       if (!this.opts.enabled()) throw new VoiceConfigError('请先在配置页开启语音朗读。');
       if (!this.attached) throw new VoiceError('state', 'Bookfish 尚未启动，暂时无法朗读。');
+      if (this.opts.shouldInterruptForChat?.()) {
+        throw new VoiceConfigError('大肥鱼正在优先处理当前对话，请在聊天结束后再开始朗读。');
+      }
       if (!this.hasKey()) throw new VoiceConfigError('尚未保存 MiMo 语音 KEY：请到配置页的语音设置中保存。');
       if (this.phase === 'playing') return this.status();
 
@@ -188,7 +191,8 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
         if (this.bookKey !== null || this.voicedUpTo !== null || this.loop) await this.stopNow('config');
         return;
       }
-      if (this.phase === 'playing' && this.opts.shouldInterruptForChat?.()) {
+      if ((this.phase === 'playing' || this.phase === 'waiting_content')
+        && this.opts.shouldInterruptForChat?.()) {
         await this.stopNow('chat');
         return;
       }
@@ -288,7 +292,12 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
 
   private async awaitLoop(): Promise<void> {
     const loop = this.loop;
-    if (loop) await loop.catch(() => {});
+    if (!loop) return;
+    await loop.catch(() => {});
+    // The completion handler that clears `loop` is a separate microtask; a
+    // stop-then-start in the same turn must not see the settled loop and skip
+    // starting a new one.
+    if (this.loop === loop) this.loop = undefined;
   }
 
   private abortLoop(): void {
@@ -311,6 +320,30 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
       this.phase = 'idle';
       this.detail = '本书已读完。';
       this.error = null;
+      this.stopTimer();
+      return;
+    }
+
+    if (reason === 'key') {
+      const snap = this.safeSnapshot();
+      const keepWatermark = !!snap && this.bookKey !== null && this.generation !== null
+        && snap.bookKey === this.bookKey && snap.generation === this.generation && !snap.paused;
+      if (keepWatermark) {
+        this.phase = 'idle';
+        this.detail = '语音 KEY 已更改；已完整播放的连续水位保留，需要时请点击开始朗读。';
+        this.error = null;
+        this.stopTimer();
+        return;
+      }
+      this.bookKey = null;
+      this.title = null;
+      this.generation = null;
+      this.voicedUpTo = null;
+      this.cursor = 0;
+      this.totalSegments = null;
+      this.phase = 'idle';
+      this.error = null;
+      this.detail = null;
       this.stopTimer();
       return;
     }
@@ -345,8 +378,7 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
     this.detail = reason === 'config' ? '语音朗读已关闭。'
       : reason === 'book_changed' ? '已切换书籍或正文版本，朗读已停止。'
         : reason === 'pause' ? '阅读已暂停，朗读已停止；恢复后会从当前确认位置重新朗读，可能重播未确认段落。'
-          : reason === 'key' ? null
-            : reason === 'shutdown' ? 'Bookfish 已停止，朗读已结束。'
+          : reason === 'shutdown' ? 'Bookfish 已停止，朗读已结束。'
               : '朗读已停止。';
     this.stopTimer();
   }

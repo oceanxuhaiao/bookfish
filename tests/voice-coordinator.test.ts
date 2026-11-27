@@ -19,6 +19,7 @@ interface HarnessOptions {
   onSnapshot?: () => void;
   pollMs?: number;
   shouldInterruptForChat?: () => boolean;
+  fetchNext?: (signal: AbortSignal) => Promise<void>;
 }
 
 function harness(texts: string[], options: HarnessOptions = {}) {
@@ -29,7 +30,7 @@ function harness(texts: string[], options: HarnessOptions = {}) {
   const synthCalls: string[] = [];
   const played: number[] = [];
   let enabled = options.enabled ?? true;
-  const synth = options.synth ?? (async (text: string) => { synthCalls.push(text); return makeWav(); });
+  const synth = options.synth ?? (async () => makeWav());
   const play = options.play ?? (async () => { played.push(1); });
   const coordinator = new VoiceCoordinator({
     port: {
@@ -40,10 +41,11 @@ function harness(texts: string[], options: HarnessOptions = {}) {
     enabled: () => enabled,
     secret: () => options.key ?? 'test-key',
     dataDir: dir,
-    synthesize: (text, signal) => synth(text, signal),
+    synthesize: (text, signal) => { synthCalls.push(text); return synth(text, signal); },
     play: (bytes, opts) => play(bytes, opts),
     pollMs: options.pollMs ?? 0,
     shouldInterruptForChat: options.shouldInterruptForChat,
+    fetchNext: options.fetchNext,
   });
   coordinator.attach();
   return { state, texts, coordinator, synthCalls, played,
@@ -149,7 +151,7 @@ describe('voice coordinator lifecycle', () => {
 
   it('drops a late synthesis result after stop', async () => {
     const slow = deferred<Uint8Array>();
-    const h = harness(['慢段落。'], { synth: (text) => { h.synthCalls.push(text); return slow.promise; } });
+    const h = harness(['慢段落。'], { synth: () => slow.promise });
     await h.coordinator.start();
     await waitFor(() => h.synthCalls.length === 1);
     const stopping = h.coordinator.stop('user');
@@ -264,7 +266,7 @@ describe('voice coordinator lifecycle', () => {
     await h.coordinator.dispose();
   });
 
-  it('clears the watermark when the setting is turned off and when the key changes', async () => {
+  it('clears the watermark when the setting is turned off but keeps it across a key change', async () => {
     const h = harness(['甲。', '乙。']);
     await h.coordinator.start();
     await waitFor(() => h.coordinator.status().voicedUpTo !== null);
@@ -275,8 +277,10 @@ describe('voice coordinator lifecycle', () => {
     h.setEnabled(true);
     await h.coordinator.start();
     await waitFor(() => h.coordinator.status().voicedUpTo !== null);
+    const watermark = h.coordinator.status().voicedUpTo;
     await h.coordinator.onKeyChanged();
-    expect(h.coordinator.status()).toMatchObject({ phase: 'idle', bookKey: null, voicedUpTo: null });
+    expect(h.coordinator.status()).toMatchObject({ phase: 'idle', bookKey: 'book:1', voicedUpTo: watermark });
+    expect(h.coordinator.gate()).toMatchObject({ enabled: true, upper: watermark });
     await h.coordinator.dispose();
   });
 
@@ -390,6 +394,129 @@ describe('chat safety net without a new phase callback', () => {
       && (h.coordinator.status().detail ?? '').includes('聊天优先'));
     expect(h.coordinator.status().detail).toContain('聊天优先');
     block.resolve();
+    await h.coordinator.dispose();
+  });
+});
+
+describe('V2.1.1 waiting_content chat priority', () => {
+  it('stops waiting playback, ignores new text until the user starts again', async () => {
+    let interrupt = false;
+    const h = harness(['甲。'], { pollMs: 10, shouldInterruptForChat: () => interrupt });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().phase === 'waiting_content');
+    interrupt = true;
+    h.coordinator.onRunPhase({ state: 'model' });
+    await waitFor(() => (h.coordinator.status().phase === 'paused' || h.coordinator.status().phase === 'idle')
+      && (h.coordinator.status().detail ?? '').includes('聊天优先'));
+
+    const watermark = h.coordinator.status().voicedUpTo;
+    h.texts.push('丙。'); h.state.totalSegments = 2;
+    await new Promise(resolve => setTimeout(resolve, 120));
+    expect(h.coordinator.status().phase === 'paused' || h.coordinator.status().phase === 'idle').toBe(true);
+    expect(h.coordinator.status().voicedUpTo).toBe(watermark);
+    expect(h.synthCalls).not.toContain('丙。');
+    await expect(h.coordinator.start()).rejects.toThrow(/优先处理当前对话/);
+
+    interrupt = false;
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 1);
+    expect(h.synthCalls).toContain('丙。');
+    await h.coordinator.dispose();
+  });
+
+  it('rejects a manual start while the user chat is still active', async () => {
+    let interrupt = true;
+    const h = harness(['甲。'], { shouldInterruptForChat: () => interrupt });
+    await expect(h.coordinator.start()).rejects.toThrow(/优先处理当前对话/);
+    interrupt = false;
+    await expect(h.coordinator.start()).resolves.toMatchObject({ phase: 'playing' });
+    await h.coordinator.dispose();
+  });
+
+  it('drops a late synthesis result after a chat stop', async () => {
+    const slow = deferred<Uint8Array>();
+    const h = harness(['慢段。'], { synth: () => slow.promise });
+    await h.coordinator.start();
+    await waitFor(() => h.synthCalls.length === 1);
+    h.coordinator.onRunPhase({ state: 'model' });
+    slow.resolve(makeWav());
+    await waitFor(() => h.coordinator.status().phase === 'idle' || h.coordinator.status().phase === 'paused');
+    expect(h.played).toHaveLength(0);
+    expect(h.coordinator.status().voicedUpTo).toBeNull();
+    await h.coordinator.dispose();
+  });
+});
+
+describe('V2.1.1 KEY change keeps the played watermark', () => {
+  it('keeps the completed prefix and resumes after the interrupted segment', async () => {
+    let plays = 0;
+    const block = deferred();
+    const h = harness(['甲。', '乙。', '丙。'], {
+      play: async (_bytes, { signal }) => {
+        plays += 1;
+        if (plays === 2) {
+          await Promise.race([block.promise, new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))]);
+        }
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0 && plays === 2);
+    await h.coordinator.onKeyChanged();
+    expect(h.coordinator.status()).toMatchObject({ phase: 'idle', bookKey: 'book:1', voicedUpTo: 0 });
+    expect(h.coordinator.gate()).toMatchObject({ enabled: true, upper: 0 });
+
+    block.resolve();
+    await h.coordinator.start();
+    await waitFor(() => (h.coordinator.status().voicedUpTo ?? -1) >= 1);
+    expect(h.synthCalls.filter(text => text === '甲。')).toHaveLength(1);
+    expect(h.synthCalls.filter(text => text === '乙。').length).toBeGreaterThanOrEqual(2);
+    await h.coordinator.dispose();
+  });
+
+  it('does not inherit the watermark after a book or generation change', async () => {
+    const h = harness(['甲。', '乙。']);
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo !== null);
+    h.state.bookKey = 'book:2'; h.state.generation = 2;
+    await h.coordinator.onKeyChanged();
+    expect(h.coordinator.status()).toMatchObject({ phase: 'idle', bookKey: null, voicedUpTo: null });
+    expect(h.coordinator.gate()).toMatchObject({ enabled: true, upper: null });
+    await h.coordinator.dispose();
+  });
+});
+
+describe('V2.1.1 late chapter fetch after chat', () => {
+  it('does not restart after a late fetch resolves', async () => {
+    const fetchStarted = deferred();
+    const gate = deferred();
+    let interrupt = false;
+    const h = harness(['甲。'], {
+      pollMs: 10,
+      shouldInterruptForChat: () => interrupt,
+      fetchNext: async (signal) => {
+        fetchStarted.resolve();
+        await Promise.race([gate.promise, new Promise<void>((_, reject) => {
+          if (signal.aborted) { reject(new Error('aborted')); return; }
+          signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        })]);
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0);
+    await fetchStarted.promise;
+    interrupt = true;
+    h.coordinator.onRunPhase({ state: 'model' });
+    await waitFor(() => (h.coordinator.status().phase === 'paused' || h.coordinator.status().phase === 'idle')
+      && (h.coordinator.status().detail ?? '').includes('聊天优先'));
+    h.texts.push('乙。'); h.state.totalSegments = 2;
+    gate.resolve();
+    await new Promise(resolve => setTimeout(resolve, 120));
+    expect(h.coordinator.status().voicedUpTo).toBe(0);
+    expect(h.synthCalls).not.toContain('乙。');
+    interrupt = false;
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 1);
+    expect(h.synthCalls).toContain('乙。');
     await h.coordinator.dispose();
   });
 });

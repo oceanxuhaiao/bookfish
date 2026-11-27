@@ -162,8 +162,8 @@ describe('Voice V2.1 safety boundaries', () => {
       expect(engine.calls).not.toContain('phase');
 
       const external = { cursor: 1, type: 'core.user', ts: new Date().toISOString(), source: 'core', origin: 'external', text: '用户说话' };
-      (host as unknown as { store: { range: () => unknown[] } }).store = {
-        ...host.store, range: () => [external],
+      (host as unknown as { store: { range: () => unknown[]; latestCursor: () => number } }).store = {
+        ...host.store, latestCursor: () => 1, range: () => [external],
       };
       world.onRunPhase!({ state: 'model', running: [], enteredAt: new Date().toISOString() });
       expect(engine.calls).toContain('phase');
@@ -193,6 +193,25 @@ describe('Voice V2.1 pending-task boundary', () => {
       await expect(invoke('settings', 'save', [{ voiceOutputEnabled: true }])).rejects.toThrow(/未确认的正文/);
       expect(ctx.cfg.voiceOutputEnabled).not.toBe(true);
       expect(engine.calls).not.toContain('config');
+    } finally { await world.stop(); }
+  });
+});
+
+describe('V2.1.1 key save failure', () => {
+  it('does not notify the voice session when secret storage fails', async () => {
+    const ctx = fakeWorldContext(BOOKFISH, { scratchDir });
+    ctx.persist({ automaticReading: false, realRoutineEnabled: false });
+    const engine = fakeEngine();
+    const world = new BookfishWorld({
+      cfg: ctx.cfg, timezone: ctx.timezone, dataDir: ctx.dataDir,
+      persist: patch => ctx.persist(patch),
+      secret: () => '', botDir: ctx.botDir, voice: engine,
+      storeSecret: () => { throw new Error('secret storage unavailable'); },
+    });
+    await world.start(new FakeHost());
+    try {
+      await expect(world.webUi!('zh').invoke!('settings', 'voice_save_key', ['test-key'])).rejects.toThrow(/secret storage/);
+      expect(engine.calls).not.toContain('key');
     } finally { await world.stop(); }
   });
 });

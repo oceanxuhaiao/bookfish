@@ -189,7 +189,7 @@ export function mountVoiceKeyCard(container: HTMLElement, ctx: WebUiPanelContext
   })(); }, { signal: ctx.signal });
   remove.addEventListener('click', () => { void (async () => {
     if (busy || disposed) return;
-    if (!(await ctx.ui.confirm({ title: say('删除语音 KEY？', 'Delete the voice KEY?'), body: say('删除或更换 KEY 会结束当前朗读会话，并清空本次临时朗读水位。BookFish 已确认的阅读进度不受影响；重新开始后会从当前确认位置重新朗读。', 'Deleting or changing the KEY ends the current read-aloud session and clears its temporary voicing watermark. Confirmed reading progress is unchanged; a new session starts from the current confirmed position.') }))) return;
+    if (!(await ctx.ui.confirm({ title: say('删除语音 KEY？', 'Delete the voice KEY?'), body: say('删除或更换 KEY 会停止当前朗读，但会保留本次已经完整播放的连续段落水位。中断中的段落不会计入；重新保存 KEY 后可以继续朗读。BookFish 已确认的阅读进度不受影响。', 'Deleting or changing the KEY stops playback but keeps the contiguous fully-played watermark. An interrupted segment is not counted; save a KEY again to continue. Confirmed reading progress is unchanged.') }))) return;
     busy = true; save.disabled = true; remove.disabled = true;
     try {
       const view = await ctx.invoke<VoiceView>('voice_clear_key', []);

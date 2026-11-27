@@ -84,8 +84,18 @@ export class BookfishWorld implements World {
   private readingTurn = false;
   /** True while the main session is busy (any non-idle RunPhase). */
   private mainTurnActive = false;
-  /** Cursor observed at the last idle phase; external events after it mean chat. */
-  private lastIdleCursor = 0;
+  /** Highest external cursor scanned; only advances after a bounded snapshot was read. */
+  private lastScannedCursor = 0;
+  /** Highest external cursor seen but not yet associated with a main turn. */
+  private pendingExternalCursor = 0;
+  /** Highest external cursor already consumed by a main turn. */
+  private consumedExternalCursor = 0;
+  /** True when a scan failed; treated as external until a scan succeeds. */
+  private externalScanFailed = false;
+  /** True when the current main turn saw an external event. */
+  private currentTurnExternal = false;
+  /** External cursor known at the start of the current main turn. */
+  private turnExternalCursor = 0;
   constructor(private readonly opts: BookfishWorldOptions) {
     this.library = new Library({ dataDir: opts.dataDir, textStoreDir: opts.cfg.textStoreDir, storyMemoryEnabled: opts.cfg.storyMemoryEnabled === true }); this.transfers = new BookTransfers(this.library); this.sources = new Sources(this.library, undefined, () => opts.cfg.allowNetwork);
     this.voice = opts.voice ?? new VoiceCoordinator({
@@ -99,7 +109,14 @@ export class BookfishWorld implements World {
       dataDir: opts.dataDir,
       fetchNext: signal => this.fetchNextForVoice(signal),
       logger: () => this.host?.log as VoiceLogger | undefined,
-      shouldInterruptForChat: () => this.mainTurnActive && this.hasExternalSinceIdle(),
+      shouldInterruptForChat: () => {
+        const hit = this.mainTurnActive && this.hasExternalSinceIdle();
+        if (hit) {
+          this.currentTurnExternal = true;
+          this.turnExternalCursor = Math.max(this.turnExternalCursor, this.pendingExternalCursor);
+        }
+        return hit;
+      },
     });
     this.scheduler = new ReadingScheduler(this.library, opts.cfg, opts.timezone, undefined, undefined,
       { autoAdvance: () => this.selection?.autoAdvance() ?? false, voiceGate: () => this.voice.gate() });
@@ -762,8 +779,14 @@ export class BookfishWorld implements World {
       try { await this.runtime.start(); } catch { /* runtime faults stay inside the runtime card, not the whole World */ }
       try { await this.txtAcquisition.init(); } catch { /* acquisition state faults must not block reading */ }
       this.voice.attach(host.log as VoiceLogger);
-      this.lastIdleCursor = host.store.latestCursor();
+      this.lastScannedCursor = host.store.latestCursor();
+      this.pendingExternalCursor = 0;
+      this.consumedExternalCursor = 0;
+      this.externalScanFailed = false;
+      this.currentTurnExternal = false;
+      this.turnExternalCursor = 0;
       this.readingTurn = false;
+      this.mainTurnActive = false;
       this.scheduler.start(host);
       this.sharing.start(host);
       this.reviewFlow.start(host);
@@ -796,27 +819,62 @@ export class BookfishWorld implements World {
     this.mainTurnActive = phase.state !== 'idle';
     if (phase.state === 'idle') {
       this.readingTurn = false;
-      if (this.host) this.lastIdleCursor = this.host.store.latestCursor();
+      const hadTurnExternal = this.currentTurnExternal;
+      const turnCursor = this.turnExternalCursor;
+      this.scanExternalEvents();
+      // Consume only the evidence visible when the turn started. Events that
+      // arrived during/after the scan stay pending for the next turn, and a
+      // failed scan stays conservative.
+      if (hadTurnExternal && !this.externalScanFailed) {
+        this.consumedExternalCursor = Math.max(this.consumedExternalCursor, turnCursor);
+        this.currentTurnExternal = false;
+        this.turnExternalCursor = 0;
+      }
       return;
     }
     if (!['delivering', 'model'].includes(phase.state)) return;
-    if (!this.opts.cfg.voiceOutputEnabled) return;
     const active = this.scheduler.status().active;
     const hasExternalSinceIdle = this.hasExternalSinceIdle();
+    if (hasExternalSinceIdle) {
+      this.currentTurnExternal = true;
+      this.turnExternalCursor = Math.max(this.turnExternalCursor, this.pendingExternalCursor);
+    }
     this.readingTurn = isBookfishReadingTurn({
       activeReadingMode: active ? (active.mode === 'background' ? 'background' : 'main') : null,
       hasExternalSinceIdle,
     });
-    if (!this.readingTurn) this.voice.onRunPhase(phase);
+    if (this.opts.cfg.voiceOutputEnabled && !this.readingTurn) this.voice.onRunPhase(phase);
   }
-  /** External events since the last idle observation; unreadable provenance is treated as chat. */
-  private hasExternalSinceIdle(): boolean {
+  /**
+   * Scan a bounded snapshot [lastScanned+1, latestCursor]. Events inserted after
+   * the snapshot keep a larger cursor and are found by the next scan. Pending
+   * external evidence is not cleared merely because the host entered idle.
+   */
+  private scanExternalEvents(): boolean {
     if (!this.host) return false;
     try {
-      return this.host.store.range({ fromCursor: this.lastIdleCursor + 1, origin: 'external', limit: 1 }).length > 0;
+      const snapshot = this.host.store.latestCursor();
+      if (snapshot > this.lastScannedCursor) {
+        const events = this.host.store.range({
+          fromCursor: this.lastScannedCursor + 1,
+          toCursor: snapshot,
+          origin: 'external',
+        });
+        for (const event of events) {
+          this.pendingExternalCursor = Math.max(this.pendingExternalCursor, event.cursor);
+        }
+        this.lastScannedCursor = snapshot;
+      }
+      this.externalScanFailed = false;
+      return this.pendingExternalCursor > this.consumedExternalCursor;
     } catch {
+      // Unreadable provenance is chat: stop the voice rather than guess.
+      this.externalScanFailed = true;
       return true;
     }
+  }
+  private hasExternalSinceIdle(): boolean {
+    return this.scanExternalEvents();
   }
   onTurnEnded(): void { this.scheduler.onTurnEnded(); this.sharing.onTurnEnded(); }
   onEventsSettled(events: readonly EventEnvelope[], outcome: 'delivered' | 'discarded'): void { this.scheduler.onEventsSettled(events, outcome); this.sharing.onEventsSettled(events, outcome); }
