@@ -84,10 +84,10 @@ function fakeEngine(): VoicePlaybackEngine & { calls: string[] } {
   };
 }
 
-async function setup() {
+async function setup<T extends VoicePlaybackEngine = ReturnType<typeof fakeEngine>>(engineOverride?: T) {
   const ctx = fakeWorldContext(BOOKFISH, { scratchDir });
   ctx.persist({ automaticReading: false, realRoutineEnabled: false, readingBatchSegments: 1 });
-  const engine = fakeEngine();
+  const engine = (engineOverride ?? fakeEngine()) as T;
   const world = new BookfishWorld({
     cfg: ctx.cfg, timezone: ctx.timezone, dataDir: ctx.dataDir,
     persist: patch => ctx.persist(patch),
@@ -307,6 +307,57 @@ describe('V2.1.3 start check has no consumption side effect', () => {
       expect(engine.calls).toContain('phase');
       world.onTurnEnded!();
       expect(hasExternal()).toBe(false);
+    } finally { await world.stop(); }
+  });
+});
+
+function autoResumeEngine(): VoicePlaybackEngine & { calls: string[]; setPhase: (p: 'playing' | 'paused') => void } {
+  let phase: 'playing' | 'paused' = 'playing';
+  const calls: string[] = [];
+  const status = (): VoiceStatus => ({ enabled: true, phase, bookKey: 'book:1', title: null, segmentId: 0,
+    voicedUpTo: null, totalSegments: 1, keyConfigured: true, error: null, detail: null });
+  return {
+    calls,
+    setPhase: (p) => { phase = p; },
+    attach: () => {}, start: async () => { calls.push('start'); phase = 'playing'; return status(); },
+    stop: async () => { calls.push('stop'); phase = 'paused'; }, status,
+    gate: () => ({ enabled: false, upper: null, bookKey: null, generation: null }),
+    onRunPhase: () => { calls.push('phase'); phase = 'paused'; },
+    revalidate: async () => {}, onConfigChanged: async () => {}, onKeyChanged: async () => {},
+    shutdown: async () => {}, dispose: async () => {},
+  };
+}
+
+describe('V2.2 trial: auto-resume read-aloud after a chat turn settles', () => {
+  it('resumes once when a chat interrupted active playback', async () => {
+    const engine = autoResumeEngine();
+    const { world, store } = await setup(engine);
+    try {
+      store.addExternal('用户聊天消息');
+      world.onRunPhase!({ state: 'idle', running: [], enteredAt: new Date().toISOString() });
+      engine.calls.length = 0;
+      world.onRunPhase!({ state: 'model', running: [], enteredAt: new Date().toISOString() });
+      expect(engine.calls).toContain('phase');   // chat stops playback
+      expect(engine.calls).not.toContain('start');
+      world.onTurnEnded!();
+      await vi.waitFor(() => expect(engine.calls).toContain('start'));
+      // Exactly one auto-resume for one chat interruption.
+      expect(engine.calls.filter(c => c === 'start')).toHaveLength(1);
+    } finally { await world.stop(); }
+  });
+
+  it('does not auto-resume when the voice setting is off', async () => {
+    const engine = autoResumeEngine();
+    const { world, ctx, store } = await setup(engine);
+    try {
+      ctx.persist({ voiceOutputEnabled: false });
+      store.addExternal('用户聊天消息');
+      world.onRunPhase!({ state: 'idle', running: [], enteredAt: new Date().toISOString() });
+      engine.calls.length = 0;
+      world.onRunPhase!({ state: 'model', running: [], enteredAt: new Date().toISOString() });
+      world.onTurnEnded!();
+      await new Promise(resolve => setTimeout(resolve, 30));
+      expect(engine.calls).not.toContain('start');
     } finally { await world.stop(); }
   });
 });

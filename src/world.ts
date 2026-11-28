@@ -82,6 +82,8 @@ export class BookfishWorld implements World {
   private lifetime = new AbortController();
   /** True while the main session is running BookFish's own reading opportunity, not a user chat. */
   private readingTurn = false;
+  /** True when a chat turn interrupted active read-aloud and may auto-resume once it settles. */
+  private resumeVoiceAfterChat = false;
   /** Highest external cursor scanned; only advances after a bounded snapshot was read. */
   private lastScannedCursor = 0;
   /** Highest external cursor seen but not yet associated with a main turn. */
@@ -822,7 +824,17 @@ export class BookfishWorld implements World {
       activeReadingMode: active ? (active.mode === 'background' ? 'background' : 'main') : null,
       hasExternalSinceIdle,
     });
-    if (this.opts.cfg.voiceOutputEnabled && !this.readingTurn) this.voice.onRunPhase(phase);
+    if (this.opts.cfg.voiceOutputEnabled && !this.readingTurn) {
+      // If the chat turn is about to stop active read-aloud, remember it so we can
+      // resume automatically once the turn settles (unless something else changed).
+      try {
+        const st = this.voice.status();
+        if (st.phase === 'playing' || st.phase === 'waiting_content' || st.phase === 'starting') {
+          this.resumeVoiceAfterChat = true;
+        }
+      } catch { /* status unavailable: leave to explicit user start */ }
+      this.voice.onRunPhase(phase);
+    }
   }
   /**
    * Scan a bounded snapshot [lastScanned+1, latestCursor]. Events inserted after
@@ -892,6 +904,17 @@ export class BookfishWorld implements World {
       this.consumedExternalCursor = Math.max(this.consumedExternalCursor, turnCursor);
       this.currentTurnExternal = false;
       this.turnExternalCursor = 0;
+    }
+    // A chat that interrupted read-aloud may resume once the turn has fully settled
+    // and no new chat evidence is pending. start() re-runs every safety gate
+    // (key/pending/book/chat); if it refuses, we simply stay stopped.
+    if (this.resumeVoiceAfterChat) {
+      this.resumeVoiceAfterChat = false;
+      if (this.opts.cfg.voiceOutputEnabled && !this.hasExternalSinceIdle()) {
+        void this.voice.start().catch((error) => {
+          try { this.host?.log?.warn?.('Bookfish voice auto-resume failed', { error: String(error) }); } catch { /* ignore */ }
+        });
+      }
     }
   }
   onTurnEnded(): void { this.settleExternalTurn(); this.scheduler.onTurnEnded(); this.sharing.onTurnEnded(); }
