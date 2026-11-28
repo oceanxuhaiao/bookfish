@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-26",
+  "updatedAt": "2026-11-28",
   "categories": [
     {
       "id": "start",
@@ -106,6 +106,23 @@
           "icon": "⏸️",
           "contentPath": "guides/pause-resume.md",
           "minVersion": null,
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "voice",
+      "title": "语音朗读",
+      "summary": "让她把小说读给你听（实验功能）。",
+      "icon": "🔊",
+      "features": [
+        {
+          "id": "voice-readout",
+          "title": "语音朗读",
+          "summary": "开启后用小米 MiMo 合成人声，按阅读进度朗读；可在阅读/朗读模式间切换，聊天会打断，结束后可自动恢复。",
+          "icon": "🎧",
+          "contentPath": "guides/voice-readout.md",
+          "minVersion": "0.68.0",
           "enabled": true
         }
       ]

@@ -1,8 +1,47 @@
 {
   "schema": 1,
-  "updatedAt": "2026-11-26",
-  "currentVersion": "0.67.0",
+  "updatedAt": "2026-11-28",
+  "currentVersion": "0.68.0",
   "releases": [
+    {
+      "version": "0.68.0",
+      "releaseDate": "2026-11-28",
+      "type": "minor",
+      "majorAnnouncement": true,
+      "announcementId": "2026-11-28-0.68.0-voice-readout",
+      "title": "语音朗读（实验）",
+      "summary": "她可以把在读的小说读给你听了：开启后用小米 MiMo 合成人声，按阅读进度朗读；可在阅读/朗读模式间切换，聊天会打断朗读，结束后可自动恢复。",
+      "items": [
+        {
+          "kind": "feature",
+          "text": "语音朗读（实验）：开启后按阅读顺序，用小米 MiMo 合成人声朗读已缓存正文；只朗读已缓存的段落，不会跳读或改写原文。"
+        },
+        {
+          "kind": "feature",
+          "text": "正在读页新增阅读模式 / 朗读模式切换；继续读与暂停阅读按模式统一为：阅读模式发起阅读、朗读模式开始或停止朗读。"
+        },
+        {
+          "kind": "feature",
+          "text": "朗读模式下每完整播放一段，就按原有阅读逻辑更新时间轴、最近心情与阅读足迹；不进入会话休息，也不受作息限制。"
+        },
+        {
+          "kind": "feature",
+          "text": "聊天优先：你发消息会立即打断朗读；一轮聊天结束后可自动从刚才停下的未读完段落继续。"
+        },
+        {
+          "kind": "improvement",
+          "text": "配置页改为按类别折叠；语音设置里增加小米 MiMo API Key 获取入口，并提示当前 TTS 限时免费。"
+        },
+        {
+          "kind": "note",
+          "text": "语音朗读使用云端小米 MiMo：正文会发送给该服务，需要自备 API Key；KEY 只保存在本机部署 .env，配置、日志与模型工具都不会拿到明文。"
+        },
+        {
+          "kind": "note",
+          "text": "特别鸣谢：你狸猫嘛 提供语音朗读功能的原始代码及初始实现，为 BookFish 语音朗读能力打下了基础。"
+        }
+      ]
+    },
     {
       "version": "0.67.0",
       "releaseDate": "2026-11-26",
