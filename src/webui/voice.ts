@@ -152,7 +152,7 @@ export function mountVoiceKeyCard(container: HTMLElement, ctx: WebUiPanelContext
   root.append(privacy);
   const guide = document.createElement('p'); guide.className = 'note';
   guide.append(document.createTextNode(say('小米 MiMo 语音服务当前限时免费。还没有 KEY？请到 ', 'Xiaomi MiMo TTS is free for a limited time. No KEY yet? Get one at ')));
-  const link = document.createElement('a'); link.href = 'https://mimo.mi.com/'; link.target = '_blank'; link.rel = 'noopener noreferrer';
+  const link = document.createElement('a'); link.href = 'https://platform.xiaomimimo.com/console/api-keys'; link.target = '_blank'; link.rel = 'noopener noreferrer';
   link.textContent = say('小米 MiMo 控制台获取 API Key', 'the Xiaomi MiMo console');
   guide.append(link, document.createTextNode(say('（登录后创建并复制 API Key，粘贴到下方「保存 KEY」）。', ' (sign in, create and copy an API Key, then paste it below in Save KEY).')));
   root.append(guide);
