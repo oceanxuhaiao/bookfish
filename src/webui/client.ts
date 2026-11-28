@@ -4,6 +4,13 @@ import type { LibraryPanelState } from '../status.ts';
 import type { Library } from '../library.ts';
 import legacy from './legacy.ts';
 import { style } from './style.ts';
+const modeStyle=`
+.bf .mode-switch{display:inline-flex;border:1px solid #d5dccd;border-radius:10px;overflow:hidden;margin-right:6px;vertical-align:middle}
+.bf .mode-btn{padding:7px 12px;border:0;background:#fff;color:#33413a;cursor:pointer;font:inherit;line-height:1.2}
+.bf .mode-btn.active{background:#3f7d5d;color:#fff}
+.bf .mode-btn:focus-visible{outline:2px solid #3f7d5d;outline-offset:-2px}
+.bf .voice-notice{margin:6px 0 0;font-size:13px;color:#6e7b70}
+`;
 import { moodPrefix } from './mood.ts';
 import {readerPanel} from './reader.ts';
 import {mountRuntimeCard} from './runtime.ts';
@@ -16,12 +23,11 @@ import type { AnnouncementView } from '../help-store.ts';
 import { mountFootprint, type FootprintHandle } from './footprint.ts';
 import { renderPlanPage } from './plan.ts';
 import { mountBatchImport } from './batch-import.ts';
-import { mountVoiceCard } from './voice.ts';
 
 const supportPanel={ async mount(ctx:WebUiPanelContext) {
   const en=ctx.language!=='zh'&&ctx.language!=='zh-Hant';const say=(zh:string,english:string)=>en?english:zh;
   const root=document.createElement('section');root.className='bf';ctx.root.append(root);
-  const css=document.createElement('style');css.textContent=style;root.append(css);
+  const css=document.createElement('style');css.textContent=style+modeStyle;root.append(css);
   const page=document.createElement('section');page.dataset.page='support';root.append(page);
   const el=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',parent:HTMLElement=page)=>{const node=document.createElement(tag);node.textContent=text;parent.append(node);return node;};
   el('h2',say('反馈与支持','Feedback & support'));
@@ -380,8 +386,6 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   current.append(controls);controls.className='controls';
   const help=details(current,say('页数怎么算？','How are pages counted?'));el('small',say('每600个正文码点折算一页，与字号无关。仅计已确认内容；网文全书尚未缓存时不显示总页数。','600 source code points per page, independent of font size. Only confirmed text counts; uncached remote totals remain unknown.'),help);
   const log=el('section','',current);el('h3',say('她什么时候读到这里','Reading timeline'),log);const zone=el('small','',log);const timeline=el('div','',log);timeline.className='timeline';timeline.tabIndex=0;timeline.setAttribute('role','region');timeline.setAttribute('aria-label',say('阅读时间轴，可上下滚动','Scrollable reading timeline'));
-  const voiceHost=el('section','',pages.home);voiceHost.dataset.bookfish='voice';current.after(voiceHost);
-  const voiceCard=mountVoiceCard(voiceHost,ctx);
   const mood=el('article','',pages.home);mood.className='card';el('h3',say('最近的心情','Latest mood'),mood);const moodText=el('p','',mood);moodText.className='mood';const moodTime=el('small','',mood);
   const thought=el('article','',pages.home);thought.className='card';el('h3',say('她读到这里时……','Her latest thought'),thought);const thoughtText=el('p','',thought);thoughtText.className='thought';pages.home.append(reviews);
   const chat=el('section','',pages.trail);chat.className='card';chat.hidden=true;const context=el('p','',chat);const question=el('textarea','',chat);question.setAttribute('aria-label',say('你想和她聊什么？','What would you like to discuss?'));let discussionEpisode:string|undefined;
@@ -505,11 +509,24 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
 
   function paintCover(parent:HTMLElement,book:LibraryPanelState['books'][number]){const design=coverDesign(book);parent.classList.add('book-cover');parent.dataset.palette=String(design.palette);parent.replaceChildren();const mark=document.createElement('span');mark.className='cover-mark';mark.textContent=design.mark;mark.setAttribute('aria-hidden','true');const copy=document.createElement('span');copy.className='cover-copy';const title=document.createElement('span');title.className='cover-title';title.textContent=design.title||say('未命名','Untitled');const rule=document.createElement('span');rule.className='cover-rule';rule.setAttribute('aria-hidden','true');const author=document.createElement('span');author.className='cover-author';author.textContent=design.author||say('作者未识别','Author unknown');copy.append(title,rule,author);const foot=document.createElement('span');foot.className='cover-foot';foot.textContent=design.sourceHost??(design.hasSource?say('网络书源','Online source'):say('本地导入','Local file'));parent.append(mark,copy,foot);}
   const hero=el('div','',current);hero.className='reading-hero';current.prepend(hero);current.prepend(readingState);const heroCover=button(hero,say('查看当前书籍详情','View current book'),async()=>{if(state?.status.library.current)await showBook(state.status.library.current.key);});heroCover.className='cover-button';heroCover.setAttribute('aria-label',say('查看当前书籍详情','View current book'));const heroInfo=el('div','',hero);heroInfo.append(title,chapter,meter,meterLabel);const heroFooter=el('div','',heroInfo);heroFooter.className='hero-footer';heroFooter.append(pageText);const heroActions=el('div','',heroFooter);heroActions.className='hero-actions';const viewBookButton=button(heroActions,say('查看这本书 ↗','View this book ↗'),async()=>{if(state?.status.library.current)await showBook(state.status.library.current.key);});const emptyRecommend=button(heroActions,say('＋ 推荐书籍','＋ Recommend books'),async()=>{if(state?.books.length)navigate('shelf');else addBook.click();});emptyRecommend.className='primary';emptyRecommend.hidden=true;heroActions.append(help);
+  let voiceMode=false,voiceBusy=false,voiceStatus:any=null;
+  const modeWrap=el('div','',heroActions);modeWrap.className='mode-switch';
+  const modeRead=document.createElement('button');modeRead.type='button';modeRead.className='mode-btn';modeRead.textContent=say('阅读模式','Read');modeRead.setAttribute('aria-pressed','true');
+  const modeVoice=document.createElement('button');modeVoice.type='button';modeVoice.className='mode-btn';modeVoice.textContent=say('朗读模式','Read aloud');modeVoice.setAttribute('aria-pressed','false');
+  modeWrap.append(modeRead,modeVoice);heroActions.prepend(modeWrap);
   let manualUiError='';
   async function requestReading(key:string){manualUiError='';readNow.disabled=true;readNotice.textContent=say('正在发送阅读请求…','Sending a reading request…');try{return await ctx.invoke('read_now',[key]);}catch(error){manualUiError=String(error).replace(/^(?:(?:WebUiInvokeError|Error):\s*)+/,'');readNotice.textContent=manualUiError;throw error;}}
   for(const b of controls.querySelectorAll('button'))if(b.textContent===say('暂停阅读','Pause')||b.textContent===say('继续阅读','Resume'))b.remove();
-  const pauseReading=button(heroActions,say('暂停阅读','Pause reading'),async()=>{await ctx.invoke('pause',[true]);});
-  const readActions=el('div','',current);hero.after(readActions);readActions.className='read-now';const readNow=button(readActions,say('继续读','Read a passage now'),async()=>{const key=state?.status.library.current?.key;if(key)await requestReading(key);});readNow.className='primary';heroActions.append(readNow,pauseReading);const readNotice=el('p','',readActions);readNotice.setAttribute('role','status');readNotice.setAttribute('aria-live','polite');const goalStatus=el('small','',readActions),restStatus=el('p','',readActions);restStatus.setAttribute('role','status');
+  const pauseReading=button(heroActions,say('暂停阅读','Pause reading'),async()=>{if(voiceMode){await ctx.invoke('voice_stop',[]);await refreshVoice();}else await ctx.invoke('pause',[true]);});
+  const readActions=el('div','',current);hero.after(readActions);readActions.className='read-now';const readNow=button(readActions,say('继续读','Read a passage now'),async()=>{const key=state?.status.library.current?.key;if(voiceMode){await ctx.invoke('voice_start',[]);await refreshVoice();}else if(key)await requestReading(key);});readNow.className='primary';heroActions.append(readNow,pauseReading);const readNotice=el('p','',readActions);readNotice.setAttribute('role','status');readNotice.setAttribute('aria-live','polite');const goalStatus=el('small','',readActions),restStatus=el('p','',readActions);restStatus.setAttribute('role','status');
+  const voiceNotice=el('p','',readActions);voiceNotice.className='voice-notice';voiceNotice.setAttribute('role','status');voiceNotice.setAttribute('aria-live','polite');voiceNotice.hidden=true;
+  function paintMode(){modeRead.classList.toggle('active',!voiceMode);modeVoice.classList.toggle('active',voiceMode);modeRead.setAttribute('aria-pressed',String(!voiceMode));modeVoice.setAttribute('aria-pressed',String(voiceMode));}
+  function applyModeToControls(){ if(!voiceMode)return; const s=voiceStatus; readNow.textContent=say('继续朗读','Resume reading aloud'); readNow.disabled=voiceBusy; pauseReading.disabled=voiceBusy||!s||s.phase!=='playing'; voiceNotice.hidden=false; voiceNotice.textContent=!s?'':s.error?(say('朗读出错：','Read-aloud error: ')+s.error):s.phase==='playing'?say('朗读中…','Reading aloud…'):s.phase==='paused'?say('朗读已停止，点“继续朗读”恢复。','Read-aloud stopped; press Resume.'):s.phase==='waiting_content'?say('等待后续正文…','Waiting for more text…'):say('待开始','Ready'); }
+  async function refreshVoice(){try{const v=await ctx.invoke<{config:{voiceOutputEnabled:boolean};status:any}>('voice_status',[]);voiceMode=v.config.voiceOutputEnabled;voiceStatus=v.status;paintMode();if(voiceMode)applyModeToControls();else{voiceNotice.hidden=true;readNow.textContent=say('继续读','Read a passage now');}}catch{}}
+  async function setVoiceMode(on:boolean){if(voiceBusy||on===voiceMode)return;voiceBusy=true;try{const v=await ctx.invoke<{config:{voiceOutputEnabled:boolean};status:any}>('voice_set_mode',[on]);voiceMode=v.config.voiceOutputEnabled;voiceStatus=v.status;manualUiError='';}catch(e){manualUiError=String(e).replace(/^(?:(?:WebUiInvokeError|Error):\s+)+/,'');readNotice.textContent=manualUiError;}finally{voiceBusy=false;paintMode();if(voiceMode)applyModeToControls();else{voiceNotice.hidden=true;readNow.textContent=say('继续读','Read a passage now');}void update?.();}}
+  modeRead.addEventListener('click',()=>{if(voiceMode)void setVoiceMode(false);},{signal:ctx.signal});
+  modeVoice.addEventListener('click',()=>{if(!voiceMode)void setVoiceMode(true);},{signal:ctx.signal});
+  ctx.interval(()=>{void refreshVoice();},2000);void refreshVoice();
   const shelfToolbar=el('div','',pages.shelf);shelfToolbar.className='shelf-toolbar';pages.shelf.prepend(shelfToolbar);const search=el('input','',shelfToolbar);search.type='search';search.placeholder=say('搜索书名或作者','Search title or author');search.setAttribute('aria-label',say('搜索书架','Search bookshelf'));const filter=el('select','',shelfToolbar);filter.setAttribute('aria-label',say('书架筛选','Filter bookshelf'));for(const[value,label]of [['all',say('全部','All')],['unfinished',say('未读完','Unfinished')],['finished',say('已读完','Finished')]]){const option=el('option',label,filter);option.value=value;}const sort=el('select','',shelfToolbar);sort.setAttribute('aria-label',say('书架排序','Sort bookshelf'));for(const[value,label]of [['added',say('最近入架','Recently added')],['title',say('书名排序','Title')]]){const option=el('option',label,sort);option.value=value;}
   const coverGrid=el('div','',pages.shelf);coverGrid.className='cover-grid';
   const addBook=el('button',say('＋ 推荐书籍','＋ Recommend books'),shelfToolbar);addBook.type='button';addBook.className='primary';addBook.setAttribute('aria-controls',recommend.id);addBook.setAttribute('aria-expanded','false');
@@ -627,10 +644,11 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
     const m=state.journal?.mood;moodText.textContent=m?moodPrefix(m.label)+m.label:say('尚未报告心情','No mood reported');moodTime.textContent=m?say('上次阅读记录 · ','Recorded at · ')+new Date(m.recordedAt).toLocaleString():'';const e=state.journal?.items[0];thoughtText.textContent=e?moodPrefix(e.mood?.label)+Array.from(e.interpretation).slice(0,150).join('')+(Array.from(e.interpretation).length>150?'…':''):say('等她遇到想说的情节，感想会留在这里。','Her thoughts will appear here.');discussLatest.disabled=!e;
     if(timelineKey!==c?.key){manualUiError='';timelineKey=c?.key??'';before=undefined;timelineRevision='';}const signature=JSON.stringify([c?.key,c?.confirmedSegments,run.habits.restRevision]);if(signature!==timelineRevision){await loadTimeline();timelineRevision=signature;}
     for(const b of reviews.querySelectorAll('button'))if(b.textContent===say('请求写一版全书读后感','Request a full-book review'))b.hidden=!c?.complete;
+    if(voiceMode)applyModeToControls();
   };
   void helpView.prime(true).then(result=>{if(result.announcement)showAnnouncement(result.announcement);});
   const initialPanel=ctx.panelId==='shelf'?'shelf':ctx.panelId==='trail'?'trail':ctx.panelId==='support'?'support':'home';if(initialPanel==='support')buildSupport();page(initialPanel);await update();
-  return {dispose(){disposed=true;planDrawer?.dispose();recommendDrawer?.dispose();batchImport.dispose();footprint?.dispose();helpView.dispose();voiceCard.dispose();if(novelPollTimer!==undefined){clearTimeout(novelPollTimer);novelPollTimer=undefined;}handle.dispose();}};
+  return {dispose(){disposed=true;planDrawer?.dispose();recommendDrawer?.dispose();batchImport.dispose();footprint?.dispose();helpView.dispose();if(novelPollTimer!==undefined){clearTimeout(novelPollTimer);novelPollTimer=undefined;}handle.dispose();}};
 } } satisfies WebUiClientBundle['panels'][string];
 
 const helpPanel={ async mount(ctx:WebUiPanelContext){

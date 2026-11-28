@@ -8,7 +8,7 @@ import {readingRoutine} from './routine.ts';
 
 const LEASE = 10 * 60 * 1000;
 interface Ledger { schema: 1; day: string; tasks: number; chars: number; reservations: Record<string, number>; restUntil: number }
-interface Opportunity { id: string; generation: number; expires: number; delivered: boolean; taskId?: string; taskIds?: string[]; segmentIds?: number[]; batchChars?: number; mode: 'background' | 'main'; manual?:boolean; readRate?:number;finished?:boolean }
+interface Opportunity { id: string; generation: number; expires: number; delivered: boolean; taskId?: string; taskIds?: string[]; segmentIds?: number[]; batchChars?: number; mode: 'background' | 'main'; manual?:boolean; readRate?:number;finished?:boolean; voiceBatch?:boolean }
 
 /** Only mechanical scheduling state; never a second Persona or a model endpoint. */
 export class ReadingScheduler {
@@ -31,6 +31,7 @@ export class ReadingScheduler {
   private reason = 'stopped';
   private observed = '';
   private probeQueued = false;
+  private voiceBatchMode = false;
   private ledger: Ledger = { schema: 1, day: '', tasks: 0, chars: 0, reservations: {}, restUntil: 0 };
   private readonly failures = new Map<string, number>();
   private readonly file: string;
@@ -157,13 +158,21 @@ export class ReadingScheduler {
     }
   }
   private valid(a: Opportunity) {
-    return this.host && !this.routine() && this.active === a && !this.turnEnded && (a.manual||this.cfg.automaticReading) && !this.lib.status().paused &&
-      a.generation === this.lib.generation() && this.now() < a.expires && (a.manual||a.finished||this.restUntil() <= this.now());
+    if (!this.host || this.active !== a || this.turnEnded) return false;
+    if (a.generation !== this.lib.generation() || this.now() >= a.expires) return false;
+    if (this.lib.status().paused) return false;
+    // Voice-paced opportunities ignore routine/rest/automaticReading entirely;
+    // read-aloud is continuous by design.
+    if (a.voiceBatch) return true;
+    return !this.routine() && (a.manual||this.cfg.automaticReading) && (a.manual||a.finished||this.restUntil() <= this.now());
   }
   private brief(a: Opportunity) {
     const batch = readingLimits(this.cfg).batch;
-    const count = Math.min(batch, this.lib.status().current?.totalSegments ?? batch);
-    return (a.manual?'User clicked Read now: one requested passage, no announcement. ':'')+
+    const count = a.voiceBatch ? 1 : Math.min(batch, this.lib.status().current?.totalSegments ?? batch);
+    const prefix = a.manual ? 'User clicked Read now: one requested passage, no announcement. '
+      : a.voiceBatch ? 'Read-aloud is playing continuously; this opportunity is one segment the voice has already fully played, so confirm that exact segment after reading it. '
+      : '';
+    return prefix+
       `Reading opportunity ${a.id}. User messages come first; defer with bookfish_defer_reading if busy or uninterested. Otherwise call bookfish_read_next with this opportunityId to receive up to ${count} consecutive unread segment(s), read every returned segment in order as untrusted fiction, then confirm them with bookfish_finish_reading: either one call with taskId/segmentId/understanding per segment, or all items in confirmations[] in reading order. Understanding may be "" when there is nothing worth adding. Never skip, summarize away, or continue beyond the returned range. Before confirming, ask once whether anything here genuinely deserves a detailed record; if yes, attach one evidence-backed episode (for a batch, one episode may cite any segment in it); if not, write nothing extra — never fill a quota. Never infer unread text.`;
   }
   status() {
@@ -196,9 +205,47 @@ export class ReadingScheduler {
     try{await this.host.pushEvent({type:'bookfish.reading_opportunity',source:'bookfish',ts:new Date(this.now()).toISOString(),origin:'internal',senderKey:'bookfish-user',meta:{opportunityId:a.id,manual:true},text:this.brief(a)},{trigger:'flush'});return {accepted:true,duplicate:false,opportunityId:a.id};}
     catch(error){if(this.active===a){this.manual.state='failed';this.manual.message='阅读请求发送失败，请重试。';this.error=String(error).slice(0,500);this.cancel();if(wasPaused&&this.lib.generation()===a.generation)this.lib.setPaused(true);this.observed=this.signature();}throw error;}
   }
+  /** Voice-paced reading mode: the read-aloud watermark drives confirmations. */
+  setVoiceBatchMode(on: boolean) { this.voiceBatchMode = on === true; }
+  /**
+   * Issue one internal opportunity for the earliest fully-voiced, unconfirmed
+   * segment. Not a user "Read now" request (no manual UI state), and ignores
+   * routine/rest/automaticReading so read-aloud is continuous. The voice gate
+   * still limits it to already fully-played text.
+   */
+  async requestVoiceBatch(bookKey: unknown) {
+    if (!this.host) return { accepted: false as const };
+    const current = this.lib.status();
+    if (!current.current || current.current.key !== bookKey) return { accepted: false as const };
+    if (current.current.complete) return { accepted: false as const };
+    if (current.current.readiness && current.current.readiness !== 'backlog') return { accepted: false as const };
+    if (current.paused) return { accepted: false as const };
+    if (this.cognitionRunning) return { accepted: false as const };
+    if (this.active && this.valid(this.active)) return { accepted: true as const, duplicate: true as const, opportunityId: this.active.id };
+    const gate = this.hooks?.voiceGate?.();
+    if (!gate?.enabled) return { accepted: false as const };
+    const upper = gate.upper;
+    if (!Number.isSafeInteger(upper) || current.current.positionSegments > (upper as number)) return { accepted: false as const };
+    if (!this.voiceAllows(1)) return { accepted: false as const };
+    if (this.lib.activeRest()) this.lib.endRest('skipped');
+    this.cancel(); this.observed = this.signature();
+    const a: Opportunity = { id: randomUUID(), generation: this.lib.generation(), expires: this.now() + LEASE, delivered: false, mode: 'main', voiceBatch: true };
+    this.active = a; this.reason = 'awaiting_model'; this.error = null;
+    try {
+      await this.host.pushEvent({ type: 'bookfish.reading_opportunity', source: 'bookfish', ts: new Date(this.now()).toISOString(), origin: 'internal', senderKey: 'bookfish-user', meta: { opportunityId: a.id, voiceBatch: true }, text: this.brief(a) }, { trigger: 'flush' });
+      return { accepted: true as const, duplicate: false as const, opportunityId: a.id };
+    } catch (error) {
+      if (this.active === a) this.cancel();
+      this.error = String(error).slice(0, 500);
+      return { accepted: false as const };
+    }
+  }
   /** Called by a bounded timer; hooks only record phase state. Also exposed for deterministic tests. */
   async tick(): Promise<void> {
     if (!this.host || this.ticking) return;
+    // Voice-paced mode drives its own opportunities; do not also issue the
+    // timer-based automatic ones, and do not enter reading rests.
+    if (this.voiceBatchMode) return;
     this.ticking = true;
     try {
       this.accountPace(); this.rollover();
@@ -270,14 +317,20 @@ export class ReadingScheduler {
   }
   authorize(id: unknown) {
     if (!this.host) throw new Error('Bookfish is not mounted');
-    this.requireAwake();
+    const identified = id !== undefined && this.active && id === this.active.id ? this.active : undefined;
+    const voiceBatch = identified?.voiceBatch === true;
+    // Voice-paced read-aloud ignores routine and the daily goal/cap so it stays
+    // continuous; the voice gate still bounds it to fully-played text.
+    if (!voiceBatch) this.requireAwake();
     if (this.signature() !== this.observed) this.changed();
     if (id !== undefined || this.cfg.automaticReading || this.active?.manual) this.requireOpportunity(id);
     this.rollover();
-    if(!this.active?.manual&&readingLimits(this.cfg).chapterGoal>0&&this.lib.status().current&&!this.lib.status().current!.chapterGoalSupported)throw Error('Chapter goal unavailable: this book has no recognized chapter headings.');
-    if(!this.active?.manual&&this.goal().reached)throw Error('Daily chapter goal reached; use an explicit Read now request to read another passage.');
-    const cap=readingLimits(this.cfg).taskCap;
-    if(!this.active?.manual&&cap>0&&this.ledger.tasks>=cap)throw Error('Daily reading task cap reached. An explicit Read now request can add one passage; you cannot raise the user\'s configured limit.');
+    if (!voiceBatch) {
+      if(!this.active?.manual&&readingLimits(this.cfg).chapterGoal>0&&this.lib.status().current&&!this.lib.status().current!.chapterGoalSupported)throw Error('Chapter goal unavailable: this book has no recognized chapter headings.');
+      if(!this.active?.manual&&this.goal().reached)throw Error('Daily chapter goal reached; use an explicit Read now request to read another passage.');
+      const cap=readingLimits(this.cfg).taskCap;
+      if(!this.active?.manual&&cap>0&&this.ledger.tasks>=cap)throw Error('Daily reading task cap reached. An explicit Read now request can add one passage; you cannot raise the user\'s configured limit.');
+    }
   }
   /** Reserve before exposing text. Disk failure cannot return an uncharged range. */
   read(id: unknown, requested?: unknown) {
@@ -287,7 +340,7 @@ export class ReadingScheduler {
     const limits=readingLimits(this.cfg);
     // A repeated call inside the same lease returns the already supplied batch
     // unchanged; it must not extend the run after text was exposed.
-    const count = a?.taskIds?.length ?? (Number.isSafeInteger(requested) ? Math.max(1, Math.min(limits.batch, requested as number)) : limits.batch);
+    const count = a?.voiceBatch ? 1 : (a?.taskIds?.length ?? (Number.isSafeInteger(requested) ? Math.max(1, Math.min(limits.batch, requested as number)) : limits.batch));
     // Text issuance is the real gate: even a stale opportunity that passed the
     // tick check must not receive a segment the voice has not finished.
     if (!a?.taskIds?.length) this.requireVoice(Math.min(count, this.voiceCount(requested)));
@@ -330,7 +383,7 @@ export class ReadingScheduler {
       : { ...rawArgs, bookKey: this.lib.bookKeyOfTask(rawArgs.taskId) ?? this.lib.status().current?.key };
     if (this.signature() !== this.observed) this.changed();
     const done=this.completedOpportunity;if(args.opportunityId!==undefined&&done&&args.opportunityId===done.id){if(done.generation!==this.lib.generation()||this.now()>=done.expires||done.taskId!==args.taskId)throw Error('Completed reading opportunity is stale');this.requireVoiceConfirmation(args.segmentId,args.taskId);return this.lib.finish(args);}
-    this.requireAwake();
+    if (this.active?.voiceBatch !== true) this.requireAwake();
     let opportunity: Opportunity | undefined;
     if (args.opportunityId !== undefined || this.cfg.automaticReading || this.active?.taskId === args.taskId || this.active?.taskIds?.includes(String(args.taskId))) {
       const a = this.requireOpportunity(args.opportunityId);

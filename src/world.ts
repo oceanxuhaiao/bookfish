@@ -84,6 +84,8 @@ export class BookfishWorld implements World {
   private readingTurn = false;
   /** True when a chat turn interrupted active read-aloud and may auto-resume once it settles. */
   private resumeVoiceAfterChat = false;
+  /** Drives voice-paced reading confirmations while read-aloud is enabled. */
+  private voiceBatchDriver?: ReturnType<typeof setInterval>;
   /** Highest external cursor scanned; only advances after a bounded snapshot was read. */
   private lastScannedCursor = 0;
   /** Highest external cursor seen but not yet associated with a main turn. */
@@ -479,10 +481,27 @@ export class BookfishWorld implements World {
           if (method==='runtime_import_finish'&&args.length===1) return this.runtime.importFinish(args[0]);
           if (method==='runtime_import_cancel'&&args.length===1) return this.runtime.importCancel(args[0]);
         }
-        if((panel==='status'||panel==='settings')&&['voice_status','voice_start','voice_stop','voice_save_key','voice_clear_key'].includes(method)){
+        if((panel==='status'||panel==='settings')&&['voice_status','voice_start','voice_stop','voice_set_mode','voice_save_key','voice_clear_key'].includes(method)){
           if(method==='voice_status'&&args.length===0)return this.voiceView();
           if(method==='voice_start'&&args.length===0){await this.voice.start();return this.voiceView();}
           if(method==='voice_stop'&&args.length===0){await this.voice.stop('user');return this.voiceView();}
+          if(method==='voice_set_mode'&&args.length===1){
+            if(typeof args[0]!=='boolean')throw Error('Invalid voice mode');
+            const enabled=args[0];
+            if(!this.opts.persist)throw Error('Host settings persistence unavailable');
+            if(enabled&&this.opts.cfg.voiceOutputEnabled!==true){
+              const scheduler=this.scheduler.status();
+              const blocked=voiceEnableBlocker({ pendingTask:!!this.library.status().pending,
+                activeOpportunity:!!scheduler.active, cognitionRunning:scheduler.cognitionRunning,
+                manualState:scheduler.manual?.state??null, hostPhase:scheduler.hostPhase });
+              if(blocked)throw Error(blocked);
+            }
+            if(this.opts.cfg.voiceOutputEnabled!==enabled){
+              this.opts.persist({voiceOutputEnabled:enabled});
+              await this.voice.onConfigChanged();
+            }
+            return this.voiceView();
+          }
           if(method==='voice_save_key'&&args.length===1){
             if(typeof args[0]!=='string')throw Error('Invalid voice KEY');
             const key=args[0].trim();
@@ -781,6 +800,7 @@ export class BookfishWorld implements World {
       this.turnExternalCursor = 0;
       this.readingTurn = false;
       this.scheduler.start(host);
+      this.startVoiceBatchDriver();
       this.sharing.start(host);
       this.reviewFlow.start(host);
       this.selection.start(host);
@@ -917,12 +937,41 @@ export class BookfishWorld implements World {
       }
     }
   }
+  private startVoiceBatchDriver(): void {
+    if (this.voiceBatchDriver) return;
+    this.voiceBatchDriver = setInterval(() => this.voiceBatchTick(), 1000);
+    this.voiceBatchDriver.unref?.();
+  }
+  private stopVoiceBatchDriver(): void {
+    if (this.voiceBatchDriver) { clearInterval(this.voiceBatchDriver); this.voiceBatchDriver = undefined; }
+  }
+  /**
+   * Voice-paced reading: while read-aloud is enabled and playing, once at least one
+   * fully-played segment is unconfirmed, ask the scheduler for one internal
+   * confirmation opportunity for that segment. The voice gate keeps it to played text.
+   */
+  private voiceBatchTick(): void {
+    const voiceOn = this.opts.cfg.voiceOutputEnabled === true;
+    this.scheduler.setVoiceBatchMode(voiceOn);
+    if (!voiceOn) return;
+    const current = this.library.status().current;
+    if (!current) return;
+    const vs = (() => { try { return this.voice.status(); } catch { return null; } })();
+    if (!vs) return;
+    if (vs.bookKey !== current.key) return;
+    if (vs.phase !== 'playing' && vs.phase !== 'waiting_content') return;
+    if (vs.voicedUpTo === null) return;
+    if (current.positionSegments > vs.voicedUpTo) return;
+    if (this.shouldBlockVoiceStart()) return;
+    void this.scheduler.requestVoiceBatch(current.key).catch(() => {});
+  }
   onTurnEnded(): void { this.settleExternalTurn(); this.scheduler.onTurnEnded(); this.sharing.onTurnEnded(); }
   onEventsSettled(events: readonly EventEnvelope[], outcome: 'delivered' | 'discarded'): void { this.scheduler.onEventsSettled(events, outcome); this.sharing.onEventsSettled(events, outcome); }
   async stop(): Promise<void> {
     return this.queueLifecycle(() => this.stopMounted());
   }
   private async stopMounted(): Promise<void> {
+    this.stopVoiceBatchDriver();
     this.host = undefined; this.lifetime.abort();
     if (!this.backgroundNeedsStop) { this.library.close(); return; }
     const errors: unknown[] = [];

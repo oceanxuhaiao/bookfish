@@ -188,3 +188,41 @@ describe('pause clears the pending task instead of deadlocking', () => {
     expect(lib.status().current!.confirmedSegments).toBe(0);
   });
 });
+
+describe('voice-paced batch (continuous read-aloud)', () => {
+  it('issues exactly the already-played segment and confirms it, ignoring automaticReading', async () => {
+    cfg.automaticReading = false;
+    scheduler.setVoiceBatchMode(true);
+    gate = { enabled: true, upper: 0 };
+    const key = lib.status().current!.key;
+    await expect(scheduler.requestVoiceBatch(key)).resolves.toMatchObject({ accepted: true, duplicate: false });
+    const id = active();
+    const batch = scheduler.read(id) as { taskId: string; segments: Array<{ segmentId: number; taskId: string }> };
+    expect(batch.segments.map(segment => segment.segmentId)).toEqual([0]);
+    expect(lib.status().pending).not.toBeNull();
+    scheduler.finish({ opportunityId: id, taskId: batch.taskId, segmentId: 0, understanding: '' });
+    expect(lib.status().current!.confirmedSegments).toBe(1);
+  });
+
+  it('does nothing until at least one segment is fully played', async () => {
+    scheduler.setVoiceBatchMode(true);
+    gate = { enabled: true, upper: null };
+    await expect(scheduler.requestVoiceBatch(lib.status().current!.key)).resolves.toMatchObject({ accepted: false });
+    expect(queued).toHaveLength(0);
+  });
+
+  it('deduplicates while a voice batch is already active', async () => {
+    scheduler.setVoiceBatchMode(true);
+    gate = { enabled: true, upper: 0 };
+    const key = lib.status().current!.key;
+    await expect(scheduler.requestVoiceBatch(key)).resolves.toMatchObject({ accepted: true, duplicate: false });
+    await expect(scheduler.requestVoiceBatch(key)).resolves.toMatchObject({ accepted: true, duplicate: true });
+  });
+
+  it('suppresses timer-based automatic opportunities while in voice batch mode', async () => {
+    gate = { enabled: true, upper: 5 };
+    scheduler.setVoiceBatchMode(true);
+    await advance();
+    expect(queued).toHaveLength(0);
+  });
+});
