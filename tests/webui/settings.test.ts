@@ -8,7 +8,12 @@ const field=(key:string)=>root.querySelector<HTMLInputElement>('#bf-config-'+key
 const change=(key:string,value:string|boolean)=>{const input=field(key);if(typeof value==='boolean')input.checked=value;else input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));};
 const submit=()=>root.querySelector('form')!.dispatchEvent(new Event('submit',{cancelable:true}));
 it('loads persisted preferences, presents actual clock times, and exposes one custom settings tab',async()=>{
- context.persist({automaticReading:false,shareQuietStartMinute:1410,shareQuietEndMinute:450});await mount();expect(field('automaticReading').checked).toBe(false);expect(field('shareQuietStartMinute').value).toBe('23:30');expect(field('shareQuietEndMinute').value).toBe('07:30');expect(root.querySelector('details')!.open).toBe(false);expect(world.webUi!().config).toBeUndefined();expect(world.webUi!().panels!.filter(p=>p.title==='配置')).toHaveLength(1);expect(root.textContent).toContain('让她自己找书（实验功能）');
+ context.persist({automaticReading:false,shareQuietStartMinute:1410,shareQuietEndMinute:450});await mount();expect(field('automaticReading').checked).toBe(false);expect(field('shareQuietStartMinute').value).toBe('23:30');expect(field('shareQuietEndMinute').value).toBe('07:30');
+  const groups=[...root.querySelectorAll('details')];
+  expect(groups.length).toBeGreaterThan(1);
+  expect(groups[0]!.open).toBe(true);
+  expect([...groups].find(d=>d.querySelector('summary')?.textContent==='高级设置')?.open).toBe(false);
+  expect(world.webUi!().config).toBeUndefined();expect(world.webUi!().panels!.filter(p=>p.title==='配置')).toHaveLength(1);expect(root.textContent).toContain('让她自己找书（实验功能）');
 });
 it('saves only edited settings through host persistence and preserves bookfish enable and advanced values',async()=>{
  context.persist({dailyTasks:77,enabled:true});await mount();change('pace','custom');change('readingCharsPerMinute','550');change('shareQuietStartMinute','23:30');change('shareQuietEndMinute','07:30');change('shareCooldownMinutes','90');submit();await vi.waitFor(()=>expect(root.textContent).toContain('已保存，下次'));expect(context.cfg.readingCharsPerMinute).toBe(550);expect(context.cfg.shareQuietStartMinute).toBe(1410);expect(context.cfg.shareQuietEndMinute).toBe(450);expect(context.cfg.dailyTasks).toBe(77);expect(context.cfg.enabled).toBe(true);
