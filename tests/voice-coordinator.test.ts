@@ -18,6 +18,8 @@ interface HarnessOptions {
   pendingTask?: () => { taskId: string; segmentId: number } | null;
   pendingTasks?: () => Array<{ taskId: string; bookKey: string; segmentId: number; generation: number; expiresAt: number }>;
   onSnapshot?: () => void;
+  /** Test-only observer: fires when the producer reads a segment at `from`. */
+  onSegmentRead?: (from: number) => void;
   pollMs?: number;
   shouldInterruptForChat?: () => boolean;
   fetchNext?: (signal: AbortSignal) => Promise<void>;
@@ -36,7 +38,10 @@ function harness(texts: string[], options: HarnessOptions = {}) {
   const coordinator = new VoiceCoordinator({
     port: {
       snapshot: () => { options.onSnapshot?.(); return { ...state }; },
-      segments: (from, max) => texts.slice(from, from + max).map((text, index) => ({ id: from + index, text })),
+      segments: (from, max) => {
+        options.onSegmentRead?.(from);
+        return texts.slice(from, from + max).map((text, index) => ({ id: from + index, text }));
+      },
       pendingTask: options.pendingTask,
       // A real port always exposes the full metadata interface. Tests that want to
       // simulate a legacy-only or missing port must pass `pendingTasks: undefined`.
@@ -872,7 +877,9 @@ describe('V2.1.4 continuous watermark: blank segments are ordered completion mar
   it('never lets a blank segment jump ahead of a still-playing prior segment', async () => {
     let plays = 0;
     const block = deferred();
+    const reachedBlank = deferred();
     const h = harness(['甲。', ''], {
+      onSegmentRead: (from) => { if (from === 1) reachedBlank.resolve(); },
       play: async (_bytes, { signal }) => {
         plays += 1;
         if (plays === 1) await Promise.race([block.promise, abortRace(signal)]);
@@ -880,8 +887,9 @@ describe('V2.1.4 continuous watermark: blank segments are ordered completion mar
     });
     await h.coordinator.start();
     await waitFor(() => plays === 1);
-    // Segment 0 audio is still playing: the blank segment 1 must not advance.
-    await new Promise(resolve => setTimeout(resolve, 50));
+    // Deterministic barrier: the producer has actually read the blank segment 1
+    // while segment 0 audio is still blocked in the player.
+    await reachedBlank.promise;
     expect(h.coordinator.status().voicedUpTo).toBeNull();
     block.resolve();
     await waitFor(() => h.coordinator.status().voicedUpTo === 1);
@@ -908,8 +916,11 @@ describe('V2.1.4 continuous watermark: blank segments are ordered completion mar
     let plays = 0;
     const block1 = deferred();
     const block2 = deferred();
+    const armed = { on: false };
+    const reachedBlank = deferred();
     const h = harness(['甲。', '乙。', ''], {
       pendingTasks: () => pending.current,
+      onSegmentRead: (from) => { if (armed.on && from === 2) reachedBlank.resolve(); },
       play: async (_bytes, { signal }) => {
         plays += 1;
         if (plays === 2) await Promise.race([block1.promise, abortRace(signal)]);
@@ -923,10 +934,12 @@ describe('V2.1.4 continuous watermark: blank segments are ordered completion mar
     block1.resolve();
     pending.current = [validPending({ segmentId: 1 })];
     // Resume: segment 1 is authorized (watermark 0 -> 1), segment 2 is blank.
+    armed.on = true;
     await h.coordinator.start();
     await waitFor(() => plays === 3);
-    await new Promise(resolve => setTimeout(resolve, 50));
-    // Segment 1 is still playing; the blank marker must not advance or consume.
+    // Deterministic barrier: the producer has read the blank segment 2 while the
+    // authorized segment 1 audio is still blocked in the player.
+    await reachedBlank.promise;
     expect(h.coordinator.status().voicedUpTo).toBe(0);
     block2.resolve();
     await waitFor(() => h.coordinator.status().voicedUpTo === 2);
@@ -1099,6 +1112,126 @@ describe('V2.1.4 pending task final gate', () => {
     await expect(h.coordinator.start()).rejects.toThrow(/数据不可信/);
     bad = false;
     await expect(h.coordinator.start()).resolves.toMatchObject({ phase: 'playing' });
+    await h.coordinator.dispose();
+  });
+});
+
+describe('V2.1.5 recovery frontier boundary', () => {
+  // Establish a verified KEY grant with watermark 0 (authorized segment 1).
+  async function establishGrant(pendingRef: { current: Array<ReturnType<typeof validPending>> }, onSnapshot?: () => void) {
+    let plays = 0;
+    const block = deferred();
+    const h = harness(['甲。', '乙。', '丙。'], {
+      pendingTasks: () => pendingRef.current,
+      onSnapshot,
+      play: async (_b, { signal }) => {
+        plays += 1;
+        if (plays === 2) await Promise.race([block.promise, abortRace(signal)]);
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0 && plays === 2);
+    await h.coordinator.onKeyChanged();
+    block.resolve();
+    return h;
+  }
+
+  it('refuses recovery when pending is empty and the frontier already passed the authorized segment', async () => {
+    const pending = { current: [] as Array<ReturnType<typeof validPending>> };
+    const h = await establishGrant(pending);
+    h.state.frontier = 2; // Library passed authorized segment 1
+    await expect(h.coordinator.start()).rejects.toThrow(/恢复授权段已被阅读进度越过/);
+    expect(h.coordinator.status().voicedUpTo).toBe(0);
+    await h.coordinator.dispose();
+  });
+
+  it('refuses recovery when only expired tasks remain and the frontier passed the authorized segment', async () => {
+    const pending = { current: [] as Array<ReturnType<typeof validPending>> };
+    const h = await establishGrant(pending);
+    pending.current = [validPending({ segmentId: 1, expiresAt: Date.now() - 1 })]; // well-formed but expired
+    h.state.frontier = 2;
+    await expect(h.coordinator.start()).rejects.toThrow(/恢复授权段已被阅读进度越过/);
+    expect(h.coordinator.status().voicedUpTo).toBe(0);
+    await h.coordinator.dispose();
+  });
+
+  it('continues legally when the frontier equals the authorized segment and pending is empty', async () => {
+    const pending = { current: [] as Array<ReturnType<typeof validPending>> };
+    const h = await establishGrant(pending);
+    h.state.frontier = 1; // exactly the authorized segment
+    const before = h.synthCalls.length;
+    await expect(h.coordinator.start()).resolves.toMatchObject({ phase: 'playing' });
+    await waitFor(() => (h.coordinator.status().voicedUpTo ?? -1) >= 1);
+    // The session starts at the authorized segment (1), never past it.
+    expect(h.synthCalls[before]).toBe('乙。');
+    await h.coordinator.dispose();
+  });
+
+  it('does not silently skip the authorized segment when the frontier is below it', async () => {
+    const pending = { current: [] as Array<ReturnType<typeof validPending>> };
+    const h = await establishGrant(pending);
+    h.state.frontier = 0;
+    const before = h.synthCalls.length;
+    await expect(h.coordinator.start()).resolves.toMatchObject({ phase: 'playing' });
+    await waitFor(() => (h.coordinator.status().voicedUpTo ?? -1) >= 1);
+    // First segment of the resumed session is the authorized segment 1.
+    expect(h.synthCalls[before]).toBe('乙。');
+    await h.coordinator.dispose();
+  });
+
+  it('re-checks a fresh snapshot so a frontier change during start is caught (TOCTOU)', async () => {
+    const pending = { current: [] as Array<ReturnType<typeof validPending>> };
+    const arm = { on: false, reads: 0 };
+    // The first snapshot (before awaitLoop) reports frontier 0; the second
+    // (after awaitLoop) reports 2 — simulating Library advancing during the wait.
+    const h = await establishGrant(pending, () => {
+      if (!arm.on) return;
+      arm.reads += 1;
+      if (arm.reads >= 2) h.state.frontier = 2;
+    });
+    arm.on = true; arm.reads = 0;
+    await expect(h.coordinator.start()).rejects.toThrow(/恢复授权段已被阅读进度越过/);
+    expect(h.coordinator.status().voicedUpTo).toBe(0);
+    await h.coordinator.dispose();
+  });
+});
+
+describe('V2.1.5 joint KEY recovery + blank segment + chat interruption', () => {
+  it('keeps the grant through chat, resumes the authorized segment, then finishes the trailing blank in order', async () => {
+    const pending = { current: [] as Array<ReturnType<typeof validPending>> };
+    let plays = 0;
+    const block1 = deferred();
+    const block2 = deferred();
+    const armed = { on: false };
+    const reachedBlank = deferred();
+    const h = harness(['甲。', '乙。', ''], {
+      pendingTasks: () => pending.current,
+      onSegmentRead: (from) => { if (armed.on && from === 2) reachedBlank.resolve(); },
+      play: async (_b, { signal }) => {
+        plays += 1;
+        if (plays === 2) await Promise.race([block1.promise, abortRace(signal)]);
+        else if (plays === 3) await Promise.race([block2.promise, abortRace(signal)]);
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0 && plays === 2);
+    await h.coordinator.onKeyChanged();           // grant authorizedSegment = 1
+    block1.resolve();
+    pending.current = [validPending({ segmentId: 1 })];
+    armed.on = true;
+    await h.coordinator.start();                   // resume authorized segment 1 (blocked)
+    await waitFor(() => plays === 3);
+    await reachedBlank.promise;                     // blank segment 2 read while 1 plays
+    expect(h.coordinator.status().voicedUpTo).toBe(0);
+    // Chat interrupts mid-segment; the unfinished segment must not advance.
+    h.coordinator.onRunPhase({ state: 'model' });
+    await waitFor(() => h.coordinator.status().phase !== 'playing');
+    expect(h.coordinator.status()).toMatchObject({ phase: 'paused', voicedUpTo: 0 });
+    // No automatic resume; the user starts again and the authorized segment finishes,
+    // then the trailing blank completes strictly after it.
+    block2.resolve();
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 2);
     await h.coordinator.dispose();
   });
 });

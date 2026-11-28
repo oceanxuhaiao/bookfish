@@ -225,6 +225,20 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
    * authorizes KEY recovery.
    */
   private assertPendingTasksAllowStart(snap: VoiceBookSnapshot): void {
+    const watermark = this.voicedUpTo;
+    const recovery = this.keyRecovery;
+    const recoveryValid = !!recovery && !!this.bookKey && this.generation !== null
+      && recovery.bookKey === snap.bookKey && recovery.generation === snap.generation
+      && this.bookKey === snap.bookKey && this.generation === snap.generation
+      && recovery.watermark === watermark;
+    // This guard MUST run before any early return below (empty pending set, all
+    // tasks expired, or no interface). Otherwise an empty/expired result would
+    // skip the check and let start() jump the cursor past the authorized segment,
+    // advancing the watermark over content the user never heard.
+    if (recoveryValid && snap.frontier > recovery!.authorizedSegmentId) {
+      throw new VoiceConfigError('恢复授权段已被阅读进度越过，不能恢复朗读。');
+    }
+
     const full = this.opts.port.pendingTasks;
     if (typeof full === 'function') {
       let raw: unknown;
@@ -240,23 +254,12 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
         if (task.expiresAt > now) active.push(task);
       }
       if (active.length === 0) return;
-      const watermark = this.voicedUpTo;
       const sameIdentity = active.every(task => task.bookKey === snap.bookKey && task.generation === snap.generation);
       const beyond = active.filter(task => watermark === null || task.segmentId > watermark);
       const normalSafe = sameIdentity && beyond.length === 0;
-      const recovery = this.keyRecovery;
-      const recoveryValid = !!recovery && !!this.bookKey && this.generation !== null
-        && recovery.bookKey === snap.bookKey && recovery.generation === snap.generation
-        && this.bookKey === snap.bookKey && this.generation === snap.generation
-        && recovery.watermark === watermark;
-      // Never silently skip a recovery-authorized segment that Library frontier
-      // has already moved past.
-      if (recoveryValid && snap.frontier > recovery.authorizedSegmentId) {
-        throw new VoiceConfigError('恢复授权段已被阅读进度越过，不能恢复朗读。');
-      }
       const keySafe = recoveryValid && sameIdentity && watermark !== null
-        && recovery.authorizedSegmentId === watermark + 1
-        && beyond.length === 1 && beyond[0]!.segmentId === recovery.authorizedSegmentId;
+        && recovery!.authorizedSegmentId === watermark + 1
+        && beyond.length === 1 && beyond[0]!.segmentId === recovery!.authorizedSegmentId;
       if (normalSafe || keySafe) return;
       if (!sameIdentity) throw new VoiceConfigError('未完成的阅读任务属于其他书籍或正文版本，不能恢复朗读。');
       if (recoveryValid && beyond.length === 1) {
