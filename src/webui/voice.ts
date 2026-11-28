@@ -150,6 +150,12 @@ export function mountVoiceKeyCard(container: HTMLElement, ctx: WebUiPanelContext
   privacy.textContent = say('云端合成：正文会发送给小米 MiMo 语音服务，不是本地离线朗读。KEY 只保存在本机部署 .env，配置、日志和模型工具都不会拿到明文。',
     'Cloud synthesis: text is sent to Xiaomi MiMo. The KEY stays in the local deployment .env and is never exposed to config, logs or model tools.');
   root.append(privacy);
+  const guide = document.createElement('p'); guide.className = 'note';
+  guide.append(document.createTextNode(say('小米 MiMo 语音服务当前限时免费。还没有 KEY？请到 ', 'Xiaomi MiMo TTS is free for a limited time. No KEY yet? Get one at ')));
+  const link = document.createElement('a'); link.href = 'https://mimo.mi.com/'; link.target = '_blank'; link.rel = 'noopener noreferrer';
+  link.textContent = say('小米 MiMo 控制台获取 API Key', 'the Xiaomi MiMo console');
+  guide.append(link, document.createTextNode(say('（登录后创建并复制 API Key，粘贴到下方「保存 KEY」）。', ' (sign in, create and copy an API Key, then paste it below in Save KEY).')));
+  root.append(guide);
   const row = document.createElement('div'); row.className = 'row'; root.append(row);
   const input = document.createElement('input'); input.type = 'password'; input.autocomplete = 'off'; input.maxLength = 300;
   input.placeholder = say('粘贴 MiMo 语音 KEY', 'Paste the MiMo KEY');
