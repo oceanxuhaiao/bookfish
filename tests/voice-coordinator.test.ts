@@ -951,6 +951,30 @@ describe('V2.1.4 continuous watermark: blank segments are ordered completion mar
     expect(player.coordinator.status().voicedUpTo).toBe(0);
     await player.coordinator.dispose();
   });
+
+  it('consumes the grant only when a blank authorized segment marker is processed', async () => {
+    const pending = { current: [] as Array<ReturnType<typeof validPending>> };
+    let plays = 0;
+    const block = deferred();
+    const h = harness(['甲。', '乙。'], {
+      pendingTasks: () => pending.current,
+      play: async (_b, { signal }) => { plays += 1; if (plays === 2) await Promise.race([block.promise, abortRace(signal)]); },
+    });
+    // Establish watermark 0 (segment 0 played, segment 1 blocked), then KEY change.
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0 && plays === 2);
+    await h.coordinator.onKeyChanged();
+    block.resolve();
+    // Make the authorized next segment (1) blank before resuming.
+    h.texts[1] = '';
+    pending.current = [validPending({ segmentId: 1 })];
+    const synthBefore = h.synthCalls.length;
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 1);
+    // The blank authorized segment produced no TTS and completed via the consumer.
+    expect(h.synthCalls.slice(synthBefore)).toEqual([]);
+    await h.coordinator.dispose();
+  });
 });
 
 describe('V2.1.4 pending task final gate', () => {
@@ -1064,6 +1088,17 @@ describe('V2.1.4 pending task final gate', () => {
     pending.current = [validPending({ segmentId: 1 })];
     h.state.frontier = 2; // Library already moved past the authorized segment 1.
     await expect(h.coordinator.start()).rejects.toThrow(/恢复授权段已被阅读进度越过/);
+    await h.coordinator.dispose();
+  });
+
+  it('recovers once invalid metadata is fixed, without restarting BookFish', async () => {
+    let bad = true;
+    const h = harness(['甲。'], {
+      pendingTasks: () => bad ? [validPending({ expiresAt: NaN })] : [],
+    });
+    await expect(h.coordinator.start()).rejects.toThrow(/数据不可信/);
+    bad = false;
+    await expect(h.coordinator.start()).resolves.toMatchObject({ phase: 'playing' });
     await h.coordinator.dispose();
   });
 });
