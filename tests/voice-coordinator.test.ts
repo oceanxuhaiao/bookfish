@@ -38,7 +38,9 @@ function harness(texts: string[], options: HarnessOptions = {}) {
       snapshot: () => { options.onSnapshot?.(); return { ...state }; },
       segments: (from, max) => texts.slice(from, from + max).map((text, index) => ({ id: from + index, text })),
       pendingTask: options.pendingTask,
-      pendingTasks: options.pendingTasks,
+      // A real port always exposes the full metadata interface. Tests that want to
+      // simulate a legacy-only or missing port must pass `pendingTasks: undefined`.
+      pendingTasks: 'pendingTasks' in options ? options.pendingTasks : () => [],
     },
     enabled: () => enabled,
     secret: () => options.key ?? 'test-key',
@@ -114,6 +116,7 @@ describe('voice coordinator lifecycle', () => {
         return { bookKey: 'book:1', title: '测试书', generation: 1, frontier: 0, totalSegments: 2, paused: false, complete: false, readiness: 'backlog' };
       },
       segments: (from: number, max: number) => texts.slice(from, from + max).map((text, index) => ({ id: from + index, text })),
+      pendingTasks: () => [],
     };
     const coordinator = new VoiceCoordinator({ port, enabled: () => true, secret: () => 'test-key', dataDir: dir,
       synthesize: async () => makeWav(), play: async (_bytes, { signal }) => {
@@ -238,7 +241,7 @@ describe('voice coordinator lifecycle', () => {
     let fetches = 0;
     let appended = false;
     const coordinator = new VoiceCoordinator({
-      port: { snapshot: () => ({ ...h.state }), segments: (from, max) => h.texts.slice(from, from + max).map((text, index) => ({ id: from + index, text })) },
+      port: { snapshot: () => ({ ...h.state }), segments: (from, max) => h.texts.slice(from, from + max).map((text, index) => ({ id: from + index, text })), pendingTasks: () => [] },
       enabled: () => true, secret: () => 'test-key', dataDir: dir,
       fetchNext: async () => { fetches += 1; if (!appended) { appended = true; h.texts.push('乙。'); h.state.totalSegments = 2; } },
       synthesize: async text => { h.synthCalls.push(text); return makeWav(); },
@@ -301,17 +304,19 @@ describe('voice coordinator lifecycle', () => {
   });
 });
 describe('voice start boundary and timer lifecycle', () => {
-  it('refuses an unvoiced pending task but allows one already covered by the watermark', async () => {
+  it('refuses any non-null legacy pending task, even one covered by the watermark', async () => {
     let pending: { taskId: string; segmentId: number } | null = { taskId: 't0', segmentId: 0 };
-    const h = harness(['甲。', '乙。'], { pendingTask: () => pending });
-    await expect(h.coordinator.start()).rejects.toThrow(/未完成的阅读任务/);
+    // V2.1.4: a legacy-only port cannot prove book/generation identity, so a
+    // non-null legacy task is always refused (fail-closed), never "covered".
+    const h = harness(['甲。', '乙。'], { pendingTask: () => pending, pendingTasks: undefined });
+    await expect(h.coordinator.start()).rejects.toThrow(/身份无法验证|未完成的阅读任务/);
     pending = null;
     await h.coordinator.start();
     await waitFor(() => h.coordinator.status().voicedUpTo !== null);
     await h.coordinator.stop('user');
     expect(h.coordinator.status().voicedUpTo).not.toBeNull();
     pending = { taskId: 't0', segmentId: 0 };
-    await expect(h.coordinator.start()).resolves.toMatchObject({ phase: 'playing' });
+    await expect(h.coordinator.start()).rejects.toThrow(/身份无法验证|未完成的阅读任务/);
     await h.coordinator.dispose();
   });
 
@@ -833,6 +838,7 @@ describe('V2.1.3 recovery authorization lifetime', () => {
     const block = deferred();
     const h = harness(['甲。', '乙。'], {
       pendingTask: () => pending,
+      pendingTasks: undefined,
       play: async (_bytes, { signal }) => {
         plays += 1;
         if (plays === 2) await Promise.race([block.promise, abortAfter(signal)]);
@@ -844,7 +850,220 @@ describe('V2.1.3 recovery authorization lifetime', () => {
     block.resolve();
     pending = { taskId: 't1', segmentId: 1 };
     // Legacy port exposes no book/generation: recovery must not be authorized.
-    await expect(h.coordinator.start()).rejects.toThrow(/未完成的阅读任务/);
+    await expect(h.coordinator.start()).rejects.toThrow(/身份无法验证|未完成的阅读任务/);
+    await h.coordinator.dispose();
+  });
+});
+
+const abortRace = (signal: AbortSignal) =>
+  new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }));
+const validPending = (over: Partial<{ taskId: string; bookKey: string; segmentId: number; generation: number; expiresAt: number }> = {}) =>
+  ({ taskId: 't', bookKey: 'book:1', segmentId: 0, generation: 1, expiresAt: Date.now() + 60_000, ...over });
+
+describe('V2.1.4 continuous watermark: blank segments are ordered completion markers', () => {
+  it('does not request TTS for blank segments and still advances in order', async () => {
+    const h = harness(['', '甲。', '   ', '乙。']);
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 3);
+    expect(h.synthCalls).toEqual(['甲。', '乙。']);
+    await h.coordinator.dispose();
+  });
+
+  it('never lets a blank segment jump ahead of a still-playing prior segment', async () => {
+    let plays = 0;
+    const block = deferred();
+    const h = harness(['甲。', ''], {
+      play: async (_bytes, { signal }) => {
+        plays += 1;
+        if (plays === 1) await Promise.race([block.promise, abortRace(signal)]);
+      },
+    });
+    await h.coordinator.start();
+    await waitFor(() => plays === 1);
+    // Segment 0 audio is still playing: the blank segment 1 must not advance.
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(h.coordinator.status().voicedUpTo).toBeNull();
+    block.resolve();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 1);
+    await h.coordinator.dispose();
+  });
+
+  it('advances multiple blank segments strictly in order without skipping', async () => {
+    const atPlay: Array<number | null> = [];
+    let plays = 0;
+    const h = harness(['甲。', '', '', '', '乙。'], {
+      play: async () => { atPlay.push(h.coordinator.status().voicedUpTo); plays += 1; },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 4);
+    // Before the first audio, nothing is voiced; before the last audio, the three
+    // blank markers and segment 0 must all have been consumed in order (0..3).
+    expect(atPlay).toEqual([null, 3]);
+    expect(plays).toBe(2);
+    await h.coordinator.dispose();
+  });
+
+  it('does not consume a KEY grant with a blank marker after the authorized segment', async () => {
+    const pending = { current: [] as Array<ReturnType<typeof validPending>> };
+    let plays = 0;
+    const block1 = deferred();
+    const block2 = deferred();
+    const h = harness(['甲。', '乙。', ''], {
+      pendingTasks: () => pending.current,
+      play: async (_bytes, { signal }) => {
+        plays += 1;
+        if (plays === 2) await Promise.race([block1.promise, abortRace(signal)]);
+        else if (plays === 3) await Promise.race([block2.promise, abortRace(signal)]);
+      },
+    });
+    // First session: block segment 1 so the watermark stops at 0.
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0 && plays === 2);
+    await h.coordinator.onKeyChanged();
+    block1.resolve();
+    pending.current = [validPending({ segmentId: 1 })];
+    // Resume: segment 1 is authorized (watermark 0 -> 1), segment 2 is blank.
+    await h.coordinator.start();
+    await waitFor(() => plays === 3);
+    await new Promise(resolve => setTimeout(resolve, 50));
+    // Segment 1 is still playing; the blank marker must not advance or consume.
+    expect(h.coordinator.status().voicedUpTo).toBe(0);
+    block2.resolve();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 2);
+    await h.coordinator.dispose();
+  });
+
+  it('leaves the watermark unchanged when TTS or the player fails mid-segment', async () => {
+    const tts = harness(['甲。', '乙。', '丙。'], {
+      synth: async (text) => { if (text === '乙。') throw new Error('HTTP 500'); return makeWav(); },
+    });
+    await tts.coordinator.start();
+    await waitFor(() => tts.coordinator.status().phase === 'error');
+    expect(tts.coordinator.status().voicedUpTo).toBe(0);
+    await tts.coordinator.dispose();
+
+    let plays = 0;
+    const player = harness(['甲。', '乙。', '丙。'], {
+      play: async () => { plays += 1; if (plays === 2) throw new Error('player failed'); },
+    });
+    await player.coordinator.start();
+    await waitFor(() => player.coordinator.status().phase === 'error');
+    expect(player.coordinator.status().voicedUpTo).toBe(0);
+    await player.coordinator.dispose();
+  });
+});
+
+describe('V2.1.4 pending task final gate', () => {
+  it('fails closed when neither interface exists', async () => {
+    const h = harness(['甲。'], { pendingTasks: undefined });
+    await expect(h.coordinator.start()).rejects.toThrow(/无法确认未完成的阅读任务状态/);
+    await h.coordinator.dispose();
+  });
+
+  it('fails closed when the full interface throws, returns null or returns a non-array', async () => {
+    for (const bad of [
+      () => { throw new Error('boom'); },
+      () => null,
+      () => ({ not: 'an array' }),
+      () => undefined,
+    ]) {
+      const h = harness(['甲。'], { pendingTasks: bad as never });
+      await expect(h.coordinator.start()).rejects.toThrow(/无法读取未完成的阅读任务|数据不可信/);
+      await h.coordinator.dispose();
+    }
+  });
+
+  it('rejects structurally invalid metadata instead of treating it as expired', async () => {
+    const bads = [
+      validPending({ taskId: '' }),
+      validPending({ bookKey: '' }),
+      validPending({ segmentId: -1 }),
+      validPending({ segmentId: 1.5 }),
+      validPending({ segmentId: NaN }),
+      validPending({ generation: -2 }),
+      validPending({ generation: NaN }),
+      validPending({ expiresAt: NaN }),
+      validPending({ expiresAt: Infinity }),
+      validPending({ expiresAt: undefined as unknown as number }),
+      { taskId: 'x' } as unknown as ReturnType<typeof validPending>,
+    ];
+    for (const bad of bads) {
+      const h = harness(['甲。'], { pendingTasks: () => [bad] });
+      await expect(h.coordinator.start()).rejects.toThrow(/数据不可信/);
+      await h.coordinator.dispose();
+    }
+    // One invalid task among valid ones still rejects the whole start.
+    const h = harness(['甲。'], { pendingTasks: () => [validPending({ segmentId: 0 }), validPending({ segmentId: NaN })] });
+    await expect(h.coordinator.start()).rejects.toThrow(/数据不可信/);
+    await h.coordinator.dispose();
+  });
+
+  it('allows an empty array and ignores well-formed expired tasks', async () => {
+    const empty = harness(['甲。'], { pendingTasks: () => [] });
+    await expect(empty.coordinator.start()).resolves.toMatchObject({ phase: 'playing' });
+    await empty.coordinator.dispose();
+
+    const expired = harness(['甲。'], { pendingTasks: () => [validPending({ segmentId: 5, expiresAt: Date.now() - 1 })] });
+    await expect(expired.coordinator.start()).resolves.toMatchObject({ phase: 'playing' });
+    await expired.coordinator.dispose();
+  });
+
+  it('rejects cross-book and cross-generation tasks', async () => {
+    const crossBook = harness(['甲。'], { pendingTasks: () => [validPending({ bookKey: 'book:9', segmentId: 0 })] });
+    await expect(crossBook.coordinator.start()).rejects.toThrow(/其他书籍或正文版本/);
+    await crossBook.coordinator.dispose();
+
+    const crossGen = harness(['甲。'], { pendingTasks: () => [validPending({ generation: 2, segmentId: 0 })] });
+    await expect(crossGen.coordinator.start()).rejects.toThrow(/其他书籍或正文版本/);
+    await crossGen.coordinator.dispose();
+  });
+
+  it('rejects many later tasks but allows exactly the authorized next segment', async () => {
+    // Two pending beyond the watermark (segments 1 and 2): reject.
+    let plays = 0; const block = deferred();
+    const twoPending = { current: [] as Array<ReturnType<typeof validPending>> };
+    const two = harness(['甲。', '乙。', '丙。'], {
+      pendingTasks: () => twoPending.current,
+      play: async (_b, { signal }) => { plays += 1; if (plays === 2) await Promise.race([block.promise, abortRace(signal)]); },
+    });
+    await two.coordinator.start();
+    await waitFor(() => two.coordinator.status().voicedUpTo === 0 && plays === 2);
+    await two.coordinator.onKeyChanged();
+    block.resolve();
+    twoPending.current = [validPending({ segmentId: 1 }), validPending({ taskId: 't2', segmentId: 2 })];
+    await expect(two.coordinator.start()).rejects.toThrow(/未完成的阅读任务/);
+    await two.coordinator.dispose();
+
+    // Exactly one authorized next segment (segment 1) with a valid grant: allow.
+    const ok = { current: [] as Array<ReturnType<typeof validPending>> };
+    let p2 = 0; const b2 = deferred();
+    const one = harness(['甲。', '乙。'], {
+      pendingTasks: () => ok.current,
+      play: async (_b, { signal }) => { p2 += 1; if (p2 === 2) await Promise.race([b2.promise, abortRace(signal)]); },
+    });
+    await one.coordinator.start();
+    await waitFor(() => one.coordinator.status().voicedUpTo === 0 && p2 === 2);
+    await one.coordinator.onKeyChanged();
+    b2.resolve();
+    ok.current = [validPending({ segmentId: 1 })];
+    await expect(one.coordinator.start()).resolves.toMatchObject({ phase: 'playing' });
+    await one.coordinator.dispose();
+  });
+
+  it('refuses a recovery grant whose authorized segment the frontier already passed', async () => {
+    let plays = 0; const block = deferred();
+    const pending = { current: [] as Array<ReturnType<typeof validPending>> };
+    const h = harness(['甲。', '乙。', '丙。'], {
+      pendingTasks: () => pending.current,
+      play: async (_b, { signal }) => { plays += 1; if (plays === 2) await Promise.race([block.promise, abortRace(signal)]); },
+    });
+    await h.coordinator.start();
+    await waitFor(() => h.coordinator.status().voicedUpTo === 0 && plays === 2);
+    await h.coordinator.onKeyChanged();
+    block.resolve();
+    pending.current = [validPending({ segmentId: 1 })];
+    h.state.frontier = 2; // Library already moved past the authorized segment 1.
+    await expect(h.coordinator.start()).rejects.toThrow(/恢复授权段已被阅读进度越过/);
     await h.coordinator.dispose();
   });
 });

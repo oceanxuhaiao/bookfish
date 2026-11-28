@@ -105,6 +105,7 @@ describe('real Library + Sources + VoiceCoordinator at a cached end', () => {
           snapshot: () => lib.voiceSnapshot(),
           segments: (from, max) => lib.voiceSegments(from, max),
           pendingTask: () => lib.voicePendingTask(),
+          pendingTasks: () => lib.voicePendingTasks(),
         },
         enabled: () => true,
         secret: () => 'test-key',
@@ -151,7 +152,7 @@ describe('real Library + Sources + VoiceCoordinator at a cached end', () => {
       const imported = await service.resolve(ROOT);
       lib.select(imported.book!.key);
       coordinator = new VoiceCoordinator({
-        port: { snapshot: () => lib.voiceSnapshot(), segments: (from, max) => lib.voiceSegments(from, max) },
+        port: { snapshot: () => lib.voiceSnapshot(), segments: (from, max) => lib.voiceSegments(from, max), pendingTasks: () => lib.voicePendingTasks() },
         enabled: () => true, secret: () => 'test-key', dataDir: dir,
         fetchNext: signal => service.ensureNextCached(signal),
         synthesize: async () => makeWav(), play: async () => {}, pollMs: 0,

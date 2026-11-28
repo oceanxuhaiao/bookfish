@@ -28,11 +28,28 @@ export interface VoiceCoordinatorOptions {
   shouldInterruptForChat?: () => boolean;
 }
 
-interface PreparedChunk {
+/**
+ * The FIFO carries both audio chunks and explicit "segment complete" markers.
+ * A segment's watermark may only advance when its marker is consumed in order —
+ * never when the producer merely discovered or synthesized the text.
+ */
+interface PreparedAudio {
+  kind: 'audio';
   bytes: Uint8Array;
   segmentId: number;
-  chunkIndex: number;
-  segmentChunks: number;
+}
+interface PreparedSegmentComplete {
+  kind: 'segment-complete';
+  segmentId: number;
+}
+type PreparedItem = PreparedAudio | PreparedSegmentComplete;
+
+interface PendingMeta {
+  taskId: string;
+  bookKey: string;
+  segmentId: number;
+  generation: number;
+  expiresAt: number;
 }
 
 interface Deferred {
@@ -73,7 +90,9 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
   private sessionId: string | null = null;
   private controller: AbortController | undefined;
   private loop: Promise<void> | undefined;
-  private queue: PreparedChunk[] = [];
+  private queue: PreparedItem[] = [];
+  /** Next segment id the consumer may mark fully voiced in this session, in order. */
+  private nextExpectedVoicedSegmentId: number | null = null;
   private producerDone = false;
   private producerWake?: () => void;
   private consumerWake?: () => void;
@@ -84,8 +103,8 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
   private fetchFailures = 0;
   /** Detail to publish after the prepared/playing queue has fully drained. */
   private waitDetail: string | null = null;
-  /** A verified KEY stop that may resume over exactly one pending task. */
-  private keyRecovery?: { bookKey: string; generation: number; watermark: number };
+  /** A verified KEY stop that may resume over exactly one authorized segment. */
+  private keyRecovery?: { bookKey: string; generation: number; watermark: number; authorizedSegmentId: number };
 
   private lifecycle: Promise<unknown> = Promise.resolve();
   private timer: ReturnType<typeof setInterval> | undefined;
@@ -199,53 +218,76 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
   }
 
   /**
-   * Starting is conservative unless this is a verified KEY interruption. The
-   * ONLY exception is one pending task exactly at watermark+1, same book and
-   * generation, unexpired; the user must have explicitly pressed start.
+   * Starting is conservative. The full pending metadata interface is the only
+   * authority for identity. Without it, a start is refused (fail-closed) unless a
+   * legacy interface explicitly reports "no pending task". A non-null legacy task
+   * can never be trusted because it carries no book/generation, and it never
+   * authorizes KEY recovery.
    */
   private assertPendingTasksAllowStart(snap: VoiceBookSnapshot): void {
-    const tasks = this.opts.port.pendingTasks?.();
-    if (tasks === undefined) { this.assertLegacyPendingAllowsStart(); return; }
-    if (tasks.length === 0) return;
-    const now = Date.now();
-    const active = tasks.filter(task => task.expiresAt > now);
-    // An expired task can never be confirmed (Library rejects it) and would
-    // otherwise block start forever. Ignore it and build a fresh session; the
-    // model must fetch the range again after the voice replays it.
-    if (active.length === 0) return;
-    const watermark = this.voicedUpTo;
-    const sameIdentity = active.every(task => task.bookKey === snap.bookKey && task.generation === snap.generation);
-    const beyond = active.filter(task => watermark === null || task.segmentId > watermark);
-    const normalSafe = sameIdentity && beyond.length === 0;
-    const recovery = this.keyRecovery;
-    const recoveryValid = !!recovery && !!this.bookKey && this.generation !== null
-      && recovery.bookKey === snap.bookKey && recovery.generation === snap.generation
-      && this.bookKey === snap.bookKey && this.generation === snap.generation
-      && recovery.watermark === watermark;
-    const keySafe = recoveryValid && sameIdentity
-      && beyond.length === 1 && watermark !== null && beyond[0]!.segmentId === watermark + 1;
-    if (normalSafe || keySafe) return;
-    if (!sameIdentity) throw new VoiceConfigError('未完成的阅读任务属于其他书籍或正文版本，不能恢复朗读。');
-    if (recoveryValid && beyond.length === 1) {
-      throw new VoiceConfigError('未完成的阅读任务不是已朗读水位之后的下一段，不能恢复朗读。');
+    const full = this.opts.port.pendingTasks;
+    if (typeof full === 'function') {
+      let raw: unknown;
+      try { raw = full(); } catch { throw new VoiceConfigError('无法读取未完成的阅读任务，不能开始朗读。'); }
+      if (!Array.isArray(raw)) throw new VoiceConfigError('未完成的阅读任务数据不可信，不能开始朗读。');
+      const now = Date.now();
+      const active: PendingMeta[] = [];
+      for (const item of raw) {
+        const task = this.validatePending(item);
+        // Structural validation happens first: invalid metadata must NOT be
+        // mistaken for an expired task. Only real, well-formed, unexpired tasks
+        // take part in the gate. Genuinely expired ones are ignored (V2.1.2).
+        if (task.expiresAt > now) active.push(task);
+      }
+      if (active.length === 0) return;
+      const watermark = this.voicedUpTo;
+      const sameIdentity = active.every(task => task.bookKey === snap.bookKey && task.generation === snap.generation);
+      const beyond = active.filter(task => watermark === null || task.segmentId > watermark);
+      const normalSafe = sameIdentity && beyond.length === 0;
+      const recovery = this.keyRecovery;
+      const recoveryValid = !!recovery && !!this.bookKey && this.generation !== null
+        && recovery.bookKey === snap.bookKey && recovery.generation === snap.generation
+        && this.bookKey === snap.bookKey && this.generation === snap.generation
+        && recovery.watermark === watermark;
+      // Never silently skip a recovery-authorized segment that Library frontier
+      // has already moved past.
+      if (recoveryValid && snap.frontier > recovery.authorizedSegmentId) {
+        throw new VoiceConfigError('恢复授权段已被阅读进度越过，不能恢复朗读。');
+      }
+      const keySafe = recoveryValid && sameIdentity && watermark !== null
+        && recovery.authorizedSegmentId === watermark + 1
+        && beyond.length === 1 && beyond[0]!.segmentId === recovery.authorizedSegmentId;
+      if (normalSafe || keySafe) return;
+      if (!sameIdentity) throw new VoiceConfigError('未完成的阅读任务属于其他书籍或正文版本，不能恢复朗读。');
+      if (recoveryValid && beyond.length === 1) {
+        throw new VoiceConfigError('未完成的阅读任务不是已朗读水位之后的下一段，不能恢复朗读。');
+      }
+      const first = active[0]!;
+      throw new VoiceConfigError(`大肥鱼还有未完成的阅读任务（第 ${first.segmentId + 1} 段），请先等待本轮阅读结束或安全取消后再开始朗读。`);
     }
-    const first = active[0]!;
-    throw new VoiceConfigError(`大肥鱼还有未完成的阅读任务（第 ${first.segmentId + 1} 段），请先等待本轮阅读结束或安全取消后再开始朗读。`);
+
+    const legacy = this.opts.port.pendingTask;
+    if (typeof legacy !== 'function') {
+      // Neither interface exists: we cannot prove there is no pending task.
+      throw new VoiceConfigError('无法确认未完成的阅读任务状态，不能开始朗读。');
+    }
+    let single: unknown;
+    try { single = legacy(); } catch { throw new VoiceConfigError('无法读取未完成的阅读任务，不能开始朗读。'); }
+    if (single === null) return;
+    throw new VoiceConfigError('未完成的阅读任务身份无法验证，不能开始朗读。');
   }
 
-  /**
-   * Legacy ports expose only one pending task (`taskId`, `segmentId`) with no
-   * book, generation or expiry. We must not fabricate that identity. Without it
-   * we accept only a task that is provably already fully played (within the
-   * current watermark); anything unplayed blocks, and KEY recovery is never
-   * authorized here because its identity cannot be verified.
-   */
-  private assertLegacyPendingAllowsStart(): void {
-    const single = this.opts.port.pendingTask?.();
-    if (!single) return;
-    const watermark = this.voicedUpTo;
-    if (watermark !== null && single.segmentId <= watermark) return;
-    throw new VoiceConfigError(`大肥鱼还有未完成的阅读任务（第 ${single.segmentId + 1} 段），请先等待本轮阅读结束或安全取消后再开始朗读。`);
+  /** Reject structurally invalid pending metadata instead of guessing. */
+  private validatePending(item: unknown): PendingMeta {
+    const t = item as Partial<PendingMeta> | null | undefined;
+    if (!t || typeof t !== 'object') throw new VoiceConfigError('未完成的阅读任务数据不可信，不能开始朗读。');
+    const ok = typeof t.taskId === 'string' && t.taskId.length > 0
+      && typeof t.bookKey === 'string' && t.bookKey.length > 0
+      && Number.isSafeInteger(t.segmentId) && (t.segmentId as number) >= 0
+      && Number.isSafeInteger(t.generation) && (t.generation as number) >= 0
+      && typeof t.expiresAt === 'number' && Number.isFinite(t.expiresAt);
+    if (!ok) throw new VoiceConfigError('未完成的阅读任务数据不可信，不能开始朗读。');
+    return { taskId: t.taskId as string, bookKey: t.bookKey as string, segmentId: t.segmentId as number, generation: t.generation as number, expiresAt: t.expiresAt as number };
   }
 
   stop(reason: VoiceStopReason = 'user'): Promise<void> {
@@ -343,6 +385,9 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
     this.controller = controller;
     this.producerDone = false;
     this.queue = [];
+    // The consumer may only mark voiced segments in the order this loop produces
+    // them, starting at the current cursor (which honours Library frontier).
+    this.nextExpectedVoicedSegmentId = this.cursor;
     this.playingSegmentId = null;
     this.error = null;
     this.phase = 'playing';
@@ -382,6 +427,7 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
     // finish playing, so the user may resume it. Only a session that loses its
     // identity (config/book_changed/pause/shutdown) or a finished book clears it.
     this.queue = [];
+    this.nextExpectedVoicedSegmentId = null;
     this.playingSegmentId = null;
     this.sessionId = null;
     this.controller = undefined;
@@ -406,7 +452,7 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
         this.detail = '语音 KEY 已更改；已完整播放的连续水位保留，需要时请点击开始朗读。';
         this.error = null;
         this.keyRecovery = this.voicedUpTo !== null && this.bookKey !== null && this.generation !== null
-          ? { bookKey: this.bookKey, generation: this.generation, watermark: this.voicedUpTo }
+          ? { bookKey: this.bookKey, generation: this.generation, watermark: this.voicedUpTo, authorizedSegmentId: this.voicedUpTo + 1 }
           : undefined;
         this.stopTimer();
         return;
@@ -531,7 +577,6 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
         if (!segment || segment.id !== this.cursor) { this.waitForContent('下一段正文尚未缓存。'); return; }
         this.waitDetail = null;
         const chunks = splitChunks(segment.text, this.chunkChars).filter(chunk => chunk.trim().length > 0);
-        if (chunks.length === 0) { this.markVoiced(segment.id); this.cursor += 1; continue; }
 
         for (let index = 0; index < chunks.length; index += 1) {
           await this.waitForRoom(signal, sessionId);
@@ -544,9 +589,24 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
           if (!this.hasKey()) throw new VoiceConfigError('语音 KEY 已删除，朗读停止。');
           const bytes = await this.synthesize(chunks[index]!, signal);
           if (signal.aborted || this.sessionId !== sessionId) return;
-          this.queue.push({ bytes, segmentId: segment.id, chunkIndex: index, segmentChunks: chunks.length });
+          this.queue.push({ kind: 'audio', bytes, segmentId: segment.id });
           this.consumerWake?.();
         }
+
+        // Enqueue the completion marker for both audio and blank segments. It is
+        // just another FIFO item, so the consumer can only consume it after every
+        // earlier audio chunk has finished playing. Blank segments create no TTS.
+        await this.waitForRoom(signal, sessionId);
+        if (signal.aborted || this.sessionId !== sessionId) return;
+        {
+          const check = this.safeSnapshot();
+          if (!this.validFor(check, bookKey, generation)) {
+            this.requestStop(check?.paused ? 'pause' : 'book_changed');
+            return;
+          }
+        }
+        this.queue.push({ kind: 'segment-complete', segmentId: segment.id });
+        this.consumerWake?.();
         this.cursor += 1;
       }
     } catch (error) {
@@ -579,14 +639,20 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
           this.requestStop(check?.paused ? 'pause' : 'book_changed');
           return;
         }
-        this.playingSegmentId = item.segmentId;
-        const result = await this.play(item.bytes, signal);
-        if (signal.aborted || this.sessionId !== sessionId) return;
-        if (result && typeof result === 'object' && 'aborted' in result && (result as { aborted?: boolean }).aborted) return;
-        if (item.chunkIndex + 1 === item.segmentChunks) {
-          this.markVoiced(item.segmentId);
-          this.detail = null;
+
+        if (item.kind === 'audio') {
+          this.playingSegmentId = item.segmentId;
+          const result = await this.play(item.bytes, signal);
+          if (signal.aborted || this.sessionId !== sessionId) return;
+          if (result && typeof result === 'object' && 'aborted' in result && (result as { aborted?: boolean }).aborted) return;
+          continue;
         }
+
+        // segment-complete: the only place the watermark may advance.
+        this.playingSegmentId = null;
+        const outcome = this.completeSegment(item.segmentId, bookKey, generation);
+        if (outcome === 'skipped') { this.requestStop('book_changed'); return; }
+        if (outcome === 'advanced') this.detail = null;
       }
     } catch (error) {
       if (signal.aborted || this.sessionId !== sessionId) return;
@@ -631,17 +697,31 @@ export class VoiceCoordinator implements VoicePlaybackEngine {
     this.waitDetail = detail;
   }
 
-  private markVoiced(segmentId: number): void {
+  /**
+   * Advance the watermark for one consumed completion marker. Only a marker that
+   * matches this session and the exact next expected segment may advance; stale
+   * (duplicate/old-session) markers are ignored and a forward skip is reported so
+   * the caller can stop conservatively instead of inventing progress.
+   */
+  private completeSegment(segmentId: number, bookKey: string, generation: number): 'advanced' | 'stale' | 'skipped' {
+    if (this.sessionId === null) return 'stale';
+    if (this.bookKey !== bookKey || this.generation !== generation) return 'stale';
+    const expected = this.nextExpectedVoicedSegmentId;
+    if (expected === null) return 'skipped';
+    if (segmentId < expected) return 'stale';
+    if (segmentId > expected) return 'skipped';
+    const prior = this.voicedUpTo;
     this.voicedUpTo = segmentId;
-    // Fulfillment, not start, ends the KEY recovery authorization. Once the
-    // authorized next segment (watermark+1) is fully voiced for the same book
-    // and generation, the authorization is consumed. Until then it survives
-    // chat/user stops, TTS failures and player failures so the user can resume.
-    const recovery = this.keyRecovery;
-    if (recovery && this.bookKey === recovery.bookKey && this.generation === recovery.generation
-      && segmentId >= recovery.watermark + 1) {
+    this.nextExpectedVoicedSegmentId = segmentId + 1;
+    // Fulfillment, not start, ends the KEY recovery authorization, and only the
+    // exact authorized segment may consume it. Until then it survives chat/user
+    // stops, TTS failures and player failures so the user can resume.
+    const grant = this.keyRecovery;
+    if (grant && this.bookKey === grant.bookKey && this.generation === grant.generation
+      && prior === grant.watermark && segmentId === grant.authorizedSegmentId) {
       this.keyRecovery = undefined;
     }
+    return 'advanced';
   }
 
   private validFor(snap: VoiceBookSnapshot | null, bookKey: string, generation: number): boolean {
