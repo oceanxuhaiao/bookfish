@@ -521,11 +521,14 @@ const readingPanel={ async mount(ctx:WebUiPanelContext) {
   const voiceNotice=el('p','',readActions);voiceNotice.className='voice-notice';voiceNotice.setAttribute('role','status');voiceNotice.setAttribute('aria-live','polite');voiceNotice.hidden=true;
   function paintMode(){modeBtn.textContent=voiceMode?say('朗读模式','Read aloud'):say('阅读模式','Read');modeBtn.classList.toggle('active',voiceMode);modeBtn.setAttribute('aria-pressed',String(voiceMode));modeBtn.hidden=!voiceEnabled;}
   function applyModeToControls(){
-    if(!voiceMode){readNotice.hidden=false;voiceNotice.hidden=true;return;}
+    if(!voiceMode){readNotice.hidden=false;voiceNotice.hidden=true;pauseReading.textContent=say('暂停阅读','Pause reading');return;}
     const s=voiceStatus;
     readNotice.hidden=true;voiceNotice.hidden=true;
-    readNow.textContent=say('继续朗读','Resume reading aloud');readNow.disabled=voiceBusy;
-    pauseReading.disabled=voiceBusy||!s||s.phase!=='playing';
+    // While read-aloud is actually active there is nothing to "resume"; and
+    // pausing only makes sense while it is active.
+    const active=!!s&&['starting','playing','waiting_content'].includes(String(s.phase));
+    readNow.textContent=say('继续朗读','Resume reading aloud');readNow.disabled=voiceBusy||active;
+    pauseReading.textContent=say('暂停朗读','Pause read-aloud');pauseReading.disabled=voiceBusy||!active;
     const phase=s&&s.phase;
     const label=!s?say('朗读待开始','Read-aloud ready'):s.error?say('朗读出错','Read-aloud error'):phase==='playing'?say('朗读中','Reading aloud'):phase==='paused'?say('朗读已停止','Read-aloud stopped'):phase==='waiting_content'?say('等待后续正文','Waiting for text'):say('朗读待开始','Read-aloud ready');
     const detail=s&&s.error?String(s.error):(s&&s.title?('《'+s.title+'》'+(Number.isSafeInteger(s.segmentId)?say(' 第 '+(s.segmentId+1)+' 段',' · segment '+(s.segmentId+1)):'')+(Number.isSafeInteger(s.voicedUpTo)&&Number.isSafeInteger(s.totalSegments)?say(' · 已完整播放至第 '+(s.voicedUpTo+1)+' 段，共 '+s.totalSegments+' 段',' · voiced through '+(s.voicedUpTo+1)+' of '+s.totalSegments):'')):'');
