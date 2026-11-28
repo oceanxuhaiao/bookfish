@@ -1,3 +1,9 @@
+/*
+ * Voice reading UI: the original implementation was contributed by 你狸猫嘛
+ * (src/webui/voice.ts in coo-world-reader-0.65.1（2）.zip). Expanded and
+ * adapted by the BookFish project.
+ * See THIRD_PARTY_NOTICES.md for attribution and license/authorization scope.
+ */
 import type { WebUiPanelContext } from 'cortico/web/shared/client-panel.ts';
 
 type VoicePhase = 'disabled' | 'idle' | 'starting' | 'playing' | 'waiting_content' | 'paused' | 'error';
@@ -163,6 +169,15 @@ export function mountVoiceKeyCard(container: HTMLElement, ctx: WebUiPanelContext
   const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = say('删除 KEY', 'Delete KEY');
   row.append(input, save, remove);
   const message = document.createElement('p'); message.className = 'note'; root.append(message);
+  const thanks = document.createElement('div'); thanks.className = 'row'; thanks.style.marginTop = '8px';
+  const thanksBtn = document.createElement('button'); thanksBtn.type = 'button'; thanksBtn.textContent = say('特别鸣谢', 'Acknowledgements');
+  const thanksNote = document.createElement('span'); thanksNote.className = 'note'; thanksNote.textContent = say('感谢语音朗读功能原始贡献者', 'Thanks to the original contributor of read-aloud');
+  thanks.append(thanksBtn, thanksNote); root.append(thanks);
+  const thanksBody = document.createElement('p'); thanksBody.className = 'note'; thanksBody.hidden = true;
+  thanksBody.textContent = say('语音朗读功能特别鸣谢：感谢「你狸猫嘛」提供语音朗读功能的原始代码及初始实现，为 BookFish 语音朗读能力提供了重要基础。在此基础上，BookFish 完成了生态接入、接口适配、宿主集成、兼容性改进、安全加固与后续维护。感谢每一位为 BookFish 提供帮助的社区成员。 —— BookFish Community Contributors',
+    'Special thanks: 你狸猫嘛 provided the original read-aloud implementation this feature builds on. BookFish added ecosystem integration, host adaptation, compatibility work, security hardening and ongoing maintenance. Thanks to every community member who helped BookFish. — BookFish Community Contributors');
+  root.append(thanksBody);
+  thanksBtn.addEventListener('click', () => { thanksBody.hidden = !thanksBody.hidden; }, { signal: ctx.signal });
   let disposed = false;
   let busy = false;
 

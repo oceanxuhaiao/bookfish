@@ -1,3 +1,9 @@
+/*
+ * Voice reading: the original implementation was contributed by 你狸猫嘛
+ * (src/tts/player.ts in coo-world-reader-0.65.1（2）.zip). Substantially
+ * rewritten, integrated and hardened by the BookFish project.
+ * See THIRD_PARTY_NOTICES.md for attribution and license/authorization scope.
+ */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

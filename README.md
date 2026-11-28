@@ -562,3 +562,9 @@ World 侧栏新增一颗「阅读」灯：未挂载或已暂停为 offline，全
 
 
 实验性TXT获取后续状态（2026-11-21）：799测试及独立Chrome／Edge MV3实验通过；共享DNS隔离缺口尚未解决，产品控制器未交付，不可发布。详见[审核报告](docs/txt-acquisition/ROUND2-FOLLOWUP-REVIEW.md)。
+
+## 社区贡献
+
+BookFish 的发展离不开社区成员的支持。语音朗读功能基于社区贡献者 **你狸猫嘛** 提供的原始实现（`src/tts/*` 与 `src/webui/voice.ts`）进行集成、重构与安全加固。特别感谢为项目提供代码、建议和测试支持的每一位朋友。
+
+贡献范围与来源记录见 [CONTRIBUTORS.md](CONTRIBUTORS.md) 与 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

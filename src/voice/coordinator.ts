@@ -1,3 +1,9 @@
+/*
+ * Voice reading: the original implementation was contributed by 你狸猫嘛
+ * (src/tts/reader.ts in coo-world-reader-0.65.1（2）.zip). Substantially
+ * rewritten, re-architected and hardened by the BookFish project.
+ * See THIRD_PARTY_NOTICES.md for attribution and license/authorization scope.
+ */
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { DEFAULT_CHUNK_CHARS, splitChunks } from './chunk.ts';

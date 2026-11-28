@@ -1,3 +1,9 @@
+/*
+ * Voice reading: the original implementation was contributed by 你狸猫嘛
+ * (src/tts/speech.ts in coo-world-reader-0.65.1（2）.zip). Substantially
+ * rewritten, integrated and hardened by the BookFish project.
+ * See THIRD_PARTY_NOTICES.md for attribution and license/authorization scope.
+ */
 import { TtsError, redact, safeMessage } from './errors.ts';
 
 /** Built-in MiMo TTS channel. Only the KEY is user-supplied. */

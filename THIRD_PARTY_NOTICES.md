@@ -9,6 +9,20 @@
 - **小说正文、书源网站内容、品牌图、QQ 群二维码、第三方依赖**不自动适用 MIT，详见下文。
 - MIT 只覆盖原创代码，不覆盖运行时、正文、书源规则/网站内容、图片、二维码或依赖。
 
+## 语音朗读原始实现（社区贡献）
+
+| 项目 | 说明 |
+|---|---|
+| 贡献者 | **你狸猫嘛** |
+| 原始来源 | `coo-world-reader-0.65.1（2）.zip`（群友提供的初始实现：包含其新增的语音朗读部分，以及本项目既有代码） |
+| 原始语音文件 | `src/tts/speech.ts`、`src/tts/player.ts`、`src/tts/reader.ts`、`src/webui/voice.ts`；以及 `config.ts` / `world.ts` / `scheduler.ts` / `status.ts` / `tool-schemas.ts` / `webui/client.ts` 中的语音接入改动 |
+| 当前对应实现 | `src/voice/tts.ts`、`src/voice/player.ts`、`src/voice/coordinator.ts`、`src/webui/voice.ts`（由 BookFish 大幅重构/重写） |
+| 许可与授权 | 原始实现未声明独立的 SPDX 许可证；**贡献者已明确授权修改并随 BookFish 公开分发**。原始部分版权归贡献者，保留署名。 |
+| BookFish 修改范围 | 重组为 `src/voice/*`；新增/加固协调器与 FIFO 完成标记、连续播放水位、KEY 恢复授权、Pending Task 门禁、聊天优先与自动恢复、宿主集成、安全加固、测试与维护 |
+| 维护主体 | BookFish 项目维护者 |
+
+> 说明：署名不等于重新授权。若需单独再分发原始实现，请遵循原始贡献者的授权范围。
+
 ## 1. 小说引擎运行时（不在 npm 包内）
 
 扩展通过“一键安装”或离线 ZIP 安装一个独立的 Windows x64 运行时。npm 包本身不包含这个约 85 MB 的 ZIP。
