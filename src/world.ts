@@ -86,6 +86,8 @@ export class BookfishWorld implements World {
   private resumeVoiceAfterChat = false;
   /** Drives voice-paced reading confirmations while read-aloud is enabled. */
   private voiceBatchDriver?: ReturnType<typeof setInterval>;
+  /** True during a main turn that is BookFish's own voice-paced reading confirmation. */
+  private voiceReadingTurn = false;
   /** Highest external cursor scanned; only advances after a bounded snapshot was read. */
   private lastScannedCursor = 0;
   /** Highest external cursor seen but not yet associated with a main turn. */
@@ -843,7 +845,7 @@ export class BookfishWorld implements World {
     this.readingTurn = isBookfishReadingTurn({
       activeReadingMode: active ? (active.mode === 'background' ? 'background' : 'main') : null,
       hasExternalSinceIdle,
-    });
+    }) || (this.voiceReadingTurn && !hasExternalSinceIdle);
     if (this.opts.cfg.voiceOutputEnabled && !this.readingTurn) {
       // If the chat turn is about to stop active read-aloud, remember it so we can
       // resume automatically once the turn settles (unless something else changed).
@@ -917,6 +919,7 @@ export class BookfishWorld implements World {
    */
   private settleExternalTurn(): void {
     this.readingTurn = false;
+    this.voiceReadingTurn = false;
     const hadTurnExternal = this.currentTurnExternal;
     const turnCursor = this.turnExternalCursor;
     this.scanExternalEvents();
@@ -963,7 +966,10 @@ export class BookfishWorld implements World {
     if (vs.voicedUpTo === null) return;
     if (current.positionSegments > vs.voicedUpTo) return;
     if (this.shouldBlockVoiceStart()) return;
-    void this.scheduler.requestVoiceBatch(current.key).catch(() => {});
+    this.voiceReadingTurn = true;
+    void this.scheduler.requestVoiceBatch(current.key).then(result => {
+      if (!result || result.accepted !== true) this.voiceReadingTurn = false;
+    }).catch(() => { this.voiceReadingTurn = false; });
   }
   onTurnEnded(): void { this.settleExternalTurn(); this.scheduler.onTurnEnded(); this.sharing.onTurnEnded(); }
   onEventsSettled(events: readonly EventEnvelope[], outcome: 'delivered' | 'discarded'): void { this.scheduler.onEventsSettled(events, outcome); this.sharing.onEventsSettled(events, outcome); }
