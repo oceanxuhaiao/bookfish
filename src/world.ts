@@ -117,7 +117,7 @@ export class BookfishWorld implements World {
       shouldInterruptForChat: () => this.shouldBlockVoiceStart(),
     });
     this.scheduler = new ReadingScheduler(this.library, opts.cfg, opts.timezone, undefined, undefined,
-      { autoAdvance: () => this.selection?.autoAdvance() ?? false, voiceGate: () => this.voice.gate() });
+      { autoAdvance: () => this.selection?.autoAdvance() ?? false, voiceGate: () => this.currentVoiceGate() });
     this.sharing = new ReadingSharing(this.library, opts.cfg, opts.timezone);
     this.reviewFlow = new ReviewFlow(this.library, opts.cfg);
     this.serialSync = new SerialSync(this.library, { allowNetwork: () => opts.cfg.allowNetwork,
@@ -166,9 +166,21 @@ export class BookfishWorld implements World {
     if (!this.library.voiceSourceDemand()?.needsNext) return;
     await this.sources.ensureNextCached(this.sourceSignal(signal));
   }
+  /**
+   * Read-aloud gating applies only when voice is enabled AND the user is in
+   * read-aloud mode. In silent reading mode the scheduler must not wait for the
+   * voice player, so ordinary reading resumes exactly as if voice were off.
+   */
+  private voiceGateOn(): boolean {
+    return this.opts.cfg.voiceOutputEnabled === true && this.opts.cfg.voiceReadingMode !== 'read';
+  }
+  private currentVoiceGate(): ReturnType<VoiceCoordinator['gate']> {
+    return this.voiceGateOn() ? this.voice.gate() : { enabled: false, upper: null, bookKey: null, generation: null };
+  }
   private voiceView() {
     const stored = (this.opts.secret?.(VOICE_KEY_ENV) ?? '').trim();
-    return { config: { voiceOutputEnabled: this.opts.cfg.voiceOutputEnabled === true },
+    return { config: { voiceOutputEnabled: this.opts.cfg.voiceOutputEnabled === true,
+        voiceReadingMode: this.opts.cfg.voiceReadingMode === 'read' ? 'read' : 'voice' },
       keyEnv: VOICE_KEY_ENV, keyConfigured: stored.length > 0, keyMask: stored ? maskSecret(stored) : null,
       status: this.voice.status() };
   }
@@ -483,10 +495,28 @@ export class BookfishWorld implements World {
           if (method==='runtime_import_finish'&&args.length===1) return this.runtime.importFinish(args[0]);
           if (method==='runtime_import_cancel'&&args.length===1) return this.runtime.importCancel(args[0]);
         }
-        if((panel==='status'||panel==='settings')&&['voice_status','voice_start','voice_stop','voice_set_mode','voice_save_key','voice_clear_key'].includes(method)){
+        if((panel==='status'||panel==='settings')&&['voice_status','voice_start','voice_stop','voice_set_mode','voice_reading_mode','voice_save_key','voice_clear_key'].includes(method)){
           if(method==='voice_status'&&args.length===0)return this.voiceView();
           if(method==='voice_start'&&args.length===0){await this.voice.start();return this.voiceView();}
           if(method==='voice_stop'&&args.length===0){await this.voice.stop('user');return this.voiceView();}
+          // Switching between silent reading and read-aloud is a persistent user
+          // choice, not a per-page flag: the voice gate must know it, otherwise
+          // ordinary reading in "read" mode is still blocked by the voice player.
+          if(method==='voice_reading_mode'&&args.length===1){
+            const mode=args[0];
+            if(mode!=='read'&&mode!=='voice')throw Error('Invalid voice reading mode');
+            if(!this.opts.persist)throw Error('Host settings persistence unavailable');
+            if(this.opts.cfg.voiceReadingMode!==mode){
+              this.opts.persist({voiceReadingMode:mode});
+              if(mode==='read'){
+                await this.voice.stop('user');
+                this.scheduler.setVoiceBatchMode(false);
+              } else {
+                this.scheduler.setVoiceBatchMode(this.opts.cfg.voiceOutputEnabled===true);
+              }
+            }
+            return this.voiceView();
+          }
           if(method==='voice_set_mode'&&args.length===1){
             if(typeof args[0]!=='boolean')throw Error('Invalid voice mode');
             const enabled=args[0];
@@ -846,7 +876,7 @@ export class BookfishWorld implements World {
       activeReadingMode: active ? (active.mode === 'background' ? 'background' : 'main') : null,
       hasExternalSinceIdle,
     }) || (this.voiceReadingTurn && !hasExternalSinceIdle);
-    if (this.opts.cfg.voiceOutputEnabled && !this.readingTurn) {
+    if (this.voiceGateOn() && !this.readingTurn) {
       // If the chat turn is about to stop active read-aloud, remember it so we can
       // resume automatically once the turn settles (unless something else changed).
       try {
@@ -933,7 +963,7 @@ export class BookfishWorld implements World {
     // (key/pending/book/chat); if it refuses, we simply stay stopped.
     if (this.resumeVoiceAfterChat) {
       this.resumeVoiceAfterChat = false;
-      if (this.opts.cfg.voiceOutputEnabled && !this.hasExternalSinceIdle()) {
+      if (this.voiceGateOn() && !this.hasExternalSinceIdle()) {
         void this.voice.start().catch((error) => {
           try { this.host?.log?.warn?.('Bookfish voice auto-resume failed', { error: String(error) }); } catch { /* ignore */ }
         });
@@ -954,7 +984,7 @@ export class BookfishWorld implements World {
    * confirmation opportunity for that segment. The voice gate keeps it to played text.
    */
   private voiceBatchTick(): void {
-    const voiceOn = this.opts.cfg.voiceOutputEnabled === true;
+    const voiceOn = this.voiceGateOn();
     this.scheduler.setVoiceBatchMode(voiceOn);
     if (!voiceOn) return;
     const current = this.library.status().current;

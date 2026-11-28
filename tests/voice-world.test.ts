@@ -14,7 +14,7 @@ const KEY = 'sk-test-voice-1234';
 beforeEach(() => { scratchDir = mkdtempSync(join(tmpdir(), 'bookfish-voice-world-')); });
 afterEach(() => { delete process.env.BOOKFISH_TTS_API_KEY; rmSync(scratchDir, { recursive: true, force: true }); vi.restoreAllMocks(); });
 
-function fakeEngine(): VoicePlaybackEngine & { calls: string[] } {
+function fakeEngine(gate: VoicePlaybackEngine['gate'] = () => ({ enabled: false, upper: null, bookKey: null, generation: null })): VoicePlaybackEngine & { calls: string[] } {
   const calls: string[] = [];
   const status = (): VoiceStatus => ({ enabled: true, phase: 'idle', bookKey: null, title: null, segmentId: null,
     voicedUpTo: null, totalSegments: null, keyConfigured: true, error: null, detail: null });
@@ -24,7 +24,7 @@ function fakeEngine(): VoicePlaybackEngine & { calls: string[] } {
     start: vi.fn(async () => { calls.push('start'); return status(); }),
     stop: vi.fn(async () => { calls.push('stop'); }),
     status,
-    gate: () => ({ enabled: false, upper: null, bookKey: null, generation: null }),
+    gate,
     onRunPhase: vi.fn(() => { calls.push('phase'); }),
     revalidate: vi.fn(async () => { calls.push('revalidate'); }),
     onConfigChanged: vi.fn(async () => { calls.push('config'); }),
@@ -34,10 +34,9 @@ function fakeEngine(): VoicePlaybackEngine & { calls: string[] } {
   };
 }
 
-function createWorld(secrets: Record<string, string>, stored: Record<string, string>) {
+function createWorld(secrets: Record<string, string>, stored: Record<string, string>, engine: VoicePlaybackEngine & { calls: string[] } = fakeEngine()) {
   const ctx = fakeWorldContext(BOOKFISH, { scratchDir });
   ctx.persist({ automaticReading: false, realRoutineEnabled: false });
-  const engine = fakeEngine();
   const world = new BookfishWorld({
     cfg: ctx.cfg, timezone: ctx.timezone, dataDir: ctx.dataDir,
     persist: patch => ctx.persist(patch),
@@ -96,6 +95,32 @@ describe('BookFish voice integration', () => {
     const saved = await world.webUi!('zh').invoke!('settings', 'save', [{ voiceOutputEnabled: true }]) as { config: { voiceOutputEnabled: boolean } };
     expect(saved.config.voiceOutputEnabled).toBe(true);
     expect(engine.calls).toContain('config');
+  });
+
+  it('gates reading only in read-aloud mode, so silent reading is never blocked by the voice player', async () => {
+    // A gate that is enabled but has not played anything would block requestNow
+    // while voice gating applies.
+    const engine = fakeEngine(() => ({ enabled: true, upper: null, bookKey: 'glacier', generation: 1 }));
+    const { ctx, world } = createWorld({}, {}, engine);
+    const invoke = world.webUi!('zh').invoke!;
+    ctx.persist({ voiceOutputEnabled: true, voiceReadingMode: 'voice' });
+    await world.start(new FakeHost());
+    try {
+      const imported = await invoke('status', 'import', [{ filename: 'gate.txt', title: '门控样本',
+        base64: Buffer.from('第一段。第二段。第三段。'.repeat(200)).toString('base64') }]) as { book: { key: string } };
+      await invoke('status', 'select', [imported.book.key]);
+      await expect(invoke('status', 'read_now', [imported.book.key])).rejects.toThrow(/语音朗读尚未播放到下一段/);
+
+      const read = await invoke('status', 'voice_reading_mode', ['read']) as { config: { voiceReadingMode: string } };
+      expect(read.config.voiceReadingMode).toBe('read');
+      expect(engine.calls).toContain('stop');
+      // The same gate no longer applies, so ordinary reading proceeds.
+      await expect(invoke('status', 'read_now', [imported.book.key])).resolves.toMatchObject({ accepted: true });
+
+      const voice = await invoke('status', 'voice_reading_mode', ['voice']) as { config: { voiceReadingMode: string } };
+      expect(voice.config.voiceReadingMode).toBe('voice');
+      await expect(invoke('status', 'voice_reading_mode', ['loud'])).rejects.toThrow(/Invalid voice reading mode/);
+    } finally { await world.stop(); }
   });
 
   it('stops read-aloud when the book or pause changes, but not on its own reading turn', async () => {
